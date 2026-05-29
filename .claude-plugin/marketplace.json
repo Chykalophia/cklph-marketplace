@@ -1,0 +1,15 @@
+{
+  "name": "cklph",
+  "description": "Peter's personal Claude OS marketplace — authoritative skills, hooks, agents, and conventions.",
+  "owner": {
+    "name": "Peter Krzyzek"
+  },
+  "plugins": [
+    {
+      "name": "cklph-os",
+      "source": "./plugins/cklph-os",
+      "description": "Peter's personal Claude OS — authoritative skills, hooks, and conventions.",
+      "category": "workflow"
+    }
+  ]
+}

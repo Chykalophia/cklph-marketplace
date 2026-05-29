@@ -1,0 +1,11 @@
+.DS_Store
+node_modules/
+*.log
+.claude/settings.local.json
+tmp/
+.env
+.env.*
+
+# Private overlay — personal / internal / client skills, refs, notes (never tracked)
+private/*
+!private/README.md

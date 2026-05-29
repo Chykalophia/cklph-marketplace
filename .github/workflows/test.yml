@@ -1,0 +1,18 @@
+name: Tests
+
+on:
+  push:
+  pull_request:
+
+jobs:
+  bats:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v5
+      - name: Install bats + jq
+        run: sudo apt-get update && sudo apt-get install -y bats jq
+      - name: Validate hook scripts (syntax)
+        run: |
+          for f in plugins/cklph-os/hooks/*.sh; do bash -n "$f"; done
+      - name: Run hook tests
+        run: bats test/
