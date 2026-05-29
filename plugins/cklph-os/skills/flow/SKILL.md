@@ -21,11 +21,14 @@ You **orchestrate**; the real work happens in the phase skills + sub-agents. Kee
 
 ## Auto-route on markers + self-correct
 Each phase/agent ends with a **marker** — parse it, don't guess from prose:
-`## PLAN VERIFIED`/`## PLAN ISSUES` · `## REVIEW CLEAN`/`## ISSUES FOUND` · `## VERIFIED`/`## GAPS FOUND` · `## TASK COMPLETE`/`## TASK BLOCKED`.
+`## PLAN VERIFIED`/`## PLAN ISSUES` · `## REVIEW CLEAN`/`## ISSUES FOUND` ·
+`## RED-TEAM CLEAR`/`## RED-TEAM FINDINGS` · `## VERIFIED`/`## GAPS FOUND` · `## TASK COMPLETE`/`## TASK BLOCKED`.
 Self-correcting loops:
 - `plan` re-runs (plan-check) until `## PLAN VERIFIED` — max 3 cycles, then escalate.
 - `verify`'s `## GAPS FOUND` → route the gap list back to `build` (gaps-only) → re-verify.
-- `review`'s `## ISSUES FOUND` → fix before proceeding.
+- `review`'s `## ISSUES FOUND` / `## RED-TEAM FINDINGS` → fix before proceeding.
+- **Auto-escalate review to red-team** at hard gates — changes touching security / auth / money / data
+  integrity / irreversible actions, and before `ship`. Otherwise standard intensity.
 
 ## 3. Discipline (context-rot mitigation)
 - Push work **into** phase skills + sub-agents; pull back only concise results.

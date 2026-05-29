@@ -32,37 +32,67 @@ fi
 echo "=== PRE-COMMIT QUALITY GATE ==="
 FAILURES=0
 
+# Resolve a locally-installed node binary (this project or a hoisted monorepo root).
+# Prints the path and returns 0 if found; returns non-zero otherwise. Never hits the network —
+# this is the difference between "tool not installed -> skip" and the old "npx tries to install
+# -> prints help -> exits non-zero -> we misreport it as errors and block the commit".
+local_bin() {
+    local name="$1" dir="$PWD" i=0
+    while [ "$i" -lt 6 ]; do
+        if [ -x "$dir/node_modules/.bin/$name" ]; then
+            printf '%s' "$dir/node_modules/.bin/$name"
+            return 0
+        fi
+        [ "$dir" = "/" ] && break
+        dir=$(dirname "$dir")
+        i=$((i + 1))
+    done
+    return 1
+}
+
 # Staged TS/TSX files (presence check). Reused by ESLint and Semgrep below.
 HAS_STAGED=$(git diff --cached --name-only --diff-filter=ACM -- '*.ts' '*.tsx' 2>/dev/null)
 
-# 1. TypeScript type check
+# 1. TypeScript type check — only when this is a TS project AND tsc is installed locally.
+#    A missing tsconfig or missing compiler SKIPS (never blocks); the repo's own gate enforces strictly.
 echo "--- TypeScript Check ---"
-if ! npx tsc --noEmit > /tmp/tsc-gate.txt 2>&1; then
-    echo "FAIL: TypeScript errors found" >&2
-    tail -5 /tmp/tsc-gate.txt >&2
-    FAILURES=$((FAILURES + 1))
+TSC_BIN=$(local_bin tsc || true)
+if [ -f tsconfig.json ] && [ -n "$TSC_BIN" ]; then
+    if ! "$TSC_BIN" --noEmit > /tmp/tsc-gate.txt 2>&1; then
+        echo "FAIL: TypeScript errors found" >&2
+        tail -5 /tmp/tsc-gate.txt >&2
+        FAILURES=$((FAILURES + 1))
+    else
+        echo "PASS: TypeScript"
+    fi
+elif [ ! -f tsconfig.json ]; then
+    echo "SKIP: no tsconfig.json (not a TypeScript project)"
 else
-    echo "PASS: TypeScript"
+    echo "SKIP: tsc not installed locally"
 fi
 
-# 2. ESLint (staged files only, NUL-delimited so filenames with spaces are safe)
+# 2. ESLint (staged files only, NUL-delimited so filenames with spaces are safe).
+#    Runs only when eslint is installed locally; otherwise SKIPS (never blocks).
 echo "--- ESLint Check ---"
-if [ -n "$HAS_STAGED" ]; then
+ESLINT_BIN=$(local_bin eslint || true)
+if [ -n "$HAS_STAGED" ] && [ -n "$ESLINT_BIN" ]; then
     if ! git diff --cached -z --name-only --diff-filter=ACM -- '*.ts' '*.tsx' \
-        | xargs -0 npx eslint --max-warnings=28 > /tmp/eslint-gate.txt 2>&1; then
+        | xargs -0 "$ESLINT_BIN" --max-warnings=28 > /tmp/eslint-gate.txt 2>&1; then
         echo "FAIL: ESLint errors found" >&2
         tail -5 /tmp/eslint-gate.txt >&2
         FAILURES=$((FAILURES + 1))
     else
         echo "PASS: ESLint"
     fi
-else
+elif [ -z "$HAS_STAGED" ]; then
     echo "SKIP: No staged .ts/.tsx files"
+else
+    echo "SKIP: eslint not installed locally"
 fi
 
-# 3. Semgrep custom rules (staged files only, if installed)
+# 3. Semgrep custom rules (staged files only; requires both semgrep AND a .semgrep/ config dir).
 echo "--- Semgrep Check ---"
-if command -v semgrep >/dev/null 2>&1 && [ -n "$HAS_STAGED" ]; then
+if command -v semgrep >/dev/null 2>&1 && [ -d .semgrep ] && [ -n "$HAS_STAGED" ]; then
     if ! git diff --cached -z --name-only --diff-filter=ACM -- '*.ts' '*.tsx' \
         | xargs -0 semgrep scan --config .semgrep/ --severity ERROR --quiet --error > /tmp/semgrep-gate.txt 2>&1; then
         echo "FAIL: Semgrep ERROR-level findings" >&2
@@ -73,6 +103,8 @@ if command -v semgrep >/dev/null 2>&1 && [ -n "$HAS_STAGED" ]; then
     fi
 elif ! command -v semgrep >/dev/null 2>&1; then
     echo "SKIP: Semgrep not installed"
+elif [ ! -d .semgrep ]; then
+    echo "SKIP: no .semgrep/ config in this repo"
 else
     echo "SKIP: No staged .ts/.tsx files for Semgrep"
 fi

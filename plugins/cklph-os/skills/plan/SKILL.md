@@ -7,7 +7,9 @@ description: The PLAN phase of the cklph-os flow — decompose a spec into a wav
 
 Decompose the spec into **small, independently-verifiable tasks** — each a **vertical slice** that works end-to-end, ordered **bottom-up** (foundations first). For each task note:
 - what it changes,
-- its acceptance check,
+- its **acceptance check as an executable command** that distinguishes pass from fail (a test / build /
+  `curl … → 201`), not prose — if you can't write the command, the task isn't understood yet,
+- its **out of scope** — the tempting nearby work this task must NOT touch,
 - its dependencies.
 
 Group tasks into **waves**: tasks with no unmet dependency share a wave (they'll run in parallel);
@@ -18,6 +20,9 @@ the framework (Next.js ≠ pure React).
   fast); insert a **checkpoint** after the foundation wave (review before fanning out).
 - **Contract-first** — when parallel slices in a wave share an API/type surface, add a **Slice 0: define
   the contract** task (see `api-design`) that lands first, so the rest build against a fixed interface.
+
+*(Leverage gradient — an error costs ~100× to fix if it slips through research, ~10× through the plan,
+and 1× in code; so front-load rigor here.)*
 
 **Verify the plan** before building — run `cklph-reviewer` in plan-check mode (checklist: `@plan-check.md`);
 re-plan on findings, **max 3 cycles**, stop if not converging.

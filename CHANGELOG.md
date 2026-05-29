@@ -3,6 +3,53 @@
 All notable changes to cklph-os are documented here.
 Format: [Keep a Changelog](https://keepachangelog.com); versioning follows [SemVer](https://semver.org).
 
+## [0.6.0] — 2026-05-29
+
+### Added
+- **`performance` skill** — measure-first optimization loop (measure → identify → fix → verify → guard),
+  Core Web Vitals targets, a symptom→bottleneck map, and the top anti-pattern fixes (N+1, unbounded
+  fetch, image/CLS, React re-renders, bundle splitting, caching).
+- **`frontend-ui` skill** — production-quality UI: composition over configuration, data/presentation
+  split, a state-selection ladder, anti-"AI-aesthetic" design-system adherence, WCAG 2.1 AA
+  (keyboard / ARIA / focus / contrast), dark-mode pairing, and required loading/error/empty states.
+- **Red-team adversarial layer:**
+  - `cklph-reviewer` gains a third review axis — **Omissions** (what wasn't asked: unstated
+    requirements, uncovered edge cases / failure modes, missing acceptance criteria, unscoped
+    error/security paths).
+  - New **`red-team` agent** — maximum-intensity escalation for high-stakes changes (security / auth /
+    money / data integrity / irreversible / pre-release): assumes the change is broken until proven,
+    burden-of-proof on every reliant claim, an enumerate-then-disprove protocol, and a
+    failure-injection attack checklist.
+  - `review` gains a **standard | red-team** intensity; `flow` **auto-escalates** to red-team at hard
+    gates. New markers `## RED-TEAM CLEAR` / `## RED-TEAM FINDINGS`.
+- **Build-loop hardening (audited from the SaaS Product Architect instruction set):**
+  - **Compaction notes per wave** — `build` + `cklph-implementer` emit a handoff (what shipped /
+    deviations / state + files the next wave loads), so waves and resumed sessions continue without
+    re-deriving context.
+  - **Executable acceptance commands** — `plan` tasks carry a runnable pass/fail command (not prose);
+    `verify` runs them. "If you can't write the command, the task isn't understood."
+  - **Out-of-scope field** + **anti-pattern pairing** in the task brief — fights implementer scope-creep
+    and teaches from negative examples (`build`, `plan`, `cklph-implementer`, `spec-authoring-rules`).
+  - **Review-leverage gradient** rationale in `plan` (an error costs ~100× / 10× / 1× to fix at
+    research / plan / code).
+  - **Refinement impact-cascade** mode in `refine` — a mid-flight requirement change marks stale
+    spec/plan/built slices and routes re-work instead of drifting silently.
+  - New **`build/failure-modes.md`** lazy ref — named wave failures (off-script, invented API,
+    scope-creep, same-file clobber, rubber-stamp) + fixes.
+
+### Fixed
+- **`pre-commit-gate.sh`** no longer blocks commits in repos that lack a local `tsc`/`eslint` — a
+  missing tool now **skips** that check instead of being misreported as "errors found" (the false
+  positive that blocked `git commit` when `npx` couldn't resolve the compiler/linter).
+
+### Why
+- The two new skills close the only real gaps left when `agent-skills` was disabled for the
+  cklph-os-only cutover: `performance-optimization` (no prior equivalent) and `frontend-ui-engineering`
+  (high-value for the Next.js/React stack). Security was already covered by `security-hardening`.
+- The red-team layer closes the third adversarial dimension — *what was missed / never asked* — that
+  standards+spec review structurally can't catch. The `npx`-tool-missing false positive fixed above was
+  exactly such an unspecced failure mode, which a spec-only review sails past.
+
 ## [0.5.1] — 2026-05-29
 
 ### Changed

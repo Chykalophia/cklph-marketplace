@@ -15,6 +15,8 @@ code lines.** Author for an AI agent to *execute*, not just to read.
   `## [REFERENCE]` / `## [INFORMATIONAL]` (read, don't act). Agents over-act on context without this.
 - **State out-of-scope explicitly** per task ("Do NOT add admin logic — separate change"). Agents
   over-generalize without negation.
+- **Pair every example with its anti-pattern.** When you point at code to follow, also name the tempting
+  *wrong* approach + why it's wrong — agents learn from negative examples, not just positive ones.
 - **Required Context (load first):** list the exact files + section ranges the implementer must read
   before starting, so it loads proactively instead of discovering mid-build. (Internal-codebase context;
   Context7 covers external library docs.)

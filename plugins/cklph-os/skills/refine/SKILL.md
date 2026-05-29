@@ -14,6 +14,12 @@ Use when the ask is vague. Divergent, then convergent — don't jump to a plan.
 
 To converge, use the rubric in `@criteria.md` (painkiller-vs-vitamin, value × feasibility, assumption tiers).
 
+## Mid-flight change (impact cascade)
+When a requirement changes *during* spec/plan/build, don't just patch the one spot — **cascade**:
+identify which **spec sections, plan tasks, and already-built slices** the change invalidates, mark them
+**stale**, and route the stale tasks back through `plan` / `build`. An unflagged downstream artifact is
+a silent-drift bug.
+
 **Output:** a one-paragraph problem statement + recommended direction. Hands off to `spec`.
 
 Be a sharp thinking partner, not a yes-machine — push back on weak ideas with specifics.
