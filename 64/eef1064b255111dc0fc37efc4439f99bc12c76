@@ -1,0 +1,22 @@
+STANDARD.md
+  s_01bcf62932d749::t_93ae5a4e342809 1,36,81,154,160-161,177
+  s_01bcf62932d749::t_13d65aadbf4a05 7
+README.md
+  s_01bcf62932d749::t_67c289560792fa 7,54,84
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.5.2",
+  "base_commit_sha": "64eef1064b255111dc0fc37efc4439f99bc12c76",
+  "prompts": {},
+  "sessions": {
+    "s_01bcf62932d749": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "bbdb5558-1f23-40f0-b2a2-c48727669288",
+        "model": "claude-opus-4-7"
+      },
+      "human_author": "Peter Krzyzek <peter@chykalophia.com>"
+    }
+  }
+}
