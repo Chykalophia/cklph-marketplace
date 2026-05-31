@@ -3,6 +3,22 @@
 All notable changes to cklph-os are documented here.
 Format: [Keep a Changelog](https://keepachangelog.com); versioning follows [SemVer](https://semver.org).
 
+## [0.8.0] — 2026-05-30
+
+### Added — daily-rhythm primitives
+- **`triage`** — value × urgency × energy filter for "what's worth my next 25 minutes." Routes each
+  open item into do-now / schedule / delegate / drop with a one-line *why*. Domain-agnostic (inbox,
+  tickets, opportunities, requests). Anti-pattern: triaging without a routed-list deliverable.
+- **`decide`** — 5-minute frame for non-trivial choices, gated by a **one-way / two-way door filter
+  at the top**. Two-way → just pick (skip the skill). One-way → run the frame (problem · options ·
+  criteria · pick · **reversal signal**). Domain-agnostic (hire/fire, framework upgrade, hard email,
+  client take/decline).
+- **`daily-frame`** — one skill, two modes: **morning** (one focus / what's at risk / what a win
+  looks like) and **evening shutdown** (what shipped / what didn't and why / tomorrow's one focus).
+  Action-shaped, not journaling.
+- **`weekly-review`** — short periodic retro: what worked, what was recurring friction, **one** thing
+  learned, next week's **ONE** focus. Discipline is selectivity — anti-pattern is a 30-item list.
+
 ## [0.7.1] — 2026-05-30
 
 ### Added — new skills
