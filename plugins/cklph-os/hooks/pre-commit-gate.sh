@@ -29,6 +29,26 @@ if ! printf '%s' "$COMMAND" | grep -qE '(^|/)git[[:space:]]+commit'; then
     exit 0
 fi
 
+# Skip merge commits — CI is the right gate for release merges (dev -> staging -> main),
+# not this hook. MERGE_HEAD exists during an in-progress merge and is cleared on commit.
+# This avoids the gate failing on the thousands of unchanged-but-restaged files a merge
+# can produce (e.g. after a tree-wide formatter change). Real bug surfaced 2026-05-31.
+if git rev-parse -q --verify MERGE_HEAD >/dev/null 2>&1; then
+    echo "pre-commit-gate: skipping merge commit — CI is the gate for merges"
+    exit 0
+fi
+
+# Safety net for unusually large stages (bulk reformats, mass refactors).
+# The gate's value is incremental quality on dev commits; on 500+ file stages it's
+# slower than useful AND can trip on files eslint would normally ignore via its own
+# discovery + ignore rules (we pass files explicitly here, which bypasses .eslintignore).
+# Trust CI for bulk changes.
+STAGED_COUNT=$(git diff --cached --name-only --diff-filter=ACM 2>/dev/null | wc -l | tr -d ' ')
+if [ "${STAGED_COUNT:-0}" -gt 500 ]; then
+    echo "pre-commit-gate: skipping — ${STAGED_COUNT} staged files (too many for incremental gate; trusting CI)"
+    exit 0
+fi
+
 echo "=== PRE-COMMIT QUALITY GATE ==="
 FAILURES=0
 
