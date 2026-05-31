@@ -26,16 +26,36 @@ Use both — they are layered, not competing:
 | **Framework patterns** | `vercel:*` | `vercel:nextjs`, `vercel:react-best-practices`, `vercel:routing-middleware`, `vercel:shadcn`, `vercel:turbopack`, `vercel:auth`, `vercel:ai-sdk` |
 | **Peter's house style on top** | `cklph-nextjs` | layered `lib/` architecture, mutation security checklist, data-layer abstraction, 12 accumulated review pitfalls, cross-cutting discipline rules |
 
-## What's inside (v0.1.0)
+## What's inside (v0.2.0)
 
-- `architecture` — layered `lib/` structure (services / data / middleware / security / utils / validation).
-- `security` — security checklist for mutations (rate-limit FIRST · CSRF on state-change · `getUser()` not `getSession()` · Zod on all input · correct Supabase client by intent).
-- `api-routes` — route handler patterns: `compose()` middleware, `ServiceResult` success/failure shape, when to set `dynamic = "force-dynamic"`.
-- `data-layer` — no raw `fetch("/api/...")` in components or hooks; route everything through `authFetcher` / `useAuthQuery` / `useAuthMutation` (401 refresh-retry + CSRF + dedupe + invalidation).
-- `pitfalls` — the 12 cumulative review pitfalls catalog (React updater purity, optimistic-update drift, Supabase `range()` inclusivity, `{count: "exact"}` for pagination, JSON.parse before Zod, state-machine catch blocks, etc.).
-- `discipline` — cross-cutting rules (zero `any` · dark mode + WCAG AA on all new UI · Tailwind+ShadCN only · search-before-create · DRY at 3+ · Stripe prices from DB · migrations via CLI not MCP · 500-line file limit).
+### Foundations
+- `architecture` — layered `lib/` structure (services / data / middleware / security / utils / validation) + "Why these layers" linking each to a principle from `cklph-os:design`.
+- `discipline` — cross-cutting house rules (Tailwind+ShadCN only · search-before-create · DRY at 3+ · branch safety · dark mode + WCAG AA · zero `any` · 500-line file limit · regen types after every migration).
+- `pitfalls` — the 12 cumulative review-catch patterns with one-line WRONG-code examples (React updater purity, optimistic-update drift, Supabase `range()` inclusivity, `{count: "exact"}` for pagination, JSON.parse before Zod, state-machine catch blocks, etc.).
 
-Planned for later: `supabase-migrations`, `qstash`, `google-pubsub`, `postgres-best-practices`, `ui-quality-standards` (dark mode + WCAG details).
+### Mutation security
+- `security` — ordered checklist (rate-limit FIRST · CSRF · `getUser()` · Zod · correct Supabase client by intent) + specific attack vectors (SQLi / IDOR / XSS / path traversal / open redirect / secrets-in-URL).
+- `auth` — Supabase auth flows: sign-in / sign-up / OAuth callback / password reset / multi-tenant gating.
+
+### Route shapes
+- `api-routes` — route handler patterns: `compose()` middleware, `ServiceResult` shape, `dynamic = "force-dynamic"`, `verifyCronAuth`.
+- `server-actions` — the `"use server"` boundary; when to use a server action vs an API route.
+
+### Data access
+- `data-layer` — no raw `fetch("/api/...")` in components or hooks; route through `authFetcher` / `useAuthQuery` / `useAuthMutation`.
+- `data-model` — the Supabase-generated `lib/types/database.ts` is the source of truth; how to read `Row` / `Insert` / `Update` / `Enums` types.
+- `supabase-migrations` — CLI-first workflow + RLS policy template + rollback discipline.
+- `postgres` — index design, `EXPLAIN ANALYZE`, pgbouncer pooling, JSONB `gin` patterns.
+
+### Background + webhooks
+- `qstash` — Upstash QStash for background jobs (signature verification, idempotency, state machine).
+- `pubsub` — Google Pub/Sub webhooks (always 200, JWT verification, atomic dedup, BigInt comparison).
+
+### Quality
+- `testing` — Vitest + Playwright coverage tiers; mock the data-layer, not the network.
+- `ui-quality` — dark mode + WCAG AA deep dive: `dark:` variants, contrast thresholds, `:focus-visible`, keyboard nav, ARIA, screen-reader smoke tests.
+- `error-handling` — `ServiceResult` returns, user-surface vs log-only, Sentry capture-at-boundary.
+- `config` — typed env vars (Zod / `@t3-oss/env-nextjs`) + graceful degradation (missing env = feature off, not error).
 
 ## Install
 

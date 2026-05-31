@@ -54,7 +54,8 @@ Cheaper than rolling back a wrong guess.
 - Hooks/scripts reference `${CLAUDE_PLUGIN_ROOT}` (plugin) or `$CLAUDE_PROJECT_DIR` (repo) —
   **never** absolute paths. This is the rule that prevents cross-project drift.
 - Instructions live in `AGENTS.md`; `CLAUDE.md` is `@AGENTS.md` plus Claude-only notes.
-- Memory: `~/.claude/memory/GLOBAL.md` (cross-project) + per-repo `STATE.md`.
+- Memory: `~/.claude/memory/GLOBAL.md` (cross-project) + per-repo `STATE.md`. **At task start, scan
+  recent `feedback`-type memory entries** relevant to the work (by topic, not exhaustively) — see `learn`.
 - Keep context lean: check `claude plugin details cklph-os` token cost before adding skills.
 
 ## Surface awareness

@@ -34,7 +34,7 @@ Read the `pricing_tiers` table for price IDs and tier metadata. Never hardcode a
 
 ## Schema changes via CLI, not MCP
 
-`supabase migration new` then `supabase db push`. Migrations are checked-in source. The Supabase MCP is for read-only research (querying data, inspecting schema), never for DDL.
+`supabase migration new` then `supabase db push`. Migrations are checked-in source. The Supabase MCP is for read-only research (querying data, inspecting schema), never for DDL. **After every migration, regenerate types** — `supabase gen types typescript --linked > lib/types/database.ts` — and commit the regenerated file **in the same commit as the migration**. See **data-model** for how to consume them.
 
 ## DRY at three
 
