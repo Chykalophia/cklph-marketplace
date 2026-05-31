@@ -28,6 +28,31 @@ A real mistake *captured* is one you won't repeat. Skip = guaranteed re-do, ofte
 - **Scope** — project-specific (save with project scope) or cross-project (also surface for
   `GLOBAL.md` update). If unsure, project-specific is the safer default; promote later if it recurs.
 
+## Persist the lesson (do this explicitly)
+This skill does **not** save automatically — you must invoke the **Write** tool to create the memory
+file, or the lesson dies with this session.
+
+1. **Pick a slug** — kebab-case, topic-leading (e.g. `gate-blocks-merge-commits`,
+   `react-strict-mode-side-effects`).
+2. **Write the file** at `<memory-dir>/feedback_<slug>.md`. The memory dir comes from your harness
+   instructions — typically `~/.claude/projects/<project-hash>/memory/`.
+3. **Body** — the four fields from "Capture format" above (Rule / Why / How to apply / Scope).
+4. **Index it** — append `- [<slug>](feedback_<slug>.md) — <one-line hook>` to
+   `<memory-dir>/MEMORY.md` so future sessions can find it.
+
+Frontmatter for the memory file:
+
+```yaml
+---
+name: <slug>
+description: <one-line summary — used for relevance on future tasks>
+metadata:
+  type: feedback
+---
+```
+
+Skip steps 2-4 and the lesson is just thinking; it never reaches the next session.
+
 ## What NOT to capture
 - **One-off typos** any human would have caught — those don't generalize.
 - **Anything already in `AGENTS.md` / `CLAUDE.md`** — those are authoritative; don't duplicate.

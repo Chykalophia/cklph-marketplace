@@ -9,8 +9,9 @@ Compact the live session into a short handoff so a fresh agent (or future-you) r
 re-deriving context. Trigger when context is filling, at session end, or when switching tasks. If the
 user names a focus for the next session, tailor the doc to it.
 
-Write it to a **temp file** — `"$TMPDIR/handoff-<repo>-<date>.md"` (fall back to `/tmp/…`), **not** the
-repo: it's ephemeral. Durable working state still belongs in `STATE.md`; this is just the session bridge.
+Write it to a **temp file** — `"$TMPDIR/handoff-<repo>-<date>T<HHMMSS>.md"` (fall back to `/tmp/…`;
+include the time so concurrent or same-day sessions don't clobber each other), **not** the repo —
+it's ephemeral. Durable working state still belongs in `STATE.md`; this is just the session bridge.
 
 ## Contents (reference, don't duplicate)
 - **Goal** — what we're doing + why, in 1–2 lines.

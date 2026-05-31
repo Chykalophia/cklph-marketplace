@@ -93,11 +93,13 @@ fi
 
 # 2. ESLint (staged files only, NUL-delimited so filenames with spaces are safe).
 #    Runs only when eslint is installed locally; otherwise SKIPS (never blocks).
+#    Warning budget defaults to 0; per-repo override via CKLPH_ESLINT_MAX_WARNINGS env var.
 echo "--- ESLint Check ---"
 ESLINT_BIN=$(local_bin eslint || true)
+ESLINT_MAX_WARNINGS="${CKLPH_ESLINT_MAX_WARNINGS:-0}"
 if [ -n "$HAS_STAGED" ] && [ -n "$ESLINT_BIN" ]; then
     if ! git diff --cached -z --name-only --diff-filter=ACM -- '*.ts' '*.tsx' \
-        | xargs -0 "$ESLINT_BIN" --max-warnings=28 > /tmp/eslint-gate.txt 2>&1; then
+        | xargs -0 "$ESLINT_BIN" --max-warnings="$ESLINT_MAX_WARNINGS" > /tmp/eslint-gate.txt 2>&1; then
         echo "FAIL: ESLint errors found" >&2
         tail -5 /tmp/eslint-gate.txt >&2
         FAILURES=$((FAILURES + 1))
