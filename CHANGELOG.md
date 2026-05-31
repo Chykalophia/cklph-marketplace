@@ -3,6 +3,20 @@
 All notable changes to cklph-os are documented here.
 Format: [Keep a Changelog](https://keepachangelog.com); versioning follows [SemVer](https://semver.org).
 
+## [0.8.1] — 2026-05-30
+
+### Added
+- **Principles surface** — `using-cklph` now opens with a tight 5-principle block (Lean / Boring-wins /
+  DRY / Spine-not-walled-garden / Evidence-over-vibes) so values are unmissable before any
+  skill-routing decision. Surfaced from `STANDARD.md`, inspired by next-forge's principles-front-and-center pattern.
+
+### Sibling plugin launched
+- **`cklph-nextjs` v0.1.0** — Peter's opinionated Next.js + Supabase patterns now live in a sibling
+  plugin in the same `cklph` marketplace. Auto-loads across his Next.js + Supabase repos
+  (MailPrism / SendBriefs / BeforeMerge / ApertureStack), **composing with `vercel:*` framework
+  skills rather than replacing them**. Install: `claude plugin install cklph-nextjs@cklph`. See
+  `plugins/cklph-nextjs/CHANGELOG.md` for its own version log.
+
 ## [0.8.0] — 2026-05-30
 
 ### Added — daily-rhythm primitives
