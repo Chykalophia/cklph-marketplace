@@ -20,6 +20,10 @@ Triage the findings:
 - **Critical / High** — fix before proceeding (inline, or dispatch a follow-up `cklph-implementer`).
 - **Medium / Low / Nit** — fix now if cheap, else note for follow-up.
 
+**Change-sizing lens.** Target ~100 LOC for an easy review; ~300 acceptable for one logical change;
+~1000+ must be split (stack the PRs / by-file-group / horizontal / vertical) — flag oversize work as a
+finding, not "review anyway."
+
 The `pre-commit-gate` hook is the automatic backstop at commit time — not a substitute for this gate.
 Proceed on `## REVIEW CLEAN` / `## RED-TEAM CLEAR`; loop (fix → re-review) on `## ISSUES FOUND` /
 `## RED-TEAM FINDINGS`. Hands off to `verify`.

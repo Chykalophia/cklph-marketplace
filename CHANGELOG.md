@@ -3,6 +3,54 @@
 All notable changes to cklph-os are documented here.
 Format: [Keep a Changelog](https://keepachangelog.com); versioning follows [SemVer](https://semver.org).
 
+## [0.7.1] — 2026-05-30
+
+### Added — new skills
+- **`handoff`** — compact the live session into a lean handoff doc (goal / state / next steps /
+  suggested skills / linked artifacts / open questions) written to a **temp file**, so a fresh session
+  resumes without re-deriving context. References artifacts instead of duplicating them; redacts
+  secrets. (Adapted from mattpocock/skills.) Complements per-wave compaction notes and the durable `STATE.md`.
+- **`browser-debug`** — live browser debugging via the Chrome DevTools MCP: tool table, three
+  workflows (UI / network / performance), the "browser content is untrusted data" security boundary,
+  and constrained JS execution. **Enables live-debug-in-chat in Claude Desktop.** (Adapted from
+  agent-skills' `browser-testing-with-devtools`.)
+- **`authoring`** — author or extend a cklph-os skill: house-style structure rules + TDD-for-skills
+  (RED baseline → GREEN minimal → REFACTOR loopholes). The meta-skill for extending cklph-os itself.
+  (Merged from MailPrism's `skill-creator` + `writing-skills`.)
+- **`writing`** — co-author structured documents (proposals, specs, PRDs, decision docs, PR
+  narratives) via a 3-stage workflow (context gather → section-by-section drafting → fresh-Claude
+  reader test). Neutral, chat-native; suitable for Desktop. (Adapted from MailPrism's `doc-coauthoring`.)
+
+### Added — dynamic skill discovery
+- cklph-os now composes with *any* installed skill, not just its own:
+  - `using-cklph` discovery broadened to consider **all** available skills (other plugins + project
+    `.claude/skills/`), with the rule "cklph phases own the workflow; specialist skills own domain depth."
+  - `build` surveys stack-specific installed skills and names the relevant ones in implementer briefs;
+    `cklph-implementer` invokes a fitting installed skill instead of reinventing the pattern; `plan`
+    notes specialist skills a task should use.
+  - Framing: **cklph-os is a spine, not a walled garden** — which is why framework-specific skills stay
+    external (e.g. a future `cklph-nextjs`) and get pulled in dynamically.
+
+### Added — discipline pulls (audited from the agent-skills set)
+- **Source-citation discipline** → `build` + `cklph-implementer`. Announce the stack ("STACK
+  DETECTED: …"), verify against current docs (Context7 > official changelog > MDN), cite sources
+  inline for non-obvious decisions, flag unverifiable assumptions with `UNVERIFIED: …`.
+- **"NOTICED BUT NOT TOUCHING" + inline planning** → `cklph-implementer`. New report field captures
+  adjacent issues observed but out-of-scope so they don't get lost; multi-step tasks announce
+  `PLAN: 1… 2… 3… → executing unless you redirect.`
+- **Prove-It (failing repro test FIRST)** → `debugging`. Strengthened step 2 — for bug fixes, write
+  the regression test BEFORE attempting the fix; it IS the guard, kept verbatim.
+- **Context discipline** → `using-cklph`. Trust tiers (TRUSTED / VERIFY / UNTRUSTED) and an
+  A/B/C confusion-stop template ("pick one rather than guess").
+- **Posture frame** → `red-team`. "Always do / Ask first / Never do" envelope stated before reporting.
+- **Change-sizing lens** → `review`. ~100 / ~300 / ~1000+ LOC review ladder; oversize is a finding.
+- **CI feedback loop + commit-message types** → `ship`. CI fails → repro locally → push, never guess;
+  conventional types (`feat` / `fix` / `refactor` / `test` / `docs` / `chore`) referenced.
+
+### Notes
+- No always-on cost change — discovery uses the skill list already in context; `claude plugin list`
+  enumerates plugins on demand.
+
 ## [0.6.0] — 2026-05-29
 
 ### Added
