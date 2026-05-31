@@ -15,9 +15,11 @@ A real mistake *captured* is one you won't repeat. Skip = guaranteed re-do, ofte
 - **Console / build / test signal** — an error, warning, type error, or failed assertion that
   revealed a *wrong mental model* (not a typo — those don't generalize). Examples — wrong type
   inferred, wrong DB column required vs optional, wrong async boundary, wrong RLS predicate.
-- **Code-review feedback** — human or AI (e.g. CodeRabbit / cklph-reviewer / red-team). PR comments
-  in the form *"issue + recommended fix"* are pre-distilled lessons. Capture the **fix** as the rule
-  and the **issue category** (not the specific code) as the *how-to-apply* trigger. Skip nits.
+- **Code-review feedback** — human or AI (CodeRabbit / cklph-reviewer / red-team). PR comments in
+  the form *"issue + recommended fix"* are pre-distilled lessons. **Fetch with**
+  `gh pr view <PR#> --comments` for top-level comments, or
+  `gh api repos/<owner>/<repo>/pulls/<PR#>/comments` for inline review comments. Capture the **fix**
+  as the rule and the **issue category** (not the specific code) as the *how-to-apply* trigger. Skip nits.
 - **Task-end retrospective** — at end of task, ask: *"was anything non-obvious here that future-me
   should have known going in?"* If yes, capture.
 
@@ -52,6 +54,18 @@ metadata:
 ```
 
 Skip steps 2-4 and the lesson is just thinking; it never reaches the next session.
+
+## Prune stale memory
+Memory drifts. A lesson from six months ago may apply to code that doesn't exist anymore. The harness
+truncates `MEMORY.md` past 200 lines — entries that fall past line 200 vanish silently.
+
+Once a week (pair with `weekly-review`), scan recent `feedback`-type entries and:
+- **Update** entries where the rule still holds but the *example* changed (the code or system moved).
+- **Delete** entries that no longer apply (the system / pattern / dependency they referenced is gone).
+- **Promote** entries with project-specific scope that now matter cross-project to `GLOBAL.md`.
+
+Active pruning beats silent truncation. Lessons you remove deliberately stay learned; lessons that
+vanish past line 200 are gone.
 
 ## What NOT to capture
 - **One-off typos** any human would have caught — those don't generalize.

@@ -3,6 +3,41 @@
 All notable changes to cklph-os are documented here.
 Format: [Keep a Changelog](https://keepachangelog.com); versioning follows [SemVer](https://semver.org).
 
+## [0.8.6] — 2026-05-31
+
+### Added
+- **`pre-commit-gate.sh` now lints `SKILL.md` descriptions for colon-space.** A `word: word` inside a
+  frontmatter description value re-parses as a nested YAML key, breaking plugin loading. Real
+  previously-hit bug; the gate now catches any regression at commit time.
+
+### Fixed
+- **`harness-limits` rewritten to distinguish hard classifier blocks from soft care rules.** Previous
+  version conflated the two and would have caused Claude to wait for explicit user authorization on
+  locally-reversible actions because the skill lumped "irreversible ops" with "classifier denies":
+  - **Layer A — hard blocks** (push outside trusted org, disable safety gate, route around denied
+    action). Route: hand back to user with exact terminal commands. Alternative tools also denied.
+  - **Layer B — care rules** (force-push, hard reset, `rm -rf`, delete prod data, mass external
+    messages). Route: ASK the user with specific action + blast radius; do not pre-emptively hand to
+    terminal.
+- **`using-cklph` now directs Claude to `harness-limits` on tool denial.** New "When a tool call is
+  denied" section closes the "Claude reflects, doesn't immediately route" gap that meant
+  `harness-limits` only fired by luck.
+- **`learn` documents how to FETCH PR review comments.** Trigger said "PR comments are pre-distilled
+  lessons" — useful framing, useless instruction. Now includes the `gh pr view <PR#> --comments` (and
+  `gh api .../comments` for inline) commands so the trigger is actionable.
+- **Memory pruning is now part of the loop.** `learn` gains a "Prune stale memory" section
+  (update / delete / promote). `weekly-review` gains a "Prune stale memory (60 seconds)" step.
+  Active pruning beats `MEMORY.md` silently truncating at line 200.
+- **`nextjs-quality-check.sh` word-boundary bugs.** Old regexes flagged `useStateOf` /
+  `useEffect comment` / `"onClick handler"` as interactive features (substring match). Now uses
+  `\b...\b`. Page default-export check also now handles arrow functions (`export default async () => …`)
+  which the old check missed.
+
+### Token cost note
+- Always-on description load ~2,000 tokens (across ~28 cklph-os skills + 3 agents). Up from ~1,445 at
+  v0.5; reflects the ~12 new skills added since. Per-skill descriptions land in the 70-120 token band.
+  Not at concern threshold — flagging for future reference.
+
 ## [0.8.5] — 2026-05-31
 
 ### Added
