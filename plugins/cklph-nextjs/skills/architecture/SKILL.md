@@ -18,6 +18,20 @@ Every project in the cklph stack (MailPrism, SendBriefs, BeforeMerge, ApertureSt
 | `lib/utils/`      | Pure helpers — formatters, type guards, Supabase client factories. |
 | `lib/validation/` | Zod schemas. One file per domain. Schemas are the boundary contract. |
 
+## Why these layers (see `design`)
+Each layer enforces one principle from `cklph-os:design`:
+- `lib/services` — **SRP**: business logic has one reason to change. Different domain → different service.
+- `lib/data` — **DIP**: components depend on a stable abstraction (`authFetcher` / `useAuthQuery` /
+  `useAuthMutation`), never on the underlying HTTP transport.
+- `lib/middleware` — **OCP**: extend the request pipeline by composing new middleware, never by editing
+  existing route handlers.
+- `lib/security` — **SRP** + **ISP**: security primitives sit apart from business logic — one audit
+  surface, one reviewer.
+- `lib/utils` — **DRY**: extract here only at the third repetition.
+- `lib/validation` — **SRP**: input shape is its own concern, separate from what the API does with it.
+
+This skill is the *wiring* — see `design` for the principles. Don't restate them here.
+
 ## Dependency direction
 
 ```
@@ -48,4 +62,4 @@ components / app  →  lib/data  →  app/api  →  lib/services  →  Supabase
 - Service file `> 500` lines → split by responsibility (`*-reader`, `*-writer`, `*-evaluator`).
 - Same logic in 3+ places → extract NOW, not "later".
 
-Pair with **service-layer-patterns** for `ServiceResult<T>` conventions, **api-routes** for `compose()` middleware, **security** for the mutation checklist.
+Pair with **api-routes** for `compose()` middleware and `ServiceResult<T>` conventions, **security** for the mutation checklist, and **`cklph-os:design`** for the principles each layer enforces.
