@@ -1,0 +1,8 @@
+{
+  "name": "cklph-eos",
+  "description": "Peter's operating cadence as a Claude plugin. Quarterly priorities, weekly sync, scorecard, issues resolution, people-fit checks, accountability mapping. Codifies the discipline; no branded IP republished.",
+  "version": "0.1.0",
+  "author": {
+    "name": "Peter Krzyzek"
+  }
+}
