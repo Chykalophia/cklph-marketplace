@@ -12,6 +12,15 @@ description: The BUILD phase of the cklph-os flow — execute a plan's task-grap
 Confirm the stack (read `AGENTS.md` + `package.json`). A `next` dependency = **Next.js**, *not* pure
 React — App Router, Server vs Client Components, route handlers apply. Monorepos: per-package stack.
 
+Then **survey installed skills that fit the stack/task** (your context lists them; `claude plugin list`
+for plugins) and name the relevant ones in each implementer's brief — e.g. a Next.js or domain skill —
+so the implementer uses the specialist instead of reinventing it. cklph-os is the spine; skills are depth.
+
+For any framework / library / API code, instruct each implementer to **announce the stack in its report**
+("STACK DETECTED: Next.js 16, Supabase v2"), verify against current docs (Context7 > official changelog >
+MDN), and **cite sources** (URL + anchor) inline for non-obvious decisions. Unverifiable but used
+assumptions get flagged explicitly: `UNVERIFIED: relies on <X> — confirm before merging.`
+
 ## Execute, wave by wave
 1. Dispatch one **`cklph-implementer`** sub-agent per task — **in parallel for independent tasks**
    (multiple Agent calls in one message). Give each a **structured brief** — `TASK / RELEVANT FILES /

@@ -14,7 +14,7 @@ Decompose the spec into **small, independently-verifiable tasks** — each a **v
 
 Group tasks into **waves**: tasks with no unmet dependency share a wave (they'll run in parallel);
 dependent tasks go in later waves. Detect the stack (`AGENTS.md` + `package.json`) so each task fits
-the framework (Next.js ≠ pure React).
+the framework (Next.js ≠ pure React), and note any installed specialist skills a task should use.
 
 - **Risk-first** within the dependency order — schedule the riskiest / most-uncertain tasks early (fail
   fast); insert a **checkpoint** after the foundation wave (review before fanning out).
