@@ -3,6 +3,15 @@
 All notable changes to `cklph-nextjs` are documented here.
 Format: [Keep a Changelog](https://keepachangelog.com); versioning follows [SemVer](https://semver.org).
 
+## [0.2.1] — 2026-05-31
+
+### Fixed
+- **`discipline` softens the `pricing_tiers` reference.** Was phrased as if `pricing_tiers` is the
+  canonical table name across all repos in the cklph stack — that's MailPrism-specific. Now phrased
+  as "a DB table (in MailPrism it's `pricing_tiers`; pick the right name per project)" with the
+  actual rule (don't hardcode `PRICING_PLANS` constants) preserved. Removes a real source of
+  confusion for other repos in the stack that don't have a `pricing_tiers` table.
+
 ## [0.2.0] — 2026-05-30
 
 ### Added — 11 new skills

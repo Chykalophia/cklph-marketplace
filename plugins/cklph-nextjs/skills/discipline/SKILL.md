@@ -30,7 +30,7 @@ Five steps, in order — rate-limit → CSRF → `getUser()` (NEVER `getSession(
 
 ## Stripe prices come from the DB
 
-Read the `pricing_tiers` table for price IDs and tier metadata. Never hardcode a `PRICING_PLANS` constant — environment drift between staging and prod will burn you.
+Read from a DB table (in MailPrism it's `pricing_tiers`; pick the right name per project) for price IDs and tier metadata. **Never hardcode** a `PRICING_PLANS` constant — environment drift between staging and prod will burn you.
 
 ## Schema changes via CLI, not MCP
 

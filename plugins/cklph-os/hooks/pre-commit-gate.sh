@@ -131,6 +131,30 @@ else
     echo "SKIP: No staged .ts/.tsx files for Semgrep"
 fi
 
+# 4. cklph skill description sanity — colon-space inside a frontmatter description value re-parses
+#    as a nested YAML key and breaks plugin loading. Real previously-hit bug; prevent regression.
+echo "--- Skill Description Sanity ---"
+STAGED_SKILLS=$(git diff --cached --name-only --diff-filter=ACM -- '*SKILL.md' 2>/dev/null || true)
+if [ -n "$STAGED_SKILLS" ]; then
+    DESC_BAD=0
+    while IFS= read -r f; do
+        [ -z "$f" ] && continue
+        # Pull the description value (line after `description:`), check for ": " (colon-space).
+        desc_val=$(awk '/^description:/{sub(/^description:[ ]*/, ""); print; exit}' "$f")
+        if printf '%s' "$desc_val" | grep -q ': '; then
+            echo "FAIL: $f has colon-space inside description value (breaks YAML loading)" >&2
+            DESC_BAD=1
+        fi
+    done <<< "$STAGED_SKILLS"
+    if [ "$DESC_BAD" = "1" ]; then
+        FAILURES=$((FAILURES + 1))
+    else
+        echo "PASS: Skill descriptions clean"
+    fi
+else
+    echo "SKIP: No staged SKILL.md files"
+fi
+
 echo "=== GATE COMPLETE ==="
 
 if [ $FAILURES -gt 0 ]; then

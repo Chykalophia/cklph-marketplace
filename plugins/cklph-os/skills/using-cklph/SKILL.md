@@ -50,6 +50,9 @@ I'm not sure about <X>. Pick one:
 ```
 Cheaper than rolling back a wrong guess.
 
+## When a tool call is denied
+If the Claude Code harness denies a tool call (classifier block), **stop and invoke `harness-limits` immediately** — don't retry with a different tool, that path is also blocked. The skill distinguishes hard blocks (hand back to user with exact terminal commands) from soft care rules (ask user with blast radius).
+
 ## Conventions (full spec in STANDARD.md)
 - Hooks/scripts reference `${CLAUDE_PLUGIN_ROOT}` (plugin) or `$CLAUDE_PROJECT_DIR` (repo) —
   **never** absolute paths. This is the rule that prevents cross-project drift.

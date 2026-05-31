@@ -19,6 +19,9 @@ Name the wins. Include the *why* only if it's non-obvious — if it's obvious, s
 ## Next week's ONE focus
 The one outcome that makes next week a win. Same discipline as `daily-frame` — one, not three. If you can't pick one, you don't have a plan, you have a wishlist.
 
+## Prune stale memory (60 seconds)
+Scan `~/.claude/projects/<project-hash>/memory/feedback_*.md`. **Delete** entries where the code / system / pattern they referenced is gone. **Update** entries where the rule holds but the example moved. **Promote** project-specific entries to `GLOBAL.md` if they're now cross-project. See `learn` for the full prune flow. Active beats `MEMORY.md` silently truncating at line 200.
+
 ## Anti-pattern
 30-item retros. Exhaustive lists feel productive and change nothing. **Discipline is selectivity** — what you leave out is the work.
 
