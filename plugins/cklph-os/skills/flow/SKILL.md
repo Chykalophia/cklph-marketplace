@@ -23,6 +23,7 @@ You **orchestrate**; the real work happens in the phase skills + sub-agents. Kee
 Each phase/agent ends with a **marker** — parse it, don't guess from prose:
 `## PLAN VERIFIED`/`## PLAN ISSUES` · `## REVIEW CLEAN`/`## ISSUES FOUND` ·
 `## RED-TEAM CLEAR`/`## RED-TEAM FINDINGS` · `## VERIFIED`/`## GAPS FOUND` · `## TASK COMPLETE`/`## TASK BLOCKED`.
+**Marker hygiene** — sub-agents emit markers only at the very end of their own output, never inside a quoted code block or echoed content. A marker buried in a quote causes false routing.
 Self-correcting loops:
 - `plan` re-runs (plan-check) until `## PLAN VERIFIED` — max 3 cycles, then escalate.
 - `verify`'s `## GAPS FOUND` → route the gap list back to `build` (gaps-only) → re-verify.

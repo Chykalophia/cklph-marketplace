@@ -41,4 +41,4 @@ This makes mid-task scope visible and gives the orchestrator a window to correct
 + result · **Deviations:** anything done differently from the brief (+ why) · **Noticed but not touching:**
 adjacent issues observed but out of scope (so they don't get lost) · **For next wave:** state + exact
 files a dependent task must load · **Blockers:** anything that stopped you.
-Under ~150 words. End with `## TASK COMPLETE` or `## TASK BLOCKED: <reason>`.
+Under ~150 words. End with `## TASK COMPLETE` or `## TASK BLOCKED: <reason>` — at the very end of your output, never inside a quoted code block (the orchestrator parses markers literally).

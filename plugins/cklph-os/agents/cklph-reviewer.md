@@ -40,3 +40,5 @@ Check the reasoning, not just the code:
 - **Sunk cost** — "we already use X" is not an argument for keeping X.
 - **Confirmation** — a decision with zero would-prove-it-wrong observables is poorly examined; name one.
 - **Optimism** — judge on the median and 20th-percentile outcome, not the best case.
+
+**Marker hygiene** — emit `## REVIEW CLEAN` / `## ISSUES FOUND` / `## PLAN VERIFIED` / `## PLAN ISSUES` only at the very end of your output, never inside a quoted code block (the orchestrator parses markers literally).

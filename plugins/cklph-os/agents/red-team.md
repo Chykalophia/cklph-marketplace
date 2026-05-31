@@ -50,4 +50,4 @@ must handle. The most expensive bugs live here — not in the code that was writ
 
 Report by severity **Critical / High / Medium / Low / Nit** — each with `file:line`, the failure (with a
 repro where you have one), and a concrete fix. End with `## RED-TEAM CLEAR` (every reliant claim proven)
-or `## RED-TEAM FINDINGS` + the list.
+or `## RED-TEAM FINDINGS` + the list — at the very end of your output, never inside a quoted code block (the orchestrator parses markers literally).

@@ -3,6 +3,32 @@
 All notable changes to cklph-os are documented here.
 Format: [Keep a Changelog](https://keepachangelog.com); versioning follows [SemVer](https://semver.org).
 
+## [0.8.5] — 2026-05-31
+
+### Added
+- **`harness-limits` skill** — catalogs what the Claude Code auto-mode safety classifier blocks
+  (push outside trusted source-control orgs, disabling safety gates, routing around denied actions,
+  wide-blast / irreversible ops) and the right route in each case — hand back to the user with exact
+  terminal commands rather than burning turns on alternative tools that will also be blocked. Closes
+  the "rediscover the ceiling every session" gap surfaced by a parallel session's debugging note.
+
+### Fixed
+- **`learn` skill now explicitly persists.** Previous version said "writes to the auto-memory
+  feedback type" but never told the model **how** — relied on the harness's memory instructions being
+  loaded and parsed. Added an explicit "Persist the lesson" section with slug-naming, file path,
+  frontmatter format, body fields, and `MEMORY.md` indexing step. Lessons now actually reach the
+  next session.
+- **`pre-commit-gate.sh --max-warnings` is now configurable.** Was hardcoded to `28` (a
+  MailPrism-specific budget that other repos shouldn't inherit). Now defaults to `0`; per-repo
+  override via the `CKLPH_ESLINT_MAX_WARNINGS` env var.
+- **`handoff` filename collision** — `handoff-<repo>-<date>.md` overwrote silently when two sessions
+  ran on the same repo on the same day. Now `handoff-<repo>-<date>T<HHMMSS>.md` so concurrent or
+  same-day sessions don't clobber each other.
+- **Marker hygiene note** added to `flow`, `cklph-implementer`, `cklph-reviewer`, and `red-team` —
+  markers (`## TASK COMPLETE`, `## REVIEW CLEAN`, `## RED-TEAM CLEAR`, etc.) must emit only at the
+  very end of an agent's output, never inside quoted code blocks (prevents false routing on examples
+  that echo the marker text).
+
 ## [0.8.4] — 2026-05-31
 
 ### Fixed
