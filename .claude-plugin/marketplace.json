@@ -10,6 +10,12 @@
       "source": "./plugins/cklph-os",
       "description": "Peter's personal Claude OS — authoritative skills, hooks, and conventions.",
       "category": "workflow"
+    },
+    {
+      "name": "cklph-nextjs",
+      "source": "./plugins/cklph-nextjs",
+      "description": "Peter's opinionated Next.js + Supabase patterns. House style on top of the framework, complements vercel:* skills.",
+      "category": "framework"
     }
   ]
 }
