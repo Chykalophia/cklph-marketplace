@@ -16,6 +16,18 @@
       "source": "./plugins/cklph-nextjs",
       "description": "Peter's opinionated Next.js + Supabase patterns. House style on top of the framework, complements vercel:* skills.",
       "category": "framework"
+    },
+    {
+      "name": "cklph-architect",
+      "source": "./plugins/cklph-architect",
+      "description": "Peter's value-based consultancy practice. Discover, scope, propose, price, position, shape engagements. Codifies the discipline; no IP republished.",
+      "category": "consulting"
+    },
+    {
+      "name": "cklph-eos",
+      "source": "./plugins/cklph-eos",
+      "description": "Peter's business operating cadence. Quarterly priorities, weekly sync structure, scorecard, issues resolution, people-fit, accountability mapping. Codifies the discipline; no branded IP republished.",
+      "category": "operations"
     }
   ]
 }
