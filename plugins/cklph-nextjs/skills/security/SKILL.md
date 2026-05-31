@@ -44,4 +44,15 @@ Even with `getUser()` + correct client, write the query as if RLS doesn't exist 
 - Hit it with another user's resource ID → must 404 or 403 (RLS).
 - Hit it 100x in a minute → must 429.
 
-If any of those four pass when they shouldn't, you skipped a step. Pair with **api-routes** for the `compose()` middleware that wires this in.
+If any of those four pass when they shouldn't, you skipped a step.
+
+## Specific attack vectors
+
+- **SQL injection** — always parameterize via the Supabase SDK; never string-build queries. The SDK does it for you; raw `rpc()` arguments are *typed*, not *interpolated*.
+- **IDOR** — every fetch/mutation by an entity ID checks `owner_user_id === auth.uid()` at the app layer; RLS is the safety net, not the first line.
+- **XSS** — React escapes by default. Danger zones — `dangerouslySetInnerHTML` (sanitize first with DOMPurify or similar), `<a href={user_input}>` (validate the URL scheme — allow `https://` only).
+- **Path traversal** — file uploads/downloads validate the **resolved** path stays inside the allowed directory (`path.resolve` + `startsWith` check).
+- **Open redirect** — `redirect(user_provided_url)` must validate against an allowlist (or use relative paths only).
+- **Secret in URL / log** — never put a token in a query string (it lands in proxy logs and browser history); never log full request URLs that include credentials.
+
+Pair with **api-routes** for the `compose()` middleware that wires this in.

@@ -3,6 +3,26 @@
 All notable changes to `cklph-nextjs` are documented here.
 Format: [Keep a Changelog](https://keepachangelog.com); versioning follows [SemVer](https://semver.org).
 
+## [0.2.0] — 2026-05-30
+
+### Added — 11 new skills
+- **`testing`** — Vitest + Playwright coverage tiers; what to test by layer (services for breadth, routes for smoke, hooks selectively); **mock the data-layer, not the network**; integration tests against a Supabase branch for real-DB confidence.
+- **`server-actions`** — the `"use server"` boundary in Next.js 15+: when to use a server action vs an API route, return `ServiceResult<T>` (never throw to the form), form-action pattern with `useFormStatus()`, security checklist still applies.
+- **`supabase-migrations`** — CLI-first workflow (`supabase migration new` → SQL → `db push`), RLS policy template per user-data table, rollback discipline for destructive changes, index naming convention.
+- **`qstash`** — Upstash QStash for background jobs: signature verification at the route boundary, deterministic job IDs + DB state tracking (`pending → processing → completed/failed`), return-200-on-non-retryable, cron-enqueues-fast.
+- **`pubsub`** — Google Cloud Pub/Sub webhooks: **always 200** (no retry storm), JWT verification via `OAuth2Client` (audience + issuer + email), atomic deduplication with optimistic locking, BigInt comparison for large IDs (`historyId`), 7-day watch renewal cron.
+- **`config`** — typed env vars (Zod / `@t3-oss/env-nextjs`) + **graceful-degradation** pattern from next-forge — only the DB env is required; optional integrations silently disable when their env is missing (feature off, not error).
+- **`postgres`** — PostgreSQL on Supabase: btree default with partial / covering indexes; `EXPLAIN ANALYZE` before assuming a problem; pgbouncer transaction-vs-session-mode; N+1 prevention; JSONB `gin` indexing.
+- **`ui-quality`** — dark mode + WCAG AA deep dive: every color paired with `dark:` variant; contrast 4.5:1 / 3:1; `:focus-visible` always; keyboard nav; ARIA; color-is-never-the-only-signal; screen-reader smoke tests.
+- **`auth`** — Supabase auth flows beyond the mutation checklist: `getUser()` server-side / `useUser()` client-side, OAuth callback with PKCE, password reset, multi-tenant `organization_id` in RLS, where auth code lives (layouts + middleware, not leaf components).
+- **`error-handling`** — `ServiceResult<T, ServiceError>` (never throw from services), user-surface vs log-only text discipline, observability capture **at the route boundary only** (no double-capture), recoverable vs non-recoverable differentiation.
+- **`data-model`** — the Supabase-generated `lib/types/database.ts` is the source of truth — how to read `Row` / `Insert` / `Update` / `Enums` / `Functions` types; never hand-roll a row type; regenerate after every migration and commit alongside; use generated types in service signatures.
+
+### Enhanced
+- **`pitfalls`** (60 → 84 lines) — one-line WRONG-code example under each of the 12 patterns. The catalog stays symptom-only; fixes live in `cklph-os:debugging`. Emoji marker stripped per house style.
+- **`security`** (47 → 58 lines) — new "Specific attack vectors" section: SQL injection (parameterize via SDK), IDOR (app-layer ownership check + RLS as net), XSS (`dangerouslySetInnerHTML` sanitize + `<a href>` scheme validation), path traversal (`path.resolve` + `startsWith`), open redirect (allowlist), secrets-in-URL / log.
+- **`discipline`** — adds the regen-types-after-migration rule (`supabase gen types typescript --linked > lib/types/database.ts` in the same commit as the migration). See `data-model`.
+
 ## [0.1.1] — 2026-05-30
 
 ### Added

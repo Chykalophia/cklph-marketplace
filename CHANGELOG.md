@@ -3,6 +3,24 @@
 All notable changes to cklph-os are documented here.
 Format: [Keep a Changelog](https://keepachangelog.com); versioning follows [SemVer](https://semver.org).
 
+## [0.8.3] — 2026-05-30
+
+### Added
+- **`survey` skill** — gap-filling design partner sitting between `refine` and `spec`. Wears the
+  BA / CTO / engineer / PM hats together and drills the "but what about…" questions across users /
+  contexts, states, devices (including **in-between sizes** and dark mode), cross-cutting SaaS
+  defaults (auth, billing-tier, observability, a11y/WCAG, performance, compliance), edge cases,
+  alternatives with tradeoffs, cascading impacts, and failure modes. Conversational by design —
+  3–5 dimensions at a time, not a 30-question dump. End markers `## SURVEY COMPLETE` or
+  `## SURVEY OPEN`. Pairs with `decide` for the chosen-alternative's reversal signal, and
+  complements `cklph-reviewer`'s Omissions axis (which catches gaps *after* the fact in code review).
+- **`learn` skill** — the self-improvement loop. Captures lessons into the auto-memory `feedback`
+  type on **five triggers**: user corrections, self-detected fixes mid-task, console / build / test
+  signals that reveal wrong mental models, **code-review feedback** (human or AI — CodeRabbit /
+  `cklph-reviewer` / `red-team`), and end-of-task retrospectives. Captures rule + why + how-to-apply +
+  scope (project-local vs cross-project). Skips one-off typos and anything already authoritative in
+  `AGENTS.md` / `CLAUDE.md`. `using-cklph` updated to scan recent `feedback` entries at task start.
+
 ## [0.8.2] — 2026-05-30
 
 ### Added

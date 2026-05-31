@@ -1,7 +1,7 @@
 {
   "name": "cklph-nextjs",
   "description": "Peter's opinionated Next.js + Supabase patterns. House style on top of the framework, complements vercel:* skills, not a replacement.",
-  "version": "0.1.1",
+  "version": "0.2.0",
   "author": {
     "name": "Peter Krzyzek"
   }
