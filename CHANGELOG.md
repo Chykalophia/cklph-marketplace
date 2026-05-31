@@ -3,6 +3,14 @@
 All notable changes to cklph-os are documented here.
 Format: [Keep a Changelog](https://keepachangelog.com); versioning follows [SemVer](https://semver.org).
 
+## [0.8.2] — 2026-05-30
+
+### Added
+- **`design` skill** — cross-cutting design principles for any code, framework-agnostic: SOLID (the
+  five), DRY (extract at the *third* repetition, not the second), YAGNI, composition-over-inheritance,
+  and a closing "principles are filters, not laws" judgment note. Referenced from
+  `cklph-nextjs:architecture` (per the split decision — principles live here, wiring lives there).
+
 ## [0.8.1] — 2026-05-30
 
 ### Added

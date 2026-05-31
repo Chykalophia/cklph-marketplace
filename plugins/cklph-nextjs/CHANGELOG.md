@@ -3,6 +3,18 @@
 All notable changes to `cklph-nextjs` are documented here.
 Format: [Keep a Changelog](https://keepachangelog.com); versioning follows [SemVer](https://semver.org).
 
+## [0.1.1] — 2026-05-30
+
+### Added
+- **"Why these layers"** section in `architecture` — each layer cited against the principle it enforces
+  from `cklph-os:design` (SRP for services, DIP for data-layer, OCP for middleware, SRP+ISP for
+  security, DRY for utils, SRP for validation). Surfaces the *rationale*, doesn't teach the principles.
+
+### Fixed
+- `architecture` final line no longer references the non-existent `service-layer-patterns` skill — that
+  content was absorbed into `architecture` + `api-routes` during the v0.1.0 distillation. Replaced with
+  pointers to `api-routes`, `security`, and `cklph-os:design`.
+
 ## [0.1.0] — 2026-05-30
 
 ### Added — initial release
