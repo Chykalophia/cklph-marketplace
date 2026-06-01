@@ -4,7 +4,7 @@
 > agent, hook, or instruction file doesn't match this doc, fix it or fix this doc — never
 > leave them out of sync.
 >
-> Status: **v0.1** · Owner: Peter Krzyzek (Chykalophia) · Repo: `Chykalophia/cklph-os`
+> Status: **v0.2** · Owner: Peter Krzyzek (Chykalophia) · Repo: `Chykalophia/cklph-marketplace` (hosts `cklph-os`, `cklph-nextjs`, `cklph-architect`, `cklph-eos`)
 
 ---
 
@@ -168,9 +168,9 @@ STATE.md                   # working state
 ---
 
 ## 8. Bootstrap meta-skill
-- `skills/using-cklph/SKILL.md` is the discovery entrypoint (superpowers-style): a short flowchart that,
+- `skills/start-here/SKILL.md` is the discovery entrypoint (superpowers-style): a short flowchart that,
   on each task, asks "does any skill apply?" → invoke it → announce → follow it.
-- Sets instruction priority: **user message > repo AGENTS.md/CLAUDE.md > cklph skills > default behavior** (must match `using-cklph/SKILL.md`).
+- Sets instruction priority: **user message > repo AGENTS.md/CLAUDE.md > cklph skills > default behavior** (must match `start-here/SKILL.md`).
 
 ---
 

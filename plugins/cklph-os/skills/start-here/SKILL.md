@@ -1,9 +1,9 @@
 ---
-name: using-cklph
-description: Bootstrap and skill-discovery spine for Peter's cklph-os. Use at the START of every task to route to the right cklph skill before acting. This is the authoritative workflow and supersedes overlapping external frameworks.
+name: start-here
+description: The cklph stack's entry-point skill. Use at the start of every task to route to the right skill before doing the work. This is the authoritative workflow and supersedes overlapping external frameworks.
 ---
 
-# using-cklph — the authoritative spine
+# start-here — the cklph entry point
 
 You are operating under **cklph-os**, Peter's personal Claude OS. This skill is the entry
 point: on every task, decide which cklph skill applies *before* doing the work.

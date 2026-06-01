@@ -3,6 +3,23 @@
 All notable changes to cklph-os are documented here.
 Format: [Keep a Changelog](https://keepachangelog.com); versioning follows [SemVer](https://semver.org).
 
+## [0.9.0] — 2026-06-01
+
+### Changed (breaking)
+- **`using-cklph` skill renamed to `start-here`** — old name was opaque to a fresh user scanning
+  their skill list ("how do I use cklph?"). New name is unambiguous — "this is where you start
+  every task." Behavior unchanged; only the trigger name, frontmatter `name:`, and body header
+  changed. Cross-references in `learn`, `handoff`, `survey`, and `STANDARD.md` updated.
+
+### Notes (repo-level, not plugin-specific)
+- The hosting **GitHub repo was renamed** from `Chykalophia/cklph-os` → `Chykalophia/cklph-marketplace`.
+  Better reflects what it is — a marketplace hosting 4 plugins (cklph-os, cklph-nextjs,
+  cklph-architect, cklph-eos), not a single plugin named after its first child. GitHub provides
+  a redirect from the old URL; existing marketplace registrations continue to work, but the
+  canonical URL is now the new one.
+- **README rewritten** to reflect the marketplace structure (one repo, four plugins) instead of
+  the original "cklph-os is a plugin" framing. Old README confused fresh-Monday-morning users.
+
 ## [0.8.6] — 2026-05-31
 
 ### Added
