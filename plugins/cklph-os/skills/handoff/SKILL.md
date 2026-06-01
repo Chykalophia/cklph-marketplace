@@ -18,7 +18,7 @@ it's ephemeral. Durable working state still belongs in `STATE.md`; this is just 
 - **State** — done / in-progress / current branch + last commit.
 - **Next steps** — the concrete actions to resume, in order.
 - **Suggested skills** — which skills the next agent should invoke: cklph-os phases **plus** any installed
-  specialist skill that fits the work (see `using-cklph` for discovery).
+  specialist skill that fits the work (see `start-here` for discovery).
 - **Key artifacts** — link specs / plans / PRDs / issues / commits / `STATE.md` by path or URL; don't
   paste their contents in.
 - **Open questions / blockers.**

@@ -75,7 +75,7 @@ vanish past line 200 are gone.
 - **Ephemeral current-task state** — that's what `STATE.md` is for, not `feedback`.
 
 ## Use the captured lessons
-At session start (after `using-cklph`), scan **recent `feedback`-type memory entries relevant to
+At session start (after `start-here`), scan **recent `feedback`-type memory entries relevant to
 the current task** — by topic / keyword, not exhaustively. Apply them. If a lesson conflicts with
 the current request, surface the conflict instead of silently picking one.
 

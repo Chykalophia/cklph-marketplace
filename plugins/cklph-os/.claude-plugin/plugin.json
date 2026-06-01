@@ -1,7 +1,7 @@
 {
   "name": "cklph-os",
   "description": "Peter's personal Claude OS — authoritative skills, hooks, and conventions.",
-  "version": "0.8.6",
+  "version": "0.9.0",
   "author": {
     "name": "Peter Krzyzek"
   }

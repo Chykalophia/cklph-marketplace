@@ -12,7 +12,7 @@ Sit between `refine` (sharpens fuzzy → direction) and `spec` (writes the execu
 ## Mode
 Conversational. Drill **3–5 dimensions at a time**, not all at once — the user can't answer a dump.
 Lead with the dimensions most likely to shape the design; defer the rest until the answers narrow
-scope. Stop and present `A) / B) / C)` options when the user is on the fence (see `using-cklph`'s
+scope. Stop and present `A) / B) / C)` options when the user is on the fence (see `start-here`'s
 confusion template).
 
 ## Dimensions to drill
