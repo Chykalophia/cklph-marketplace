@@ -99,6 +99,9 @@ Eight composable phases — run one standalone, or chain them with the orchestra
 | Hooks  | ✅  | ❌ *(CLI-only)*            | ❌                    |
 | MCP    | ✅  | ✅ *(claude_desktop_config)* | connectors          |
 
+> [!TIP]
+> **Using another AI tool?** Cursor, Warp, VS Code/Copilot, Windsurf, Cline/Roo, and even chat-only AIs can run cklph — host the `claude` CLI in their terminal, or port the skills into their native rules/commands. Step-by-step per tool → **[Using cklph outside Claude Code](./docs/using-with-other-tools.md)**.
+
 ---
 
 ## 🗂️ Repository layout
