@@ -1,0 +1,8 @@
+{
+  "name": "cklph-figma",
+  "description": "Read designs from the Figma MCP — design context, screenshots, structure metadata, and design tokens. The design-source layer for any Figma-to-code work.",
+  "version": "0.1.0",
+  "author": {
+    "name": "Peter Krzyzek"
+  }
+}

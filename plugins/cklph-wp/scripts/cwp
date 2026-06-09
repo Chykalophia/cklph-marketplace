@@ -1,0 +1,176 @@
+#!/usr/bin/env bash
+#
+# cwp — cklph WordPress helper. Drives wp-cli on a remote WP host over SSH,
+#       over ONE multiplexed connection that stays open (enforced here, not
+#       left to ~/.ssh/config — so you never time yourself out mid-task).
+# ---------------------------------------------------------------------------
+# Connection: set CKLPH_WP_HOST to an SSH host alias (or any user@host) that
+# resolves HostName / User / IdentityFile. cwp adds ControlMaster itself.
+#
+#   Host my-wp
+#       HostName ssh.getflywheel.com            # or <install>.ssh.wpengine.net, or your box
+#       User team+account+site                  # the host's SSH/SFTP slug
+#       IdentityFile ~/.ssh/id_ed25519
+#       IdentitiesOnly yes
+#   # (no ControlMaster needed here — cwp forces it)
+#
+#   export CKLPH_WP_HOST=my-wp      (or put it + other vars in ./.cklph-wp)
+#
+# Usage:  cwp <command> [args]      (run `cwp help` for the list)
+set -euo pipefail
+
+[ -f ./.cklph-wp ] && . ./.cklph-wp
+HOST="${CKLPH_WP_HOST:-}"
+
+# --- connection mode -------------------------------------------------------
+# DEFAULT = no shared socket (secure by default): every command opens its own
+# connection and closes it, so nothing persists for another same-user process to
+# ride. A ControlMaster socket can't be locked to one process — Unix sockets are
+# UID-scoped — so the only way to eliminate the shared-socket vector is to not
+# share one. Slower, and bursts can hit managed-host rate limits.
+#
+# Opt into multiplexing for speed on a machine you trust:  CKLPH_WP_MUX=1
+#   One master per host is then reused, but security-bounded: idle-close
+#   (CKLPH_WP_PERSIST, 90s), a hard lifetime cap (CKLPH_WP_MAXLIFE, 600s) that rotates
+#   the connection with fresh auth, and a watchdog that force-closes it at the cap
+#   even if cwp is never run again. Close it yourself when done:  cwp down
+
+_denoise(){ grep -v -e "fileperms()" -e "stat failed for" -e "Could not reliably determine" || true; }
+_now(){ date +%s; }
+_die(){ echo "cwp: $*" >&2; exit 2; }
+_need_id(){ [[ "${1:-}" =~ ^[0-9]+$ ]] || _die "expected a numeric post ID, got '${1:-}'"; }
+
+if [ -z "${CKLPH_WP_MUX:-}" ]; then
+  # --- DEFAULT: no shared socket ------------------------------------------
+  # Every command opens its own connection and closes it. Nothing persists for
+  # another same-user process to ride. `ControlMaster=no` overrides any mux in
+  # ~/.ssh/config. Pair with `ssh-add -c` (agent confirmation) for sensitive hosts.
+  SSH_OPTS=( -o BatchMode=yes -o ControlMaster=no -o ServerAliveInterval=30 -o ServerAliveCountMax=4 )
+  _alive(){ return 1; }; _close(){ :; }; _open(){ :; }; _ensure(){ :; }
+else
+  # --- CKLPH_WP_MUX=1: bounded multiplexing (opt-in, for speed) ------------
+  PERSIST="${CKLPH_WP_PERSIST:-90}"          # seconds idle before the master auto-closes
+  MAXLIFE="${CKLPH_WP_MAXLIFE:-600}"         # seconds — hard ceiling on one connection's lifetime
+  CM="${CKLPH_WP_CM:-$HOME/.ssh/cm-cwp-${HOST//[^a-zA-Z0-9]/_}}"
+  SSH_OPTS=( -o BatchMode=yes -o ControlMaster=auto -o "ControlPath=$CM"
+             -o "ControlPersist=${PERSIST}" -o ServerAliveInterval=30 -o ServerAliveCountMax=4 )
+  _alive(){ ssh "${SSH_OPTS[@]}" -O check "$HOST" 2>/dev/null; }
+  _close(){ ssh "${SSH_OPTS[@]}" -O exit "$HOST" 2>/dev/null || true
+            [ -f "$CM.wd" ] && kill "$(cat "$CM.wd" 2>/dev/null)" 2>/dev/null || true
+            rm -f "$CM" "$CM.opened" "$CM.wd" 2>/dev/null || true; }
+  _open(){
+    rm -f "$CM" 2>/dev/null || true          # clear any stale socket (only reached when not alive)
+    ssh "${SSH_OPTS[@]}" -fN "$HOST"
+    _now > "$CM.opened"
+    [ -f "$CM.wd" ] && kill "$(cat "$CM.wd" 2>/dev/null)" 2>/dev/null || true
+    nohup bash -c "sleep $MAXLIFE; ssh -o 'ControlPath=$CM' -O exit '$HOST' >/dev/null 2>&1; rm -f '$CM' '$CM.opened' '$CM.wd'" >/dev/null 2>&1 &
+    echo $! > "$CM.wd"
+  }
+  # guarantee a fresh-enough master before any command; rotate if past the hard cap
+  _ensure(){
+    if _alive; then
+      local age=$(( $(_now) - $(cat "$CM.opened" 2>/dev/null || echo "$(_now)") ))
+      if [ "$age" -ge "$MAXLIFE" ]; then echo "cwp: connection age ${age}s >= ${MAXLIFE}s cap — rotating" >&2; _close; _open; fi
+    else _open; fi
+  }
+fi
+_ssh(){ _ensure; ssh "${SSH_OPTS[@]}" "$HOST" "$@" 2> >(_denoise >&2); }
+
+sub="${1:-help}"; shift || true
+# every command except help needs a host
+case "$sub" in help|-h|--help) :;; *) [ -n "$HOST" ] || _die "set CKLPH_WP_HOST to an ~/.ssh/config alias (or create ./.cklph-wp)";; esac
+case "$sub" in
+  # --- connection control --------------------------------------------------
+  up)
+    if [ -z "${CKLPH_WP_MUX:-}" ]; then echo "no-mux (default): per-command connections — nothing to open" >&2
+    else _ensure; echo "master open ($HOST) — idle-close ${PERSIST}s, hard cap ${MAXLIFE}s" >&2; fi ;;
+  status)
+    if [ -z "${CKLPH_WP_MUX:-}" ]; then echo "no-mux (default): no persistent socket (per-command connections)"
+    elif _alive; then
+      age=$(( $(_now) - $(cat "$CM.opened" 2>/dev/null || echo "$(_now)") ))
+      echo "master ALIVE — age ${age}s · idle-close ${PERSIST}s · rotates/closes by ${MAXLIFE}s (in $((MAXLIFE-age))s)"
+    else echo "master closed"; fi ;;
+  down)
+    if [ -z "${CKLPH_WP_MUX:-}" ]; then echo "no-mux (default): nothing to close" >&2
+    else _close; echo "master closed" >&2; fi ;;
+  shell)  _ensure; ssh "${SSH_OPTS[@]}" "$HOST" ;;
+
+  wp)     _ssh "wp $*" ;;                                   # raw wp-cli passthrough
+  env)
+    echo "site:   $(_ssh 'wp option get siteurl')"
+    echo "core:   $(_ssh 'wp core version' 2>/dev/null)"
+    echo "theme:  $(_ssh 'wp theme list --status=active --field=name' 2>/dev/null)" ;;
+
+  # --- site profile (knowledge base) ---------------------------------------
+  # Emit a markdown snapshot of the install — versions, plugins, post types,
+  # taxonomies, Elementor/WooCommerce facts. Redirect to .cklph-wp/site-profile.md
+  # and keep it updated (see the site-profile skill).
+  profile)
+    sec(){ printf '\n## %s\n' "$1"; }
+    echo "# Site profile — $(_ssh 'wp option get siteurl' 2>/dev/null)"
+    echo "_cwp profile snapshot. Append quirks, data structures, and decisions below by hand._"
+    sec "Platform"
+    echo "- WordPress: $(_ssh 'wp core version' 2>/dev/null)"
+    echo "- PHP: $(_ssh "wp eval 'echo PHP_VERSION;'" 2>/dev/null)"
+    echo "- Home: $(_ssh 'wp option get home' 2>/dev/null)"
+    sec "Active theme"; _ssh 'wp theme list --status=active --fields=name,title,version --format=csv' 2>/dev/null | sed 's/^/- /'
+    sec "Active plugins (name,version)"; _ssh 'wp plugin list --status=active --fields=name,version --format=csv' 2>/dev/null | sed 's/^/- /'
+    sec "Post types"; _ssh 'wp post-type list --fields=name,label --format=csv' 2>/dev/null | sed 's/^/- /'
+    sec "Taxonomies"; _ssh 'wp taxonomy list --fields=name,label --format=csv' 2>/dev/null | sed 's/^/- /'
+    if [ -n "$(_ssh 'wp plugin get elementor --field=version' 2>/dev/null)" ]; then
+      sec "Elementor"
+      echo "- elementor: $(_ssh 'wp plugin get elementor --field=version' 2>/dev/null)"
+      echo "- elementor-pro: $(_ssh 'wp plugin get elementor-pro --field=version' 2>/dev/null)"
+      echo "- active kit (post id): $(_ssh 'wp option get elementor_active_kit' 2>/dev/null)"
+    fi
+    if [ -n "$(_ssh 'wp plugin get woocommerce --field=version' 2>/dev/null)" ]; then
+      sec "WooCommerce"; echo "- woocommerce: $(_ssh 'wp plugin get woocommerce --field=version' 2>/dev/null)"
+    fi
+    sec "Notes (fill in by hand)"
+    echo "- Webroot path: (e.g. /www on Flywheel) — needed for cwp put / eval-file."
+    echo "- Custom fields (ACF/Pods/Meta Box): groups, keys, where they're filled — see site-profile skill."
+    echo "- Quirks / what's NOT possible here:" ;;
+
+  # --- meta read/write -----------------------------------------------------
+  meta-read)
+    _need_id "${1:-}"; key="${2:?usage: cwp meta-read <id> <key> [outfile]}"
+    val="$(_ssh "wp post meta get $1 $key")"
+    if [ -n "${3:-}" ]; then printf '%s' "$val" > "$3"; echo "wrote $(wc -c <"$3" | tr -d ' ') bytes -> $3" >&2
+    else printf '%s\n' "$val"; fi ;;
+
+  # Streams base64 over stdin and wp_slash()es server-side — safe for protected (_*) keys,
+  # large/serialized/JSON values, and every managed-gateway quirk (no scp, no &&, no shared /tmp).
+  meta-write)
+    _need_id "${1:-}"; key="${2:?usage: cwp meta-write <id> <key> <file>}"; file="${3:?need <file>}"
+    [ -f "$file" ] || _die "no file: $file"
+    base64 < "$file" | _ssh "wp eval 'update_post_meta($1, \"$key\", wp_slash(base64_decode(file_get_contents(\"php://stdin\")))); echo \"stored \".strlen(get_post_meta($1,\"$key\",true)).\" bytes\";'" ;;
+
+  eval) _ssh "wp eval '$*'" ;;                              # run a single-quoted PHP snippet (no $vars on the CLI — use eval-file for those)
+
+  put)                                                      # upload into the SHARED webroot (NOT /tmp)
+    local_f="${1:?usage: cwp put <localfile> <remote-abs-path>}"; remote="${2:?need remote path}"
+    [ -f "$local_f" ] || _die "no file: $local_f"
+    cat "$local_f" | _ssh "cat > $remote" && echo "uploaded -> $remote" >&2 ;;
+
+  help|-h|--help) cat <<'EOF'
+cwp — cklph WordPress helper (multiplexed wp-cli over SSH)
+
+  cwp up | status | down          open / check / close the kept-open master connection
+  cwp wp <args...>                raw wp-cli passthrough
+  cwp env                         site url / core version / active theme
+  cwp profile                     markdown snapshot of the install (-> .cklph-wp/site-profile.md)
+  cwp meta-read <id> <key> [out]  read a post meta value (incl. protected _* keys)
+  cwp meta-write <id> <key> <file> write a meta value from a file (base64+wp_slash, protected-safe)
+  cwp eval '<php>'                run a PHP snippet remotely (no $vars on the CLI)
+  cwp put <local> <remote-abs>    upload a file into the SHARED webroot (not /tmp)
+  cwp shell                       interactive SSH session
+
+Default = NO shared socket (secure): a fresh connection per command, so nothing
+persists for another same-user process to ride. Slower; bursts may hit rate limits.
+For speed on a machine you trust:  CKLPH_WP_MUX=1  — bounded multiplexing (idle-close
+CKLPH_WP_PERSIST 90s, hard cap CKLPH_WP_MAXLIFE 600s w/ rotate + watchdog; cwp down when done).
+Connection: export CKLPH_WP_HOST=<~/.ssh/config alias>  (or ./.cklph-wp).
+EOF
+    ;;
+  *) _die "unknown command '$sub' (try: cwp help)" ;;
+esac

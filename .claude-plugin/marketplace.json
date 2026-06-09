@@ -28,6 +28,36 @@
       "source": "./plugins/cklph-eos",
       "description": "Peter's business operating cadence. Quarterly priorities, weekly sync structure, scorecard, issues resolution, people-fit, accountability mapping. Codifies the discipline; no branded IP republished.",
       "category": "operations"
+    },
+    {
+      "name": "cklph-wp",
+      "source": "./plugins/cklph-wp",
+      "description": "Drive WordPress from Claude Code via wp-cli over SSH — connection to managed hosts (Flywheel/WP Engine/generic), posts/meta/options/media, and the hard-won hosting gotchas. Foundation for cklph-elementor and cklph-figma-to-wp.",
+      "category": "platform"
+    },
+    {
+      "name": "cklph-elementor",
+      "source": "./plugins/cklph-elementor",
+      "description": "Read and write Elementor page/template data programmatically — the _elementor_data model, the CSS/responsive gotchas, theme-builder templates + conditions, and the global Kit. Builds on cklph-wp.",
+      "category": "platform"
+    },
+    {
+      "name": "cklph-figma",
+      "source": "./plugins/cklph-figma",
+      "description": "Read designs from the Figma MCP — design context, screenshots, structure metadata, and design tokens (colors, type, spacing). The design-source layer for any Figma-to-code work.",
+      "category": "design"
+    },
+    {
+      "name": "cklph-visual-qa",
+      "source": "./plugins/cklph-visual-qa",
+      "description": "Verify a rendered web page VISUALLY against a design — headless-Chrome screenshots + ImageMagick crop/compare, overflow probes, and the adversarial visual-reviewer. Framework-agnostic; pairs with cklph-figma.",
+      "category": "design"
+    },
+    {
+      "name": "cklph-figma-to-wp",
+      "source": "./plugins/cklph-figma-to-wp",
+      "description": "Orchestrate the full Figma to WordPress/Elementor pipeline: read the design, learn existing-page conventions, tokenize, generate Elementor JSON, write to a draft, and visually verify against Figma. Thin glue over cklph-figma, cklph-elementor, cklph-wp, and cklph-visual-qa.",
+      "category": "workflow"
     }
   ]
 }

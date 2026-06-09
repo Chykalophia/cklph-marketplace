@@ -1,0 +1,8 @@
+{
+  "name": "cklph-elementor",
+  "description": "Read and write Elementor page/template data programmatically — the _elementor_data model, the CSS/responsive gotchas, theme-builder templates + conditions, and the global Kit. Builds on cklph-wp.",
+  "version": "0.1.0",
+  "author": {
+    "name": "Peter Krzyzek"
+  }
+}

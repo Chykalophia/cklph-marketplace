@@ -1,0 +1,8 @@
+{
+  "name": "cklph-figma-to-wp",
+  "description": "Orchestrate the full Figma to WordPress/Elementor pipeline: read the design, learn existing-page conventions, tokenize, generate Elementor JSON, write to a draft, and visually verify against Figma. Thin glue over cklph-figma, cklph-elementor, cklph-wp, and cklph-visual-qa.",
+  "version": "0.1.0",
+  "author": {
+    "name": "Peter Krzyzek"
+  }
+}
