@@ -1,0 +1,19 @@
+.github/workflows/test.yml
+  s_01bcf62932d749::t_264b98ee4ffa27 11
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.5.2",
+  "base_commit_sha": "3cbb4408b5dfeaa5f901db3b9a1a74e34b71fe7b",
+  "prompts": {},
+  "sessions": {
+    "s_01bcf62932d749": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "bbdb5558-1f23-40f0-b2a2-c48727669288",
+        "model": "claude-opus-4-7"
+      },
+      "human_author": "Peter Krzyzek <peter@chykalophia.com>"
+    }
+  }
+}
