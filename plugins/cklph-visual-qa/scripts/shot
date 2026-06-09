@@ -1,0 +1,49 @@
+#!/usr/bin/env bash
+#
+# shot — headless-Chrome screenshot + ImageMagick crop, for visual QA.
+# ---------------------------------------------------------------------------
+# Requires Google Chrome / Chromium and ImageMagick (`magick`).
+# Override the browser with CKLPH_CHROME if autodetect fails.
+#
+# Usage:
+#   shot <url> <out.png> [WIDTHxHEIGHT] [scale]   capture a URL (default 1440x2000, scale 1)
+#   shot crop <in.png> <out.png> WxH+X+Y [pct]    crop a region (coords are in the PNG's pixels)
+#   shot probe <url> [width]                       inject a JS overflow probe; prints elements wider than the viewport
+#
+# Notes:
+#   - Headless Chrome CLAMPS its window to ~500px minimum. A "375" capture renders at 500px and the
+#     image shows only the left 375px — looks like overflow but isn't. Verify mobile at 500px and use
+#     `shot probe` (real clientWidth + offending elements) rather than trusting the eye.
+#   - Always CACHE-BUST the URL (?v=N) — CDNs lag deploys.
+set -euo pipefail
+
+_chrome() {
+  if [ -n "${CKLPH_CHROME:-}" ]; then echo "$CKLPH_CHROME"; return; fi
+  for c in "/Applications/Google Chrome.app/Contents/MacOS/Google Chrome" \
+           "/Applications/Chromium.app/Contents/MacOS/Chromium" \
+           google-chrome google-chrome-stable chromium chromium-browser; do
+    command -v "$c" >/dev/null 2>&1 && { echo "$c"; return; }
+    [ -x "$c" ] && { echo "$c"; return; }
+  done
+  echo "shot: no Chrome/Chromium found (set CKLPH_CHROME)" >&2; exit 2
+}
+CHROME="$(_chrome)"
+
+sub="${1:?usage: shot <url|crop|probe> ...}"
+case "$sub" in
+  crop)
+    in="${2:?in.png}"; out="${3:?out.png}"; geo="${4:?WxH+X+Y}"; pct="${5:-100}"
+    magick "$in" -crop "$geo" +repage -resize "${pct}%" "$out"
+    echo "cropped -> $out" >&2 ;;
+  probe)
+    url="${2:?url}"; w="${3:-500}"
+    js='setTimeout(function(){var vw=document.documentElement.clientWidth,o=[];document.querySelectorAll("body *").forEach(function(e){var r=e.getBoundingClientRect();if(r.right>vw+3){o.push(e.tagName+"."+(e.className||"").toString().split(" ").slice(0,2).join(".")+" w="+Math.round(r.width));}});var b=document.createElement("div");b.style.cssText="position:fixed;top:0;left:0;right:0;z-index:99999;background:#fff;color:#000;font:11px monospace;padding:6px;white-space:pre-wrap;border-bottom:3px solid red";b.textContent="VW="+vw+" docW="+document.documentElement.scrollWidth+" overflow="+o.length+"\n"+o.slice(0,12).join("\n");document.body.appendChild(b);},2500);'
+    echo "shot probe: paste this <script> via your styling channel, then capture the top of the page:" >&2
+    echo "<script>$js</script>" ;;
+  *)
+    url="$sub"; out="${2:?out.png}"; size="${3:-1440x2000}"; scale="${4:-1}"
+    "$CHROME" --headless=new --disable-gpu --hide-scrollbars \
+      --force-device-scale-factor="$scale" --window-size="${size/x/,}" \
+      --virtual-time-budget=14000 --screenshot="$out" "$url" 2>/dev/null
+    echo "shot -> $out ($size @${scale}x)" >&2 ;;
+esac

@@ -1,0 +1,8 @@
+{
+  "name": "cklph-visual-qa",
+  "description": "Verify a rendered web page VISUALLY against a design — headless-Chrome screenshots, ImageMagick crop/compare, overflow probes, and the adversarial visual-reviewer agent. Framework-agnostic; pairs with cklph-figma.",
+  "version": "0.1.0",
+  "author": {
+    "name": "Peter Krzyzek"
+  }
+}
