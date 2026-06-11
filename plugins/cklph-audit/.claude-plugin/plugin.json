@@ -1,0 +1,8 @@
+{
+  "name": "cklph-audit",
+  "description": "Scoped, adversarially-verified, agentic whole-repo audits. Decompose the codebase, fan out a sub-agent per subsystem × lens, run a deterministic tool for recall, refute each finding to kill false positives, drop accepted-baseline items, and synthesize a triaged report + remediation-wave plan. Read-only in v1. Lenses: security, correctness, architecture.",
+  "version": "0.1.0",
+  "author": {
+    "name": "Peter Krzyzek"
+  }
+}

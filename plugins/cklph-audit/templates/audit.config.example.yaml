@@ -1,0 +1,23 @@
+version: 1
+units:
+  autoInfer: true               # scout infers units (set false to require `list`)
+  deepMapThreshold: 0.7         # overall confidence below this → escalate to audit-unit-mapper
+  list:                         # optional explicit units; ALWAYS win over inference when present
+    - key: auth
+      title: Authentication & authorization
+      globs: ["lib/auth/**", "app/api/auth/**", "lib/middleware/**"]
+    - key: billing
+      globs: ["app/api/billing/**", "app/api/payments/**", "lib/stripe/**"]
+lenses: [security, correctness, architecture]
+severityFloor: low              # drop findings below this
+verify:
+  voters: 3                     # refuters per finding
+  passThreshold: majority       # majority | unanimous
+budget:
+  total: 800000                 # token ceiling for the run (null = unbounded)
+quick:
+  topN: 5                       # units sampled in :quick mode
+ignore: ["**/__tests__/**", "**/*.generated.ts", "types/database.ts"]
+report:
+  dir: audits
+rulesFrom: ["CLAUDE.md", "AGENTS.md", ".coderabbit.yaml"]   # repo rules to honor
