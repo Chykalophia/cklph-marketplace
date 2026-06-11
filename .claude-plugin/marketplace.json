@@ -70,6 +70,12 @@
       "source": "./plugins/cklph-audit",
       "description": "Scoped, adversarially-verified, agentic whole-repo audits. Decompose the codebase, fan out a sub-agent per subsystem × lens, run a deterministic tool for recall, refute each finding to kill false positives, drop accepted-baseline items, synthesize a triaged report + remediation-wave plan. Read-only. Lenses: security, correctness, architecture.",
       "category": "quality"
+    },
+    {
+      "name": "cro-research-reporting",
+      "source": "./plugins/cro-research-reporting",
+      "description": "Audit conversion funnels, run deep sourced research, write conversion copy and outbound/positioning, and produce render-safe reports + annotated redesign blueprints. Chykalophia CRO toolkit.",
+      "category": "marketing"
     }
   ]
 }

@@ -1,0 +1,17 @@
+# OS / editor
+.DS_Store
+Thumbs.db
+.idea/
+.vscode/
+
+# Build artifacts
+*.plugin
+*.zip
+
+# Local engagement context (client-specific; don't commit)
+cro-engagement.md
+
+# Misc
+*.log
+.env
+node_modules/
