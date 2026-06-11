@@ -9,7 +9,7 @@ A strategist's toolkit for Claude (works in Claude, Cowork, and Claude Code). It
 ## What's new in 0.2.0
 - **Two new skills:** `conversion-copywriting` and `outbound-and-positioning`.
 - **Four specialized subagents:** `cro-auditor`, `deep-researcher`, `report-builder`, `cro-verifier` (an adversarial pre-ship checker).
-- **Marketplace install:** ships `.claude-plugin/marketplace.json` so it can be added via `/plugin marketplace add`.
+- **Marketplace install:** distributed via the **cklph** marketplace (`claude plugin install cro-research-reporting@cklph`).
 - **Deeper CRO references:** experimentation rigor (A/B sizing, peeking, sequential testing, ICE/PIE/PXL), checkout/mobile/accessibility (Baymard/GoodUI/NN-g), persuasion & mental models (Cialdini + pricing), and a Shopify Liquid build checklist (current Dawn/theme-tools practice).
 - **Sharper research & reporting:** a research-rigor reference (reflection/gap loops, credibility scoring, stop conditions) and a citations-and-grounding reference (gapless citation spec, outline-first generation, grounding gate).
 - **Tighter skill descriptions** (triggers without leaking the method), `license` + `metadata` on every skill, and `argument-hint` + scoped `allowed-tools` on every command.
@@ -46,7 +46,7 @@ No configuration required. More powerful when connected (all optional):
 - **A codebase/theme export** (file access) — maps findings to real files and supports the Liquid build checklist.
 
 ## Install
-- **Marketplace:** `/plugin marketplace add Chykalophia/cro-research-reporting` then install `cro-research-reporting`.
+- **Marketplace:** part of Peter's **cklph** marketplace — `/plugin marketplace add Chykalophia/cklph-marketplace` (or `claude plugin marketplace update cklph`), then `claude plugin install cro-research-reporting@cklph`.
 - **Direct:** save the `.plugin` file via the install button, or place the folder in your plugins directory.
 
 ## Testing & iteration
