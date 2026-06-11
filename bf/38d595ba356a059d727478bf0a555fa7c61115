@@ -1,0 +1,20 @@
+plugins/cro-research-reporting/README.md
+  s_be0439b0d87a6e::t_63349d1188c22f 12
+  s_be0439b0d87a6e::t_3215ce5a557578 49
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.5.6",
+  "base_commit_sha": "bf38d595ba356a059d727478bf0a555fa7c61115",
+  "prompts": {},
+  "sessions": {
+    "s_be0439b0d87a6e": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "4cfa213c-7e2d-4d1e-9b86-39f463db9cd2",
+        "model": "claude-opus-4-8"
+      },
+      "human_author": "Peter Krzyzek <peter@chykalophia.com>"
+    }
+  }
+}
