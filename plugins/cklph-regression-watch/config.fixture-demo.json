@@ -1,0 +1,15 @@
+{
+  "site": "fixture-staging",
+  "baseUrl": "fixtures/",
+  "urls": [
+    "page.html"
+  ],
+  "retries": 3,
+  "visual": {
+    "enabled": true,
+    "tolerancePct": 1,
+    "masks": [
+      "#ticker"
+    ]
+  }
+}

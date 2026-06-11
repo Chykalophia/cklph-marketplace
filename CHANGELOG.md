@@ -3,6 +3,11 @@
 All notable changes to cklph-os are documented here.
 Format: [Keep a Changelog](https://keepachangelog.com); versioning follows [SemVer](https://semver.org).
 
+## [Unreleased] — 2026-06-09
+
+### Added — new plugin
+- **`cklph-regression-watch`** — on-demand site regression monitor (5th plugin). Baseline a live/staging site and surface only confirmed regressions (availability, SEO integrity, tracking tag-firing, visual, journeys) with evidence. Confirmation engine kills flakes; `regression-verifier` agent gates alerts. First executable plugin in the marketplace (Playwright + pixelmatch, under `plugins/cklph-regression-watch`).
+
 ## [0.9.0] — 2026-06-01
 
 ### Changed (breaking)

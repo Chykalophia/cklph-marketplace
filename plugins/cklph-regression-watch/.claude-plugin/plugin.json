@@ -1,0 +1,6 @@
+{
+  "name": "cklph-regression-watch",
+  "description": "Baseline a live or staging site, re-check on demand or on a schedule, and surface only confirmed regressions (availability, SEO, tracking tag-firing, visual, journeys) with the evidence attached. On-demand, agent-interpreted; you own the data.",
+  "version": "0.1.0",
+  "author": { "name": "Peter Krzyzek" }
+}

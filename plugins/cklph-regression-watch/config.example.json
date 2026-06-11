@@ -1,0 +1,34 @@
+{
+  "site": "acme-staging",
+  "baseUrl": "https://staging.acme.example",
+  "urls": [
+    "/",
+    "/pricing",
+    "/contact"
+  ],
+  "retries": 3,
+  "visual": {
+    "enabled": true,
+    "tolerancePct": 1.0,
+    "masks": ["#cookie-banner", ".carousel", "[data-dynamic]"]
+  },
+  "alert": {
+    "mode": "silent-unless-broken",
+    "channel": "clickup-reminder"
+  },
+  "journeys": [
+    {
+      "id": "JN2-contact-form",
+      "description": "Fill and submit the contact form with synthetic data (staging: full submit)",
+      "start": "/contact",
+      "steps": [
+        { "fill": "#name", "value": "Regression Watch Test" },
+        { "fill": "#email", "value": "qa+cklph-regression-watch@chykalophia.com" },
+        { "fill": "#message", "value": "Automated staging regression check — please ignore." },
+        { "click": "button[type=submit]" },
+        { "expect": "text=Thanks" }
+      ]
+    }
+  ],
+  "_notes": "Copy to config.[client].json. On PRODUCTION, remove journeys that submit, or set them to stop before the final submit/payment step. masks = CSS selectors for regions that change every load."
+}
