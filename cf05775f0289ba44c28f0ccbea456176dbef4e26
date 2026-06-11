@@ -1,0 +1,114 @@
+plugins/cklph-wp/skills/site-profile/SKILL.md
+  s_2054c876c4a534::t_545c52320d8575 1-52
+plugins/cklph-wp/.claude-plugin/plugin.json
+  s_2054c876c4a534::t_7a0f30c5f4897c 1-3,5-8
+  s_2054c876c4a534::t_55f2da585016b1 4
+plugins/cklph-visual-qa/CHANGELOG.md
+  s_2054c876c4a534::t_789bbe974fb21e 1-14
+plugins/cklph-wp/README.md
+  s_2054c876c4a534::t_9208989ba66763 22-27
+  s_2054c876c4a534::t_6db1ba7322052b 13,19-20
+  s_2054c876c4a534::t_62c870fd2257de 1-12,14-18,21,28-40
+plugins/cklph-wp/CHANGELOG.md
+  s_2054c876c4a534::t_b41170488ee968 1-5,62-72
+  s_2054c876c4a534::t_98c40b914fa7cd 18-28
+  s_2054c876c4a534::t_ae444f535b666b 43-61
+  s_2054c876c4a534::t_5f8260331f0548 29-42
+  s_2054c876c4a534::t_9759c4644ce248 6-17
+plugins/cklph-wp/skills/site-profile/references/profile-template.md
+  s_2054c876c4a534::t_fb38dcad51f7b0 1-43
+plugins/cklph-wp/skills/version-docs/SKILL.md
+  s_2054c876c4a534::t_7d4398e531b709 1-48
+plugins/cklph-wp/skills/wp-data/SKILL.md
+  s_2054c876c4a534::t_bf3836b7051df3 1-71
+plugins/cklph-visual-qa/skills/visual-verify/SKILL.md
+  s_2054c876c4a534::t_5b71b869514fbe 1-55
+plugins/cklph-figma/.claude-plugin/plugin.json
+  s_2054c876c4a534::t_8eea5d8980bfe8 1-8
+plugins/cklph-figma/CHANGELOG.md
+  s_2054c876c4a534::t_d7d87a8b529d04 1-13
+plugins/cklph-elementor/skills/elementor-templates/SKILL.md
+  s_2054c876c4a534::t_33a30d2243972a 1-60
+plugins/cklph-elementor/skills/elementor-styling/references/css-gotchas.md
+  s_2054c876c4a534::t_3708e1683949a8 1-62
+plugins/cklph-figma/README.md
+  s_2054c876c4a534::t_f8b833ddeca202 1-25
+plugins/cklph-wp/skills/wp-connect/references/hosting-gotchas.md
+  s_2054c876c4a534::t_4225aae38078be 1-47
+plugins/cklph-figma-to-wp/CHANGELOG.md
+  s_2054c876c4a534::t_d43efe4bde75b4 1-13
+plugins/cklph-elementor/skills/elementor-styling/SKILL.md
+  s_2054c876c4a534::t_a732f2b1294e3b 1-57
+plugins/cklph-visual-qa/agents/visual-reviewer.md
+  s_2054c876c4a534::t_c044a12707e851 1-35
+plugins/cklph-elementor/CHANGELOG.md
+  s_2054c876c4a534::t_c9943abb8a136e 1-19
+plugins/cklph-elementor/README.md
+  s_2054c876c4a534::t_41d245cb1b19c0 1-40
+plugins/cklph-figma-to-wp/skills/translate/SKILL.md
+  s_2054c876c4a534::t_af6c2075ce2f15 1-48
+plugins/cklph-figma-to-wp/.claude-plugin/plugin.json
+  s_2054c876c4a534::t_15ccc22212dac2 1-8
+plugins/cklph-wp/skills/wp-connect/SKILL.md
+  s_2054c876c4a534::t_0841e4ec39162a 8-12
+  s_2054c876c4a534::t_685dd3e67426af 28,49
+  s_2054c876c4a534::t_a07cd340cf618c 30-46,48,50,52-60
+  s_2054c876c4a534::t_1567f0a3530c60 1-7,13-15,18-26,62-88
+  s_2054c876c4a534::t_59cd5371322f6c 16-17,27,29,47
+  s_2054c876c4a534::t_cd0a49638fa79a 51,61
+plugins/cklph-elementor/scripts/el-tools.py
+  s_2054c876c4a534::t_6a3445b09cb119 1-120
+plugins/cklph-figma/skills/figma-read/SKILL.md
+  s_2054c876c4a534::t_82b5571cfc914a 1-43
+plugins/cklph-figma-to-wp/skills/start-here/SKILL.md
+  s_2054c876c4a534::t_0c6eca9bdf877a 14-15,17-19
+  s_2054c876c4a534::t_5a39c78d41d636 1-13,16,20-38
+plugins/cklph-figma-to-wp/skills/tokenize/SKILL.md
+  s_2054c876c4a534::t_2114b9c60501a9 1-46
+plugins/cklph-figma-to-wp/README.md
+  s_2054c876c4a534::t_501e4e24318a00 1-33
+.claude-plugin/marketplace.json
+  s_2054c876c4a534::t_b6987985dbfb28 31-60
+plugins/cklph-visual-qa/scripts/shot
+  s_2054c876c4a534::t_9e2df2ac4c5b31 1-49
+plugins/cklph-visual-qa/README.md
+  s_2054c876c4a534::t_98024d9d770b1b 1-31
+plugins/cklph-elementor/skills/elementor-responsive/SKILL.md
+  s_2054c876c4a534::t_8b414a262aa788 1-65
+plugins/cklph-figma/skills/figma-tokens/SKILL.md
+  s_2054c876c4a534::t_f7ede91445aded 1-45
+plugins/cklph-elementor/skills/elementor-data/SKILL.md
+  s_2054c876c4a534::t_de09b535746cba 1-59
+plugins/cklph-wp/scripts/cwp
+  s_2054c876c4a534::t_93462527cf0e59 25-36
+  s_2054c876c4a534::t_d50e5a56998cb8 39
+  s_2054c876c4a534::t_d3f389027ae4e9 80-81
+  s_2054c876c4a534::t_e5969fed7efc0a 85,88,94
+  s_2054c876c4a534::t_9104a4ff223957 168-171
+  s_2054c876c4a534::t_83732c6d0ddfce 42,45,48-50,52-77
+  s_2054c876c4a534::t_7c68eb26066524 1-2,6,9-14,16,18-24,38,40-41,78-79,82,99-103,135-140,143-147,149,151-155,157,160,162-163,165-167,172-176
+  s_2054c876c4a534::t_5109669bb5fef4 3-5,7-8,15,17,37,83,97-98,104-134,141-142,148,150,156,158-159,161,164
+  s_2054c876c4a534::t_c642ed137080fa 87,90-92,96
+  s_2054c876c4a534::t_3db3efd65513a5 43-44,46-47,51
+  s_2054c876c4a534::t_988d43e539a940 84,86,89,93,95
+plugins/cklph-elementor/.claude-plugin/plugin.json
+  s_2054c876c4a534::t_812c7dc1eed52f 1-8
+plugins/cklph-visual-qa/.claude-plugin/plugin.json
+  s_2054c876c4a534::t_bdcb76de013b61 1-8
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.5.6",
+  "base_commit_sha": "cf05775f0289ba44c28f0ccbea456176dbef4e26",
+  "prompts": {},
+  "sessions": {
+    "s_2054c876c4a534": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "822af4ae-cb68-4bec-975b-14222cdc3ebe",
+        "model": "claude-opus-4-8"
+      },
+      "human_author": "Peter Krzyzek <peter@chykalophia.com>"
+    }
+  }
+}
