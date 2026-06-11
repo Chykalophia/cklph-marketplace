@@ -1,0 +1,24 @@
+{
+  "name": "cro-research-reporting",
+  "version": "0.3.0",
+  "description": "A strategist's toolkit: audit ecommerce/conversion funnels, run deep sourced research, write conversion copy, and turn findings into polished render-safe reports and annotated redesign blueprints. Distilled from real CRO engagements and from the best public skills/agents.",
+  "author": {
+    "name": "Chykalophia"
+  },
+  "license": "MIT",
+  "keywords": [
+    "cro",
+    "conversion",
+    "ecommerce",
+    "dtc",
+    "shopify",
+    "pdp",
+    "audit",
+    "experimentation",
+    "deep-research",
+    "report",
+    "information-design",
+    "copywriting",
+    "positioning"
+  ]
+}
