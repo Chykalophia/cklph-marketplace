@@ -9,6 +9,8 @@ This skill defines the exact shape `audit-synthesizer` must emit as `report.mark
 
 The document has seven parts, in order: **Front-matter → Coverage summary → Coverage matrix → Severity sections → Positive controls (INFO) → Remediation waves → Appendix.**
 
+An OPTIONAL `## Summary` lead block (new-finding counts, rule closure, positive-control count, unit derivation, a one-or-two-line headline) may sit between the front-matter and the Coverage summary — a human skim layer only, never a substitute for the sections below. The template includes one.
+
 ## 1. Front-matter (YAML)
 
 Open the file with a YAML front-matter block capturing the run's provenance:
@@ -133,7 +135,7 @@ A `## Positive controls (INFO)` section after the severity sections: the "checke
 
 Rules for each entry:
 - **Always** a `file:line` citation and what the control protects.
-- **Why it shipped** is exactly one of: `killed-candidate` (counter-evidence that refuted a critical/high candidate), `rule-verified` (a rulebook rule reconciled verified-safe), `recon` (a recon safe-control confirmed in scope).
+- **Why it shipped** is exactly one of: `killed-candidate` (counter-evidence that refuted a critical/high candidate), `rule-verified` (a rulebook rule reconciled verified-safe), `recon` (a recon safe-control a reviewer confirmed in scope — unconfirmed candidates never ship).
 - Ids are stable per-report (`I-1`, `I-2`, …). INFO entries are not findings — they never appear in waves.
 
 ## 6. Remediation waves
@@ -168,6 +170,7 @@ A closing `## Appendix` that makes coverage auditable:
   - jobs **dropped for budget** (token ceiling hit — name them),
   - anything the ignore globs excluded that a reader might expect covered.
 - **Recon gaps** — if recon was skipped (quick mode without `recon.quick`, or `recon.enabled: false`) or partial (a lens's recon agent died, or budget killed it), state which lenses' denominators and seeds are absent/partial and why. Absent denominators mean the Coverage summary has no math for that lens — say so plainly, don't fake it.
+- **Rulebook extraction failure** — if RUN_META says `rulebookMissing: true`, state that the Coverage matrix is empty because rulebook extraction died — NOT because the `rulesFrom` docs contain no rules. Silence must never read as "no rules".
 - **Denominator commands (verbatim)** — every recon denominator command, exactly as run, so the coverage math is re-runnable by the reader.
 - If the run was `quick` mode, state plainly at the top of the appendix: **coverage is partial — only the top-N highest-risk units were audited.**
 

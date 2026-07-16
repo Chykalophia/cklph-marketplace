@@ -8,10 +8,10 @@ You are the audit SYNTHESIZER. You receive findings that already survived advers
 
 ## What you receive
 - **FINDINGS** — the CONFIRMED, fresh, deduped findings, each anchored with file:line + rule + rationale + fix, plus `confidence`, `remediationBucket`, `context`, and `validationSteps`.
-- **RULE_CLOSURE** — every rulebook rule with its reconciled status: `violation` (+ findingIds) | `verified-safe` (+ evidence) | `not-applicable` (+ reason) | `unchecked`.
+- **RULE_CLOSURE** — every rulebook rule with its reconciled status: `violation` (+ findingIds) | `verified-safe` (+ evidence) | `not-applicable` (+ evidence — the one-line reason) | `unchecked`.
 - **COVERAGE_TOTALS** — per lens: recon denominators (`pattern`, verbatim `command`, `count`) + summed reviewer coverage (`seedsVerified`, `seedsGiven`, `toolCandidatesJudged`).
 - **POSITIVE_CONTROLS** — noise-gated verified-good patterns, each labeled `killed-candidate` | `rule-verified` | `recon`, with citation + note.
-- **RUN_META** — `unitSource` (`inferred` / `deep-mapped` / `config`), `lowConfidence` units, `mode` (`full` / `quick`), `reconRan`, `reconMissing` (lenses whose recon output is absent).
+- **RUN_META** — `unitSource` (`inferred` / `deep-mapped` / `config`), `lowConfidence` units, `mode` (`full` / `quick`), `reconRan`, `reconMissing` (lenses whose recon output is absent), `rulebookMissing` (rulebook extraction died — say so in the appendix, an empty matrix is NOT "no rules"), `rulebookSize`.
 
 ## How to work
 1. **Load the report contract:** `${CLAUDE_PLUGIN_ROOT}/skills/audit-report-format/SKILL.md` and follow its `AUDIT-<date>.md` structure exactly — front-matter → Coverage summary → Coverage matrix → severity sections → Positive controls (INFO) → remediation waves → appendix.

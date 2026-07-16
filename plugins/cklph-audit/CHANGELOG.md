@@ -34,7 +34,8 @@ methodology. Still read-only. See `SPEC-v2.md`.
   candidate — and capped at `positiveControls.max` (default 15; 0 disables). This
   knowledge previously evaporated every run.
 - **`docs-drift` lens** — audits the rulebook itself against reality: `tools/docsdrift.sh`
-  (deterministic recall: path tokens, script names, package names vs the tree /
+  (deterministic recall: path tokens, script names, scoped package names — `@scope/pkg`;
+  unscoped tech-name prose is the judgment layer's job — vs the tree /
   `package.json`) + a judgment-layer skill (real drift vs glob/abbreviation vs
   intentional). Opt-in, never in the defaults; when requested the engine adds exactly ONE
   job over the `rulesFrom` docs — not crossed with units. LOW severity by default, MEDIUM+
