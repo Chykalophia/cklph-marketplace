@@ -106,7 +106,9 @@ v1 is a repeatable engine. v2 is the same engine that can also show what it cove
 5. **Docs-drift lens** — audits the rulebook against reality (see the lens table above). One job over the `rulesFrom` docs, opt-in.
 6. **Richer findings** — every finding carries `confidence` (confirmed / likely / needs-owner-input), `validationSteps` (the read-only checks that confirmed it), a `remediationBucket` (quick-win / targeted-fix / systemic-refactor / owner-decision), and `context` (server/client · prod/test/generated · gated) — classified **before** severity, so severity reflects real exploitability, not a raw pattern match. `owner-decision` items render as questions for the owner, not scheduled work.
 
-Backward compatible: a v1 `audit.config.yaml` runs unchanged — recon defaults on, positive controls default to 15, docs-drift only when you ask for it.
+Plus **per-stage model routing**: `config.models.<stage>` sends mechanical stages (scout, recon, rulebook) to cheap model/effort tiers and routes the verifier — the precision bet — up, while judgment stages inherit the session model. The difficulty heuristic is encoded in config, where you can see and tune it; omit the block and everything inherits (v1 behavior).
+
+Backward compatible: a v1 `audit.config.yaml` runs unchanged — recon defaults on, positive controls default to 15, docs-drift only when you ask for it, model routing inherits everywhere.
 
 ---
 

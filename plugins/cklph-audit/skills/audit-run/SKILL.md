@@ -17,7 +17,7 @@ The only file you may write is the audit report under `<repo>/audits/`. No appli
 
 Read two files from the **target repo root**:
 
-- `audit.config.yaml` — units, lenses, severity floor, verify voters, recon (`recon.enabled` / `recon.quick`), `positiveControls.max`, budget, quick.topN, ignore globs, `rulesFrom`, `report.dir`.
+- `audit.config.yaml` — units, lenses, severity floor, verify voters, recon (`recon.enabled` / `recon.quick`), `positiveControls.max`, `models` (per-stage model/effort routing — omitted stages inherit the session model), budget, quick.topN, ignore globs, `rulesFrom`, `report.dir`.
 - `.audit-baseline.json` — accepted/known findings to suppress (`{ version, findings: [{ fingerprint, ... }] }`).
 
 **If either is missing**, stop and tell the user:

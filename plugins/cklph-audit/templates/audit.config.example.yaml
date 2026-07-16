@@ -16,6 +16,16 @@ verify:
 recon:
   enabled: true                 # per-lens recon: denominators + seeds + safe controls
   quick: false                  # true = recon in :quick mode too (default: quick skips it)
+models:                         # per-stage routing: mechanical work ↓, judgment inherits, verify ↑
+  # model: sonnet|opus|haiku|fable · effort: low|medium|high|xhigh|max
+  # omit a stage (or the whole block) = inherit the session model — safest default
+  scout: { effort: low }        # fast unit inference — cheap by design
+  recon: { effort: low }        # mechanical enumeration — counts, not judgment
+  rulebook: { effort: low }     # doc parsing
+  reviewer: {}                  # judgment — inherit; bump model/effort for hard repos
+  verifier: { effort: high }    # the precision bet — never cheap out here
+  unitMapper: {}                # escalation path — exists because the cheap pass failed; inherit
+  synthesizer: {}               # report writing — inherit
 positiveControls:
   max: 15                       # cap on "checked and clean" INFO entries (0 disables)
 budget:
