@@ -60,7 +60,7 @@ Project-agnostic knowledge packs. Each layers **over** the repo's own rules (e.g
 | **security** | CWE/ASVS/OWASP: authz/authn gaps, injection, secrets, SSRF, RLS/row-scoping, money & privilege paths, unsafe deserialization, missing rate-limit/CSRF. (The CASA lens.) |
 | **correctness** | Silent failures, swallowed errors, missing error IDs, state-machine catch-block gaps, race conditions/TOCTOU, null/undefined handling, off-by-one, fail-open defaults. |
 | **architecture** | DRY/duplication (extract-when-3+), layering violations, dead code, god-objects, circular deps, contradictory sources of truth, files over the size limit. |
-| **docs-drift** (opt-in) | The rulebook itself: paths, script names, and package names in your `rulesFrom` docs that no longer match the tree ("BullMQ" in the docs, QStash in the code). LOW severity by default; MEDIUM+ only when the drift misleads a security control. |
+| **docs-drift** (opt-in) | The rulebook itself: paths, script names, and scoped package names (`@scope/pkg`) in your `rulesFrom` docs that no longer match the tree — unscoped tech-name prose ("BullMQ" in the docs, QStash in the code) is the judgment layer's catch. LOW severity by default; MEDIUM+ only when the drift misleads a security control. |
 
 `docs-drift` is the exception to the unit × lens cross-product: when requested, the engine adds exactly **one** job over the `rulesFrom` docs — it never fans out per unit. It's not in the default lens list; ask for it explicitly.
 

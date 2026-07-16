@@ -2,23 +2,23 @@
 audit: cklph-audit
 date: <YYYY-MM-DD>
 repo: <repo name>
-sha: <git SHA at time of run>
+repo_sha: <git SHA at time of run>
 lenses: [<security, correctness, architecture>]
 mode: <full | quick>
 units:
   source: <inferred | config | deep-mapped>
-  covered: <N>
-  lowConfidence: [<unit-keys flagged low-confidence>]
+  covered: [<unit keys actually covered>]
+  low_confidence: [<unit-keys flagged low-confidence>]
 counts: { critical: 0, high: 0, medium: 0, low: 0, info: 0 }   # info = positive controls
 coverage:
   rulebook_size: <N>
   checked: <N>
   unchecked: [<rule ids NOT CHECKED — mirrored in the matrix>]
 positive_controls: <N>
-suppressedByBaseline: <N>
+suppressed_by_baseline: <N>
 skipped:
-  byBudget: <N>
-  bySampling: <N>      # quick-mode dropped units
+  by_budget: [<units/jobs dropped when budget ran low>]
+  by_sampling: [<quick-mode dropped units>]
 ---
 
 # Audit — <repo> — <YYYY-MM-DD>
@@ -30,6 +30,9 @@ skipped:
 > what was skipped and why.
 
 ## Summary
+
+<!-- OPTIONAL lead block (see audit-report-format §intro) — a human skim layer only,
+     never a substitute for the coverage sections below. -->
 
 - **New confirmed findings:** <N> (critical <c> / high <h> / medium <m> / low <l>)
 - **Suppressed by baseline:** <N>
@@ -119,14 +122,17 @@ Every rulebook rule gets a row — no rule silently absent. `unchecked` renders 
 ## Low
 
 ### L-1: <title>
-- **Where:** `<file>:<line>` · **rule:** `<…>` · **bucket:** <…> · **Fix:** <…>
+- **Where:** `<file>:<line>` · **rule:** `<…>`
+- **Confidence / bucket / context:** <…> / <…> / <…>
+- **Validated by:** <…> · **Fix:** <…>
 
 ---
 
 ## Positive controls (INFO)
 
 Verified-good patterns worth knowing about — the guards that killed candidate findings,
-rulebook rules verified safe, and recon-confirmed controls. Not findings; never in waves.
+rulebook rules verified safe, and recon safe-controls a reviewer confirmed in scope.
+Not findings; never in waves.
 `counts.info` = the number of entries here.
 
 ### I-1: <what the control is>
@@ -175,6 +181,9 @@ intentional-but-not-locally-obvious calls only the owner can settle.
 
 **Recon gaps:** <lenses whose denominators/seeds are absent or partial, and why — quick mode
 without `recon.quick`, `recon.enabled: false`, agent died, budget — or "none">
+
+**Rulebook:** <N rules extracted — or "extraction FAILED: the Coverage matrix is empty because
+the extractor died, NOT because the `rulesFrom` docs contain no rules">
 
 **Denominator commands (verbatim):**
 

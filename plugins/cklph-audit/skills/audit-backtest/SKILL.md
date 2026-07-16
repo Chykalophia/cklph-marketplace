@@ -29,6 +29,8 @@ Procedure:
 3. Compute **recall** = TP / (TP + FN) and **precision** = TP / (TP + FP) **after verify**.
 4. **Gate:** a lens is *not enabled* until it clears the suggested thresholds — **recall ≥ 0.8, precision ≥ 0.7 after verify**. A lens that can't clear the gate gets its tool / prompt / verifier fixed before it ships — it does not ship degraded.
 
+**docs-drift note:** this lens's fixtures are markdown (`*.example.md`), and its tool takes an explicit repo root. Run `${CLAUDE_PLUGIN_ROOT}/tools/docsdrift.sh <lens-fixture-dir> <fixture-file>` with repo-root = `fixtures/docs-drift` — the parent of `should-flag/` and `should-not-flag/`, which is the root mapping the fixtures' references assume.
+
 Fixtures grow every time a real false-positive or false-negative is found in the wild, so the gate **ratchets up** over time.
 
 ## Mode 2 — Backtest against a known commit (`[ref]` supplied)

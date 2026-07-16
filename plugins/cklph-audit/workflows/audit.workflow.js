@@ -186,6 +186,18 @@ const REVIEW_SCHEMA = {
         },
       },
     },
+    safeControlChecks: {                         // verdict per SAFE-CONTROL candidate handed (M4)
+      type: 'array',
+      items: {
+        type: 'object',
+        required: ['file', 'confirmed'],
+        properties: {
+          file: { type: 'string' },
+          confirmed: { type: 'boolean' },
+          evidence: { type: 'string' },
+        },
+      },
+    },
     coverage: {                                  // honest counts → coverage math (M3)
       type: 'object',
       properties: {
@@ -226,6 +238,7 @@ const REPORT_SCHEMA = {
     },
     counts: {
       type: 'object',
+      required: ['critical', 'high', 'medium', 'low', 'info'],
       properties: {
         critical: { type: 'number' }, high: { type: 'number' },
         medium: { type: 'number' }, low: { type: 'number' },
@@ -301,7 +314,10 @@ const discovered = await parallel([
     `${args?.path ? ` Scope to: ${args.path}.` : ''} Mechanically enumerate — return: denominators ` +
     `(pattern + re-runnable command VERBATIM + honest count), seeds (cited file:line leads worth a ` +
     `reviewer's attention — hints, NOT findings), and safeControls (verified-good reference ` +
-    `patterns: file:line + what they protect). Honor ignore globs: ${JSON.stringify(config.ignore ?? [])}. Read-only.`,
+    `patterns: file:line + what they protect). Honor ignore globs: ${JSON.stringify(config.ignore ?? [])}. Read-only.` +
+    (lens === 'docs-drift'
+      ? ` The rulebook docs to recon are: ${JSON.stringify(rulesFromList)} — enumerate THEIR references (paths, scripts, packages), not the whole repo.`
+      : ''),
     { agentType: 'audit-recon', label: `recon:${lens}`, phase: 'Recon', schema: RECON_SCHEMA },
   )) : []),
 ])
@@ -344,8 +360,9 @@ if (!wantScout) {
       `Draft plan: ${JSON.stringify(plan?.units?.map(u => ({ key: u.key, globs: u.globs, confidence: u.confidence })) ?? [])}`,
       { agentType: 'audit-unit-mapper', label: 'discover:deep-map', schema: PLAN_SCHEMA },
     )
-    units = mapped.units
-    unitSource = 'deep-mapped'
+    if (!mapped) log('unit-mapper died — keeping scout units' + (plan ? '' : ' (none)'))
+    units = mapped?.units ?? plan?.units ?? []
+    if (mapped) unitSource = 'deep-mapped'
   }
 }
 const lowConfidence = units.filter(u => (u.confidence ?? 1) < 0.6).map(u => u.key)
@@ -359,6 +376,10 @@ if (mode === 'quick') {
 // work-list = every (unit × lens) pair. docs-drift is NOT crossed with units —
 // when requested it is exactly ONE job over the rulesFrom docs themselves (M5).
 const unitLenses = lenses.filter(l => l !== 'docs-drift')
+if (units.length === 0 && unitLenses.length > 0) {
+  log(`WARNING: no units — ${unitLenses.join(', ')} lens(es) have nothing to review; ` +
+      `run degrades to ${lenses.includes('docs-drift') ? 'the docs-drift job only' : 'an empty report'}`)
+}
 const jobs = units.flatMap(u => unitLenses.map(lens => ({ unit: u, lens })))
 if (lenses.includes('docs-drift')) {
   jobs.push({ unit: { key: 'docs', title: 'Repo rulebook docs', globs: rulesFromList, confidence: 1 }, lens: 'docs-drift' })
@@ -373,12 +394,14 @@ const reviewed = await pipeline(
   jobs,
   // stage 1: review one unit through one lens (tool-augmented, seed- and rule-aware)
   job => {
-    const rules = job.lens === 'docs-drift'
-      ? rulebook
-      : rulebook.filter(r => r.lensHint === job.lens || r.lensHint === 'any' || !r.lensHint)
+    // EVERY lens — docs-drift included — gets only its subset (spec M2): lensHint match,
+    // 'any', or unhinted. Untouched code rules fold honestly to unchecked → NOT CHECKED.
+    const rules = rulebook.filter(r => r.lensHint === job.lens || r.lensHint === 'any' || !r.lensHint)
     const recon = reconByLens[job.lens]
-    const seeds = (recon?.seeds ?? []).filter(s => s?.file && globMatch(s.file, job.unit.globs))
-    const safeControls = (recon?.safeControls ?? []).filter(s => s?.file && globMatch(s.file, job.unit.globs))
+    // normalize recon paths (./foo → foo) so glob matching doesn't drop seeds on a prefix
+    const inUnit = s => { const nf = s?.file?.replace(/^\.\//, ''); return nf && globMatch(nf, job.unit.globs) }
+    const seeds = (recon?.seeds ?? []).filter(inUnit)
+    const safeControls = (recon?.safeControls ?? []).filter(inUnit)
     return agent(
       `Audit UNIT "${job.unit.key}" (globs: ${JSON.stringify(job.unit.globs)}) through the **${job.lens}** lens. ` +
       `Load the ${job.lens}-lens skill; the repo's own rules (RULEBOOK below) win on conflict. Run the lens's ` +
@@ -396,7 +419,9 @@ const reviewed = await pipeline(
         ? `SEEDS — hints, NOT findings: re-open and verify EVERY one before use (citations drift):\n${JSON.stringify(seeds)}\n`
         : '') +
       (safeControls.length
-        ? `SAFE-CONTROL candidates — confirm at file:line or reject:\n${JSON.stringify(safeControls)}\n`
+        ? `SAFE-CONTROL candidates — return a safeControlCheck ({ file, confirmed, evidence }) for ` +
+          `EVERY one: confirmed: true ONLY after reading the guard at its file:line; evidence = ` +
+          `that citation:\n${JSON.stringify(safeControls)}\n`
         : '') +
       `Report coverage HONESTLY: { seedsVerified, seedsGiven (${seeds.length} given), toolCandidatesJudged }.`,
       { agentType: 'audit-reviewer', label: `review:${job.unit.key}:${job.lens}`, phase: 'Review', schema: REVIEW_SCHEMA },
@@ -414,6 +439,7 @@ const reviewed = await pipeline(
       )))
       .then(votes => {
         const v = votes.filter(Boolean)
+        if (v.length === 0) log(`verify:${f.id ?? f.file}: all voters died — finding dropped unverified`)
         const confirmedVotes = v.filter(x => !x.refuted).length
         return {
           ...f, unit: job.unit.key, lens: job.lens,
@@ -427,6 +453,7 @@ const reviewed = await pipeline(
       unit: job.unit.key, lens: job.lens,
       findings: verified.filter(Boolean),
       ruleChecks: review?.ruleChecks ?? [],
+      safeControlChecks: review?.safeControlChecks ?? [],
       coverage: review?.coverage ?? null,
     })),
 )
@@ -477,9 +504,16 @@ for (const f of allVerified) {
 for (const r of ruleClosure) {
   if (r.status === 'verified-safe') pcCandidates.push({ label: 'rule-verified', file: r.source, rule: r.id, evidence: r.evidence, note: r.text })
 }
+// a recon safeControl ships ONLY with a reviewer verdict behind it (spec M4: "confirmed in-scope")
+const confirmedSafe = new Map()
+for (const c of results.flatMap(r => r.safeControlChecks).filter(c => c?.file && c.confirmed)) {
+  if (!confirmedSafe.has(c.file)) confirmedSafe.set(c.file, c.evidence)   // keep first evidence
+}
 for (const lens of Object.keys(reconByLens)) {
   for (const s of reconByLens[lens].safeControls ?? []) {
-    if (s?.file) pcCandidates.push({ label: 'recon', file: s.file, line: s.line, rule: s.rule, evidence: s.snippet, note: s.note })
+    if (s?.file && confirmedSafe.has(s.file)) {
+      pcCandidates.push({ label: 'recon', file: s.file, line: s.line, rule: s.rule, evidence: confirmedSafe.get(s.file) || s.snippet, note: s.note })
+    }
   }
 }
 const pcMax = config.positiveControls?.max ?? 15             // 0 disables
@@ -527,7 +561,12 @@ const runMeta = {
   unitSource, lowConfidence, mode,
   reconRan: reconEnabled,
   reconMissing: reconEnabled ? lenses.filter(l => !reconByLens[l]) : lenses,
+  rulebookMissing: !rulebookOut,                 // extraction died — matrix empty for THAT reason
+  rulebookSize: rulebook.length,
 }
+// engine-internal fields stay out of the synthesizer's context (confirmed is always true here;
+// refutedGuards were already harvested into positive controls above)
+const publicFresh = fresh.map(({ refutedGuards, confirmed, ...rest }) => rest)
 const report = await agent(
   `Write the audit report from these CONFIRMED, fresh findings. Load the audit-report-format skill for the ` +
   `AUDIT-<date>.md contract. Bucket by severity (critical/high/medium/low), each with file:line + why-it's-real ` +
@@ -540,7 +579,7 @@ const report = await agent(
   `quick-wins first within a severity band; owner-decision items go in their own "Owner decisions" ` +
   `subsection (questions, not work). Flag in an appendix: unit derivation, low-confidence units, quick-mode ` +
   `sampling, and recon gaps (RUN_META — state plainly which denominators/seeds are absent/partial and why).\n\n` +
-  `FINDINGS:\n${JSON.stringify(fresh, null, 2)}\n\n` +
+  `FINDINGS:\n${JSON.stringify(publicFresh, null, 2)}\n\n` +
   `RULE_CLOSURE:\n${JSON.stringify(ruleClosure, null, 2)}\n\n` +
   `COVERAGE_TOTALS:\n${JSON.stringify(coverageTotals, null, 2)}\n\n` +
   `POSITIVE_CONTROLS:\n${JSON.stringify(positiveControls, null, 2)}\n\n` +

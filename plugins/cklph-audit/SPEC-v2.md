@@ -98,7 +98,8 @@ New lens `docs-drift`: audits the *rulebook itself* against reality (the SendBri
 `src/` vs `app/src/` and "BullMQ" vs QStash this way).
 
 - **Deterministic tool** `tools/docsdrift.sh`: extracts path-like tokens, `pnpm|npm|yarn` script
-  names, and package names from the `rulesFrom` docs; verifies each against the tree /
+  names, and scoped package names (`@scope/pkg`; unscoped tech-name prose is the judgment
+  layer's job) from the `rulesFrom` docs; verifies each against the tree /
   `package.json`; emits candidate-drift JSON (`{ doc, line, token, kind, exists }`). Recall layer.
 - **Lens skill** `skills/docs-drift-lens/SKILL.md`: judgment layer — is the mismatch real drift, a
   glob/abbreviation, or intentional? Severity: LOW by default, MEDIUM+ only when the drift misleads
@@ -153,8 +154,8 @@ jobs = units × lenses  (+ ONE docs job if 'docs-drift' ∈ lenses — excluded 
 - Synthesize: prompt + `REPORT_SCHEMA` extended — synthesizer receives `{ fresh, rulebook,
   ruleClosure, coverageTotals, positiveControls, runMeta }`; `counts` gains `info`; returns matrix
   + coverage summary + positive controls inside `markdown`.
-- Return value gains `coverage: { rulebookSize, checked, unchecked }` for the run summary printed
-  by `audit-run`.
+- Return value gains `coverage: { rulebookSize, checked, uncheckedRuleIds }` for the run summary
+  printed by `audit-run`.
 - Budget: recon/rulebook agents draw from the same `budget`; if budget kills recon, the appendix
   says denominators are partial — never silently.
 
