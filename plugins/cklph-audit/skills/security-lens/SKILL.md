@@ -36,3 +36,4 @@ Before judging, **load the repo's security rules**: `CLAUDE.md` / `AGENTS.md` (i
 - **On conflict, prefer the repo's rule** over the generic lens — it knows this codebase's conventions and accepted trade-offs.
 - Treat **documented/accepted exceptions** (in the baseline or the repo's learnings) as **non-findings**, not violations.
 - When you flag something the repo's own rule already names, cite that rule id alongside the CWE/ASVS so the fix is unambiguous.
+- **Rulebook compliance:** these same rules also reach you pre-parsed as this lens's RULEBOOK subset in your prompt. Return a ruleCheck for **every** rule handed (`violation` | `verified-safe` | `not-applicable`); `verified-safe`/`not-applicable` need a one-line citation/reason. A skipped rule renders **NOT CHECKED** in the coverage matrix — never skip silently.
