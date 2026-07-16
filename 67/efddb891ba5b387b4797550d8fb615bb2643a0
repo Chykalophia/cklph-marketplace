@@ -1,0 +1,68 @@
+plugins/cklph-audit/fixtures/docs-drift/should-flag/drifted-doc.example.md
+  s_cef0814d5e85a3::t_89cfe196633f95 27-29
+  s_cef0814d5e85a3::t_879306f03553b0 16-17
+  s_cef0814d5e85a3::t_4ba5194f09cd45 2,9-11
+plugins/cklph-audit/skills/audit-backtest/SKILL.md
+  s_cef0814d5e85a3::t_935739dd4c4924 32-33
+plugins/cklph-audit/agents/audit-synthesizer.md
+  s_cef0814d5e85a3::t_41cf8f87466d05 11
+  s_cef0814d5e85a3::t_77312e5bda5ca3 14
+plugins/cklph-audit/CHANGELOG.md
+  s_cef0814d5e85a3::t_18a7b831776920 37-38
+plugins/cklph-audit/SPEC-v2.md
+  s_cef0814d5e85a3::t_6196efb3f35682 101-102
+  s_cef0814d5e85a3::t_0fb2c7b9e51477 157-158
+plugins/cklph-audit/fixtures/README.md
+  s_cef0814d5e85a3::t_94a57ea1270b57 49-53
+  s_cef0814d5e85a3::t_f83e78286af84b 11
+plugins/cklph-audit/agents/audit-reviewer.md
+  s_cef0814d5e85a3::t_4dce196dc9189c 18
+  s_cef0814d5e85a3::t_545f9628bee31c 33
+  s_cef0814d5e85a3::t_9d42141292958b 39
+  s_cef0814d5e85a3::t_0f4e084752483e 13
+  s_cef0814d5e85a3::t_0cf3d9140fbd1c 36
+plugins/cklph-audit/workflows/audit.workflow.js
+  s_cef0814d5e85a3::t_e4fa6fd634e2a3 363-365
+  s_cef0814d5e85a3::t_81b4935d862ed9 456
+  s_cef0814d5e85a3::t_b8bf4ab4d51239 317-320
+  s_cef0814d5e85a3::t_60fb5888d0af45 442
+  s_cef0814d5e85a3::t_338834c7611616 189-200
+  s_cef0814d5e85a3::t_04cf5b278ad55b 507-511,514-516
+  s_cef0814d5e85a3::t_f215fd3b125771 564-565
+  s_cef0814d5e85a3::t_eebf3e275d40d6 379-382
+  s_cef0814d5e85a3::t_b1e5959d3e0e12 397-399,401-404
+  s_cef0814d5e85a3::t_c5cc6aba4846b2 241
+  s_cef0814d5e85a3::t_f19c54efa49299 567-569
+  s_cef0814d5e85a3::t_a547a827da52b5 582
+  s_cef0814d5e85a3::t_2522e8eb7f121d 422-424
+plugins/cklph-audit/skills/audit-report-format/SKILL.md
+  s_cef0814d5e85a3::t_7cbe2625322fe1 12-13
+  s_cef0814d5e85a3::t_578a7604db29b2 138
+  s_cef0814d5e85a3::t_235ba13779a395 173
+plugins/cklph-audit/README.md
+  s_cef0814d5e85a3::t_9e4dfa37e3c39e 63
+plugins/cklph-audit/templates/AUDIT-TEMPLATE.md
+  s_cef0814d5e85a3::t_44457b5a086998 134-135
+  s_cef0814d5e85a3::t_7a8de3434234a6 18,20-21
+  s_cef0814d5e85a3::t_e592fc62cc817d 5
+  s_cef0814d5e85a3::t_e87dad536d7b4b 34-36
+  s_cef0814d5e85a3::t_25f2e70dcd1fad 185-187
+  s_cef0814d5e85a3::t_33d398bbbbf447 125-127
+  s_cef0814d5e85a3::t_55d7f4095a8e27 10-11
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.14",
+  "base_commit_sha": "67efddb891ba5b387b4797550d8fb615bb2643a0",
+  "prompts": {},
+  "sessions": {
+    "s_cef0814d5e85a3": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "b7d3a4cc-1f7b-4b8e-a37a-a4ed2537dfb2",
+        "model": "claude-opus-4-8"
+      },
+      "human_author": "Peter Krzyzek <peter@chykalophia.com>"
+    }
+  }
+}
