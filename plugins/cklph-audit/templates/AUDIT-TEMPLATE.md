@@ -9,7 +9,12 @@ units:
   source: <inferred | config | deep-mapped>
   covered: <N>
   lowConfidence: [<unit-keys flagged low-confidence>]
-counts: { critical: 0, high: 0, medium: 0, low: 0 }
+counts: { critical: 0, high: 0, medium: 0, low: 0, info: 0 }   # info = positive controls
+coverage:
+  rulebook_size: <N>
+  checked: <N>
+  unchecked: [<rule ids NOT CHECKED — mirrored in the matrix>]
+positive_controls: <N>
 suppressedByBaseline: <N>
 skipped:
   byBudget: <N>
@@ -20,15 +25,47 @@ skipped:
 
 > Scoped, adversarially-verified whole-repo audit. Every finding below survived a
 > default-to-refuted verifier pass. Findings already accepted in `.audit-baseline.json`
-> are suppressed (count in front-matter). Nothing is silently truncated — see Appendix
-> for exactly what was skipped and why.
+> are suppressed (count in front-matter). Coverage is arithmetic, not vibes — see the
+> Coverage summary and matrix. Nothing is silently truncated — see Appendix for exactly
+> what was skipped and why.
 
 ## Summary
 
 - **New confirmed findings:** <N> (critical <c> / high <h> / medium <m> / low <l>)
 - **Suppressed by baseline:** <N>
+- **Rule closure:** <checked> / <rulebook_size> rules checked — NOT CHECKED: <list or "none">
+- **Positive controls:** <N> verified-good patterns (INFO section)
 - **Unit derivation:** <inferred | config | deep-mapped> — low-confidence units flagged: <list or "none">
 - **Headline:** <one or two lines on the most important thing found>
+
+---
+
+## Coverage summary
+
+Per lens: recon denominators (command verbatim) vs what reviewers actually examined.
+Where examined < N, the row says **sampled** and gives the risk-weighting rationale.
+
+### <lens>
+
+| Pattern | Command | Examined |
+| --- | --- | --- |
+| <what was enumerated> | `<re-runnable command, verbatim>` | <X> / <N> |
+| <pattern> | `<command>` | <X> / <N> — **sampled**: <rationale> |
+
+**Reviewer coverage:** seeds verified <X> / <N> given · tool candidates judged <N>
+
+---
+
+## Coverage matrix
+
+Every rulebook rule gets a row — no rule silently absent. `unchecked` renders as **NOT CHECKED**, whole row bold.
+
+| Rule id | Source | Status | Finding IDs / citation / reason |
+| --- | --- | --- | --- |
+| `<slug>` | `<file:line>` | violation | <C-1, H-2> |
+| `<slug>` | `<file:line>` | verified-safe | `<file:line>` — <evidence> |
+| `<slug>` | `<file:line>` | not-applicable | <reason> |
+| **`<slug>`** | **`<file:line>`** | **NOT CHECKED** | **<no reviewer reached this rule>** |
 
 ---
 
@@ -37,6 +74,10 @@ skipped:
 ### C-1: <title>
 - **Where:** `<file>:<line>`
 - **Lens / rule:** <security | correctness | architecture> · `<CWE-… | ASVS-… | own-rule>`
+- **Confidence:** <confirmed | likely | needs-owner-input>
+- **Bucket:** <quick-win | targeted-fix | systemic-refactor | owner-decision>
+- **Context:** <server | client | shared> / <prod | test | generated> / <gated | ungated>
+- **Validated by:** <the read-only checks the reviewer ran to confirm true-positive>
 - **Snippet:**
   ```ts
   <the offending code>
@@ -52,6 +93,10 @@ skipped:
 ### H-1: <title>
 - **Where:** `<file>:<line>`
 - **Lens / rule:** <…>
+- **Confidence:** <…>
+- **Bucket:** <…>
+- **Context:** <…>
+- **Validated by:** <…>
 - **Snippet:**
   ```ts
   <code>
@@ -66,21 +111,36 @@ skipped:
 
 ### M-1: <title>
 - **Where:** `<file>:<line>` · **rule:** `<…>`
-- **Why / fix:** <…> · **Verifier note:** <…>
+- **Confidence / bucket / context:** <…> / <…> / <…>
+- **Why / fix:** <…> · **Verifier note:** <…> · **Validated by:** <…>
 
 ---
 
 ## Low
 
 ### L-1: <title>
-- **Where:** `<file>:<line>` · **rule:** `<…>` · **Fix:** <…>
+- **Where:** `<file>:<line>` · **rule:** `<…>` · **bucket:** <…> · **Fix:** <…>
+
+---
+
+## Positive controls (INFO)
+
+Verified-good patterns worth knowing about — the guards that killed candidate findings,
+rulebook rules verified safe, and recon-confirmed controls. Not findings; never in waves.
+`counts.info` = the number of entries here.
+
+### I-1: <what the control is>
+- **Citation:** `<file>:<line>`
+- **Protects:** <what it guards>
+- **Why it shipped:** <killed-candidate | rule-verified | recon> — <one line>
 
 ---
 
 ## Remediation waves
 
 Ordered groups ready to hand to `/cklph-os:flow` or `cklph-implementer` waves. Each wave
-is independently shippable; later waves may depend on earlier ones.
+is independently shippable; later waves may depend on earlier ones. Quick-wins come first
+within a severity band.
 
 ### Wave 1 — <title>
 - **Findings:** [C-1, H-1]
@@ -89,6 +149,13 @@ is independently shippable; later waves may depend on earlier ones.
 ### Wave 2 — <title>
 - **Findings:** [H-2, M-1]
 - **Rationale:** <…>
+
+### Owner decisions
+
+Questions for the repo owner, not scheduled work — `owner-decision` findings are
+intentional-but-not-locally-obvious calls only the owner can settle.
+
+- **[<id>] <title>** — <the question: what looks intentional, what evidence says so, what to confirm>
 
 ---
 
@@ -106,6 +173,16 @@ is independently shippable; later waves may depend on earlier ones.
 
 **Skipped — sampling (`:quick`):** <units dropped by top-N risk ranking, or "n/a (full mode)">
 
-**Tools run for recall:** <dry.sh / await.sh / deadcode.sh / layering.sh / secrets.sh — and any that degraded to reasoning because the binary was absent>
+**Recon gaps:** <lenses whose denominators/seeds are absent or partial, and why — quick mode
+without `recon.quick`, `recon.enabled: false`, agent died, budget — or "none">
 
-> No silent truncation: if a unit, lens, or finding-class was not evaluated, it is named above.
+**Denominator commands (verbatim):**
+
+| Lens | Pattern | Command |
+| --- | --- | --- |
+| <lens> | <pattern> | `<command exactly as recon ran it>` |
+
+**Tools run for recall:** <dry.sh / await.sh / deadcode.sh / layering.sh / secrets.sh / docsdrift.sh — and any that degraded to reasoning because the binary was absent>
+
+> No silent truncation: if a unit, lens, rulebook rule, or enumerated pattern was not
+> evaluated, it is named above — or shown as **NOT CHECKED** in the Coverage matrix.
