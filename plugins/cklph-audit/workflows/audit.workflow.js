@@ -280,6 +280,16 @@ function globMatch(path, globs) {
     return new RegExp(re).test(path)
   })
 }
+function tier(stage) {
+  // per-stage model/effort routing from config.models.<stage> = { model?, effort? }.
+  // Omitted stage (or block) = inherit the session model — the v1 behavior.
+  // Policy lives in config, not here: mechanical stages ↓, judgment inherits, verify ↑.
+  const t = config.models?.[stage] ?? {}
+  const o = {}
+  if (t.model) o.model = t.model
+  if (t.effort) o.effort = t.effort
+  return o
+}
 
 // ════════════════════════════════════════════════════════════════════════════
 // 1. DISCOVER + RECON — units, rulebook, and per-lens recon, all in parallel
@@ -299,7 +309,7 @@ const discovered = await parallel([
     `service/repository layers. Give each unit a confidence (does this glob set cohere into one ` +
     `reviewable concern?) and a riskScore (auth/billing/data-mutation/external-IO = high). Set ` +
     `needsDeepMap=true if the repo doesn't decompose cleanly. Honor ignore globs: ${JSON.stringify(config.ignore ?? [])}.`,
-    { agentType: 'audit-scout', label: 'discover:scout', schema: PLAN_SCHEMA },
+    { agentType: 'audit-scout', label: 'discover:scout', schema: PLAN_SCHEMA, ...tier('scout') },
   )] : []),
   () => agent(
     `Extract this repo's RULEBOOK: parse ${JSON.stringify(rulesFromList)} into discrete rules ` +
@@ -307,7 +317,7 @@ const discovered = await parallel([
     `file:line, text (verbatim or tight paraphrase), lensHint ` +
     `(security|correctness|architecture|docs-drift|any). Split compound rules; skip prose that ` +
     `isn't a rule. Read-only.`,
-    { agentType: 'audit-recon', label: 'discover:rulebook', schema: RULEBOOK_SCHEMA },
+    { agentType: 'audit-recon', label: 'discover:rulebook', schema: RULEBOOK_SCHEMA, ...tier('rulebook') },
   ),
   ...(reconEnabled ? lenses.map(lens => () => agent(
     `RECON the **${lens}** lens's concern surface across the whole scoped repo.` +
@@ -318,7 +328,7 @@ const discovered = await parallel([
     (lens === 'docs-drift'
       ? ` The rulebook docs to recon are: ${JSON.stringify(rulesFromList)} — enumerate THEIR references (paths, scripts, packages), not the whole repo.`
       : ''),
-    { agentType: 'audit-recon', label: `recon:${lens}`, phase: 'Recon', schema: RECON_SCHEMA },
+    { agentType: 'audit-recon', label: `recon:${lens}`, phase: 'Recon', schema: RECON_SCHEMA, ...tier('recon') },
   )) : []),
 ])
 // unpack (parallel never rejects — failed thunks resolve null)
@@ -358,7 +368,7 @@ if (!wantScout) {
       `import/dependency graph, CODEOWNERS/ownership signals, and real module boundaries. ` +
       `Lenses: ${lenses.join(', ')}. ${args?.path ? `Scope: ${args.path}. ` : ''}` +
       `Draft plan: ${JSON.stringify(plan?.units?.map(u => ({ key: u.key, globs: u.globs, confidence: u.confidence })) ?? [])}`,
-      { agentType: 'audit-unit-mapper', label: 'discover:deep-map', schema: PLAN_SCHEMA },
+      { agentType: 'audit-unit-mapper', label: 'discover:deep-map', schema: PLAN_SCHEMA, ...tier('unitMapper') },
     )
     if (!mapped) log('unit-mapper died — keeping scout units' + (plan ? '' : ' (none)'))
     units = mapped?.units ?? plan?.units ?? []
@@ -424,7 +434,7 @@ const reviewed = await pipeline(
           `that citation:\n${JSON.stringify(safeControls)}\n`
         : '') +
       `Report coverage HONESTLY: { seedsVerified, seedsGiven (${seeds.length} given), toolCandidatesJudged }.`,
-      { agentType: 'audit-reviewer', label: `review:${job.unit.key}:${job.lens}`, phase: 'Review', schema: REVIEW_SCHEMA },
+      { agentType: 'audit-reviewer', label: `review:${job.unit.key}:${job.lens}`, phase: 'Review', schema: REVIEW_SCHEMA, ...tier('reviewer') },
     )
   },
   // stage 2: verify each finding (N default-refuted voters; majority must confirm)
@@ -435,7 +445,7 @@ const reviewed = await pipeline(
         `unless the code proves it real. Hunt for the guard/mitigation the reviewer missed (middleware, ` +
         `RLS, validation, an upstream caller, an existing test, a documented/accepted exception). Cite ` +
         `counterEvidence (file:line) when you refute. Voter ${i + 1}/${voters}.\nFINDING: ${JSON.stringify({ title: f.title, file: f.file, line: f.line, rule: f.rule, snippet: f.snippet, rationale: f.rationale })}`,
-        { agentType: 'audit-verifier', label: `verify:${f.id ?? f.file}`, phase: 'Verify', schema: VERDICT_SCHEMA },
+        { agentType: 'audit-verifier', label: `verify:${f.id ?? f.file}`, phase: 'Verify', schema: VERDICT_SCHEMA, ...tier('verifier') },
       )))
       .then(votes => {
         const v = votes.filter(Boolean)
@@ -584,7 +594,7 @@ const report = await agent(
   `COVERAGE_TOTALS:\n${JSON.stringify(coverageTotals, null, 2)}\n\n` +
   `POSITIVE_CONTROLS:\n${JSON.stringify(positiveControls, null, 2)}\n\n` +
   `RUN_META:\n${JSON.stringify(runMeta, null, 2)}`,
-  { agentType: 'audit-synthesizer', label: 'synthesize:report', schema: REPORT_SCHEMA },
+  { agentType: 'audit-synthesizer', label: 'synthesize:report', schema: REPORT_SCHEMA, ...tier('synthesizer') },
 )
 
 return {

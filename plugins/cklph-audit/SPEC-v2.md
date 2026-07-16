@@ -124,6 +124,16 @@ New lens `docs-drift`: audits the *rulebook itself* against reality (the SendBri
 into a severity fight. The synthesizer orders waves quick-wins-first within a severity band and
 lists owner-decision items in their own subsection (they are questions, not work).
 
+### M7 — Per-stage model routing (added post-review)
+
+`config.models.<stage>` (`scout` / `recon` / `rulebook` / `reviewer` / `verifier` / `unitMapper` /
+`synthesizer`) optionally sets `{ model?, effort? }` per engine stage, passed straight to the
+Workflow `agent()` opts. The policy lives in config, not the engine: mechanical stages route cheap
+(low effort), judgment stages inherit the session model, the verifier — the precision bet — routes
+up (`effort: high`). Omitting a stage or the whole block inherits the session model everywhere,
+which is exactly v1 behavior (backward compatible). The harness does not auto-detect difficulty;
+this block is where the difficulty heuristic is encoded.
+
 ---
 
 ## 2. Engine changes (`workflows/audit.workflow.js`)

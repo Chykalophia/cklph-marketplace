@@ -47,6 +47,11 @@ methodology. Still read-only. See `SPEC-v2.md`.
   (surface/runtime/gated) — classified BEFORE severity, so severity comes from real
   exploitability, not raw pattern match. `owner-decision` items render as questions in
   their own waves subsection, not scheduled work.
+- **Per-stage model routing** — `config.models.<stage>` optionally sets `{ model, effort }`
+  per engine stage (scout/recon/rulebook/reviewer/verifier/unitMapper/synthesizer), passed
+  through to the Workflow `agent()` opts. Suggested policy in the config template:
+  mechanical stages at low effort, judgment stages inherit the session model, the verifier
+  at high effort. Omit the block to inherit everywhere (v1 behavior).
 
 ### Changed
 
