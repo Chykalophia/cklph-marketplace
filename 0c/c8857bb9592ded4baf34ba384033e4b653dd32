@@ -1,0 +1,23 @@
+plugins/cklph-audit/templates/AUDIT-TEMPLATE.md
+  s_cef0814d5e85a3::t_826f025286b4a5 12-17,28-30,36-37,43-71,77-80,96-99,114-115,122-135,142-143,153-159,176-185,187-188
+plugins/cklph-audit/agents/audit-synthesizer.md
+  s_cef0814d5e85a3::t_bac6ad89552f5f 3,7,10-14,17-23,26
+plugins/cklph-audit/skills/audit-report-format/SKILL.md
+  s_cef0814d5e85a3::t_2c3c710f5d51ae 3,8,10,26-31,39,41-86,97-100,116,118-137,139,141,154-156,159,161,170-171,174
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.14",
+  "base_commit_sha": "0cc8857bb9592ded4baf34ba384033e4b653dd32",
+  "prompts": {},
+  "sessions": {
+    "s_cef0814d5e85a3": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "b7d3a4cc-1f7b-4b8e-a37a-a4ed2537dfb2",
+        "model": "claude-opus-4-8"
+      },
+      "human_author": "Peter Krzyzek <peter@chykalophia.com>"
+    }
+  }
+}
