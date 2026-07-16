@@ -5,7 +5,7 @@ description: Orchestrate a scoped, adversarially-verified whole-repo audit — l
 
 # audit-run — drive the audit workflow and write the report
 
-This skill is what `/cklph-audit:run <lenses> [path]` and `/cklph-audit:quick <lens> [path]` delegate to. You are the **conductor**: you load the target repo's state, parse the request, hand everything to the deterministic Workflow engine, then write its report to disk. You do **not** review code yourself — the workflow's sub-agents (scout → reviewer → verifier → synthesizer) do that.
+This skill is what `/cklph-audit:run <lenses> [path]` and `/cklph-audit:quick <lens> [path]` delegate to. You are the **conductor**: you load the target repo's state, parse the request, hand everything to the deterministic Workflow engine, then write its report to disk. You do **not** review code yourself — the workflow's sub-agents (scout + recon/rulebook → reviewer → verifier → synthesizer) do that.
 
 ## STRICT: read-only except the report
 
