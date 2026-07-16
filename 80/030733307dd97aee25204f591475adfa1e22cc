@@ -1,0 +1,21 @@
+plugins/cklph-audit/SPEC-v2.md
+  s_cef0814d5e85a3::t_2fd1e492d8c038 1-210
+plugins/cklph-audit/workflows/audit.workflow.js
+  s_cef0814d5e85a3::t_4e711f0815fefb 1,4-22,34,45,73-141,162-172,176-196,232,260-269,272,275-283,290-330,332,337-339,344,359-366,374-404,411-412,418-431,435,437-439,445-511,518-529,534-547,556-557
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.14",
+  "base_commit_sha": "80030733307dd97aee25204f591475adfa1e22cc",
+  "prompts": {},
+  "sessions": {
+    "s_cef0814d5e85a3": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "b7d3a4cc-1f7b-4b8e-a37a-a4ed2537dfb2",
+        "model": "claude-opus-4-8"
+      },
+      "human_author": "Peter Krzyzek <peter@chykalophia.com>"
+    }
+  }
+}
