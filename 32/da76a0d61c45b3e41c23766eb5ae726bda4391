@@ -1,0 +1,32 @@
+plugins/cklph-audit/.claude-plugin/plugin.json
+  s_cef0814d5e85a3::t_d13435fcd93dc6 3-4
+plugins/cklph-audit/CHANGELOG.md
+  s_cef0814d5e85a3::t_ad3bfa7628ec89 6-67
+.claude-plugin/marketplace.json
+  s_cef0814d5e85a3::t_2b1fc75484a83a 71
+plugins/cklph-audit/README.md
+  s_cef0814d5e85a3::t_36e146efa4f23a 126,132-134,136
+  s_cef0814d5e85a3::t_7dbd9ec9cb0548 115-116
+  s_cef0814d5e85a3::t_b2cb9bcfef6c6b 25
+  s_cef0814d5e85a3::t_8a613d6357f6ff 3,6,8
+  s_cef0814d5e85a3::t_6fa9ff41cedb77 54,56,63-65,67
+  s_cef0814d5e85a3::t_de7ba4dc4c3bad 77-90,94-109
+  s_cef0814d5e85a3::t_49e3bc189f9a6f 44,50
+  s_cef0814d5e85a3::t_50530990e89dd6 51
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.14",
+  "base_commit_sha": "32da76a0d61c45b3e41c23766eb5ae726bda4391",
+  "prompts": {},
+  "sessions": {
+    "s_cef0814d5e85a3": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "b7d3a4cc-1f7b-4b8e-a37a-a4ed2537dfb2",
+        "model": "claude-opus-4-8"
+      },
+      "human_author": "Peter Krzyzek <peter@chykalophia.com>"
+    }
+  }
+}
