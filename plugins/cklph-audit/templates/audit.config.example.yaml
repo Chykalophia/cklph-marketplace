@@ -8,11 +8,16 @@ units:
       globs: ["lib/auth/**", "app/api/auth/**", "lib/middleware/**"]
     - key: billing
       globs: ["app/api/billing/**", "app/api/payments/**", "lib/stripe/**"]
-lenses: [security, correctness, architecture]
+lenses: [security, correctness, architecture]   # add docs-drift to audit the rulesFrom docs themselves
 severityFloor: low              # drop findings below this
 verify:
   voters: 3                     # refuters per finding
   passThreshold: majority       # majority | unanimous
+recon:
+  enabled: true                 # per-lens recon: denominators + seeds + safe controls
+  quick: false                  # true = recon in :quick mode too (default: quick skips it)
+positiveControls:
+  max: 15                       # cap on "checked and clean" INFO entries (0 disables)
 budget:
   total: 800000                 # token ceiling for the run (null = unbounded)
 quick:
