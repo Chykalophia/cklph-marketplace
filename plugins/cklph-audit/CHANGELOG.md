@@ -3,6 +3,68 @@
 All notable changes to `cklph-audit` are documented here. This project adheres to
 [Semantic Versioning](https://semver.org/).
 
+## 0.2.0 — 2026-07-16
+
+The coverage upgrade. v1 was a repeatable engine; 0.2.0 is the same engine that can also
+show what it covered — completeness accounting ported from the ZenCoder audit
+methodology. Still read-only. See `SPEC-v2.md`.
+
+### Added
+
+- **Recon phase** — new `audit-recon` agent, one per lens, dispatched in parallel with the
+  scout. Returns **denominators** (`{ pattern, command, count }` — the exact enumeration
+  command, recorded verbatim in the report appendix so it's re-runnable), **seeds** (cited
+  leads; hints, not findings — reviewers must re-verify every one, citations drift), and
+  **safe-control candidates**. Skipped in `:quick` unless `recon.quick: true`; the skip is
+  logged and stated in the report appendix, never silent.
+- **Rulebook + rule-closure coverage matrix** — the same agent (rulebook mode) parses the
+  `rulesFrom` docs (`CLAUDE.md`/`AGENTS.md`) into discrete rules with stable IDs. Reviewers
+  return a `ruleCheck` for every rule handed (`violation` / `verified-safe` /
+  `not-applicable`, each with evidence or a reason); plain-code reconciliation folds them so
+  the report renders a matrix row for EVERY rule — including an honest `NOT CHECKED` for
+  anything no reviewer touched. Closure: no rule may be silently absent.
+- **Denominator coverage math** — reviewers report
+  `{ seedsVerified, seedsGiven, toolCandidatesJudged }`; the report's Coverage summary
+  states `examined X / N` per denominator (+ command), and says "sampled" plainly where
+  X < N, with the risk-weighting rationale.
+- **Positive controls (INFO)** — verifier refutations that cite a concrete guard,
+  `verified-safe` rule checks, and reviewer-confirmed recon safe controls ship as a
+  "checked and clean" report section (citation + what it protects). Noise-gated — must
+  attach to a rulebook rule or be the counter-evidence that killed a critical/high
+  candidate — and capped at `positiveControls.max` (default 15; 0 disables). This
+  knowledge previously evaporated every run.
+- **`docs-drift` lens** — audits the rulebook itself against reality: `tools/docsdrift.sh`
+  (deterministic recall: path tokens, script names, package names vs the tree /
+  `package.json`) + a judgment-layer skill (real drift vs glob/abbreviation vs
+  intentional). Opt-in, never in the defaults; when requested the engine adds exactly ONE
+  job over the `rulesFrom` docs — not crossed with units. LOW severity by default, MEDIUM+
+  only when the drift misleads a security control.
+- **Richer finding schema** — findings gain `confidence`
+  (`confirmed`/`likely`/`needs-owner-input`), `validationSteps` (the read-only checks that
+  confirmed true-positive), `remediationBucket`
+  (`quick-win`/`targeted-fix`/`systemic-refactor`/`owner-decision`), and `context`
+  (surface/runtime/gated) — classified BEFORE severity, so severity comes from real
+  exploitability, not raw pattern match. `owner-decision` items render as questions in
+  their own waves subsection, not scheduled work.
+
+### Changed
+
+- **Phases** are now Discover → Recon → Review → Verify → Synthesize (reconcile stays
+  plain code: dedup + baseline suppression + rule closure + coverage totals +
+  positive-control harvest).
+- `FINDINGS_SCHEMA` → `REVIEW_SCHEMA` (findings + `ruleChecks` + `coverage`); report
+  `counts` gains `info`; the run summary prints rule closure ("rulebook N rules: X
+  checked, Y NOT CHECKED") and the positive-control count.
+- **No-silent-truncation now extends from units to rules and patterns** — budget-killed
+  recon means the appendix says denominators are partial; unchecked rules render as
+  `NOT CHECKED`.
+
+### Backward compatibility
+
+A v1 `audit.config.yaml` runs unchanged: `recon.enabled` defaults on,
+`positiveControls.max` defaults to 15, `:quick` skips recon (quick stays cheap), and
+`docs-drift` runs only when explicitly requested.
+
 ## 0.1.0
 
 First release — the productized version of a hand-run 8-agent pre-certification security audit.
