@@ -1,0 +1,25 @@
+plugins/cklph-audit/tools/docsdrift.sh
+  s_cef0814d5e85a3::t_b9ec7e3edccefb 1-115
+plugins/cklph-audit/fixtures/docs-drift/should-flag/drifted-doc.example.md
+  s_cef0814d5e85a3::t_cd73333b3251dc 1-24
+plugins/cklph-audit/fixtures/docs-drift/should-not-flag/accurate-doc.example.md
+  s_cef0814d5e85a3::t_bcf26bb691ec2d 1-19
+plugins/cklph-audit/skills/docs-drift-lens/SKILL.md
+  s_cef0814d5e85a3::t_d00ca3bcd89811 1-37
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.14",
+  "base_commit_sha": "1eb18aa5827ace391f02efb58b2beec1a931016a",
+  "prompts": {},
+  "sessions": {
+    "s_cef0814d5e85a3": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "b7d3a4cc-1f7b-4b8e-a37a-a4ed2537dfb2",
+        "model": "claude-opus-4-8"
+      },
+      "human_author": "Peter Krzyzek <peter@chykalophia.com>"
+    }
+  }
+}
