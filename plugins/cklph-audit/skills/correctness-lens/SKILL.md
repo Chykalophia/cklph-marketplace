@@ -33,3 +33,4 @@ Before judging, **load the repo's rules**: `CLAUDE.md` / `AGENTS.md` (its "commo
 - **On conflict, prefer the repo's rule** — it encodes this codebase's intended behavior.
 - Treat **documented/accepted exceptions** (baseline, repo learnings) as **non-findings**.
 - When a finding maps to a named repo pitfall, cite it so the fix is unambiguous.
+- **Rulebook compliance:** these same rules also reach you pre-parsed as this lens's RULEBOOK subset in your prompt. Return a ruleCheck for **every** rule handed (`violation` | `verified-safe` | `not-applicable`); `verified-safe`/`not-applicable` need a one-line citation/reason. A skipped rule renders **NOT CHECKED** in the coverage matrix — never skip silently.

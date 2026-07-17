@@ -41,7 +41,7 @@ Start from `${CLAUDE_PLUGIN_ROOT}/templates/audit.config.example.yaml` and tailo
 - Seed `units.list` with the high-risk subsystems you found, with real `globs` for THIS repo (or leave `units.list` empty and `autoInfer: true` to let the scout infer — but always set the high-risk ones if obvious).
 - Set `ignore` to the patterns that actually apply here.
 - Set `rulesFrom` to the rule files that actually exist in the repo.
-- Keep the template defaults for `verify.voters` (3), `severityFloor`, `budget`, `quick.topN`, `report.dir: audits`, `units.deepMapThreshold` (0.7).
+- Keep the template defaults for `verify.voters` (3), `severityFloor`, `budget`, `quick.topN`, `report.dir: audits`, `units.deepMapThreshold` (0.7), `recon.enabled` (true), `recon.quick` (false — quick mode skips recon), `positiveControls.max` (15; 0 disables).
 
 Comment any unit/glob you inferred so the user can verify and pin it.
 

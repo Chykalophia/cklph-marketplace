@@ -8,7 +8,7 @@ is trusted (SPEC §10). These fixtures are that ground truth, run by
 
 ```
 fixtures/
-└── <lens>/                         # security | correctness | architecture
+└── <lens>/                         # security | correctness | architecture | docs-drift
     ├── should-flag/                # planted issues the lens MUST catch   → RECALL
     └── should-not-flag/            # clean look-alikes it MUST NOT flag   → PRECISION
 ```
@@ -45,6 +45,11 @@ fixture (a look-alike → `should-not-flag/`, a missed defect → `should-flag/`
 Use `<short-description>.example.ts` so fixtures are never picked up by the repo's real
 build/test globs. Comment each fixture with **what** is planted (or why it's clean) and the
 **expected** verdict, so the labels are self-documenting.
+
+`docs-drift` fixtures are markdown — `<short-description>.example.md` — and their references
+are written relative to `fixtures/docs-drift/` (the parent of both subfolders): the backtest
+runs `docsdrift.sh` with that folder as its repo-root, so tokens resolve (or drift) against it,
+not against the plugin repo.
 
 ---
 
