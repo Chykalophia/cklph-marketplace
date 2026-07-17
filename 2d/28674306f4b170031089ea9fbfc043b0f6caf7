@@ -1,0 +1,23 @@
+plugins/cklph-audit/CHANGELOG.md
+  s_cef0814d5e85a3::t_6b5749de1d5e9e 6-11
+plugins/cklph-audit/skills/docs-drift-lens/SKILL.md
+  s_cef0814d5e85a3::t_dd7cb6cec902de 3
+plugins/cklph-audit/.claude-plugin/plugin.json
+  s_cef0814d5e85a3::t_fb9493da07f036 4
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.14",
+  "base_commit_sha": "2d28674306f4b170031089ea9fbfc043b0f6caf7",
+  "prompts": {},
+  "sessions": {
+    "s_cef0814d5e85a3": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "b7d3a4cc-1f7b-4b8e-a37a-a4ed2537dfb2",
+        "model": "claude-opus-4-8"
+      },
+      "human_author": "Peter Krzyzek <peter@chykalophia.com>"
+    }
+  }
+}
