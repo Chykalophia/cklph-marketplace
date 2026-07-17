@@ -3,6 +3,12 @@
 All notable changes to `cklph-audit` are documented here. This project adheres to
 [Semantic Versioning](https://semver.org/).
 
+## 0.2.1 — 2026-07-16
+
+- Fix: `docs-drift-lens` SKILL.md frontmatter failed YAML parsing (unquoted `:` in the
+  description) — the skill would have loaded with empty metadata at runtime. Caught by
+  `claude plugin validate` during release tagging; description now quoted.
+
 ## 0.2.0 — 2026-07-16
 
 The coverage upgrade. v1 was a repeatable engine; 0.2.0 is the same engine that can also
