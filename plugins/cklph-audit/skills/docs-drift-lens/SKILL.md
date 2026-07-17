@@ -1,6 +1,6 @@
 ---
 name: docs-drift-lens
-description: The docs-drift audit lens — audits the rulebook docs themselves (CLAUDE.md, AGENTS.md, …) against reality: moved paths, renamed scripts, swapped packages. Driven by the deterministic docsdrift.sh token check; the lens judges real drift vs glob/abbreviation vs intentional. Loaded by audit-reviewer for the single docs job.
+description: "The docs-drift audit lens — audits the rulebook docs themselves (CLAUDE.md, AGENTS.md, …) against reality: moved paths, renamed scripts, swapped packages. Driven by the deterministic docsdrift.sh token check; the lens judges real drift vs glob/abbreviation vs intentional. Loaded by audit-reviewer for the single docs job."
 ---
 
 # docs-drift-lens — the rulebook audited against reality
