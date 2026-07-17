@@ -68,7 +68,7 @@
     {
       "name": "cklph-audit",
       "source": "./plugins/cklph-audit",
-      "description": "Scoped, adversarially-verified, agentic whole-repo audits. Decompose the codebase, fan out a sub-agent per subsystem × lens, run a deterministic tool for recall, refute each finding to kill false positives, drop accepted-baseline items, synthesize a triaged report + remediation-wave plan. Read-only. Lenses: security, correctness, architecture.",
+      "description": "Scoped, adversarially-verified, agentic whole-repo audits that also prove what they covered. Decompose the codebase, recon each lens for denominators + cited seeds, fan out a sub-agent per subsystem × lens, run a deterministic tool for recall, refute each finding to kill false positives, drop accepted-baseline items, and synthesize a triaged report with a rule-closure coverage matrix (every repo rule accounted for — unchecked rendered honestly), positive controls (INFO), and a remediation-wave plan. Read-only. Lenses: security, correctness, architecture, plus opt-in docs-drift.",
       "category": "quality"
     },
     {
