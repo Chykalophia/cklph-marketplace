@@ -3,6 +3,16 @@
 All notable changes to `cklph-audit` are documented here. This project adheres to
 [Semantic Versioning](https://semver.org/).
 
+## 0.3.2 — 2026-07-19
+
+- **Hard-blocker fix:** the audit workflow dispatched every sub-agent by BARE name
+  (`agentType: 'audit-scout'`), but the runtime registry namespaces plugin agents as
+  `cklph-audit:audit-scout`. All 9 dispatch sites are now namespaced. `/cklph-audit:run`
+  failed 100% of the time on any repo — latent since v1 and only surfaced on the first real
+  run because `parallel()` silently resolves a failed agent to `null`, so the scout/recon/
+  rulebook failures were swallowed and the crash only surfaced at the first directly-awaited
+  agent (`audit-unit-mapper`), disguising a universal bug as a unit-mapper issue.
+
 ## 0.3.1 — 2026-07-19
 
 - Fix: init/scout emitted stale framework conventions and could **miss `proxy.ts`** — the

@@ -373,7 +373,7 @@ function verifyFindings(findings, unitKey, lens, unitVoters, extraOpts = {}) {
         `reachabilityTrace (attacker-controlled input → sink, or the invariant-violation path) — ` +
         `"plausible" without a trace = refuted. Voter ${i + 1}/${unitVoters}.\n` +
         `FINDING: ${JSON.stringify({ title: f.title, file: f.file, line: f.line, rule: f.rule, severity: f.severity, snippet: stripComments(f.snippet), rationale: f.rationale })}`,
-        { agentType: 'audit-verifier', label: `verify:${f.id ?? f.file}`, phase: 'Verify', schema: VERDICT_SCHEMA, ...tier('verifier'), ...extraOpts },
+        { agentType: 'cklph-audit:audit-verifier', label: `verify:${f.id ?? f.file}`, phase: 'Verify', schema: VERDICT_SCHEMA, ...tier('verifier'), ...extraOpts },
       )))
       .then(votes => {
         const v = votes.filter(Boolean)
@@ -421,7 +421,7 @@ const discovered = await parallel([
     `service/repository layers. Give each unit a confidence (does this glob set cohere into one ` +
     `reviewable concern?) and a riskScore (auth/billing/data-mutation/external-IO = high). Set ` +
     `needsDeepMap=true if the repo doesn't decompose cleanly. Honor ignore globs: ${JSON.stringify(config.ignore ?? [])}.`,
-    { agentType: 'audit-scout', label: 'discover:scout', schema: PLAN_SCHEMA, ...tier('scout') },
+    { agentType: 'cklph-audit:audit-scout', label: 'discover:scout', schema: PLAN_SCHEMA, ...tier('scout') },
   )] : []),
   () => agent(
     `Extract this repo's RULEBOOK: parse ${JSON.stringify(rulesFromList)} into discrete rules ` +
@@ -429,7 +429,7 @@ const discovered = await parallel([
     `file:line, text (verbatim or tight paraphrase), lensHint ` +
     `(security|correctness|architecture|docs-drift|any). Split compound rules; skip prose that ` +
     `isn't a rule. Read-only.`,
-    { agentType: 'audit-recon', label: 'discover:rulebook', schema: RULEBOOK_SCHEMA, ...tier('rulebook') },
+    { agentType: 'cklph-audit:audit-recon', label: 'discover:rulebook', schema: RULEBOOK_SCHEMA, ...tier('rulebook') },
   ),
   ...(reconEnabled ? lenses.map(lens => () => agent(
     `RECON the **${lens}** lens's concern surface across the whole scoped repo.` +
@@ -440,7 +440,7 @@ const discovered = await parallel([
     (lens === 'docs-drift'
       ? ` The rulebook docs to recon are: ${JSON.stringify(rulesFromList)} — enumerate THEIR references (paths, scripts, packages), not the whole repo.`
       : ''),
-    { agentType: 'audit-recon', label: `recon:${lens}`, phase: 'Recon', schema: RECON_SCHEMA, ...tier('recon') },
+    { agentType: 'cklph-audit:audit-recon', label: `recon:${lens}`, phase: 'Recon', schema: RECON_SCHEMA, ...tier('recon') },
   )) : []),
 ])
 // unpack (parallel never rejects — failed thunks resolve null)
@@ -480,7 +480,7 @@ if (!wantScout) {
       `import/dependency graph, CODEOWNERS/ownership signals, and real module boundaries. ` +
       `Lenses: ${lenses.join(', ')}. ${args?.path ? `Scope: ${args.path}. ` : ''}` +
       `Draft plan: ${JSON.stringify(plan?.units?.map(u => ({ key: u.key, globs: u.globs, confidence: u.confidence })) ?? [])}`,
-      { agentType: 'audit-unit-mapper', label: 'discover:deep-map', schema: PLAN_SCHEMA, ...tier('unitMapper') },
+      { agentType: 'cklph-audit:audit-unit-mapper', label: 'discover:deep-map', schema: PLAN_SCHEMA, ...tier('unitMapper') },
     )
     if (!mapped) log('unit-mapper died — keeping scout units' + (plan ? '' : ' (none)'))
     units = mapped?.units ?? plan?.units ?? []
@@ -530,7 +530,7 @@ if (!mapEnabled) {
     `UNITS: ${JSON.stringify(units.map(u => ({ key: u.key, globs: u.globs, riskScore: u.riskScore })))}\n` +
     `RECON: ${JSON.stringify(Object.fromEntries(Object.entries(reconByLens).map(([l, r]) => [l, { denominators: r.denominators ?? [], seeds: (r.seeds ?? []).slice(0, 20) }])))}\n` +
     `RULES_FROM: ${JSON.stringify(rulesFromList)}`,
-    { agentType: 'audit-modeler', label: 'map:model', phase: 'Map', schema: MAP_SCHEMA, ...tier('modeler') },
+    { agentType: 'cklph-audit:audit-modeler', label: 'map:model', phase: 'Map', schema: MAP_SCHEMA, ...tier('modeler') },
   )
   if (!mapOut) {
     log('audit-modeler died — empty threat model; map coverage absent (flagged in appendix)')
@@ -598,7 +598,7 @@ const reviewed = await pipeline(
           `that citation:\n${JSON.stringify(safeControls)}\n`
         : '') +
       `Report coverage HONESTLY: { seedsVerified, seedsGiven (${seeds.length} given), toolCandidatesJudged }.`,
-      { agentType: 'audit-reviewer', label: `review:${job.unit.key}:${job.lens}`, phase: 'Review', schema: REVIEW_SCHEMA, ...tier('reviewer') },
+      { agentType: 'cklph-audit:audit-reviewer', label: `review:${job.unit.key}:${job.lens}`, phase: 'Review', schema: REVIEW_SCHEMA, ...tier('reviewer') },
     )
   },
   // stage 2: verify each finding through the shared gate. T1.4: voter count + effort scale
@@ -699,7 +699,7 @@ if (!variantEnabled) {
       `findings (same REVIEW_SCHEMA — file:line anchor + quoted code + rule id + normalizedSnippet + rootCause ` +
       `+ invariant).\n` +
       `CONFIRMED PATTERN: ${JSON.stringify({ title: seed.title, file: seed.file, line: seed.line, rule: seed.rule, severity: seed.severity, snippet: seed.snippet, rootCause: seed.rootCause, invariant: seed.invariant })}`,
-      { agentType: 'audit-reviewer', label: `variant:${seed.file}`, phase: 'Variant', schema: REVIEW_SCHEMA, ...tier('reviewer') },
+      { agentType: 'cklph-audit:audit-reviewer', label: `variant:${seed.file}`, phase: 'Variant', schema: REVIEW_SCHEMA, ...tier('reviewer') },
     )))
     const candidates = variantOut
       .flatMap(out => (out?.findings ?? []).slice(0, maxPerSeed))
@@ -853,7 +853,7 @@ const report = await agent(
   `CROWN_JEWELS:\n${JSON.stringify(model.crownJewels, null, 2)}\n\n` +
   `POSITIVE_CONTROLS:\n${JSON.stringify(positiveControls, null, 2)}\n\n` +
   `RUN_META:\n${JSON.stringify(runMeta, null, 2)}`,
-  { agentType: 'audit-synthesizer', label: 'synthesize:report', schema: REPORT_SCHEMA, ...tier('synthesizer') },
+  { agentType: 'cklph-audit:audit-synthesizer', label: 'synthesize:report', schema: REPORT_SCHEMA, ...tier('synthesizer') },
 )
 
 return {
