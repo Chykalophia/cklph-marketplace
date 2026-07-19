@@ -380,19 +380,24 @@ function verifyFindings(findings, unitKey, lens, unitVoters, extraOpts = {}) {
         if (v.length === 0) log(`verify:${f.id ?? f.file}: all voters died — finding dropped unverified`)
         else if (v.length < unitVoters) log(`verify:${f.id ?? f.file} — ${v.length}/${unitVoters} voters returned`)  // E7: some voters died
         // T1.3/A1: the trace that promotes a critical/high must come from a VOTER that held it real —
-        // NEVER the reviewer's own validationSteps (the accuser vouching for itself). A majority-held
-        // finding with no independent trace is SURFACED (heldUntraced), never silently dropped.
-        const pass = config.verify?.passThreshold === 'unanimous'
-          ? (v.length > 0 && v.every(x => !x.refuted))
-          : (v.filter(x => !x.refuted).length > v.length / 2)
+        // NEVER the reviewer's own validationSteps (the accuser vouching for itself). A high-sev finding
+        // that is neither confirmed nor CLEANLY refuted is SURFACED (heldUntraced), never silently dropped.
+        // Quorum: a majority of REQUESTED voters must have returned, so voter attrition can't promote on one
+        // survivor. unanimous additionally requires EVERY requested voter to return and hold.
+        const quorumMet = v.length >= Math.ceil(unitVoters / 2)
+        const holds = v.filter(x => !x.refuted).length
+        const pass = quorumMet && (config.verify?.passThreshold === 'unanimous'
+          ? (v.length === unitVoters && holds === v.length)
+          : (holds > v.length / 2))
+        const refutedGuards = v.filter(x => x.refuted && x.counterEvidence).map(x => ({ counterEvidence: x.counterEvidence, reason: x.reason }))
+        const cleanlyRefuted = !pass && refutedGuards.length > 0    // majority refuted AND a guard was cited → a real near-miss
         const voterTrace = v.find(x => !x.refuted && x.reachabilityTrace && x.reachabilityTrace.trim())
         const isHighSev = ['critical', 'high'].includes(f.severity)
         const confirmed = pass && (!isHighSev || !!voterTrace)
-        const heldUntraced = pass && isHighSev && !voterTrace   // majority-held, no independent trace → surface, don't drop
+        // every high-sev that isn't confirmed and wasn't cleanly refuted is surfaced — no high-sev silent drop
+        const heldUntraced = isHighSev && !confirmed && !cleanlyRefuted
         if (voterTrace) f.reachabilityTrace = voterTrace.reachabilityTrace
-        return { ...f, unit: unitKey, lens, confirmed, heldUntraced, majorityHeld: pass,
-                 // guards that killed a candidate feed positive-control + near-miss harvesting (M4/T2.2)
-                 refutedGuards: v.filter(x => x.refuted && x.counterEvidence).map(x => ({ counterEvidence: x.counterEvidence, reason: x.reason })) }
+        return { ...f, unit: unitKey, lens, confirmed, heldUntraced, majorityHeld: pass, refutedGuards }
       })))
 }
 
@@ -607,6 +612,9 @@ const reviewed = await pipeline(
       if (score >= (rr.highThreshold ?? 0.7)) unitVoters = base + (rr.highVotersDelta ?? 2)
       else if (score <= (rr.lowThreshold ?? 0.4)) unitVoters = Math.max(1, base + (rr.lowVotersDelta ?? -1))
     }
+    // keep the voter count ODD so "majority" is well-defined — an even count would silently
+    // demand unanimity (2 of 2), the opposite of the routing intent, and drop real findings.
+    if (unitVoters % 2 === 0) unitVoters = Math.max(1, unitVoters - 1)
     const effortBump = ((rr.enabled ?? true) && score >= (rr.highThreshold ?? 0.7) && !config.models?.verifier?.effort)
       ? { effort: 'high' } : {}
     log(`risk-routing ${job.unit.key}:${job.lens} — riskScore ${score} → ${unitVoters} voter(s)${effortBump.effort ? ', effort high' : ''}`)
@@ -632,12 +640,9 @@ let fresh = deduped.filter(f => !baseline.has(fingerprint(f)))
 log(`${fresh.length} new confirmed finding(s) (${deduped.length - fresh.length} suppressed by baseline, ` +
     `${confirmed.length - deduped.length} duplicate(s) merged)`)
 
-// E4: severityFloor — drop fresh findings below config.severityFloor (default 'low' = keep all).
+// severityFloor (E4) is applied AFTER the Variant merge (below) so reviewer- and variant-found
+// findings are floored consistently, and so highs still seed the Variant hunt under a 'critical' floor.
 const sevRank = { critical: 4, high: 3, medium: 2, low: 1 }
-const floorRank = sevRank[config.severityFloor] ?? 1
-const preFloor = fresh.length
-fresh = fresh.filter(f => (sevRank[f.severity] ?? 1) >= floorRank)
-if (preFloor - fresh.length) log(`severityFloor '${config.severityFloor ?? 'low'}': ${preFloor - fresh.length} finding(s) below floor dropped`)
 
 // near-misses, positive controls, coverage totals, and held-untraced are harvested AFTER the
 // Variant phase (E3) so refuted/near-miss/PC evidence from variant candidates is not lost.
@@ -714,16 +719,24 @@ if (!variantEnabled) {
   }
 }
 
+// E4: severityFloor — applied ONCE, after the Variant merge, so variant siblings can't bypass it.
+const floorRank = sevRank[config.severityFloor] ?? 1
+const preFloor = fresh.length
+fresh = fresh.filter(f => (sevRank[f.severity] ?? 1) >= floorRank)
+if (preFloor - fresh.length) log(`severityFloor '${config.severityFloor ?? 'low'}': ${preFloor - fresh.length} finding(s) below floor dropped`)
+
 // ── harvest AFTER the Variant merge (E3) — nearMisses / heldUntraced / positive controls / coverage ──
 // heldUntraced (E2): majority-held critical/high with NO independent voter trace — surfaced, never dropped.
+const freshFps = new Set(fresh.map(fingerprint))
 const heldUntraced = dedupeByFingerprint(allVerified.filter(f => f.heldUntraced))
   .filter(f => !baseline.has(fingerprint(f)))
-if (heldUntraced.length) log(`${heldUntraced.length} majority-held finding(s) awaiting an independent reachability trace — surfaced for owner review`)
+  .filter(f => !freshFps.has(fingerprint(f)))   // a fingerprint confirmed by one panel is NOT also "awaiting a trace"
+if (heldUntraced.length) log(`${heldUntraced.length} finding(s) awaiting an independent reachability trace / clean refutation — surfaced for owner review`)
 
 // near-misses (T2.2): majority-REFUTED critical/high whose counter-evidence tells the coverage story —
 // "probed X, held because Y". A majority-HELD-but-untraced finding is heldUntraced, NOT a near-miss.
-const nearMisses = allVerified
-  .filter(f => !f.confirmed && f.majorityHeld === false && ['critical', 'high'].includes(f.severity) && f.refutedGuards?.length)
+const nearMisses = dedupeByFingerprint(allVerified
+  .filter(f => !f.confirmed && f.majorityHeld === false && ['critical', 'high'].includes(f.severity) && f.refutedGuards?.length))
   .map(f => ({ file: f.file, severity: f.severity, title: f.title, guard: f.refutedGuards[0].counterEvidence }))
 
 // positive controls (M4): harvest killed-candidate guards + verified-safe rules + recon safeControls,

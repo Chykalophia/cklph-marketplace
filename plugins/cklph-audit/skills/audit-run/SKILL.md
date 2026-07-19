@@ -48,10 +48,10 @@ The engine runs the seven phases — Discover → Recon → Map → Review → V
 
 ### 4. On return: write the report and summarize
 
-The workflow returns `{ report, fresh, units: { source, lowConfidence }, skipped, coverage: { rulebookSize, checked, uncheckedRuleIds }, positiveControls, map: { ran, trustBoundaries, invariants }, variants }` where `report` is `{ markdown, waves, counts }` (or `report: null` on a clean run), `coverage` is the rule-closure tally, `positiveControls` is the count of shipped "checked and clean" INFO entries, `map` reports whether the Map phase ran plus its trust-boundary and invariant **counts**, and `variants` is the count of sibling findings the Variant phase confirmed.
+The workflow returns `{ report, fresh, heldUntraced, units: { source, lowConfidence }, skipped, coverage: { rulebookSize, checked, uncheckedRuleIds }, positiveControls, map: { ran, trustBoundaries, invariants }, variants }` where `report` is `{ markdown, waves, counts }` (or `report: null` on a clean run), `heldUntraced` is the count of majority-held critical/high findings surfaced for owner review (no independent reachability trace was produced — they are NOT in `fresh` and NOT in `counts`, but they are the opposite of clean), `coverage` is the rule-closure tally, `positiveControls` is the count of shipped "checked and clean" INFO entries, `map` reports whether the Map phase ran plus its trust-boundary and invariant **counts**, and `variants` is the count of sibling findings the Variant phase confirmed.
 
-- **Clean run** (`report` is null / no fresh findings): tell the user the run was clean — no new confirmed findings — plus the rule-closure line, positive-control count, and Map/Variant lines below (all still returned on a clean run), and stop. Don't write an empty report.
-- **Otherwise**: write `report.markdown` verbatim to `<repo>/<config.report.dir || "audits">/AUDIT-<YYYY-MM-DD>.md`. Create the directory if needed. Do not edit, re-summarize, or truncate the markdown — the synthesizer already wrote it to the `audit-report-format` contract.
+- **Clean run** — gate on **`report == null`** only, NOT on `fresh.length`. The engine returns a non-null `report` whenever there is anything to write, including a **held-untraced-only run** (zero confirmed findings but ≥1 majority-held finding awaiting a trace). If `report` is null, tell the user the run was clean — no new confirmed findings and nothing held for review — plus the rule-closure line, positive-control count, and Map/Variant lines below, and stop. Don't write an empty report.
+- **Otherwise** (`report` is non-null — includes the held-untraced-only case): write `report.markdown` verbatim to `<repo>/<config.report.dir || "audits">/AUDIT-<YYYY-MM-DD>.md`. Create the directory if needed. Do not edit, re-summarize, or truncate the markdown — the synthesizer already wrote it to the `audit-report-format` contract. **Never skip the write just because `fresh` is empty** — a held-untraced finding must reach disk.
 
 Then print to the user:
 - the severity counts (`critical / high / medium / low / info`) from `report.counts`,
@@ -59,6 +59,7 @@ Then print to the user:
 - the **positive-control count** (`positiveControls`),
 - the **Map line** from `map`: if `ran`, `threat model: <trustBoundaries> trust boundar(ies), <invariants> invariant(s)`; if not, say the Map phase was skipped (quick mode / `map.enabled: false`) — never present it as run,
 - the **Variant line** (`variants`): `<variants> sibling finding(s) confirmed by variant analysis`, or that the Variant phase was skipped,
+- the **held-untraced line** when `heldUntraced > 0`: `<heldUntraced> majority-held finding(s) awaiting an independent reachability trace — see the Held-untraced section (needs owner review)`; never let these hide behind an all-zero `counts`,
 - how many were suppressed by baseline and how many units were low-confidence / skipped (from the workflow log + `units` / `skipped`),
 - the **path** to the report file you just wrote.
 
