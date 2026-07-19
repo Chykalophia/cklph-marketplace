@@ -42,7 +42,7 @@ models:                         # per-stage routing: mechanical work ↓, judgme
 positiveControls:
   max: 15                       # cap on "checked and clean" INFO entries (0 disables)
 budget:
-  total: 800000                 # token ceiling for the run (null = unbounded)
+  total: 800000                 # advisory — NOT yet enforced by the engine; the Workflow runtime has its own token ceiling (null = unbounded)
 quick:
   topN: 5                       # units sampled in :quick mode
 ignore: ["**/__tests__/**", "**/*.generated.ts", "types/database.ts"]

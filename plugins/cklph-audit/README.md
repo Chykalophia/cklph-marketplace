@@ -22,8 +22,8 @@ It's the productized version of a hand-run **8-agent pre-certification security 
 1. **Scope is mandatory.** You pick lenses. "Audit everything" → noise. There is no unscoped mode.
 2. **Adversarial verify is non-negotiable.** Every finding is attacked by a separate refuter before it reaches you. False positives are the #1 way AI audits lose trust; this is the feature that earns it.
 3. **Delta over re-noise.** A git-able baseline of accepted/known findings means re-runs show only what's **new**. Your "deferred to H-8" decisions never resurface.
-4. **Transparent + git-able.** Config, baseline, and reports are plain files in the repo. No hidden state. Nothing gets silently truncated — what was skipped (budget, sampling) is logged, and every rulebook rule no reviewer touched renders as `NOT CHECKED` in the coverage matrix.
-5. **Cost-bounded.** Token budget, top-risk sampling mode, and loop caps are first-class.
+4. **Transparent + git-able.** Config, baseline, and reports are plain files in the repo. No hidden state. Nothing gets silently truncated — what was skipped (sampling, or a hit runtime ceiling) is logged, and every rulebook rule no reviewer touched renders as `NOT CHECKED` in the coverage matrix.
+5. **Cost-bounded.** Top-risk sampling mode and loop caps are first-class; a config `budget` is **advisory** today — the engine doesn't yet read `budget.total` (the Workflow runtime enforces its own token ceiling).
 
 ---
 
@@ -103,7 +103,7 @@ Extensible (later): `performance` (N+1, hot paths, caching, bundle), `a11y` (WCA
               (INFO), remediation-wave plan that feeds /cklph-os:flow)
 ```
 
-Implemented as one deterministic **Workflow** so the fan-out, verify, and budget are reproducible. `:quick` skips the Map + Variant phases (and recon) to stay cheap. See `SPEC.md` (v1 engine), `SPEC-v2.md` (the coverage delta), and `SPEC-v3.md` (the master-practice upgrade).
+Implemented as one deterministic **Workflow** so the fan-out and verify are reproducible. `:quick` skips the Map + Variant phases (and recon) to stay cheap. See `SPEC.md` (v1 engine), `SPEC-v2.md` (the coverage delta), and `SPEC-v3.md` (the master-practice upgrade).
 
 ---
 
@@ -136,7 +136,7 @@ v3 keeps the whole v1/v2 engine and adds the way elite auditors and staff-level 
 6. **Coverage narrative (positive assurance).** The report now narrates, per area, what was probed, why clean areas held, and which **near-misses** were chased to ground ("a raw-SQL site, but the variables proved non-user-controllable after investigation"). A clean area with no narrative is treated as un-reviewed — positive assurance, not "we found nothing."
 7. **Omission lens (opt-in).** Negative-space judgment — the missing validation / error path / rollback / log / test — ported from the review stack (see the lens table).
 
-Backward compatible: a v1/v2 `audit.config.yaml` runs unchanged — every new key defaults on-but-safe, the Map + Variant phases skip in `:quick`, and the `omission` lens is opt-in. **Tier 3 of the roadmap (git-history hotspots, a CPG reachability tool, weird-machine lenses) is explicitly deferred** — see `docs/MASTER-PRACTICE-ROADMAP.md`.
+Config-compatible: a v1/v2 `audit.config.yaml` runs with **no config changes required**, every new key defaulting on-but-safe. **One real behavior change to note:** with `riskRouting.enabled` defaulting true, voter counts now scale with unit risk — high-risk units get *more* voters, low-risk ones *fewer* — so a v1/v2 config votes differently than it used to; set `riskRouting.enabled: false` to restore uniform voting. The Map + Variant phases skip in `:quick`, and the `omission` lens is opt-in. **Tier 3 of the roadmap (git-history hotspots, a CPG reachability tool, weird-machine lenses) is explicitly deferred** — see `docs/MASTER-PRACTICE-ROADMAP.md`.
 
 ---
 
@@ -150,7 +150,7 @@ Backward compatible: a v1/v2 `audit.config.yaml` runs unchanged — every new ke
 
 ## Cost & honest caveats
 
-- A full multi-lens run on a large repo is a **real token spend** (it's many deep sub-agent reads). Use `:quick` to scope first, set a budget in config, and lean on the baseline so re-runs are cheap.
+- A full multi-lens run on a large repo is a **real token spend** (it's many deep sub-agent reads). Use `:quick` to scope first and lean on the baseline so re-runs are cheap. (`config.budget.total` is advisory today — not yet read by the engine; the Workflow runtime's own token ceiling is the real bound.)
 - **Without verify + baseline it floods you** — both ship in v1 for exactly this reason.
 - It finds a lot of **pre-existing tech debt**. That's the point of the first run; the baseline is how you stop drowning in it afterward.
 - Don't wire the scheduled/gate layer (roadmap, below) until a couple of manual runs prove the signal on a real repo (validation target: reproduce the CASA audit's top findings).

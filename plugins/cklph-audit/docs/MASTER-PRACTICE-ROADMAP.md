@@ -175,8 +175,8 @@ bump tracked separately):
 1. **§1 correction + T1.3 debiasing** — same file (verify stage), hardens what we shipped. One small PR.
 2. **T1.1 variant analysis + T1.2 root-cause schema** — the two biggest quality multipliers; a v0.3 `/cklph-os:flow`.
 3. **T1.4 risk-routed depth** — wires existing pieces together; folds into the v0.3 build.
-4. **T2.1 map phase** — the flagship v0.4; spec it separately, it's the largest design.
-5. **T2.2 coverage narrative + T2.3 omission lens** — round out v0.4's "trustworthy clean bill."
+4. **T2.1 map phase** — the flagship v0.4; spec it separately, it's the largest design. *[Actually shipped in 0.3.0.]*
+5. **T2.2 coverage narrative + T2.3 omission lens** — round out v0.4's "trustworthy clean bill." *[Actually shipped in 0.3.0 — the `omission` lens is the opt-in `omission:<kind>` lens + `tools/omissions.sh`.]*
 6. Tier 3 + review-stack wins — opportunistic, value-proven first.
 
 Everything in Tier 1 reuses machinery already in the engine (normalizedSnippet, riskScore, model

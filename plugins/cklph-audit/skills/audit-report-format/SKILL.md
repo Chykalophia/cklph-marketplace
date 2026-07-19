@@ -7,7 +7,7 @@ description: The exact AUDIT-<date>.md contract — front-matter, coverage summa
 
 This skill defines the exact shape `audit-synthesizer` must emit as `report.markdown`. The contract exists so reports are consistent, git-diffable across runs, and feed cleanly into `/cklph-os:flow`. **Nothing is silently truncated** — anything not audited, whether a *unit*, a *rulebook rule*, an *enumerated pattern* (budget, sampling, low-confidence, recon gaps), or a skipped *phase* (whether the Map + Variant phases ran), is named in the report.
 
-The document has eight parts, in order: **Front-matter → Coverage summary → Coverage matrix → Coverage narrative → Severity sections → Positive controls (INFO) → Remediation waves → Appendix.**
+The document has nine parts, in order: **Front-matter → Coverage summary → Coverage matrix → Coverage narrative → Severity sections → Held-untraced → Positive controls (INFO) → Remediation waves → Appendix.**
 
 An OPTIONAL `## Summary` lead block (new-finding counts, rule closure, positive-control count, unit derivation, a one-or-two-line headline) may sit between the front-matter and the Coverage summary — a human skim layer only, never a substitute for the sections below. The template includes one.
 
@@ -155,9 +155,26 @@ Rules for every finding:
 - Cite the rule id (CWE/ASVS/own-rule). If a repo rule applied, name it.
 - Finding ids are stable per-report (`C-1`, `H-3`, `M-2`, `L-1`) and are what remediation waves and the coverage matrix reference.
 
-## 6. Positive controls (INFO)
+## 6. Held-untraced (majority-held, awaiting an independent trace)
 
-A `## Positive controls (INFO)` section after the severity sections: the "checked and clean" knowledge that would otherwise evaporate every run. Front-matter `positive_controls` and `counts.info` both equal the number of entries here. Omit the section only when there are zero entries (`positiveControls.max: 0` disables harvesting entirely).
+A `## Held-untraced` section, written from `HELD_UNTRACED`, immediately after the severity sections. These are critical/high findings a **majority of verifiers could not refute** — but for which **no independent verifier supplied a reachability trace** (and the reviewer's own `validationSteps` do not count — the accuser cannot vouch for itself). Under the v3 evidence-arbiter they are *not promoted* to a severity section, but they are the opposite of "clean": the panel thinks they are probably real. They MUST be surfaced here — never silently dropped — as **needs-owner-input**, so a majority-held critical is never lost for lack of a trace.
+
+```markdown
+## Held-untraced
+
+> Majority-held by the verifier panel, but no independent reachability trace was produced. Not confirmed, not cleared — **needs owner review**. Treat as suspected-real until traced or refuted.
+
+### [U-1] <short title>
+- **Location:** `file.ts:42` · **Severity (claimed):** high · **Rule:** CWE-…
+- **Why held:** majority of N voters could not refute it; none produced an input→sink / invariant-violation trace.
+- **To resolve:** produce the reachability trace (promote) or the missing guard (refute).
+```
+
+Omit the section only when `HELD_UNTRACED` is empty; whenever it is non-empty, `RUN_META.heldUntracedCount` matches the entry count. Ids are stable per-report (`U-1`, `U-2`, …). Held-untraced items are NOT findings and NOT positive controls — they never appear in waves or the INFO section.
+
+## 7. Positive controls (INFO)
+
+A `## Positive controls (INFO)` section after the held-untraced section: the "checked and clean" knowledge that would otherwise evaporate every run. Front-matter `positive_controls` and `counts.info` both equal the number of entries here. Omit the section only when there are zero entries (`positiveControls.max: 0` disables harvesting entirely).
 
 ```markdown
 ## Positive controls (INFO)
@@ -174,7 +191,7 @@ Rules for each entry:
 - **Why it shipped** is exactly one of: `killed-candidate` (counter-evidence that refuted a critical/high candidate), `rule-verified` (a rulebook rule reconciled verified-safe), `recon` (a recon safe-control a reviewer confirmed in scope — unconfirmed candidates never ship).
 - Ids are stable per-report (`I-1`, `I-2`, …). INFO entries are not findings — they never appear in waves.
 
-## 7. Remediation waves
+## 8. Remediation waves
 
 A `## Remediation waves` section: ordered groups of findings designed to be handed to `/cklph-os:flow` as sequential implementation passes. Order by dependency and blast radius (fix foundational/security-critical first; group changes that touch the same module) — **quick-wins first within a severity band**.
 
@@ -196,7 +213,7 @@ A `## Remediation waves` section: ordered groups of findings designed to be hand
 
 The waves section closes with an `### Owner decisions` subsection: findings with `remediationBucket: owner-decision` are **questions for the repo owner, not scheduled work** — intentional-but-not-locally-obvious calls only the owner can make. They are NOT placed in a wave. Every confirmed finding belongs to exactly one wave **or** to Owner decisions; waves are ordered, and each rationale explains why the wave is sequenced where it is.
 
-## 8. Appendix — coverage & what was skipped (NO silent truncation)
+## 9. Appendix — coverage & what was skipped (NO silent truncation)
 
 A closing `## Appendix` that makes coverage auditable:
 
