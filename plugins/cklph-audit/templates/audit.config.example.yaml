@@ -8,20 +8,33 @@ units:
       globs: ["lib/auth/**", "app/api/auth/**", "lib/middleware/**"]
     - key: billing
       globs: ["app/api/billing/**", "app/api/payments/**", "lib/stripe/**"]
-lenses: [security, correctness, architecture]   # add docs-drift to audit the rulesFrom docs themselves
+lenses: [security, correctness, architecture]   # also: docs-drift (audits the rulesFrom docs), omission (negative-space: missing validation/error-path/logging)
 severityFloor: low              # drop findings below this
 verify:
   voters: 3                     # refuters per finding
   passThreshold: majority       # majority | unanimous
+riskRouting:                    # T1.4: verifier depth scales with a unit's riskScore
+  enabled: true
+  highThreshold: 0.7            # riskScore ≥ this → +highVotersDelta voters (+ effort high)
+  lowThreshold: 0.4             # riskScore ≤ this → +lowVotersDelta voters (floored at 1)
+  highVotersDelta: 2
+  lowVotersDelta: -1
 recon:
   enabled: true                 # per-lens recon: denominators + seeds + safe controls
   quick: false                  # true = recon in :quick mode too (default: quick skips it)
+map:                            # T2.1: threat-model phase — trust boundaries, invariants, crown jewels
+  enabled: true                 # false or :quick mode → skipped (flagged in report appendix)
+variant:                        # T1.1: sibling hunt on each confirmed critical/high (Project Zero)
+  enabled: true                 # false or :quick mode → skipped (flagged in appendix)
+  maxSeeds: 8                   # cap on confirmed critical/high findings seeded
+  maxPerSeed: 20                # cap on siblings hunted per seed
 models:                         # per-stage routing: mechanical work ↓, judgment inherits, verify ↑
   # model: sonnet|opus|haiku|fable · effort: low|medium|high|xhigh|max
   # omit a stage (or the whole block) = inherit the session model — safest default
   scout: { effort: low }        # fast unit inference — cheap by design
   recon: { effort: low }        # mechanical enumeration — counts, not judgment
   rulebook: { effort: low }     # doc parsing
+  modeler: {}                   # threat model (Map phase) — judgment; inherit
   reviewer: {}                  # judgment — inherit; bump model/effort for hard repos
   verifier: { effort: high }    # the precision bet — never cheap out here
   unitMapper: {}                # escalation path — exists because the cheap pass failed; inherit
@@ -29,7 +42,7 @@ models:                         # per-stage routing: mechanical work ↓, judgme
 positiveControls:
   max: 15                       # cap on "checked and clean" INFO entries (0 disables)
 budget:
-  total: 800000                 # token ceiling for the run (null = unbounded)
+  total: 800000                 # advisory — NOT yet enforced by the engine; the Workflow runtime has its own token ceiling (null = unbounded)
 quick:
   topN: 5                       # units sampled in :quick mode
 ignore: ["**/__tests__/**", "**/*.generated.ts", "types/database.ts"]
