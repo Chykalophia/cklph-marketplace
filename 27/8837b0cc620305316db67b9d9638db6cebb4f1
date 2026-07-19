@@ -1,0 +1,43 @@
+plugins/cklph-audit/.claude-plugin/plugin.json
+  s_cef0814d5e85a3::t_a43f298542025a 3-4
+plugins/cklph-audit/docs/MASTER-PRACTICE-ROADMAP.md
+  s_cef0814d5e85a3::t_60fb225becfedb 122
+  s_cef0814d5e85a3::t_3016c2a63d542a 75,77
+  s_cef0814d5e85a3::t_cf07eb4af1fd83 91
+  s_cef0814d5e85a3::t_77718eb7786863 103,105
+  s_cef0814d5e85a3::t_fea2eb389ef055 96
+  s_cef0814d5e85a3::t_f96f28fad26e2a 37
+  s_cef0814d5e85a3::t_41f50b5dfa1f81 85
+  s_cef0814d5e85a3::t_096a0f4482e90a 128
+  s_cef0814d5e85a3::t_c849879c728df2 171-173
+  s_cef0814d5e85a3::t_8325fad86dc4d9 148,150-151
+  s_cef0814d5e85a3::t_42c81b85f6d4d2 52-55
+  s_cef0814d5e85a3::t_fb6b0a29f42415 113
+  s_cef0814d5e85a3::t_c77bd02113e3dc 174
+.claude-plugin/marketplace.json
+  s_cef0814d5e85a3::t_2a6ac0b60cf6ce 71
+plugins/cklph-audit/CHANGELOG.md
+  s_cef0814d5e85a3::t_2449ee929f343e 6-83
+plugins/cklph-audit/README.md
+  s_cef0814d5e85a3::t_f83f217d836b0f 74,85-103,106
+  s_cef0814d5e85a3::t_4962c1ba700333 127-142
+  s_cef0814d5e85a3::t_b7a98a1d118613 163-165,168
+  s_cef0814d5e85a3::t_fe99398206559c 64,66
+  s_cef0814d5e85a3::t_8ba07824bbf1e8 6
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.14",
+  "base_commit_sha": "278837b0cc620305316db67b9d9638db6cebb4f1",
+  "prompts": {},
+  "sessions": {
+    "s_cef0814d5e85a3": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "b7d3a4cc-1f7b-4b8e-a37a-a4ed2537dfb2",
+        "model": "claude-opus-4-8"
+      },
+      "human_author": "Peter Krzyzek <peter@chykalophia.com>"
+    }
+  }
+}
