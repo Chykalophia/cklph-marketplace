@@ -76,10 +76,12 @@ stays the live backlog**.
 
 ### Backward compatibility
 
-A v1/v2 `audit.config.yaml` runs unchanged: every new key defaults on-but-safe. `map.enabled`
-and `variant.enabled` default true (both skip in `:quick`), `riskRouting.enabled` defaults true
-with safe thresholds, and the `omission` lens is opt-in (never in the defaults). `:quick` skips
-Map + Variant to stay cheap.
+A v1/v2 `audit.config.yaml` runs with **no config changes required**: every new key defaults
+on-but-safe. **One real behavior change:** `riskRouting.enabled` defaults true, so voter counts now
+scale with a unit's risk — high-risk units get more voters, low-risk ones fewer — meaning a v1/v2
+config votes differently than under uniform voting; set `riskRouting.enabled: false` to restore it.
+`map.enabled` and `variant.enabled` default true (both skip in `:quick`), and the `omission` lens is
+opt-in (never in the defaults). `:quick` skips Map + Variant to stay cheap.
 
 ## 0.2.1 — 2026-07-16
 

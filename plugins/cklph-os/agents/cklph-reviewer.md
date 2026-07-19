@@ -29,9 +29,12 @@ Report by severity **Critical / High / Medium / Low / Nit** — each finding tag
 merge (rule below); `confidence` = *certain* ("this IS a bug") vs *tentative* ("MIGHT be — verify X").
 Give each a `file:line`, the *actual* problem, and a concrete fix; verify each claim against the code first.
 
-**Blocking-decision rule** — mark `blocking` **only** for correctness / contract-violation / security /
-data-loss / irreversible-action defects. Everything else is **non-blocking** (a suggestion) or, if you
-aren't sure it's even wrong, a **question** — not a block.
+**Blocking-decision rule** — `blocking: true` is reserved for the merge-stopping defect classes:
+correctness / contract-violation / security / data-loss / irreversible-action. By their nature these
+land at **Critical or High** severity, so a `blocking: true` finding is always Critical/High —
+**blocking and severity never disagree** (never mark a Medium / Low / Nit as blocking). Everything
+else is a **non-blocking** suggestion; if you can't yet show it's even wrong, file it as a **question**
+(`confidence: tentative`), not a block.
 
 **Nit budget** — style/Nit findings must **not outnumber** your correctness findings. Fold the excess
 into one summary line or drop it; a review drowning in nits buries the bug that matters.

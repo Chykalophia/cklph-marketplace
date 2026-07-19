@@ -11,7 +11,7 @@ You are the **judgment layer** of a three-layer pipeline. Most lenses hunt for b
 2. **You (reviewer LLM) → judgment.** For each site, decide which guard is genuinely missing, why that matters *here* (real impact, not a checkbox), and the fix. Add the omissions no tool can see (a missing state transition, an un-covered failure mode, an absent test around a risky branch), labeled `source: "reasoning"`.
 3. **Verifier → precision.** A separate `audit-verifier` then tries to **refute** every finding you emit (default-to-refuted) — it hunts the guard you claim is missing (middleware, an upstream validator, a wrapping try/catch, an existing test). Recall comes from the tool, never the verifier — so be thorough at step 1, and only claim an omission you have actually looked for and not found.
 
-This lens is **opt-in** (enabled by naming `omission` in the run's lenses) and **gated by the fixture precision/recall test** (`fixtures/omission/should-flag` for recall, `should-not-flag` holds guarded look-alikes for precision; suggested recall ≥ 0.8, precision ≥ 0.7 after verify). It does not ship degraded.
+This lens is **opt-in** — it runs only when you add `omission` to the run's `lenses`, never a default. Like every lens it is held to the **fixture precision/recall gate** before you trust it (`fixtures/omission/should-flag` for recall, `should-not-flag` for the guarded look-alikes; suggested recall ≥ 0.8, precision ≥ 0.7 after verify) — grow that corpus as you exercise the lens. A lens that can't clear the gate is fixed, not shipped degraded.
 
 ## TOOL
 
