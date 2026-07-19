@@ -3,6 +3,17 @@
 All notable changes to `cklph-audit` are documented here. This project adheres to
 [Semantic Versioning](https://semver.org/).
 
+## 0.3.1 — 2026-07-19
+
+- Fix: init/scout emitted stale framework conventions and could **miss `proxy.ts`** — the
+  Next.js 16 rename of `middleware.ts` (function `middleware` → `proxy`; `middleware.ts` is now
+  deprecated). On a Next 16 repo the scout could look for a root `middleware.ts`, report its
+  absence as noteworthy, and drop the highest-value auth file from the auth unit. The scout +
+  audit-init now **detect the framework version from `package.json` and apply that version's
+  conventions** (naming `proxy.ts` explicitly), and treat a missing `middleware.ts` as a
+  non-event. The example config's auth unit includes `proxy.ts` / `src/proxy.ts`. Affects every
+  Next.js 16 repo.
+
 ## 0.3.0 — 2026-07-18
 
 The master-practice upgrade. v1 was a repeatable engine; v2 made it prove what it covered;
