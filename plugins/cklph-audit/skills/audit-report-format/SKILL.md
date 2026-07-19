@@ -157,7 +157,7 @@ Rules for every finding:
 
 ## 6. Held-untraced (majority-held, awaiting an independent trace)
 
-A `## Held-untraced` section, written from `HELD_UNTRACED`, immediately after the severity sections. These are critical/high findings a **majority of verifiers could not refute** — but for which **no independent verifier supplied a reachability trace** (and the reviewer's own `validationSteps` do not count — the accuser cannot vouch for itself). Under the v3 evidence-arbiter they are *not promoted* to a severity section, but they are the opposite of "clean": the panel thinks they are probably real. They MUST be surfaced here — never silently dropped — as **needs-owner-input**, so a majority-held critical is never lost for lack of a trace.
+A `## Held-untraced` section, written from `HELD_UNTRACED`, immediately after the severity sections. These are critical/high findings the panel **neither confirmed nor cleanly refuted** — either it was majority-held but **no independent verifier supplied a reachability trace** (the reviewer's own `validationSteps` do not count — the accuser cannot vouch for itself), or it was majority-refuted but **no verifier cited a concrete guard** to justify the refutation. Either way the outcome is *inconclusive*, so under the v3 evidence-arbiter they are not promoted to a severity section — but they are the opposite of "clean." They MUST be surfaced here — never silently dropped — as **needs-owner-input**, so a suspected critical/high is never lost for want of evidence either way.
 
 ```markdown
 ## Held-untraced
