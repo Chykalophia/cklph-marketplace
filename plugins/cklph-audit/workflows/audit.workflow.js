@@ -1,6 +1,8 @@
-// cklph-audit — the deterministic engine (v2: proves what it covered).
+// cklph-audit — the deterministic engine (v3: models, proves, hunts variants).
 //
-// Invoked by the /cklph-audit:run skill via the Workflow tool. Pipeline:
+// Invoked by the /cklph-audit:run skill via the Workflow tool. Seven-phase pipeline
+// (Discover → Recon → Map → Review → Verify → Variant → Synthesize; Map + Variant
+// skip in quick mode and degrade gracefully):
 //   1. DISCOVER  — parallel: scout infers units (escalates to audit-unit-mapper
 //                  when low-confidence; explicit config wins) + rulebook
 //                  extraction (rulesFrom docs → discrete rules).
@@ -8,18 +10,26 @@
 //                  denominators (re-runnable command + count), seeds (hints,
 //                  not findings), safe-control candidates. Skipped in quick
 //                  mode unless recon.quick — always logged, never silent.
-//   3. REVIEW    — one audit-reviewer per (unit × lens); tool-first recall,
+//   3. MAP       — one audit-modeler (T2.1): trust boundaries, data-flows
+//                  (source→sink), per-unit invariants, crown jewels. Feeds the
+//                  reviewer boundary/invariant context. Skips in quick; a dead
+//                  modeler degrades to an empty model (flagged, never silent).
+//   4. REVIEW    — one audit-reviewer per (unit × lens); tool-first recall,
 //                  re-verifies its seeds, answers a ruleCheck for EVERY rule
-//                  handed, reports honest coverage counts. docs-drift is NOT
-//                  crossed with units: exactly ONE job over the rulesFrom docs.
-//   4. VERIFY    — dedicated audit-verifier refutes each finding (default-
-//                  refuted, majority must confirm). Pipelined with review.
-//                  Refuting counter-evidence is harvested, not discarded.
-//   5. RECONCILE — plain code: dedup + accepted-baseline suppression + rule-
+//                  handed, names root-cause + violated invariant, reports honest
+//                  coverage. docs-drift is NOT crossed with units: exactly ONE job.
+//   5. VERIFY    — audit-verifier refutes each finding from COMMENT-STRIPPED code
+//                  (default-refuted). Evidence, not vote tally, arbits (T1.3):
+//                  low/medium promote on majority, critical/high require a
+//                  reachabilityTrace. Depth risk-routed per unit (T1.4). Pipelined.
+//   6. RECONCILE — plain code: dedup + accepted-baseline suppression + rule-
 //                  closure matrix (every rule accounted for, unchecked shown)
-//                  + coverage totals + noise-gated positive controls.
-//   6. SYNTHESIZE— audit-synthesizer writes AUDIT-<date>.md: severities,
-//                  coverage summary + matrix, positive controls (INFO), waves.
+//                  + coverage totals + near-misses + noise-gated positive controls.
+//   7. VARIANT   — for each confirmed critical/high, an audit-reviewer hunts
+//                  SIBLINGS repo-wide (T1.1, Project Zero variant analysis);
+//                  candidates re-verify through the SAME gate. Skips in quick.
+//   8. SYNTHESIZE— audit-synthesizer writes AUDIT-<date>.md: severities, coverage
+//                  summary + matrix + narrative, positive controls (INFO), waves.
 //
 // args = { lenses:string[], path?, mode:"full"|"quick", deepUnits?:bool,
 //          config:object, baseline:{fingerprints:string[]} }
@@ -32,8 +42,10 @@ export const meta = {
   phases: [
     { title: 'Discover' },
     { title: 'Recon' },
+    { title: 'Map' },
     { title: 'Review' },
     { title: 'Verify' },
+    { title: 'Variant' },
     { title: 'Synthesize' },
   ],
 }
@@ -162,6 +174,10 @@ const REVIEW_SCHEMA = {
           confidence: { type: 'string', enum: ['confirmed', 'likely', 'needs-owner-input'] },
           validationSteps: { type: 'string' },       // read-only checks used to confirm true-positive
           remediationBucket: { type: 'string', enum: ['quick-win', 'targeted-fix', 'systemic-refactor', 'owner-decision'] },
+          rootCause: { type: 'string' },             // T1.2: the underlying fault, not the symptom
+          invariant: { type: 'string' },             // T1.2: the property this violates
+          boundary: { type: 'string' },              // T2.1: the trust boundary crossed (filled when Map ran)
+          reachabilityTrace: { type: 'string' },     // T1.3: attacker-input→sink / invariant-violation path (from verify)
           context: {                                 // classify BEFORE severity
             type: 'object',
             properties: {
@@ -216,7 +232,48 @@ const VERDICT_SCHEMA = {
     refuted: { type: 'boolean' },
     confidence: { type: 'number' },
     reason: { type: 'string' },
-    counterEvidence: { type: 'string' },
+    counterEvidence: { type: 'string' },            // guard file:line cited to REFUTE
+    reachabilityTrace: { type: 'string' },          // T1.3: a CONFIRM of a critical/high MUST supply the concrete path
+  },
+}
+
+// T2.1 threat model — one audit-modeler produces this once (Map phase).
+const MAP_SCHEMA = {
+  type: 'object',
+  properties: {
+    trustBoundaries: {                              // where a security control gates a connection
+      type: 'array',
+      items: {
+        type: 'object',
+        properties: {
+          id: { type: 'string' },
+          where: { type: 'string' },                // a path/glob the boundary lives at
+          note: { type: 'string' },
+        },
+      },
+    },
+    dataFlows: {                                    // routes → sinks
+      type: 'array',
+      items: {
+        type: 'object',
+        properties: {
+          source: { type: 'string' },
+          sink: { type: 'string' },
+          crossesBoundary: { type: 'boolean' },
+        },
+      },
+    },
+    invariants: {                                   // per-unit properties that must hold
+      type: 'array',
+      items: {
+        type: 'object',
+        properties: {
+          unit: { type: 'string' },                 // a unit key
+          text: { type: 'string' },
+        },
+      },
+    },
+    crownJewels: { type: 'array', items: { type: 'string' } },   // highest-value assets/flows
   },
 }
 
@@ -289,6 +346,54 @@ function tier(stage) {
   if (t.model) o.model = t.model
   if (t.effort) o.effort = t.effort
   return o
+}
+function stripComments(s) {
+  // T1.3: re-derive from code alone — strip /* … */ blocks, // line comments, and
+  // leading #… lines so the verifier can't be led by a reassuring comment/label.
+  if (!s) return s
+  return String(s)
+    .replace(/\/\*[\s\S]*?\*\//g, '')       // block comments
+    .replace(/(^|[^:])\/\/.*$/gm, '$1')     // line comments (leave http:// alone)
+    .replace(/^\s*#.*$/gm, '')              // leading shell/py hash-comment lines
+}
+// A5: the verify fan-out, factored out so the main pipeline AND the Variant phase share it.
+// N default-refuted voters try to REFUTE each finding; evidence (not tally) promotes (T1.3):
+//   low/medium keep the majority rule; critical/high require a reachabilityTrace.
+// Voters are independent parallel calls — no within-prompt position bias to randomize.
+function verifyFindings(findings, unitKey, lens, unitVoters, extraOpts = {}) {
+  return parallel((findings ?? []).map(f => () =>
+    parallel(Array.from({ length: unitVoters }, (_v, i) => () =>
+      agent(
+        `Adversarially try to REFUTE this audit finding against the ACTUAL code. Re-derive from the code ` +
+        `ALONE — the snippet below is comment-stripped; ignore comments/labels. Default to refuted:true ` +
+        `unless the code proves it real. Hunt for the guard/mitigation the reviewer missed (middleware, ` +
+        `RLS, validation, an upstream caller, an existing test, a documented/accepted exception). To ` +
+        `REFUTE, cite the guard file:line in counterEvidence. To CONFIRM a critical/high you MUST supply a ` +
+        `reachabilityTrace (attacker-controlled input → sink, or the invariant-violation path) — ` +
+        `"plausible" without a trace = refuted. Voter ${i + 1}/${unitVoters}.\n` +
+        `FINDING: ${JSON.stringify({ title: f.title, file: f.file, line: f.line, rule: f.rule, severity: f.severity, snippet: stripComments(f.snippet), rationale: f.rationale })}`,
+        { agentType: 'audit-verifier', label: `verify:${f.id ?? f.file}`, phase: 'Verify', schema: VERDICT_SCHEMA, ...tier('verifier'), ...extraOpts },
+      )))
+      .then(votes => {
+        const v = votes.filter(Boolean)
+        if (v.length === 0) log(`verify:${f.id ?? f.file}: all voters died — finding dropped unverified`)
+        const notRefuted = v.filter(x => !x.refuted).length > v.length / 2
+        const hasTrace = v.some(x => x.reachabilityTrace && x.reachabilityTrace.trim())
+                         || !!(f.validationSteps && f.validationSteps.trim())
+        const confirmed = notRefuted && (['low', 'medium'].includes(f.severity) || hasTrace)
+        // carry the winning trace onto the finding (a voter's, else the reviewer's validationSteps)
+        const winner = v.find(x => !x.refuted && x.reachabilityTrace && x.reachabilityTrace.trim())
+        const reachabilityTrace = winner?.reachabilityTrace
+          ?? (f.validationSteps && f.validationSteps.trim() ? f.validationSteps : undefined)
+        return {
+          ...f, unit: unitKey, lens,
+          confirmed,
+          reachabilityTrace,
+          // guards that killed a candidate feed positive-control + near-miss harvesting (M4/T2.2)
+          refutedGuards: v.filter(x => x.refuted && x.counterEvidence)
+            .map(x => ({ counterEvidence: x.counterEvidence, reason: x.reason })),
+        }
+      })))
 }
 
 // ════════════════════════════════════════════════════════════════════════════
@@ -397,9 +502,47 @@ if (lenses.includes('docs-drift')) {
 log(`${units.length} unit(s) [${unitSource}${lowConfidence.length ? `, ${lowConfidence.length} low-confidence flagged: ${lowConfidence.join(', ')}` : ''}] × ${unitLenses.length} lens(es)${lenses.includes('docs-drift') ? ' + 1 docs-drift job' : ''}`)
 
 // ════════════════════════════════════════════════════════════════════════════
-// 2-3. REVIEW → VERIFY  (pipeline: each finding verifies as soon as its review lands)
+// 3. MAP — threat model: trust boundaries, data-flows, invariants, crown jewels (T2.1)
 // ════════════════════════════════════════════════════════════════════════════
-const voters = config.verify?.voters ?? 3
+const mapEnabled = (config.map?.enabled ?? true) && mode !== 'quick'
+let model = { trustBoundaries: [], dataFlows: [], invariants: [], crownJewels: [] }
+let mapRan = false
+if (!mapEnabled) {
+  log(mode === 'quick'
+    ? 'quick mode: Map phase SKIPPED — no threat model (boundaries/invariants absent; flagged in appendix)'
+    : 'map disabled by config — no threat model (boundaries/invariants absent; flagged in appendix)')
+} else {
+  phase('Map')
+  const mapOut = await agent(
+    `Build a lightweight THREAT MODEL of this repo for the audit that follows. From the UNITS, recon ` +
+    `denominators/seeds, and the rulebook docs below, identify: trustBoundaries (where a security control ` +
+    `gates a connection — { id, where (a path/glob), note }); dataFlows (external/attacker-reachable ` +
+    `source → sink — { source, sink, crossesBoundary }); invariants (per-unit properties that MUST hold — ` +
+    `{ unit (prefer a key from UNITS), text }); and crownJewels (the highest-value assets/flows — strings). ` +
+    `Read-only.\n` +
+    `UNITS: ${JSON.stringify(units.map(u => ({ key: u.key, globs: u.globs, riskScore: u.riskScore })))}\n` +
+    `RECON: ${JSON.stringify(Object.fromEntries(Object.entries(reconByLens).map(([l, r]) => [l, { denominators: r.denominators ?? [], seeds: (r.seeds ?? []).slice(0, 20) }])))}\n` +
+    `RULES_FROM: ${JSON.stringify(rulesFromList)}`,
+    { agentType: 'audit-modeler', label: 'map:model', phase: 'Map', schema: MAP_SCHEMA, ...tier('modeler') },
+  )
+  if (!mapOut) {
+    log('audit-modeler died — empty threat model; map coverage absent (flagged in appendix)')
+  } else {
+    model = {
+      trustBoundaries: mapOut.trustBoundaries ?? [],
+      dataFlows: mapOut.dataFlows ?? [],
+      invariants: mapOut.invariants ?? [],
+      crownJewels: mapOut.crownJewels ?? [],
+    }
+    mapRan = true
+    log(`map: ${model.trustBoundaries.length} trust boundar(ies), ${model.dataFlows.length} data-flow(s), ` +
+        `${model.invariants.length} invariant(s), ${model.crownJewels.length} crown jewel(s)`)
+  }
+}
+
+// ════════════════════════════════════════════════════════════════════════════
+// 4-5. REVIEW → VERIFY  (pipeline: each finding verifies as soon as its review lands)
+// ════════════════════════════════════════════════════════════════════════════
 const reviewed = await pipeline(
   jobs,
   // stage 1: review one unit through one lens (tool-augmented, seed- and rule-aware)
@@ -412,6 +555,12 @@ const reviewed = await pipeline(
     const inUnit = s => { const nf = s?.file?.replace(/^\.\//, ''); return nf && globMatch(nf, job.unit.globs) }
     const seeds = (recon?.seeds ?? []).filter(inUnit)
     const safeControls = (recon?.safeControls ?? []).filter(inUnit)
+    // T2.1: when the Map ran, hand this unit its invariants + the boundaries whose `where`
+    // glob-matches it. Security findings SHOULD cite the boundary; each invariant is checked.
+    const unitInvariants = mapRan ? model.invariants.filter(i => i.unit === job.unit.key) : []
+    const unitBoundaries = mapRan
+      ? model.trustBoundaries.filter(b => b?.where && globMatch(b.where.replace(/^\.\//, ''), job.unit.globs))
+      : []
     return agent(
       `Audit UNIT "${job.unit.key}" (globs: ${JSON.stringify(job.unit.globs)}) through the **${job.lens}** lens. ` +
       `Load the ${job.lens}-lens skill; the repo's own rules (RULEBOOK below) win on conflict. Run the lens's ` +
@@ -420,10 +569,18 @@ const reviewed = await pipeline(
       `context (surface/runtime/gated) BEFORE severity — severity comes from real exploitability, not raw ` +
       `pattern match. Per finding also set confidence (confirmed|likely|needs-owner-input), validationSteps ` +
       `(the read-only checks you ran), and remediationBucket (quick-win|targeted-fix|systemic-refactor|` +
-      `owner-decision; owner-decision = intentional-but-not-locally-obvious — a question, not a defect).\n` +
+      `owner-decision; owner-decision = intentional-but-not-locally-obvious — a question, not a defect). Trace ` +
+      `symptom → rootCause (the underlying fault, not the symptom), name the invariant it violates, and REJECT ` +
+      `a suggestedFix that only patches the symptom.\n` +
       (rules.length
         ? `RULEBOOK — return a ruleCheck for EVERY rule (violation|verified-safe|not-applicable; ` +
           `verified-safe/not-applicable need a one-line evidence citation/reason):\n${JSON.stringify(rules)}\n`
+        : '') +
+      (unitInvariants.length
+        ? `INVARIANTS this unit must hold — check EACH; a violation is a finding (set its invariant):\n${JSON.stringify(unitInvariants)}\n`
+        : '') +
+      (unitBoundaries.length
+        ? `TRUST BOUNDARIES gating this unit — a security finding SHOULD cite the boundary crossed (set finding.boundary):\n${JSON.stringify(unitBoundaries)}\n`
         : '') +
       (seeds.length
         ? `SEEDS — hints, NOT findings: re-open and verify EVERY one before use (citations drift):\n${JSON.stringify(seeds)}\n`
@@ -437,39 +594,33 @@ const reviewed = await pipeline(
       { agentType: 'audit-reviewer', label: `review:${job.unit.key}:${job.lens}`, phase: 'Review', schema: REVIEW_SCHEMA, ...tier('reviewer') },
     )
   },
-  // stage 2: verify each finding (N default-refuted voters; majority must confirm)
-  (review, job) => parallel((review?.findings ?? []).map(f => () =>
-    parallel(Array.from({ length: voters }, (_v, i) => () =>
-      agent(
-        `Adversarially try to REFUTE this audit finding against the ACTUAL code. Default to refuted:true ` +
-        `unless the code proves it real. Hunt for the guard/mitigation the reviewer missed (middleware, ` +
-        `RLS, validation, an upstream caller, an existing test, a documented/accepted exception). Cite ` +
-        `counterEvidence (file:line) when you refute. Voter ${i + 1}/${voters}.\nFINDING: ${JSON.stringify({ title: f.title, file: f.file, line: f.line, rule: f.rule, snippet: f.snippet, rationale: f.rationale })}`,
-        { agentType: 'audit-verifier', label: `verify:${f.id ?? f.file}`, phase: 'Verify', schema: VERDICT_SCHEMA, ...tier('verifier') },
-      )))
-      .then(votes => {
-        const v = votes.filter(Boolean)
-        if (v.length === 0) log(`verify:${f.id ?? f.file}: all voters died — finding dropped unverified`)
-        const confirmedVotes = v.filter(x => !x.refuted).length
-        return {
-          ...f, unit: job.unit.key, lens: job.lens,
-          confirmed: confirmedVotes > v.length / 2,
-          // the guards that killed a candidate feed positive-control harvesting (M4)
-          refutedGuards: v.filter(x => x.refuted && x.counterEvidence)
-            .map(x => ({ counterEvidence: x.counterEvidence, reason: x.reason })),
-        }
-      })))
-    .then(verified => ({
-      unit: job.unit.key, lens: job.lens,
-      findings: verified.filter(Boolean),
-      ruleChecks: review?.ruleChecks ?? [],
-      safeControlChecks: review?.safeControlChecks ?? [],
-      coverage: review?.coverage ?? null,
-    })),
+  // stage 2: verify each finding through the shared gate. T1.4: voter count + effort scale
+  // with the unit's riskScore (docs-drift's unit has no riskScore → 0.5 → base voters).
+  (review, job) => {
+    const rr = config.riskRouting ?? {}
+    const base = config.verify?.voters ?? 3
+    const score = job.unit.riskScore ?? 0.5
+    let unitVoters = base
+    if ((rr.enabled ?? true)) {
+      if (score >= (rr.highThreshold ?? 0.7)) unitVoters = base + (rr.highVotersDelta ?? 2)
+      else if (score <= (rr.lowThreshold ?? 0.4)) unitVoters = Math.max(1, base + (rr.lowVotersDelta ?? -1))
+    }
+    const effortBump = ((rr.enabled ?? true) && score >= (rr.highThreshold ?? 0.7) && !config.models?.verifier?.effort)
+      ? { effort: 'high' } : {}
+    log(`risk-routing ${job.unit.key}:${job.lens} — riskScore ${score} → ${unitVoters} voter(s)${effortBump.effort ? ', effort high' : ''}`)
+    return verifyFindings(review?.findings ?? [], job.unit.key, job.lens, unitVoters, effortBump)
+      .then(verified => ({
+        unit: job.unit.key, lens: job.lens,
+        findings: verified.filter(Boolean),
+        ruleChecks: review?.ruleChecks ?? [],
+        safeControlChecks: review?.safeControlChecks ?? [],
+        coverage: review?.coverage ?? null,
+      }))
+  },
 )
 
 // ════════════════════════════════════════════════════════════════════════════
-// 4. RECONCILE — plain code (dedup + baseline + rule closure + coverage + positive controls)
+// 6. RECONCILE — plain code (dedup + baseline + rule closure + coverage + positive controls)
 // ════════════════════════════════════════════════════════════════════════════
 const results = reviewed.filter(Boolean)
 const allVerified = results.flatMap(r => r.findings)
@@ -478,6 +629,12 @@ const deduped = dedupeByFingerprint(confirmed)
 const fresh = deduped.filter(f => !baseline.has(fingerprint(f)))
 log(`${fresh.length} new confirmed finding(s) (${deduped.length - fresh.length} suppressed by baseline, ` +
     `${confirmed.length - deduped.length} duplicate(s) merged)`)
+
+// near-misses (T2.2): refuted critical/high candidates whose counter-evidence tells the coverage
+// story — "probed X, held because Y". Feeds the synthesizer's positive-assurance narrative.
+const nearMisses = allVerified
+  .filter(f => !f.confirmed && ['critical', 'high'].includes(f.severity) && f.refutedGuards?.length)
+  .map(f => ({ file: f.file, severity: f.severity, title: f.title, guard: f.refutedGuards[0].counterEvidence }))
 
 // rule closure (M2): every rulebook rule gets exactly one status — nothing silently absent.
 // Fold order per rule: violation > verified-safe > not-applicable > unchecked.
@@ -554,7 +711,48 @@ for (const lens of lenses) {
 }
 
 // ════════════════════════════════════════════════════════════════════════════
-// 5. SYNTHESIZE — the report + remediation waves
+// 7. VARIANT — sibling hunt on confirmed critical/high (T1.1, Project Zero variant analysis)
+// ════════════════════════════════════════════════════════════════════════════
+const variantEnabled = (config.variant?.enabled ?? true) && mode !== 'quick'
+let variantsConfirmed = 0
+if (!variantEnabled) {
+  log(mode === 'quick'
+    ? 'quick mode: Variant phase SKIPPED — no sibling hunt (flagged in appendix)'
+    : 'variant disabled by config — no sibling hunt (flagged in appendix)')
+} else {
+  const maxSeeds = config.variant?.maxSeeds ?? 8
+  const maxPerSeed = config.variant?.maxPerSeed ?? 20
+  const seeds = fresh.filter(f => ['critical', 'high'].includes(f.severity)).slice(0, maxSeeds)
+  if (!seeds.length) {
+    log('Variant phase: no confirmed critical/high findings to seed from — sibling hunt skipped')
+  } else {
+    phase('Variant')
+    log(`Variant phase: hunting siblings of ${seeds.length} confirmed critical/high finding(s)`)
+    const variantOut = await parallel(seeds.map(seed => () => agent(
+      `Here is a CONFIRMED bug pattern. Find its SIBLINGS across the repo — the same mistake elsewhere ` +
+      `(Project Zero variant analysis). Run ` + '`${CLAUDE_PLUGIN_ROOT}/tools/variant-sweep.sh`' + ` for recall, ` +
+      `then judge each candidate against the ACTUAL code. Cap at ${maxPerSeed} siblings. Return candidate ` +
+      `findings (same REVIEW_SCHEMA — file:line anchor + quoted code + rule id + normalizedSnippet + rootCause ` +
+      `+ invariant).\n` +
+      `CONFIRMED PATTERN: ${JSON.stringify({ title: seed.title, file: seed.file, line: seed.line, rule: seed.rule, severity: seed.severity, snippet: seed.snippet, rootCause: seed.rootCause, invariant: seed.invariant })}`,
+      { agentType: 'audit-reviewer', label: `variant:${seed.file}`, phase: 'Variant', schema: REVIEW_SCHEMA, ...tier('reviewer') },
+    )))
+    const candidates = variantOut
+      .flatMap(out => (out?.findings ?? []).slice(0, maxPerSeed))
+    // re-verify through the SAME gate (base voters — the sibling's home unit isn't known here),
+    // then dedup + baseline-suppress + drop anything already in `fresh`.
+    const verifiedVariants = await verifyFindings(candidates, 'variant', 'variant', config.verify?.voters ?? 3)
+    const confirmedVariants = dedupeByFingerprint(verifiedVariants.filter(Boolean).filter(f => f.confirmed))
+      .filter(f => !baseline.has(fingerprint(f)))
+      .filter(f => !fresh.some(x => fingerprint(x) === fingerprint(f)))
+    variantsConfirmed = confirmedVariants.length
+    fresh.push(...confirmedVariants)
+    log(`${variantsConfirmed} variant(s) confirmed from ${seeds.length} seed(s)`)
+  }
+}
+
+// ════════════════════════════════════════════════════════════════════════════
+// 8. SYNTHESIZE — the report + remediation waves
 // ════════════════════════════════════════════════════════════════════════════
 phase('Synthesize')
 if (!fresh.length) {
@@ -565,6 +763,8 @@ if (!fresh.length) {
     skipped: mode === 'quick',
     coverage: coverageSummary,
     positiveControls: positiveControls.length,
+    map: { ran: mapRan, trustBoundaries: model.trustBoundaries.length, invariants: model.invariants.length },
+    variants: variantsConfirmed,
   }
 }
 const runMeta = {
@@ -573,6 +773,9 @@ const runMeta = {
   reconMissing: reconEnabled ? lenses.filter(l => !reconByLens[l]) : lenses,
   rulebookMissing: !rulebookOut,                 // extraction died — matrix empty for THAT reason
   rulebookSize: rulebook.length,
+  mapRan,                                        // Map phase produced a threat model (else empty/flagged)
+  variantRan: variantEnabled,                    // Variant phase ran (skips in quick / when disabled)
+  crownJewels: model.crownJewels,
 }
 // engine-internal fields stay out of the synthesizer's context (confirmed is always true here;
 // refutedGuards were already harvested into positive controls above)
@@ -581,17 +784,23 @@ const report = await agent(
   `Write the audit report from these CONFIRMED, fresh findings. Load the audit-report-format skill for the ` +
   `AUDIT-<date>.md contract. Bucket by severity (critical/high/medium/low), each with file:line + why-it's-real ` +
   `(it survived adversarial verification) + a concrete fix + its confidence/bucket/context/validation fields. ` +
+  `Each finding also carries (when present) rootCause, invariant, boundary, and reachabilityTrace — render them. ` +
   `Render a Coverage summary (per denominator: examined X of N + the verbatim command; where X < N say ` +
   `"sampled" and give the risk-weighting rationale), a Coverage matrix (EVERY rulebook rule → finding IDs | ` +
-  `verified-safe + citation | not-applicable + reason | NOT CHECKED — no rule silently absent), and a ` +
-  `Positive controls (INFO) section (each: citation + what it protects + why it shipped). counts.info = ` +
-  `positive-control count. Group fixes into ordered remediation WAVES consumable by /cklph-os:flow — ` +
-  `quick-wins first within a severity band; owner-decision items go in their own "Owner decisions" ` +
-  `subsection (questions, not work). Flag in an appendix: unit derivation, low-confidence units, quick-mode ` +
-  `sampling, and recon gaps (RUN_META — state plainly which denominators/seeds are absent/partial and why).\n\n` +
+  `verified-safe + citation | not-applicable + reason | NOT CHECKED — no rule silently absent), a Coverage ` +
+  `narrative (positive assurance from NEAR_MISSES + CROWN_JEWELS + COVERAGE_TOTALS: per area, what was probed, ` +
+  `why clean areas held, and near-misses chased to ground), and a Positive controls (INFO) section (each: ` +
+  `citation + what it protects + why it shipped). counts.info = positive-control count. Group fixes into ` +
+  `ordered remediation WAVES consumable by /cklph-os:flow — quick-wins first within a severity band; ` +
+  `owner-decision items go in their own "Owner decisions" subsection (questions, not work). Flag in an ` +
+  `appendix: unit derivation, low-confidence units, quick-mode sampling, whether the Map + Variant phases ran ` +
+  `(and why not, if skipped), and recon gaps (RUN_META — state plainly which denominators/seeds/phases are ` +
+  `absent/partial and why).\n\n` +
   `FINDINGS:\n${JSON.stringify(publicFresh, null, 2)}\n\n` +
   `RULE_CLOSURE:\n${JSON.stringify(ruleClosure, null, 2)}\n\n` +
   `COVERAGE_TOTALS:\n${JSON.stringify(coverageTotals, null, 2)}\n\n` +
+  `NEAR_MISSES:\n${JSON.stringify(nearMisses, null, 2)}\n\n` +
+  `CROWN_JEWELS:\n${JSON.stringify(model.crownJewels, null, 2)}\n\n` +
   `POSITIVE_CONTROLS:\n${JSON.stringify(positiveControls, null, 2)}\n\n` +
   `RUN_META:\n${JSON.stringify(runMeta, null, 2)}`,
   { agentType: 'audit-synthesizer', label: 'synthesize:report', schema: REPORT_SCHEMA, ...tier('synthesizer') },
@@ -604,4 +813,6 @@ return {
   skipped: mode === 'quick',
   coverage: coverageSummary,
   positiveControls: positiveControls.length,
+  map: { ran: mapRan, trustBoundaries: model.trustBoundaries.length, invariants: model.invariants.length },
+  variants: variantsConfirmed,
 }
