@@ -25,8 +25,8 @@ If `audit.config.yaml` already exists in the repo root, stop and tell the user i
 
 Map the repo's top-level structure so the config's example units actually match this codebase:
 
-- List the top-level directories (`app/`, `lib/`, `components/`, `src/`, `packages/`, etc.) and any route tree (`app/api/**`, `pages/api/**`).
-- Identify high-risk surfaces to seed as units: **auth** (`lib/auth`, `app/api/auth`, middleware), **billing/payments** (`app/api/billing`, `lib/stripe`), **data mutation / webhooks**, **external I/O / cron**.
+- List the top-level directories (`app/`, `lib/`, `components/`, `src/`, `packages/`, etc.) and any route tree (`app/api/**`, `pages/api/**`). **Detect the framework and its version from `package.json` and use THAT version's conventions** — don't assume from memory.
+- Identify high-risk surfaces to seed as units: **auth** (`lib/auth`, `app/api/auth`, and the framework's middleware/edge entrypoint — Next.js ≤15 `middleware.ts` **or Next.js 16+ `proxy.ts`** at root or `src/`; check the installed version, and never report a missing `middleware.ts` as noteworthy — Next 16 renamed it), **billing/payments** (`app/api/billing`, `lib/stripe`), **data mutation / webhooks**, **external I/O / cron**.
 - Identify service/repository layers (`lib/services`, `lib/data`, repos).
 - Read the repo's own rule files if present (`CLAUDE.md`, `AGENTS.md`, `.coderabbit.yaml`) so `rulesFrom` lists the ones that actually exist.
 - Note conventional ignore targets: `**/__tests__/**`, generated files (`*.generated.ts`, `types/database.ts`), build output, fixtures.
