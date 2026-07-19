@@ -34,7 +34,7 @@ behind. The work below is refinement, not rebuild.**
 
 ---
 
-## 1. One correction to what we shipped (do first)
+## 1. One correction to what we shipped (do first) — ✅ shipped in 0.3.0
 
 **Majority-refute voting is a weaker arbiter than we treated it as.** The research is blunt: majority
 voting carries a *conservative-verdict bias*, a 3×3 vote can score **below** single-pass, and
@@ -48,6 +48,10 @@ invariant path) — and is killed when any verifier cites a specific guard (`fil
 becomes a signal, not the decider. Use the panel for *recall* (union of what reviewers surface),
 never let agreement alone promote. This is a small change to the reconcile logic + verifier prompt,
 and it hardens the exact mechanism v0.2 leans on.
+
+> **✅ Shipped in 0.3.0.** Promotion is now evidence-arbitrated: low/medium keep the majority
+> rule, critical/high require a `reachabilityTrace`; verifier snippets are comment-stripped
+> (T1.3). See `SPEC-v3.md` §A1.
 
 ---
 
@@ -68,9 +72,9 @@ Everything in Tier 2 below is a consequence of closing this one gap.
 
 Honest tiering. Not all of this should be built; Tier 1 is the high-confidence set.
 
-### Tier 1 — high leverage, fits the current engine, low risk (candidate v0.3)
+### Tier 1 — high leverage, fits the current engine, low risk (✅ shipped in 0.3.0)
 
-**T1.1 — Variant analysis pass.** *The highest-leverage recall multiplier in the entire research
+**T1.1 — Variant analysis pass.** *✅ Shipped in 0.3.0 (new Variant phase + `tools/variant-sweep.sh`; siblings re-verify through the same gate).* *The highest-leverage recall multiplier in the entire research
 corpus.* Project Zero's discipline: a bug is rarely alone — ~half of in-the-wild 0-days are variants
 of *already-patched* bugs that everyone missed `[PZero-variant][PZero-more]`. On every **confirmed**
 finding, abstract it to a pattern and sweep the whole repo for siblings; siblings become new
@@ -78,27 +82,27 @@ candidates that re-enter verify. We already compute `normalizedSnippet` for fing
 it as the seed for an auto-generated grep/Semgrep query. Cheap, and it turns one finding into its
 whole family. → new reconcile-phase step + a `variant-sweep` tool.
 
-**T1.2 — Root-cause + violated-invariant in the finding schema.** The clearest master-vs-competent
+**T1.2 — Root-cause + violated-invariant in the finding schema.** *✅ Shipped in 0.3.0 (`rootCause` + `invariant` + `boundary` on `REVIEW_SCHEMA`; reviewer must reject symptom-only fixes).* The clearest master-vs-competent
 signal: competent reports say "X is broken, fix X"; masters trace the symptom to the *root cause and
 the invariant it violates*, then give tiered remediation `[IA360][PZero-more]`. Add `rootCause` and
 `invariant` fields; the reviewer prompt must trace symptom → root before proposing a fix, and reject
 a "fix" that only patches the symptom. Small schema + prompt change, large output-quality jump.
 
-**T1.3 — Verifier debiasing.** LLMs anchor on comments and labels — "*words speak louder than
+**T1.3 — Verifier debiasing.** *✅ Shipped in 0.3.0 (`stripComments()` before the verifier sees the snippet; paired with §1). Voter/candidate order isn't randomized — voters are independent parallel calls with no within-prompt position bias, noted in the engine.* LLMs anchor on comments and labels — "*words speak louder than
 code*"; the identical snippet gets different verdicts by presentation `[Heuristics]`. Strip comments
 from the snippet before it reaches the verifier, have it re-derive the finding from code alone, and
 randomize voter/candidate order. Pairs with §1. Nearly free, directly lifts precision.
 
-**T1.4 — Risk-routed review depth.** We already have `riskScore` per unit (for quick sampling) and
+**T1.4 — Risk-routed review depth.** *✅ Shipped in 0.3.0 (`riskRouting` config scales verifier voters + effort by unit `riskScore`; logged per unit).* We already have `riskScore` per unit (for quick sampling) and
 per-stage model routing (v0.2.1) — but review *depth* is uniform. Masters spend by blast radius:
 auth/money/data-loss/migrations get deep scrutiny, a log tweak gets a glance `[RADAR][eng-practices]`.
 Scale **verifier voters + model/effort by unit riskScore**: crown-jewel units get more voters and a
 higher tier; low-risk units get fewer. Reuses machinery we already shipped; just wires riskScore into
 the verify fan-out.
 
-### Tier 2 — new mechanics, real design work (candidate v0.4)
+### Tier 2 — new mechanics, real design work (✅ shipped in 0.3.0)
 
-**T2.1 — A "map" phase before review (the big one).** A lightweight model phase, produced *before*
+**T2.1 — A "map" phase before review (the big one).** *✅ Shipped in 0.3.0 (new Map phase + `audit-modeler` agent + `MAP_SCHEMA`; reviewers get their unit's invariants + gating boundaries).* A lightweight model phase, produced *before*
 line review, emitting: **trust boundaries** ("anywhere security controls gate a connection"), a
 **data-flow sketch** (routes → sinks), and **per-unit invariants** `[TRAIL][STRIDE][DFD]`. Then every
 security finding must cite the boundary it crosses, and taint findings reference the source→sink path.
@@ -106,7 +110,7 @@ This is phase-ordering like ToB — the highest *conceptual* upgrade and the mos
 `audit-modeler` agent between Discover and Review, feeding the reviewers a threat model instead of
 raw globs.
 
-**T2.2 — Coverage narrative (positive assurance).** Our matrix + positive controls point at this but
+**T2.2 — Coverage narrative (positive assurance).** *✅ Shipped in 0.3.0 (reconcile collects near-misses; synthesizer writes the per-area narrative from near-misses + crown jewels + coverage totals).* Our matrix + positive controls point at this but
 stop short. The Cure53 model: for each scope area, *narrate what was probed, why it held, and which
 near-misses were chased to ground* — e.g. "no XSS, due to strict Vue escaping"; "a raw-SQL site in
 `GiftCardBatchStats`, but variables proved non-user-controllable after investigation" `[Cure53]`. The
@@ -115,13 +119,13 @@ evidence that contrary evidence would have surfaced" `[Assurance]`. A clean area
 treated as *un-reviewed*. → synthesizer + report-format extension; turns our coverage matrix into a
 genuinely trustworthy clean-bill.
 
-**T2.3 — Omission / negative-space lens.** The thing linters and LLMs miss most: the code that
+**T2.3 — Omission / negative-space lens.** *✅ Shipped in 0.3.0 (opt-in `omission` lens + `tools/omissions.sh`; rule ids `omission:<kind>`).* The thing linters and LLMs miss most: the code that
 *isn't there* — absent validation, missing error path, no rollback, unlogged failure, unhandled enum
 case `[SoftwareSeni][eng-practices]`. `cklph-reviewer` already has an "omissions" axis; port it into
 cklph-audit as a lens that, per external input / IO / branch, asserts {validation? error-path?
 logging? rollback? test?} and reports the missing ones. Scored separately from defect-finding.
 
-### Tier 3 — bigger bets, prove value first
+### Tier 3 — bigger bets, prove value first (the live backlog — deferred from 0.3.0)
 
 - **T3.1 Git-history hotspots / change-coupling** as a `riskScore` input: churn × complexity, and
   temporal coupling ("you changed A but its historical co-change partner B is untouched") — signal a
@@ -141,9 +145,10 @@ logging? rollback? test?} and reports the missing ones. Scored separately from d
 
 ---
 
-## 4. Parallel wins for the *review* stack (`cklph-reviewer` / `red-team`)
+## 4. Parallel wins for the *review* stack (`cklph-reviewer` / `red-team`) — ✅ shipped in 0.3.0
 
-Smaller, independent of the audit engine:
+Smaller, independent of the audit engine (all four shipped in the 0.3.0 wave — `cklph-os` version
+bump tracked separately):
 
 - **Conventional-Comments labeling** — every finding carries `{severity, blocking?, confidence}`;
   a blocking-decision table (block only on correctness/contract/security/data-loss/irreversible,
@@ -162,6 +167,10 @@ Smaller, independent of the audit engine:
 ---
 
 ## 5. Suggested sequencing
+
+> **Outcome (0.3.0):** steps 1–5 all shipped in the one 0.3.0 "master-practice" wave (T2.1/T2.2/T2.3
+> came forward from the tentative v0.4 into 0.3.0), plus the §4 review-stack wins. Only step 6's
+> Tier 3 bets remain. The original plan is kept below for provenance.
 
 1. **§1 correction + T1.3 debiasing** — same file (verify stage), hardens what we shipped. One small PR.
 2. **T1.1 variant analysis + T1.2 root-cause schema** — the two biggest quality multipliers; a v0.3 `/cklph-os:flow`.
