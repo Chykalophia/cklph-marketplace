@@ -1,0 +1,45 @@
+plugins/cklph-audit/skills/audit-report-format/SKILL.md
+  s_cef0814d5e85a3::t_4a7567248296ba 10
+  s_cef0814d5e85a3::t_62110650363e73 158,160-177
+  s_cef0814d5e85a3::t_eb663ed9ac600e 194,216
+plugins/cklph-audit/fixtures/README.md
+  s_cef0814d5e85a3::t_c1dc1aa402e3ea 11
+  s_cef0814d5e85a3::t_3cb393e6975d64 54-57
+  s_cef0814d5e85a3::t_55c31f00c33bf9 58
+plugins/cklph-audit/skills/audit-run/SKILL.md
+  s_cef0814d5e85a3::t_e4d4ece4dc613a 47
+  s_cef0814d5e85a3::t_dcef44b6246b98 70
+plugins/cklph-audit/templates/audit.config.example.yaml
+  s_cef0814d5e85a3::t_3dbc7779868f3f 45
+plugins/cklph-audit/docs/MASTER-PRACTICE-ROADMAP.md
+  s_cef0814d5e85a3::t_b9c78f7551911f 178-179
+plugins/cklph-os/agents/cklph-reviewer.md
+  s_cef0814d5e85a3::t_290c8b711d8528 32-37
+plugins/cklph-audit/templates/AUDIT-TEMPLATE.md
+  s_cef0814d5e85a3::t_7a87afad28bf3d 159-169
+plugins/cklph-audit/CHANGELOG.md
+  s_cef0814d5e85a3::t_d8235ade200413 79-84
+plugins/cklph-audit/README.md
+  s_cef0814d5e85a3::t_d9137e978eb536 139
+  s_cef0814d5e85a3::t_ef39c9cf5ff463 25-26
+  s_cef0814d5e85a3::t_1d6cc2454d971e 106
+  s_cef0814d5e85a3::t_baea849d1dddd5 153
+plugins/cklph-audit/skills/omission-lens/SKILL.md
+  s_cef0814d5e85a3::t_b9fc6013ff573a 14
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.14",
+  "base_commit_sha": "33d71276a0954db9b56ab3d4dafd515da9cdf7a3",
+  "prompts": {},
+  "sessions": {
+    "s_cef0814d5e85a3": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "b7d3a4cc-1f7b-4b8e-a37a-a4ed2537dfb2",
+        "model": "claude-opus-4-8"
+      },
+      "human_author": "Peter Krzyzek <peter@chykalophia.com>"
+    }
+  }
+}
