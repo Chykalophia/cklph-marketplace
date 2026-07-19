@@ -348,13 +348,14 @@ function tier(stage) {
   return o
 }
 function stripComments(s) {
-  // T1.3: re-derive from code alone — strip /* … */ blocks, // line comments, and
-  // leading #… lines so the verifier can't be led by a reassuring comment/label.
+  // T1.3: re-derive from code alone — strip /* … */ blocks and // line comments so the
+  // verifier can't be led by a reassuring comment/label. A bare '#' is CODE, not a comment
+  // (JS/TS private field #x, CSS #id) — so it is NOT stripped. The // guard leaves a URL
+  // scheme (http://) alone: only strip // when it is not preceded by ':'.
   if (!s) return s
   return String(s)
     .replace(/\/\*[\s\S]*?\*\//g, '')       // block comments
-    .replace(/(^|[^:])\/\/.*$/gm, '$1')     // line comments (leave http:// alone)
-    .replace(/^\s*#.*$/gm, '')              // leading shell/py hash-comment lines
+    .replace(/(^|[^:])\/\/.*$/gm, '$1')     // line comments — not when preceded by ':' (a URL)
 }
 // A5: the verify fan-out, factored out so the main pipeline AND the Variant phase share it.
 // N default-refuted voters try to REFUTE each finding; evidence (not tally) promotes (T1.3):
@@ -377,22 +378,21 @@ function verifyFindings(findings, unitKey, lens, unitVoters, extraOpts = {}) {
       .then(votes => {
         const v = votes.filter(Boolean)
         if (v.length === 0) log(`verify:${f.id ?? f.file}: all voters died — finding dropped unverified`)
-        const notRefuted = v.filter(x => !x.refuted).length > v.length / 2
-        const hasTrace = v.some(x => x.reachabilityTrace && x.reachabilityTrace.trim())
-                         || !!(f.validationSteps && f.validationSteps.trim())
-        const confirmed = notRefuted && (['low', 'medium'].includes(f.severity) || hasTrace)
-        // carry the winning trace onto the finding (a voter's, else the reviewer's validationSteps)
-        const winner = v.find(x => !x.refuted && x.reachabilityTrace && x.reachabilityTrace.trim())
-        const reachabilityTrace = winner?.reachabilityTrace
-          ?? (f.validationSteps && f.validationSteps.trim() ? f.validationSteps : undefined)
-        return {
-          ...f, unit: unitKey, lens,
-          confirmed,
-          reachabilityTrace,
-          // guards that killed a candidate feed positive-control + near-miss harvesting (M4/T2.2)
-          refutedGuards: v.filter(x => x.refuted && x.counterEvidence)
-            .map(x => ({ counterEvidence: x.counterEvidence, reason: x.reason })),
-        }
+        else if (v.length < unitVoters) log(`verify:${f.id ?? f.file} — ${v.length}/${unitVoters} voters returned`)  // E7: some voters died
+        // T1.3/A1: the trace that promotes a critical/high must come from a VOTER that held it real —
+        // NEVER the reviewer's own validationSteps (the accuser vouching for itself). A majority-held
+        // finding with no independent trace is SURFACED (heldUntraced), never silently dropped.
+        const pass = config.verify?.passThreshold === 'unanimous'
+          ? (v.length > 0 && v.every(x => !x.refuted))
+          : (v.filter(x => !x.refuted).length > v.length / 2)
+        const voterTrace = v.find(x => !x.refuted && x.reachabilityTrace && x.reachabilityTrace.trim())
+        const isHighSev = ['critical', 'high'].includes(f.severity)
+        const confirmed = pass && (!isHighSev || !!voterTrace)
+        const heldUntraced = pass && isHighSev && !voterTrace   // majority-held, no independent trace → surface, don't drop
+        if (voterTrace) f.reachabilityTrace = voterTrace.reachabilityTrace
+        return { ...f, unit: unitKey, lens, confirmed, heldUntraced, majorityHeld: pass,
+                 // guards that killed a candidate feed positive-control + near-miss harvesting (M4/T2.2)
+                 refutedGuards: v.filter(x => x.refuted && x.counterEvidence).map(x => ({ counterEvidence: x.counterEvidence, reason: x.reason })) }
       })))
 }
 
@@ -406,7 +406,9 @@ if (!reconEnabled) {
     ? 'recon disabled by config — denominators/seeds absent (flagged in report appendix)'
     : 'quick mode: recon SKIPPED (set recon.quick: true to enable) — denominators/seeds absent')
 }
-const wantScout = !config.units?.list?.length
+// E5: autoInfer (default true) gates unit inference. Explicit units.list always wins.
+const wantScout = (config.units?.autoInfer ?? true) && !config.units?.list?.length
+if (!wantScout && !config.units?.list?.length) log('units.autoInfer is false and no units.list supplied — no units will be inferred; supply units.list to audit any unit-lens')
 const discovered = await parallel([
   ...(wantScout ? [() => agent(
     `Decompose this repo into reviewable UNITS for an audit. ${args?.path ? `Scope to: ${args.path}. ` : ''}` +
@@ -626,15 +628,19 @@ const results = reviewed.filter(Boolean)
 const allVerified = results.flatMap(r => r.findings)
 const confirmed = allVerified.filter(f => f.confirmed)
 const deduped = dedupeByFingerprint(confirmed)
-const fresh = deduped.filter(f => !baseline.has(fingerprint(f)))
+let fresh = deduped.filter(f => !baseline.has(fingerprint(f)))
 log(`${fresh.length} new confirmed finding(s) (${deduped.length - fresh.length} suppressed by baseline, ` +
     `${confirmed.length - deduped.length} duplicate(s) merged)`)
 
-// near-misses (T2.2): refuted critical/high candidates whose counter-evidence tells the coverage
-// story — "probed X, held because Y". Feeds the synthesizer's positive-assurance narrative.
-const nearMisses = allVerified
-  .filter(f => !f.confirmed && ['critical', 'high'].includes(f.severity) && f.refutedGuards?.length)
-  .map(f => ({ file: f.file, severity: f.severity, title: f.title, guard: f.refutedGuards[0].counterEvidence }))
+// E4: severityFloor — drop fresh findings below config.severityFloor (default 'low' = keep all).
+const sevRank = { critical: 4, high: 3, medium: 2, low: 1 }
+const floorRank = sevRank[config.severityFloor] ?? 1
+const preFloor = fresh.length
+fresh = fresh.filter(f => (sevRank[f.severity] ?? 1) >= floorRank)
+if (preFloor - fresh.length) log(`severityFloor '${config.severityFloor ?? 'low'}': ${preFloor - fresh.length} finding(s) below floor dropped`)
+
+// near-misses, positive controls, coverage totals, and held-untraced are harvested AFTER the
+// Variant phase (E3) so refuted/near-miss/PC evidence from variant candidates is not lost.
 
 // rule closure (M2): every rulebook rule gets exactly one status — nothing silently absent.
 // Fold order per rule: violation > verified-safe > not-applicable > unchecked.
@@ -657,6 +663,68 @@ const ruleClosure = rulebook.map(rule => {
 const uncheckedRuleIds = ruleClosure.filter(r => r.status === 'unchecked').map(r => r.id)
 const coverageSummary = { rulebookSize: rulebook.length, checked: rulebook.length - uncheckedRuleIds.length, uncheckedRuleIds }
 if (rulebook.length) log(`rule closure: ${coverageSummary.checked}/${rulebook.length} checked${uncheckedRuleIds.length ? `; NOT CHECKED: ${uncheckedRuleIds.join(', ')}` : ''}`)
+
+// ════════════════════════════════════════════════════════════════════════════
+// 7. VARIANT — sibling hunt on confirmed critical/high (T1.1, Project Zero variant analysis)
+// ════════════════════════════════════════════════════════════════════════════
+const variantEnabled = (config.variant?.enabled ?? true) && mode !== 'quick'
+let variantsConfirmed = 0
+let variantRan = false                                        // E3: true only if the phase processed ≥1 seed
+if (!variantEnabled) {
+  log(mode === 'quick'
+    ? 'quick mode: Variant phase SKIPPED — no sibling hunt (flagged in appendix)'
+    : 'variant disabled by config — no sibling hunt (flagged in appendix)')
+} else {
+  const maxSeeds = config.variant?.maxSeeds ?? 8
+  const maxPerSeed = config.variant?.maxPerSeed ?? 20
+  // E3: sort by severity (critical before high) BEFORE slicing, so a critical is never cut for a high.
+  const seeds = fresh.filter(f => ['critical', 'high'].includes(f.severity))
+    .sort((a, b) => (sevRank[b.severity] ?? 0) - (sevRank[a.severity] ?? 0))
+    .slice(0, maxSeeds)
+  if (!seeds.length) {
+    log('Variant phase: no confirmed critical/high findings to seed from — sibling hunt skipped')
+  } else {
+    variantRan = true
+    phase('Variant')
+    log(`Variant phase: hunting siblings of ${seeds.length} confirmed critical/high finding(s)`)
+    const variantOut = await parallel(seeds.map(seed => () => agent(
+      `Here is a CONFIRMED bug pattern. Find its SIBLINGS across the repo — the same mistake elsewhere ` +
+      `(Project Zero variant analysis). Run ` + '`${CLAUDE_PLUGIN_ROOT}/tools/variant-sweep.sh`' + ` for recall, ` +
+      `then judge each candidate against the ACTUAL code. Cap at ${maxPerSeed} siblings. Return candidate ` +
+      `findings (same REVIEW_SCHEMA — file:line anchor + quoted code + rule id + normalizedSnippet + rootCause ` +
+      `+ invariant).\n` +
+      `CONFIRMED PATTERN: ${JSON.stringify({ title: seed.title, file: seed.file, line: seed.line, rule: seed.rule, severity: seed.severity, snippet: seed.snippet, rootCause: seed.rootCause, invariant: seed.invariant })}`,
+      { agentType: 'audit-reviewer', label: `variant:${seed.file}`, phase: 'Variant', schema: REVIEW_SCHEMA, ...tier('reviewer') },
+    )))
+    const candidates = variantOut
+      .flatMap(out => (out?.findings ?? []).slice(0, maxPerSeed))
+    // re-verify through the SAME gate (base voters — the sibling's home unit isn't known here),
+    // then dedup + baseline-suppress + drop anything already in `fresh`.
+    const verifiedVariants = await verifyFindings(candidates, 'variant', 'variant', config.verify?.voters ?? 3)
+    const confirmedVariants = dedupeByFingerprint(verifiedVariants.filter(Boolean).filter(f => f.confirmed))
+      .filter(f => !baseline.has(fingerprint(f)))
+      .filter(f => !fresh.some(x => fingerprint(x) === fingerprint(f)))
+    variantsConfirmed = confirmedVariants.length
+    // E3: merge EVERY verified variant into allVerified (so its refuted near-miss/PC/heldUntraced
+    // evidence survives the harvest below), the confirmed ones into fresh; then re-dedupe fresh.
+    allVerified.push(...verifiedVariants.filter(Boolean))
+    fresh.push(...confirmedVariants)
+    fresh = dedupeByFingerprint(fresh)
+    log(`${variantsConfirmed} variant(s) confirmed from ${seeds.length} seed(s)`)
+  }
+}
+
+// ── harvest AFTER the Variant merge (E3) — nearMisses / heldUntraced / positive controls / coverage ──
+// heldUntraced (E2): majority-held critical/high with NO independent voter trace — surfaced, never dropped.
+const heldUntraced = dedupeByFingerprint(allVerified.filter(f => f.heldUntraced))
+  .filter(f => !baseline.has(fingerprint(f)))
+if (heldUntraced.length) log(`${heldUntraced.length} majority-held finding(s) awaiting an independent reachability trace — surfaced for owner review`)
+
+// near-misses (T2.2): majority-REFUTED critical/high whose counter-evidence tells the coverage story —
+// "probed X, held because Y". A majority-HELD-but-untraced finding is heldUntraced, NOT a near-miss.
+const nearMisses = allVerified
+  .filter(f => !f.confirmed && f.majorityHeld === false && ['critical', 'high'].includes(f.severity) && f.refutedGuards?.length)
+  .map(f => ({ file: f.file, severity: f.severity, title: f.title, guard: f.refutedGuards[0].counterEvidence }))
 
 // positive controls (M4): harvest killed-candidate guards + verified-safe rules + recon safeControls,
 // noise-gate (rulebook-attached OR killed a critical/high candidate), de-dupe by file+rule, cap.
@@ -711,51 +779,12 @@ for (const lens of lenses) {
 }
 
 // ════════════════════════════════════════════════════════════════════════════
-// 7. VARIANT — sibling hunt on confirmed critical/high (T1.1, Project Zero variant analysis)
-// ════════════════════════════════════════════════════════════════════════════
-const variantEnabled = (config.variant?.enabled ?? true) && mode !== 'quick'
-let variantsConfirmed = 0
-if (!variantEnabled) {
-  log(mode === 'quick'
-    ? 'quick mode: Variant phase SKIPPED — no sibling hunt (flagged in appendix)'
-    : 'variant disabled by config — no sibling hunt (flagged in appendix)')
-} else {
-  const maxSeeds = config.variant?.maxSeeds ?? 8
-  const maxPerSeed = config.variant?.maxPerSeed ?? 20
-  const seeds = fresh.filter(f => ['critical', 'high'].includes(f.severity)).slice(0, maxSeeds)
-  if (!seeds.length) {
-    log('Variant phase: no confirmed critical/high findings to seed from — sibling hunt skipped')
-  } else {
-    phase('Variant')
-    log(`Variant phase: hunting siblings of ${seeds.length} confirmed critical/high finding(s)`)
-    const variantOut = await parallel(seeds.map(seed => () => agent(
-      `Here is a CONFIRMED bug pattern. Find its SIBLINGS across the repo — the same mistake elsewhere ` +
-      `(Project Zero variant analysis). Run ` + '`${CLAUDE_PLUGIN_ROOT}/tools/variant-sweep.sh`' + ` for recall, ` +
-      `then judge each candidate against the ACTUAL code. Cap at ${maxPerSeed} siblings. Return candidate ` +
-      `findings (same REVIEW_SCHEMA — file:line anchor + quoted code + rule id + normalizedSnippet + rootCause ` +
-      `+ invariant).\n` +
-      `CONFIRMED PATTERN: ${JSON.stringify({ title: seed.title, file: seed.file, line: seed.line, rule: seed.rule, severity: seed.severity, snippet: seed.snippet, rootCause: seed.rootCause, invariant: seed.invariant })}`,
-      { agentType: 'audit-reviewer', label: `variant:${seed.file}`, phase: 'Variant', schema: REVIEW_SCHEMA, ...tier('reviewer') },
-    )))
-    const candidates = variantOut
-      .flatMap(out => (out?.findings ?? []).slice(0, maxPerSeed))
-    // re-verify through the SAME gate (base voters — the sibling's home unit isn't known here),
-    // then dedup + baseline-suppress + drop anything already in `fresh`.
-    const verifiedVariants = await verifyFindings(candidates, 'variant', 'variant', config.verify?.voters ?? 3)
-    const confirmedVariants = dedupeByFingerprint(verifiedVariants.filter(Boolean).filter(f => f.confirmed))
-      .filter(f => !baseline.has(fingerprint(f)))
-      .filter(f => !fresh.some(x => fingerprint(x) === fingerprint(f)))
-    variantsConfirmed = confirmedVariants.length
-    fresh.push(...confirmedVariants)
-    log(`${variantsConfirmed} variant(s) confirmed from ${seeds.length} seed(s)`)
-  }
-}
-
-// ════════════════════════════════════════════════════════════════════════════
 // 8. SYNTHESIZE — the report + remediation waves
 // ════════════════════════════════════════════════════════════════════════════
 phase('Synthesize')
-if (!fresh.length) {
+// E2: only a truly clean run short-circuits — a majority-held-but-untraced finding is NOT clean,
+// it still needs an owner-review report so it is never silently gone.
+if (!fresh.length && !heldUntraced.length) {
   log('No new confirmed findings. Clean run. 🎉')
   return {
     report: null, fresh: [],
@@ -763,6 +792,7 @@ if (!fresh.length) {
     skipped: mode === 'quick',
     coverage: coverageSummary,
     positiveControls: positiveControls.length,
+    heldUntraced: 0,
     map: { ran: mapRan, trustBoundaries: model.trustBoundaries.length, invariants: model.invariants.length },
     variants: variantsConfirmed,
   }
@@ -774,9 +804,12 @@ const runMeta = {
   rulebookMissing: !rulebookOut,                 // extraction died — matrix empty for THAT reason
   rulebookSize: rulebook.length,
   mapRan,                                        // Map phase produced a threat model (else empty/flagged)
-  variantRan: variantEnabled,                    // Variant phase ran (skips in quick / when disabled)
+  variantRan,                                    // E3: true ONLY if the phase actually processed ≥1 seed
+  heldUntracedCount: heldUntraced.length,        // E2: majority-held findings awaiting an independent trace
   crownJewels: model.crownJewels,
 }
+// E2: majority-held-but-untraced findings, surfaced for owner review (never silently dropped)
+const publicHeldUntraced = heldUntraced.map(f => ({ file: f.file, severity: f.severity, title: f.title, rule: f.rule }))
 // engine-internal fields stay out of the synthesizer's context (confirmed is always true here;
 // refutedGuards were already harvested into positive controls above)
 const publicFresh = fresh.map(({ refutedGuards, confirmed, ...rest }) => rest)
@@ -790,7 +823,10 @@ const report = await agent(
   `verified-safe + citation | not-applicable + reason | NOT CHECKED — no rule silently absent), a Coverage ` +
   `narrative (positive assurance from NEAR_MISSES + CROWN_JEWELS + COVERAGE_TOTALS: per area, what was probed, ` +
   `why clean areas held, and near-misses chased to ground), and a Positive controls (INFO) section (each: ` +
-  `citation + what it protects + why it shipped). counts.info = positive-control count. Group fixes into ` +
+  `citation + what it protects + why it shipped). counts.info = positive-control count. When HELD_UNTRACED is ` +
+  `non-empty, render a distinct "Majority-held, awaiting an independent reachability trace (needs owner review)" ` +
+  `subsection listing each (file, severity, title, rule) — these held the majority vote but no VOTER supplied an ` +
+  `independent trace; surface them for owner review, do NOT drop them and do NOT treat them as confirmed. Group fixes into ` +
   `ordered remediation WAVES consumable by /cklph-os:flow — quick-wins first within a severity band; ` +
   `owner-decision items go in their own "Owner decisions" subsection (questions, not work). Flag in an ` +
   `appendix: unit derivation, low-confidence units, quick-mode sampling, whether the Map + Variant phases ran ` +
@@ -800,6 +836,7 @@ const report = await agent(
   `RULE_CLOSURE:\n${JSON.stringify(ruleClosure, null, 2)}\n\n` +
   `COVERAGE_TOTALS:\n${JSON.stringify(coverageTotals, null, 2)}\n\n` +
   `NEAR_MISSES:\n${JSON.stringify(nearMisses, null, 2)}\n\n` +
+  `HELD_UNTRACED:\n${JSON.stringify(publicHeldUntraced, null, 2)}\n\n` +
   `CROWN_JEWELS:\n${JSON.stringify(model.crownJewels, null, 2)}\n\n` +
   `POSITIVE_CONTROLS:\n${JSON.stringify(positiveControls, null, 2)}\n\n` +
   `RUN_META:\n${JSON.stringify(runMeta, null, 2)}`,
@@ -813,6 +850,7 @@ return {
   skipped: mode === 'quick',
   coverage: coverageSummary,
   positiveControls: positiveControls.length,
+  heldUntraced: heldUntraced.length,
   map: { ran: mapRan, trustBoundaries: model.trustBoundaries.length, invariants: model.invariants.length },
   variants: variantsConfirmed,
 }
