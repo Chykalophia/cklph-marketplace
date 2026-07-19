@@ -1,0 +1,40 @@
+plugins/cklph-audit/skills/audit-report-format/SKILL.md
+  s_cef0814d5e85a3::t_92ae528611200c 210-211
+  s_cef0814d5e85a3::t_430f3d032636ec 158
+  s_cef0814d5e85a3::t_535bb27fbb4b1c 8,10
+  s_cef0814d5e85a3::t_da5454d93c50bf 199
+  s_cef0814d5e85a3::t_a04204e162970b 154
+  s_cef0814d5e85a3::t_5ea55f6e185465 215
+  s_cef0814d5e85a3::t_9abf83795b172b 28-30
+  s_cef0814d5e85a3::t_1a01b3c35ab1cd 177
+  s_cef0814d5e85a3::t_7fe26af6390a29 44
+  s_cef0814d5e85a3::t_99f5ecb3a3dc42 3
+  s_cef0814d5e85a3::t_d6ce6c8ef0ed97 91-119
+  s_cef0814d5e85a3::t_a9ac9683f80fee 134-137
+plugins/cklph-audit/templates/AUDIT-TEMPLATE.md
+  s_cef0814d5e85a3::t_482b4806587898 8-10
+  s_cef0814d5e85a3::t_b2fea863ae2b64 232-233
+  s_cef0814d5e85a3::t_b6f08f2d5026df 125-128
+  s_cef0814d5e85a3::t_b8f2c630d85740 144
+  s_cef0814d5e85a3::t_85f6e4b7aef5f6 102-105
+  s_cef0814d5e85a3::t_8495d739eb5d02 154
+  s_cef0814d5e85a3::t_07934e487c514e 216-222
+  s_cef0814d5e85a3::t_84f714a7c97bd7 78-92
+  s_cef0814d5e85a3::t_c726f44345f00f 223
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.14",
+  "base_commit_sha": "0746ff167cb088ca73815c223272844256b92c34",
+  "prompts": {},
+  "sessions": {
+    "s_cef0814d5e85a3": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "b7d3a4cc-1f7b-4b8e-a37a-a4ed2537dfb2",
+        "model": "claude-opus-4-8"
+      },
+      "human_author": "Peter Krzyzek <peter@chykalophia.com>"
+    }
+  }
+}
