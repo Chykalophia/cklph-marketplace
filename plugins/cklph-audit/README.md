@@ -3,7 +3,7 @@
 **Scoped, adversarially-verified, agentic whole-repo audits — that also prove what they covered.**
 Marketplace: `cklph` · install: `claude plugin install cklph-audit@cklph` · CLI-only (sub-agents + workflows).
 
-> Diff-review tools (CodeRabbit, `/code-review ultra`, the cklph-reviewer agent) deliberately stay on the **diff**. `cklph-audit` fills the other gap: **deep reasoning over the _whole_ repo** — decompose the codebase, fan out a sub-agent per subsystem × lens, **refute** each finding to kill false positives, drop anything already accepted in a baseline, and synthesize a triaged report + a remediation-wave plan that feeds `/cklph-os:flow`. v2 adds the completeness accounting: recon denominators, a rule-closure coverage matrix, and positive controls — the report shows what was checked and clean, not just what's broken.
+> Diff-review tools (CodeRabbit, `/code-review ultra`, the cklph-reviewer agent) deliberately stay on the **diff**. `cklph-audit` fills the other gap: **deep reasoning over the _whole_ repo** — decompose the codebase, fan out a sub-agent per subsystem × lens, **refute** each finding to kill false positives, drop anything already accepted in a baseline, and synthesize a triaged report + a remediation-wave plan that feeds `/cklph-os:flow`. v2 adds the completeness accounting: recon denominators, a rule-closure coverage matrix, and positive controls — the report shows what was checked and clean, not just what's broken. v3 adds the master-practitioner mechanics: a threat-model **Map** phase before review, an evidence-arbitrated verifier (critical/high must supply a reachability trace), Project-Zero **variant analysis** on confirmed bugs, root-cause + violated-invariant per finding, risk-routed depth, and a positive-assurance **coverage narrative**.
 
 It's the productized version of a hand-run **8-agent pre-certification security audit**; v2 ports the coverage accounting from the ZenCoder audit methodology.
 
@@ -61,8 +61,9 @@ Project-agnostic knowledge packs. Each layers **over** the repo's own rules (e.g
 | **correctness** | Silent failures, swallowed errors, missing error IDs, state-machine catch-block gaps, race conditions/TOCTOU, null/undefined handling, off-by-one, fail-open defaults. |
 | **architecture** | DRY/duplication (extract-when-3+), layering violations, dead code, god-objects, circular deps, contradictory sources of truth, files over the size limit. |
 | **docs-drift** (opt-in) | The rulebook itself: paths, script names, and scoped package names (`@scope/pkg`) in your `rulesFrom` docs that no longer match the tree — unscoped tech-name prose ("BullMQ" in the docs, QStash in the code) is the judgment layer's catch. LOW severity by default; MEDIUM+ only when the drift misleads a security control. |
+| **omission** (opt-in, v3) | Negative space — the code that _isn't_ there. Per external input / IO / branch it asserts `{ validation? error-path? logging? rollback? test? }` and reports the MISSING ones. Rule ids `omission:<kind>`; severity by real impact. The class of bug linters and pure-LLM passes miss most. |
 
-`docs-drift` is the exception to the unit × lens cross-product: when requested, the engine adds exactly **one** job over the `rulesFrom` docs — it never fans out per unit. It's not in the default lens list; ask for it explicitly.
+`docs-drift` is the exception to the unit × lens cross-product: when requested, the engine adds exactly **one** job over the `rulesFrom` docs — it never fans out per unit. It's not in the default lens list; ask for it explicitly (as is `omission`).
 
 Extensible (later): `performance` (N+1, hot paths, caching, bundle), `a11y` (WCAG/dark-mode), `compliance` (SOC2/CASA control mapping).
 
@@ -70,7 +71,7 @@ Extensible (later): `performance` (N+1, hot paths, caching, bundle), `a11y` (WCA
 
 ---
 
-## How it works (5 phases)
+## How it works (7 phases)
 
 ```
 1. DISCOVER   audit-scout INFERS units (subsystem → globs) + surface; escalates to
@@ -81,17 +82,28 @@ Extensible (later): `performance` (N+1, hot paths, caching, bundle), `a11y` (WCA
               (re-runnable enumeration command + candidate count), cited seeds (hints,
               not findings — reviewers re-verify every one), and safe-control candidates.
               Skipped in :quick — and logged, never silent.
-3. REVIEW     audit-reviewer × (unit × lens) → findings + a ruleCheck for EVERY rule
-              handed + honest coverage counts   [pipeline, parallel]
-4. VERIFY     audit-verifier refutes each finding (majority-refute → drop); refuting
-              counter-evidence is harvested as positive-control candidates   [adversarial]
-5. SYNTHESIZE plain-code reconcile first (dedup + baseline + rule closure + coverage
-              totals — not an agent), then audit-synthesizer → AUDIT-<date>.md
-              (coverage summary + matrix, severity buckets, positive controls (INFO),
-              remediation-wave plan that feeds /cklph-os:flow)
+3. MAP        one audit-modeler builds a lightweight threat model (v3): trust boundaries,
+              data-flows (source → sink), per-unit invariants, and crown jewels. Feeds the
+              reviewer its unit's invariants + the boundaries gating it. Skips in :quick; a
+              dead modeler degrades to an empty model — flagged in the appendix, never silent.
+4. REVIEW     audit-reviewer × (unit × lens) → findings + a ruleCheck for EVERY rule
+              handed + honest coverage counts. Traces symptom → rootCause + names the
+              violated invariant, cites the boundary crossed.   [pipeline, parallel]
+5. VERIFY     audit-verifier refutes each finding from COMMENT-STRIPPED code; evidence, not
+              vote tally, arbits (v3): low/medium promote on majority, critical/high require
+              a reachabilityTrace. Depth risk-routed per unit. Refuting counter-evidence is
+              harvested as positive controls + near-misses.   [adversarial]
+   RECONCILE  plain code (not an agent): dedup + baseline + rule closure + coverage totals
+              + near-misses + positive-control harvest.
+6. VARIANT    for each confirmed critical/high, an audit-reviewer hunts SIBLINGS repo-wide
+              (v3, Project Zero variant analysis) via variant-sweep.sh; candidates re-verify
+              through the SAME gate. Skips in :quick; flagged in the appendix.
+7. SYNTHESIZE audit-synthesizer → AUDIT-<date>.md (coverage summary + matrix + a
+              positive-assurance coverage narrative, severity buckets, positive controls
+              (INFO), remediation-wave plan that feeds /cklph-os:flow)
 ```
 
-Implemented as one deterministic **Workflow** so the fan-out, verify, and budget are reproducible. See `SPEC.md` (v1 engine) and `SPEC-v2.md` (the coverage delta).
+Implemented as one deterministic **Workflow** so the fan-out, verify, and budget are reproducible. `:quick` skips the Map + Variant phases (and recon) to stay cheap. See `SPEC.md` (v1 engine), `SPEC-v2.md` (the coverage delta), and `SPEC-v3.md` (the master-practice upgrade).
 
 ---
 
@@ -109,6 +121,22 @@ v1 is a repeatable engine. v2 is the same engine that can also show what it cove
 Plus **per-stage model routing**: `config.models.<stage>` sends mechanical stages (scout, recon, rulebook) to cheap model/effort tiers and routes the verifier — the precision bet — up, while judgment stages inherit the session model. The difficulty heuristic is encoded in config, where you can see and tune it; omit the block and everything inherits (v1 behavior).
 
 Backward compatible: a v1 `audit.config.yaml` runs unchanged — recon defaults on, positive controls default to 15, docs-drift only when you ask for it, model routing inherits everywhere.
+
+---
+
+## What v3 adds (master-practice refinements)
+
+v3 keeps the whole v1/v2 engine and adds the way elite auditors and staff-level reviewers actually work — model before you read, trace to root cause, hunt siblings, spend by blast radius, and hand back a trustworthy clean bill. Seven mechanics:
+
+1. **Map phase — model before you read.** Between recon and review, one `audit-modeler` builds a lightweight threat model: **trust boundaries** (where a control gates a connection), a **data-flow sketch** (source → sink), **per-unit invariants** (properties that must hold), and the **crown jewels**. Reviewers then get their unit's invariants (a violation is a finding) and the boundaries gating it — security findings cite the `boundary` crossed. This is the phase-ordering elite firms use (design → threat model → then code). Skips in `:quick`; a dead modeler degrades to an empty model, flagged in the appendix.
+2. **Evidence-arbitrated verify.** Majority-refute voting is a conservative-biased arbiter and consensus isn't truth (in one study 80+ agents endorsed a non-existent vuln). So the verifier now re-derives each finding from **comment-stripped** code (LLMs anchor on reassuring comments), and the arbiter is the **evidence**: low/medium still promote on majority, but a **critical/high must supply a `reachabilityTrace`** (attacker-input → sink, or the invariant-violation path) — "plausible" without a trace is refuted. To kill a finding a voter cites the guard `file:line`. The vote becomes recall signal, not the decider.
+3. **Root cause + violated invariant per finding.** The clearest master-vs-competent signal. Every finding carries `rootCause` (the underlying fault, not the symptom), `invariant` (the property it violates), and `boundary` (when the Map ran) — and the reviewer must reject a fix that only patches the symptom.
+4. **Variant analysis.** A bug is rarely alone — ~half of in-the-wild 0-days are variants of already-patched bugs everyone missed. Each confirmed critical/high seeds a repo-wide **sibling hunt** (`variant-sweep.sh` for recall, then judgment); siblings re-enter the SAME verify gate. Capped (`variant.maxSeeds` × `variant.maxPerSeed`). One finding becomes its family.
+5. **Risk-routed review depth.** Verifier voters (and effort) scale with the unit's `riskScore`: crown-jewel units get more voters and a higher tier; a log tweak gets fewer (floored at 1). Spend by blast radius. Tunable in `riskRouting`; logged per unit.
+6. **Coverage narrative (positive assurance).** The report now narrates, per area, what was probed, why clean areas held, and which **near-misses** were chased to ground ("a raw-SQL site, but the variables proved non-user-controllable after investigation"). A clean area with no narrative is treated as un-reviewed — positive assurance, not "we found nothing."
+7. **Omission lens (opt-in).** Negative-space judgment — the missing validation / error path / rollback / log / test — ported from the review stack (see the lens table).
+
+Backward compatible: a v1/v2 `audit.config.yaml` runs unchanged — every new key defaults on-but-safe, the Map + Variant phases skip in `:quick`, and the `omission` lens is opt-in. **Tier 3 of the roadmap (git-history hotspots, a CPG reachability tool, weird-machine lenses) is explicitly deferred** — see `docs/MASTER-PRACTICE-ROADMAP.md`.
 
 ---
 
@@ -132,7 +160,9 @@ Backward compatible: a v1 `audit.config.yaml` runs unchanged — recon defaults 
 ## Roadmap
 
 - **v1 (0.1.0)**: `cklph-audit` plugin · security + correctness + architecture lenses · scout/reviewer/verifier/synthesizer agents · the workflow engine · `audit.config.yaml` + `.audit-baseline.json` · `run` / `quick` / `baseline` / `init` commands.
-- **v2 (0.2.0, current)**: the coverage upgrade — recon (denominators + seeds), rulebook + rule-closure matrix, coverage math, positive controls (INFO), docs-drift lens, richer finding schema. See `SPEC-v2.md`.
+- **v2 (0.2.0)**: the coverage upgrade — recon (denominators + seeds), rulebook + rule-closure matrix, coverage math, positive controls (INFO), docs-drift lens, richer finding schema. See `SPEC-v2.md`.
+- **v3 (0.3.0, current)**: the master-practice upgrade — Map phase (threat model) + `audit-modeler`, evidence-arbitrated verify (reachability trace), variant analysis + `variant-sweep.sh`, root-cause/invariant findings, risk-routed depth, coverage narrative, and the opt-in omission lens. See `SPEC-v3.md`.
+- **Deferred (Tier 3, prove value first)**: git-history hotspots / change-coupling as a `riskScore` input · a CPG/graph reachability tool the reviewer queries · specialized weird-machine lenses (concurrency, state-machine, economic) · ensemble panels for crown-jewel units · an executable-repro requirement for the highest severities. Tracked in `docs/MASTER-PRACTICE-ROADMAP.md`.
 - **Later**: `performance` + `a11y` + `compliance` lenses · a scheduled weekly **delta** audit (emails/ClickUps only NEW findings) · a CLI pre-promotion gate (fast security lens before dev→staging→main) · auto-handoff of confirmed Criticals into a `/cklph-os:flow` remediation run.
 
-See `SPEC.md` (the v1 engine) and `SPEC-v2.md` (the coverage delta) for the full build design.
+See `SPEC.md` (the v1 engine), `SPEC-v2.md` (the coverage delta), and `SPEC-v3.md` (the master-practice upgrade) for the full build design.
