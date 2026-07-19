@@ -28,10 +28,23 @@ either:
 
 "It looks right" is not evidence. An unexamined load-bearing claim is itself a finding.
 
-## Enumerate, then disprove
-1. List every way this could be wrong — assumptions, inputs, environments, orderings, partial states.
-2. For each, try to **make it happen**. What survives a real attempt becomes confidence; what breaks
-   becomes a finding with a repro.
+## Pre-mortem
+Before enumerating, jump forward: **it's six months later and this change caused a production incident —
+what was it?** Write the postmortem headline first (the outage, the corrupted rows, the leaked secret,
+the silent data drift), then **back-derive the code path** that reaches it. Working backward from a
+concrete failure surfaces the defect that forward "does this look right?" review walks straight past.
+
+## Enumerate, then disprove — dual-pass
+Run **both** passes and treat them as adversaries; a finding is only as strong as the pass it survives:
+- **Prove-correct** — assume it works; gather the evidence (test, traced path, observed output) that each
+  load-bearing claim actually holds.
+- **Prove-broken** — assume it's broken; construct the input / sequence / environment that makes it fail.
+
+1. List every way this could be wrong — assumptions, inputs, environments, orderings, partial states
+   (seed this from the pre-mortem).
+2. For each, try to **make it happen**. What survives a real prove-broken attempt becomes confidence;
+   what breaks becomes a finding with a repro. **Only a finding that survives the prove-broken pass ships
+   high-confidence** — a prove-correct hunch you merely couldn't break is at most a "verify X", not a Critical.
 
 ## Attack checklist
 - **Failure injection** — dependency missing / not installed, network down, timeout, disk full, env unset.
