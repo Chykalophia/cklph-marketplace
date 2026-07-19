@@ -1,0 +1,23 @@
+plugins/cklph-os/agents/red-team.md
+  s_cef0814d5e85a3::t_3ba49f95fe48f7 31-47
+plugins/cklph-os/agents/cklph-reviewer.md
+  s_cef0814d5e85a3::t_a81bb68500071d 23-39
+plugins/cklph-os/.claude-plugin/plugin.json
+  s_cef0814d5e85a3::t_6c77eab36f4385 4
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.14",
+  "base_commit_sha": "cd4205bc1ec5a937d5bc0b53c27a1fa6d1fc5919",
+  "prompts": {},
+  "sessions": {
+    "s_cef0814d5e85a3": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "b7d3a4cc-1f7b-4b8e-a37a-a4ed2537dfb2",
+        "model": "claude-opus-4-8"
+      },
+      "human_author": "Peter Krzyzek <peter@chykalophia.com>"
+    }
+  }
+}
