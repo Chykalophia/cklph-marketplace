@@ -5,7 +5,9 @@ units:
   list:                         # optional explicit units; ALWAYS win over inference when present
     - key: auth
       title: Authentication & authorization
-      globs: ["lib/auth/**", "app/api/auth/**", "lib/middleware/**"]
+      # include the framework's edge/middleware entrypoint — Next.js ≤15 `middleware.ts`
+      # OR Next.js 16+ `proxy.ts` (root or `src/`); it's usually the highest-value auth file.
+      globs: ["lib/auth/**", "app/api/auth/**", "middleware.ts", "proxy.ts", "src/middleware.ts", "src/proxy.ts"]
     - key: billing
       globs: ["app/api/billing/**", "app/api/payments/**", "lib/stripe/**"]
 lenses: [security, correctness, architecture]   # also: docs-drift (audits the rulesFrom docs), omission (negative-space: missing validation/error-path/logging)
