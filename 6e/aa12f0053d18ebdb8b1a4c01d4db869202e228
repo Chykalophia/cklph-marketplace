@@ -1,0 +1,24 @@
+plugins/cklph-audit/tools/variant-sweep.sh
+  s_cef0814d5e85a3::t_30f85164bfb6fa 52-54
+  s_cef0814d5e85a3::t_8b8ee1acee35c6 63-65
+  s_cef0814d5e85a3::t_94b051e4e196c9 19-23
+plugins/cklph-audit/tools/omissions.sh
+  s_cef0814d5e85a3::t_d7c23acd74f590 27,29-37
+  s_cef0814d5e85a3::t_d5800d3514def2 60-62
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.14",
+  "base_commit_sha": "6eaa12f0053d18ebdb8b1a4c01d4db869202e228",
+  "prompts": {},
+  "sessions": {
+    "s_cef0814d5e85a3": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "b7d3a4cc-1f7b-4b8e-a37a-a4ed2537dfb2",
+        "model": "claude-opus-4-8"
+      },
+      "human_author": "Peter Krzyzek <peter@chykalophia.com>"
+    }
+  }
+}
