@@ -5,6 +5,9 @@ repo: <repo name>
 repo_sha: <git SHA at time of run>
 lenses: [<security, correctness, architecture>]
 mode: <full | quick>
+phases:                     # v3 optional phases — false = skipped (quick mode / disabled / agent died); see appendix
+  map: <true | false>       # Map (threat model: trust boundaries + invariants) ran
+  variant: <true | false>   # Variant (sibling hunt on confirmed critical/high) ran
 units:
   source: <inferred | config | deep-mapped>
   covered: [<unit keys actually covered>]
@@ -72,6 +75,21 @@ Every rulebook rule gets a row — no rule silently absent. `unchecked` renders 
 
 ---
 
+## Coverage narrative
+
+Positive assurance in prose — written from near-misses, crown jewels, and coverage totals. Lead with the
+crown jewels; if none (the Map phase did not run), narrate per lens from the coverage totals instead. Every
+"held because" is anchored to a `file:line`, and every near-miss is a candidate the verifier refuted.
+
+**Crown jewels probed:** <highest-value assets/flows — or "none (Map phase did not run)">
+
+- **<area>** — probed <what surface: denominators examined, seeds chased>; held because <the guard/control>
+  (`<file:line>`). Near-miss: a <critical | high> "<candidate title>" at `<file:line>` was **refuted** —
+  <the counter-evidence guard that killed it>.
+- **<area>** — <what was probed> / <why the clean area held, with citation>.
+
+---
+
 ## Critical
 
 ### C-1: <title>
@@ -81,6 +99,10 @@ Every rulebook rule gets a row — no rule silently absent. `unchecked` renders 
 - **Bucket:** <quick-win | targeted-fix | systemic-refactor | owner-decision>
 - **Context:** <server | client | shared> / <prod | test | generated> / <gated | ungated>
 - **Validated by:** <the read-only checks the reviewer ran to confirm true-positive>
+- **Root cause:** <the underlying fault the reviewer traced the symptom back to — not the symptom>
+- **Invariant:** <the property the code must guarantee that this finding violates>
+- **Boundary:** <the trust boundary crossed — only when the Map phase supplied one>
+- **Reachability:** <the attacker-input→sink or invariant-violation path the verifier confirmed — a confirmed critical/high always has one>
 - **Snippet:**
   ```ts
   <the offending code>
@@ -100,6 +122,10 @@ Every rulebook rule gets a row — no rule silently absent. `unchecked` renders 
 - **Bucket:** <…>
 - **Context:** <…>
 - **Validated by:** <…>
+- **Root cause:** <the underlying fault, not the symptom>
+- **Invariant:** <the property this violates>
+- **Boundary:** <the trust boundary crossed — only when the Map phase supplied one>
+- **Reachability:** <the attacker-input→sink or invariant-violation path — a confirmed critical/high always has one>
 - **Snippet:**
   ```ts
   <code>
@@ -115,6 +141,7 @@ Every rulebook rule gets a row — no rule silently absent. `unchecked` renders 
 ### M-1: <title>
 - **Where:** `<file>:<line>` · **rule:** `<…>`
 - **Confidence / bucket / context:** <…> / <…> / <…>
+- **Root cause / invariant:** <…> / <…> · **Boundary / reachability:** <when present>
 - **Why / fix:** <…> · **Verifier note:** <…> · **Validated by:** <…>
 
 ---
@@ -124,6 +151,7 @@ Every rulebook rule gets a row — no rule silently absent. `unchecked` renders 
 ### L-1: <title>
 - **Where:** `<file>:<line>` · **rule:** `<…>`
 - **Confidence / bucket / context:** <…> / <…> / <…>
+- **Root cause / invariant:** <…> / <…>
 - **Validated by:** <…> · **Fix:** <…>
 
 ---
@@ -185,6 +213,14 @@ without `recon.quick`, `recon.enabled: false`, agent died, budget — or "none">
 **Rulebook:** <N rules extracted — or "extraction FAILED: the Coverage matrix is empty because
 the extractor died, NOT because the `rulesFrom` docs contain no rules">
 
+**Map phase (threat model):** <ran — N trust boundaries / N invariants / N crown jewels — or "did NOT
+run: quick mode (Map skips) | `map.enabled: false` | audit-modeler died — reviewers got no boundary/
+invariant context, findings carry no boundary, and the Coverage narrative has no crown jewels">
+
+**Variant phase (sibling hunt):** <ran — N variant(s) confirmed from M seed(s) — or "did NOT run: quick
+mode (Variant skips) | `variant.enabled: false`" — or "ran, but no confirmed critical/high to seed from,
+so no sibling sweep">
+
 **Denominator commands (verbatim):**
 
 | Lens | Pattern | Command |
@@ -193,5 +229,5 @@ the extractor died, NOT because the `rulesFrom` docs contain no rules">
 
 **Tools run for recall:** <dry.sh / await.sh / deadcode.sh / layering.sh / secrets.sh / docsdrift.sh — and any that degraded to reasoning because the binary was absent>
 
-> No silent truncation: if a unit, lens, rulebook rule, or enumerated pattern was not
-> evaluated, it is named above — or shown as **NOT CHECKED** in the Coverage matrix.
+> No silent truncation: if a unit, lens, rulebook rule, enumerated pattern, or phase (Map /
+> Variant) was not evaluated, it is named above — or shown as **NOT CHECKED** in the Coverage matrix.

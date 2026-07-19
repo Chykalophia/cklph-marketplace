@@ -1,13 +1,13 @@
 ---
 name: audit-report-format
-description: The exact AUDIT-<date>.md contract — front-matter, coverage summary + rule-closure matrix, severity sections (file:line, snippet, why-real + verifier note, fix, confidence/bucket/context/validation), positive controls (INFO), ordered remediation waves for /cklph-os:flow with an owner-decisions subsection, and an appendix with NO silent truncation. Loaded by audit-synthesizer when writing the report.
+description: The exact AUDIT-<date>.md contract — front-matter, coverage summary + rule-closure matrix, coverage narrative (positive assurance), severity sections (file:line, snippet, why-real + verifier note, fix, confidence/bucket/context/validation, root-cause/invariant/boundary/reachability), positive controls (INFO), ordered remediation waves for /cklph-os:flow with an owner-decisions subsection, and an appendix with NO silent truncation (incl. whether the Map + Variant phases ran). Loaded by audit-synthesizer when writing the report.
 ---
 
 # audit-report-format — the AUDIT-<date>.md contract
 
-This skill defines the exact shape `audit-synthesizer` must emit as `report.markdown`. The contract exists so reports are consistent, git-diffable across runs, and feed cleanly into `/cklph-os:flow`. **Nothing is silently truncated** — anything not audited, whether a *unit*, a *rulebook rule*, or an *enumerated pattern* (budget, sampling, low-confidence, recon gaps), is named in the report.
+This skill defines the exact shape `audit-synthesizer` must emit as `report.markdown`. The contract exists so reports are consistent, git-diffable across runs, and feed cleanly into `/cklph-os:flow`. **Nothing is silently truncated** — anything not audited, whether a *unit*, a *rulebook rule*, an *enumerated pattern* (budget, sampling, low-confidence, recon gaps), or a skipped *phase* (whether the Map + Variant phases ran), is named in the report.
 
-The document has seven parts, in order: **Front-matter → Coverage summary → Coverage matrix → Severity sections → Positive controls (INFO) → Remediation waves → Appendix.**
+The document has eight parts, in order: **Front-matter → Coverage summary → Coverage matrix → Coverage narrative → Severity sections → Positive controls (INFO) → Remediation waves → Appendix.**
 
 An OPTIONAL `## Summary` lead block (new-finding counts, rule closure, positive-control count, unit derivation, a one-or-two-line headline) may sit between the front-matter and the Coverage summary — a human skim layer only, never a substitute for the sections below. The template includes one.
 
@@ -25,6 +25,9 @@ units:                      # units actually covered, + derivation method
   covered: [auth, billing, rule-engine]
   low_confidence: [rule-engine]   # flagged so you can pin in config next run
 mode: full                  # full | quick
+phases:                     # v3 optional phases — false = skipped (quick mode / disabled / agent died); see appendix
+  map: true                 # Map (threat model: trust boundaries + invariants) ran
+  variant: true             # Variant (sibling hunt on confirmed critical/high) ran
 counts: { critical: 2, high: 5, medium: 8, low: 3, info: 4 }   # info = positive controls
 coverage:
   rulebook_size: 12         # discrete rules extracted from the rulesFrom docs
@@ -38,7 +41,7 @@ skipped:
 ---
 ```
 
-If a field is empty, emit it empty (`[]` / `0`) — never omit it. The reader must be able to tell coverage from the front-matter alone: `coverage.checked` of `coverage.rulebook_size` rules, and every `unchecked` rule id named.
+If a field is empty, emit it empty (`[]` / `0`) — never omit it. The reader must be able to tell coverage from the front-matter alone: `coverage.checked` of `coverage.rulebook_size` rules, every `unchecked` rule id named, and whether the Map + Variant phases ran (`phases.map` / `phases.variant` — a skipped phase is expanded in the appendix).
 
 ## 2. Coverage summary
 
@@ -85,7 +88,35 @@ Rules for the matrix:
 - `verified-safe` rows cite the evidence (`file:line`); `not-applicable` rows give the one-line reason.
 - `unchecked` rows render as **NOT CHECKED** with the **whole row bold** — an honest NOT CHECKED is a feature, not an embarrassment. The same rule ids appear in front-matter `coverage.unchecked`.
 
-## 4. Severity sections
+## 4. Coverage narrative
+
+A `## Coverage narrative` section directly after the Coverage matrix and before the first severity section: **positive assurance in prose**. Where the Coverage summary is arithmetic and the matrix is rule-by-rule, the narrative tells the *story of what held and why* — the assurance that evaporates if a report only ever publishes defects. It is written from `NEAR_MISSES` + `CROWN_JEWELS` + `COVERAGE_TOTALS` (all passed to the synthesizer).
+
+Per area — a crown jewel, a lens, or a trust-bounded flow — state three things:
+1. **what was probed** — the surface the audit actually exercised (denominators examined, seeds chased),
+2. **why the clean areas held** — the guard/control that made a suspected issue a non-issue,
+3. **near-misses chased to ground** — a `critical`/`high` candidate the verifier *refuted*, and the counter-evidence (`guard`) that killed it.
+
+```markdown
+## Coverage narrative
+
+**Crown jewels probed:** user-role mutation, Stripe webhook ingestion, session issuance.
+
+- **Auth / role mutation** — probed all 325 `.single()` callsites and every role-write path; held because
+  each mutation routes through the `requireAdmin` guard (`lib/auth/guard.ts:20`). Near-miss: a high
+  "unauthenticated role update" candidate at `app/api/users/route.ts:40` was **refuted** — the route is
+  gated by middleware (`middleware.ts:12`).
+- **Payments / webhooks** — 6 of 9 webhook handlers examined (risk-weighted to signature-bearing routes);
+  signature verification held at `app/api/webhooks/stripe/route.ts:18`.
+```
+
+Rules for the narrative:
+- **Crown jewels** (`CROWN_JEWELS`, from the Map phase) frame the areas worth narrating — lead with them. If `CROWN_JEWELS` is empty (the Map phase didn't run or found none), say so in one line and write the narrative per lens from `COVERAGE_TOTALS` instead — never omit the section silently.
+- Anchor every "held because" claim to a `file:line` — assurance is evidence, not reassurance.
+- Every entry in `NEAR_MISSES` (`{ file, severity, title, guard }`) is accounted for: name the refuted candidate and the `guard` that refuted it. A near-miss is the audit *doing its job* — it looked, and it cleared.
+- The narrative is prose assurance; it does **not** replace the arithmetic Coverage summary or the rule-by-rule matrix.
+
+## 5. Severity sections
 
 One section per severity, highest first: `## Critical` → `## High` → `## Medium` → `## Low`. Omit a section only if it has zero findings (and the count is then 0 in front-matter). Within a section, each finding is a subsection with a stable id:
 
@@ -100,6 +131,10 @@ One section per severity, highest first: `## Critical` → `## High` → `## Med
 - **Bucket:** quick-win                     # quick-win | targeted-fix | systemic-refactor | owner-decision
 - **Context:** server / prod / ungated      # surface / runtime / gated — classified BEFORE severity
 - **Validated by:** <the read-only checks the reviewer ran to confirm true-positive>
+- **Root cause:** <the underlying fault the reviewer traced the symptom back to — not the symptom>
+- **Invariant:** <the property the code must guarantee that this finding violates>
+- **Boundary:** <the trust boundary crossed — only when the Map phase supplied one>
+- **Reachability:** <the concrete attacker-input→sink or invariant-violation path the verifier confirmed>
 
 ```ts
 // the offending code, quoted exactly (a few lines of context)
@@ -116,10 +151,11 @@ Rules for every finding:
 - **Always** a `file:line` anchor and a **quoted snippet** of the offending code. No finding without a code anchor.
 - The **why-real** must explain the impact, and the **verifier note** must state it survived the default-to-refuted vote (this is the plugin's core trust signal — every shipped finding passed it). For `source: "reasoning"` findings with no deterministic tool, label them **candidate for human review**, honestly.
 - The **Confidence / Bucket / Context / Validated by** lines carry the reviewer's `confidence`, `remediationBucket`, `context`, and `validationSteps` — emit all four. Severity was derived from context (real exploitability, not raw pattern match); the Context line shows that work.
+- The **Root cause / Invariant** lines carry the reviewer's `rootCause` and `invariant` — the underlying fault and the violated property, not the symptom; emit both when supplied. **Boundary** carries `boundary` — emit it only when the Map phase ran and the reviewer cited the trust boundary crossed (omit the line otherwise). **Reachability** carries the verifier's `reachabilityTrace` — the concrete attacker-input→sink (or invariant-violation) path. A confirmed `critical`/`high` **always** has one: under the evidence arbiter a critical/high with no trace does not promote, so its presence *is* the promotion proof — render it. `low`/`medium` may omit it.
 - Cite the rule id (CWE/ASVS/own-rule). If a repo rule applied, name it.
 - Finding ids are stable per-report (`C-1`, `H-3`, `M-2`, `L-1`) and are what remediation waves and the coverage matrix reference.
 
-## 5. Positive controls (INFO)
+## 6. Positive controls (INFO)
 
 A `## Positive controls (INFO)` section after the severity sections: the "checked and clean" knowledge that would otherwise evaporate every run. Front-matter `positive_controls` and `counts.info` both equal the number of entries here. Omit the section only when there are zero entries (`positiveControls.max: 0` disables harvesting entirely).
 
@@ -138,7 +174,7 @@ Rules for each entry:
 - **Why it shipped** is exactly one of: `killed-candidate` (counter-evidence that refuted a critical/high candidate), `rule-verified` (a rulebook rule reconciled verified-safe), `recon` (a recon safe-control a reviewer confirmed in scope — unconfirmed candidates never ship).
 - Ids are stable per-report (`I-1`, `I-2`, …). INFO entries are not findings — they never appear in waves.
 
-## 6. Remediation waves
+## 7. Remediation waves
 
 A `## Remediation waves` section: ordered groups of findings designed to be handed to `/cklph-os:flow` as sequential implementation passes. Order by dependency and blast radius (fix foundational/security-critical first; group changes that touch the same module) — **quick-wins first within a severity band**.
 
@@ -160,7 +196,7 @@ A `## Remediation waves` section: ordered groups of findings designed to be hand
 
 The waves section closes with an `### Owner decisions` subsection: findings with `remediationBucket: owner-decision` are **questions for the repo owner, not scheduled work** — intentional-but-not-locally-obvious calls only the owner can make. They are NOT placed in a wave. Every confirmed finding belongs to exactly one wave **or** to Owner decisions; waves are ordered, and each rationale explains why the wave is sequenced where it is.
 
-## 7. Appendix — coverage & what was skipped (NO silent truncation)
+## 8. Appendix — coverage & what was skipped (NO silent truncation)
 
 A closing `## Appendix` that makes coverage auditable:
 
@@ -171,9 +207,11 @@ A closing `## Appendix` that makes coverage auditable:
   - anything the ignore globs excluded that a reader might expect covered.
 - **Recon gaps** — if recon was skipped (quick mode without `recon.quick`, or `recon.enabled: false`) or partial (a lens's recon agent died, or budget killed it), state which lenses' denominators and seeds are absent/partial and why. Absent denominators mean the Coverage summary has no math for that lens — say so plainly, don't fake it.
 - **Rulebook extraction failure** — if RUN_META says `rulebookMissing: true`, state that the Coverage matrix is empty because rulebook extraction died — NOT because the `rulesFrom` docs contain no rules. Silence must never read as "no rules".
+- **Map phase (threat model)** — state whether the Map phase ran (`RUN_META.mapRan`). If it did NOT, say why: quick mode (Map skips), `map.enabled: false`, or the `audit-modeler` died — and note the consequence: reviewers got no trust-boundary/invariant context, so findings carry no `boundary` and the Coverage narrative has no crown jewels. An empty threat model must never read as "no threats" — it means the model wasn't built.
+- **Variant phase (sibling hunt)** — state whether the Variant phase ran (`RUN_META.variantRan`). If it did NOT, say why: quick mode (Variant skips) or `variant.enabled: false` — and note the consequence: confirmed `critical`/`high` findings were NOT swept for siblings, so the same root cause may recur elsewhere unexamined. If it ran but had no confirmed `critical`/`high` to seed from, say that plainly instead.
 - **Denominator commands (verbatim)** — every recon denominator command, exactly as run, so the coverage math is re-runnable by the reader.
 - If the run was `quick` mode, state plainly at the top of the appendix: **coverage is partial — only the top-N highest-risk units were audited.**
 
-The appendix is non-negotiable: a reader must never have to wonder whether silence means "clean" or "didn't look." If it wasn't audited — a **unit**, a **rulebook rule**, or an **enumerated pattern** — it's named here, or shown as **NOT CHECKED** in the matrix.
+The appendix is non-negotiable: a reader must never have to wonder whether silence means "clean" or "didn't look." If it wasn't audited — a **unit**, a **rulebook rule**, an **enumerated pattern**, or a skipped **phase** (Map / Variant) — it's named here, or shown as **NOT CHECKED** in the matrix.
 
 > A starting layout lives at `${CLAUDE_PLUGIN_ROOT}/templates/AUDIT-TEMPLATE.md` — match this contract over the template if they ever diverge.
