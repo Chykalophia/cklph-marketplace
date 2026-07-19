@@ -24,11 +24,17 @@ list_files() {
 }
 
 AWK_PROG='
-function codeonly(s,   t) {          # strip comments so a reassuring comment cannot mask an omission
+function codeonly(s,   t, i, n, out) {   # strip comments so a reassuring comment cannot mask an omission
   t = s
-  gsub(/\/\*.*\*\//, "", t)          # inline /* ... */
-  gsub(/\/\/.*/, "", t)              # // to end-of-line (crude but fine for matching)
-  return t
+  gsub(/\/\*.*\*\//, "", t)               # inline /* ... */
+  # strip // to end-of-line, but NOT when the // is part of :// (a URL scheme) — a bare gsub
+  # would eat a real guard sitting after an inline URL on the same line (false negative).
+  n = length(t); out = ""; i = 1
+  while (i <= n) {
+    if (substr(t, i, 2) == "//" && (i == 1 || substr(t, i - 1, 1) != ":")) break
+    out = out substr(t, i, 1); i++
+  }
+  return out
 }
 function jesc(s) {
   gsub(/\\/, "\\\\", s)
@@ -51,7 +57,9 @@ function out(ln, k, sig) {
 { raw[NR] = $0; code[NR] = codeonly($0) }
 END {
   INPUT = "req\\.(body|query|params|headers|cookies)|request\\.(json|formData|text)|process\\.(env|argv)|searchParams|JSON\\.parse\\(|process\\.stdin|event\\.body"
-  VALID = "parse\\(|safeParse|zod|validate|schema|assert|typeof[[:space:]]|instanceof[[:space:]]|isNaN|Number\\.is|sanitize|escape\\(|if[[:space:]]*\\([[:space:]]*!|guard|\\?\\?|Joi\\.|yup\\."
+  # mitigation must be SPECIFIC: a bare parse( matches JSON.parse( itself, so a raw JSON.parse
+  # of external input could never be flagged. Require safeParse(/ .parse(schema)/ zod & friends.
+  VALID = "safeParse\\(|\\.parse\\([^)]*[Ss]chema|zod|validate|schema|assert|typeof[[:space:]]|instanceof[[:space:]]|isNaN|Number\\.is|sanitize|escape\\(|if[[:space:]]*\\([[:space:]]*!|guard|\\?\\?|Joi\\.|yup\\."
   IO    = "fetch\\(|axios|readFile|writeFile|\\.query\\(|\\.execute\\(|execSync|spawn\\(|\\.rpc\\(|createWriteStream|createReadStream"
   ERRP  = "try[[:space:]]*\\{|try[[:space:]]*$|catch|\\.catch\\(|throw[[:space:]]|reject|finally|[Rr]esult|if[[:space:]]*\\([^)]*err"
   CATCH = "catch[[:space:]]*(\\([^)]*\\))?[[:space:]]*\\{"

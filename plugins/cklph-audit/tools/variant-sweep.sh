@@ -16,8 +16,11 @@ if [ ! -e "$ROOT" ] || [ -z "$SEED" ]; then printf '[]\n'; exit 0; fi
 
 SEEDFILE=""
 if [ -f "$SEED" ]; then SEEDFILE="$SEED"; SEEDTEXT="$(cat "$SEED" 2>/dev/null || true)"; else SEEDTEXT="$SEED"; fi
-SEEDBASE=""
-[ -n "$SEEDFILE" ] && SEEDBASE="$(basename "$SEEDFILE")"
+# canonical absolute path (best-effort; falls back to the raw path if it can't resolve).
+canon() { ( cd "$(dirname "$1")" 2>/dev/null && printf '%s/%s\n' "$(pwd -P)" "$(basename "$1")" ) 2>/dev/null || printf '%s\n' "$1"; }
+
+SEEDBASE=""; SEEDCANON=""
+if [ -n "$SEEDFILE" ]; then SEEDBASE="$(basename "$SEEDFILE")"; SEEDCANON="$(canon "$SEEDFILE")"; fi
 
 # strip comments so a comment banner can't drown the seed's distinctive CODE tokens (fall back
 # to the raw seed if stripping leaves nothing — e.g. a bare literal pattern has no comments).
@@ -46,7 +49,9 @@ list_files() {
 
 json_escape() {
   local s="$1"
-  s="${s//\\/\\\\}"; s="${s//\"/\\\"}"; s="${s//$'\t'/ }"
+  s="${s//\\/\\\\}"; s="${s//\"/\\\"}"                     # escape backslash + double-quote first
+  s="${s//$'\t'/ }"; s="${s//$'\r'/}"; s="${s//$'\n'/ }"   # tab->space, drop CR (CRLF), newline->space
+  s="$(printf '%s' "$s" | LC_ALL=C tr -d '\000-\010\013\014\016-\037')"  # scrub any remaining C0 control bytes so JSON stays valid
   printf '%s' "$s"
 }
 
@@ -55,7 +60,9 @@ trap 'rm -f "$TMP"' EXIT
 
 while IFS= read -r F; do
   [ -f "$F" ] && [ -r "$F" ] || continue
-  [ -n "$SEEDFILE" ] && [ "$(basename "$F")" = "$SEEDBASE" ] && continue   # don't return the seed itself
+  # don't return the seed itself — match the full canonical path, not basename (basename alone
+  # would drop every same-named file, e.g. all index.ts). Basename is only a cheap pre-gate.
+  if [ -n "$SEEDFILE" ] && [ "$(basename "$F")" = "$SEEDBASE" ] && [ "$(canon "$F")" = "$SEEDCANON" ]; then continue; fi
   REL="${F#"$ROOT"/}"; REL="${REL#./}"
   while IFS= read -r HIT; do
     [ -n "$HIT" ] || continue
