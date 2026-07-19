@@ -8,7 +8,7 @@ is trusted (SPEC §10). These fixtures are that ground truth, run by
 
 ```
 fixtures/
-└── <lens>/                         # security | correctness | architecture | docs-drift
+└── <lens>/                         # security | correctness | architecture | docs-drift | omission
     ├── should-flag/                # planted issues the lens MUST catch   → RECALL
     └── should-not-flag/            # clean look-alikes it MUST NOT flag   → PRECISION
 ```
@@ -50,6 +50,11 @@ build/test globs. Comment each fixture with **what** is planted (or why it's cle
 are written relative to `fixtures/docs-drift/` (the parent of both subfolders): the backtest
 runs `docsdrift.sh` with that folder as its repo-root, so tokens resolve (or drift) against it,
 not against the plugin repo.
+
+`omission` (the opt-in negative-space lens, v3) uses the same `.example.*` convention. Its corpus
+is newer and still growing, so `fixtures/omission/` may lag the shipped lens — a docs/fixtures
+drift to close over time: add planted omissions (missing validation / error-path / rollback / log /
+test) to `should-flag/`, and clean guarded look-alikes to `should-not-flag/`, as you exercise it.
 
 ---
 
