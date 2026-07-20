@@ -3,6 +3,22 @@
 All notable changes to `cklph-audit` are documented here. This project adheres to
 [Semantic Versioning](https://semver.org/).
 
+## 0.3.4 — 2026-07-20
+
+- **Verifier fan-out cap** (`verify.maxVerifierAgents`, default 400). Verify is the dominant,
+  findings-UNBOUNDED term — on a large repo `Σfindings × voters` plus the Variant phase's
+  `candidates × voters` could exceed the Workflow runtime's **1000-agent lifetime cap** and abort the
+  whole run. (The v3 additions — the Variant phase's second verifier fan-out and risk-routing's extra
+  voters — made this reachable.) The engine now bounds total verifier spawns across the run (main
+  pipeline + Variant share one counter); critical/high are verified first so they claim the budget,
+  and overflow candidates are **DEFERRED — unverified and SURFACED** in a distinct report section,
+  never silently dropped. Deferred items are honestly labelled as unverified leads (they never faced
+  a refuter, so may include false positives) with a recommendation to re-run at a higher
+  `maxVerifierAgents` or narrower scope. New return field `deferred`, run-summary line, and
+  `RUN_META.deferredCount/verifierBudget/verifierSpawns`. Found + proven by the deterministic
+  `tests/engine-flow.test.mjs` (a cap scenario asserts the budget holds, overflow is surfaced not
+  dropped, and critical/high are prioritized).
+
 ## 0.3.3 — 2026-07-20
 
 - Fix: the **Coverage matrix could cite findings that aren't in the report**. `ruleChecks` come from

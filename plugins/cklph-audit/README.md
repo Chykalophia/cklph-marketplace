@@ -120,7 +120,9 @@ v1 is a repeatable engine. v2 is the same engine that can also show what it cove
 
 Plus **per-stage model routing**: `config.models.<stage>` sends mechanical stages (scout, recon, rulebook) to cheap model/effort tiers and routes the verifier — the precision bet — up, while judgment stages inherit the session model. The difficulty heuristic is encoded in config, where you can see and tune it; omit the block and everything inherits (v1 behavior).
 
-Backward compatible: a v1 `audit.config.yaml` runs unchanged — recon defaults on, positive controls default to 15, docs-drift only when you ask for it, model routing inherits everywhere.
+**Bounded fan-out**: the verify phase (the findings-unbounded term) is capped at `verify.maxVerifierAgents` (default 400) across the whole run, so a findings-heavy repo can't blow the runtime's 1000-agent ceiling. Critical/high are verified first; overflow candidates are **deferred — unverified and surfaced** in the report (never silently dropped), with a re-run recommendation.
+
+Backward compatible: a v1 `audit.config.yaml` runs unchanged — recon defaults on, positive controls default to 15, docs-drift only when you ask for it, model routing inherits everywhere, and the fan-out cap only changes behavior on repos large enough to have hit the runtime ceiling anyway.
 
 ---
 
