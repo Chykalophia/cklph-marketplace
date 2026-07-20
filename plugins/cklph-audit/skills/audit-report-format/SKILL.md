@@ -84,7 +84,7 @@ A `## Coverage matrix` section after the summary: **one row for EVERY rulebook r
 ```
 
 Rules for the matrix:
-- `violation` rows list the finding IDs — each must exist in the severity sections.
+- `violation` rows list the finding IDs — each must exist in the report. A normal violation cites confirmed findings (in the severity sections). A **held-backed** violation (`heldBacked: true` on the closure row — its cited findings survived verification only as *held-untraced*) cites finding ids that live in the **Held-untraced** section, not a severity section; render it `violation (held — see Held-untraced)` so the reference resolves and the reader knows it is unproven. The engine has already reconciled these ids against what survived — a violation never cites a refuted, absent finding.
 - `verified-safe` rows cite the evidence (`file:line`); `not-applicable` rows give the one-line reason.
 - `unchecked` rows render as **NOT CHECKED** with the **whole row bold** — an honest NOT CHECKED is a feature, not an embarrassment. The same rule ids appear in front-matter `coverage.unchecked`.
 
