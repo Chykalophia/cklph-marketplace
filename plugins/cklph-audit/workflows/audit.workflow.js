@@ -359,10 +359,12 @@ function stripComments(s) {
 }
 const SEV_RANK = { critical: 4, high: 3, medium: 2, low: 1 }
 
-// A5b: verifier fan-out cap. Verify is the dominant, findings-UNBOUNDED term — on a large repo
-// Σfindings×voters (+ variant candidates×voters) can blow the Workflow runtime's 1000-agent lifetime
-// cap. Bound total verifier spawns across the whole run (main pipeline + Variant share this counter);
-// overflow findings are DEFERRED (unverified) and SURFACED in the report, never silently dropped.
+// A5b: verifier fan-out cap. Verify is the DOMINANT, findings-UNBOUNDED term — on a large repo
+// Σfindings×voters (+ variant candidates×voters) is the part most likely to blow the Workflow runtime's
+// 1000-agent lifetime cap. This bounds the verify term; it does NOT bound total agents (review fan-out
+// is units×lenses, bounded by unit count; recon/map/synth are small). Overflow findings are DEFERRED
+// (unverified) and SURFACED in the report, never silently dropped. Main pipeline + Variant share the
+// counter. Default 400 leaves ~600 for everything else — tune down if a huge unit set still nears 1000.
 const maxVerifierAgents = config.verify?.maxVerifierAgents ?? 400
 let verifierSpawns = 0
 
@@ -371,13 +373,21 @@ let verifierSpawns = 0
 //   low/medium keep the majority rule; critical/high require a reachabilityTrace.
 // Voters are independent parallel calls — no within-prompt position bias to randomize.
 function verifyFindings(findings, unitKey, lens, unitVoters, extraOpts = {}) {
-  // verify critical/high FIRST so they claim the budget before low/medium if it runs low.
+  // Verify critical/high first WITHIN this call so they claim the budget before low/medium here.
+  // NOTE: this is per-call priority only — across units (reviews land in pipeline order) and across
+  // phases (main runs before Variant), a low in an early unit can spend budget a later critical then
+  // can't get. Deferred findings are always SURFACED, so this is a priority/quality limitation, not
+  // data loss. A globally severity-ordered budget pass would need a barrier (collect all findings
+  // first) — deferred to a future rev; for now the cap's job is to not abort the run.
   const ordered = [...(findings ?? [])].sort((a, b) => (SEV_RANK[b.severity] ?? 0) - (SEV_RANK[a.severity] ?? 0))
   return parallel(ordered.map(f => () => {
-    // A5b: reserve budget synchronously (no await between check and increment → no race across the
-    // concurrent verifyFindings calls). Over budget ⇒ defer this finding unverified, surfaced later.
+    // A5b: reserve budget. SYNC-CRITICAL — there must be NO `await` between this check and the
+    // `verifierSpawns += unitVoters` increment below, or concurrent verifyFindings calls could both
+    // pass the check and over-spend the cap. Keep this thunk prefix synchronous.
     if (verifierSpawns + unitVoters > maxVerifierAgents) {
-      return Promise.resolve({ ...f, unit: unitKey, lens, confirmed: false, heldUntraced: false, deferredUnverified: true, majorityHeld: false, refutedGuards: [] })
+      return Promise.resolve({ ...f, unit: unitKey, lens, confirmed: false, heldUntraced: false, deferredUnverified: true, majorityHeld: false, refutedGuards: [],
+        // preserve pedigree: a deferred variant sibling of a confirmed critical is a high-prior lead
+        deferredNote: unitKey === 'variant' ? 'sibling of a confirmed critical/high (Variant phase) — deferred, verify next run' : undefined })
     }
     verifierSpawns += unitVoters
     return parallel(Array.from({ length: unitVoters }, (_v, i) => () =>
@@ -755,6 +765,7 @@ if (deferred.length) log(`${deferred.length} finding(s) DEFERRED unverified — 
 // Fold order: violation(confirmed) > violation(held-backed) > verified-safe > not-applicable > unchecked.
 const freshIdSet = new Set(fresh.map(f => f.id).filter(Boolean))
 const heldIdSet = new Set(heldUntraced.map(f => f.id).filter(Boolean))
+const deferredIdSet = new Set(deferred.map(f => f.id).filter(Boolean))   // A5b: cited but never verified (budget)
 const ruleClosure = rulebook.map(rule => {
   const checks = checksByRule.get(rule.id) ?? []
   const violations = checks.filter(c => c.status === 'violation')
@@ -762,8 +773,11 @@ const ruleClosure = rulebook.map(rule => {
     const cited = [...new Set(violations.flatMap(c => c.findingIds ?? []))]
     const confirmedIds = cited.filter(id => freshIdSet.has(id))   // findings that survived → in a severity section
     const heldCited = cited.filter(id => heldIdSet.has(id))       // findings surfaced as held-untraced
+    const deferredCited = cited.filter(id => deferredIdSet.has(id))   // findings the budget never verified
     if (confirmedIds.length) return { ...rule, status: 'violation', findingIds: confirmedIds, ...(heldCited.length ? { heldIds: heldCited } : {}) }
     if (heldCited.length) return { ...rule, status: 'violation', findingIds: heldCited, heldBacked: true }  // only held evidence → row points at Held-untraced
+    // A5b: cited evidence was DEFERRED (never verified — budget). NOT refuted; say so honestly and point at Deferred.
+    if (deferredCited.length) return { ...rule, status: 'unchecked', deferredBacked: true, findingIds: deferredCited, note: 'cited finding(s) DEFERRED unverified — verifier budget exhausted, never checked; inconclusive, re-run with a higher verify.maxVerifierAgents' }
     // every finding the reviewer cited for this violation was REFUTED → the violation claim didn't survive
     const safeR = checks.find(c => c.status === 'verified-safe')
     if (safeR) return { ...rule, status: 'verified-safe', evidence: safeR.evidence }
@@ -876,7 +890,7 @@ const runMeta = {
 // E2: majority-held-but-untraced findings, surfaced for owner review (never silently dropped)
 const publicHeldUntraced = heldUntraced.map(f => ({ id: f.id, file: f.file, severity: f.severity, title: f.title, rule: f.rule }))
 // A5b: deferred (unverified — budget-exhausted) findings, surfaced as candidates for a follow-up run
-const publicDeferred = deferred.map(f => ({ id: f.id, file: f.file, severity: f.severity, title: f.title, rule: f.rule }))
+const publicDeferred = deferred.map(f => ({ id: f.id, file: f.file, severity: f.severity, title: f.title, rule: f.rule, ...(f.deferredNote ? { note: f.deferredNote } : {}) }))
 // engine-internal fields stay out of the synthesizer's context (confirmed is always true here;
 // refutedGuards were already harvested into positive controls above)
 const publicFresh = fresh.map(({ refutedGuards, confirmed, ...rest }) => rest)
