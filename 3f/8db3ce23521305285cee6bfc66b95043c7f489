@@ -1,0 +1,48 @@
+plugins/cklph-audit/workflows/audit.workflow.js
+  s_cef0814d5e85a3::t_d1662eaa123f0f 896-901
+  s_cef0814d5e85a3::t_d050eede22ad18 743-751
+  s_cef0814d5e85a3::t_969a834b8a4404 360-368,374-383
+  s_cef0814d5e85a3::t_c7deb2c827a4de 418-419
+  s_cef0814d5e85a3::t_8fcf242527a7be 846-848,857,871-873,878-879
+  s_cef0814d5e85a3::t_3c2b45e8916f91 912
+  s_cef0814d5e85a3::t_e2407216bcb1ab 927
+plugins/cklph-audit/skills/audit-report-format/SKILL.md
+  s_cef0814d5e85a3::t_a3e427e73b83c4 177-191
+  s_cef0814d5e85a3::t_9fee388bce1ec3 37-38
+plugins/cklph-audit/templates/audit.config.example.yaml
+  s_cef0814d5e85a3::t_450f2446f8a24e 18-21
+plugins/cklph-audit/templates/AUDIT-TEMPLATE.md
+  s_cef0814d5e85a3::t_f56782e5232e82 168-174
+plugins/cklph-audit/skills/audit-init/SKILL.md
+  s_cef0814d5e85a3::t_2fab737ed7341a 44
+plugins/cklph-audit/README.md
+  s_cef0814d5e85a3::t_2a06990e630114 123-125
+plugins/cklph-audit/skills/audit-run/SKILL.md
+  s_cef0814d5e85a3::t_ba6058b4e53e12 63
+  s_cef0814d5e85a3::t_bda2984293bfde 51
+plugins/cklph-audit/CHANGELOG.md
+  s_cef0814d5e85a3::t_89b29dfc03d617 6-21
+plugins/cklph-audit/agents/audit-synthesizer.md
+  s_cef0814d5e85a3::t_3006edf1bb250f 16-18
+plugins/cklph-audit/tests/engine-flow.test.mjs
+  s_cef0814d5e85a3::t_5a1f1a4894dfcb 96
+  s_cef0814d5e85a3::t_33dbbd4bce7c2b 161-193
+plugins/cklph-audit/.claude-plugin/plugin.json
+  s_cef0814d5e85a3::t_0153d9c65ce0a7 4
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.14",
+  "base_commit_sha": "3f8db3ce23521305285cee6bfc66b95043c7f489",
+  "prompts": {},
+  "sessions": {
+    "s_cef0814d5e85a3": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "b7d3a4cc-1f7b-4b8e-a37a-a4ed2537dfb2",
+        "model": "claude-opus-4-8"
+      },
+      "human_author": "Peter Krzyzek <peter@chykalophia.com>"
+    }
+  }
+}
