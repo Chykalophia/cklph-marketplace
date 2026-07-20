@@ -1,7 +1,7 @@
 {
   "name": "cklph-audit",
   "description": "Scoped, adversarially-verified, agentic whole-repo audits that also prove what they covered — and now model before they read. Seven phases (Discover → Recon → Map → Review → Verify → Variant → Synthesize): decompose the codebase, recon each lens for denominators + cited seeds, build a lightweight threat model (trust boundaries, data-flows, per-unit invariants, crown jewels), fan out a sub-agent per subsystem × lens, trace each finding to its root cause + violated invariant, refute it with an evidence-arbitrated verifier (critical/high must supply a reachability trace) at a depth risk-routed by blast radius, hunt confirmed bugs' siblings across the repo, drop accepted-baseline items, and synthesize a triaged report with a rule-closure coverage matrix, a positive-assurance coverage narrative, positive controls (INFO), and a remediation-wave plan. Read-only. Lenses: security, correctness, architecture, plus opt-in docs-drift + omission.",
-  "version": "0.3.2",
+  "version": "0.3.3",
   "author": {
     "name": "Peter Krzyzek"
   }
