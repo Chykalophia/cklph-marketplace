@@ -89,6 +89,7 @@ Rules for the matrix:
 - `violation` rows list the finding IDs — each must exist in the report. A normal violation cites confirmed findings (in the severity sections). A **held-backed** violation (`heldBacked: true` on the closure row — its cited findings survived verification only as *held-untraced*) cites finding ids that live in the **Held-untraced** section, not a severity section; render it `violation (held — see Held-untraced)` so the reference resolves and the reader knows it is unproven. The engine has already reconciled these ids against what survived — a violation never cites a refuted, absent finding.
 - `verified-safe` rows cite the evidence (`file:line`); `not-applicable` rows give the one-line reason.
 - `unchecked` rows render as **NOT CHECKED** with the **whole row bold** — an honest NOT CHECKED is a feature, not an embarrassment. The same rule ids appear in front-matter `coverage.unchecked`.
+- A `deferredBacked: true` closure row (the reviewer flagged a violation but its cited finding was **deferred — never verified**, budget exhausted) renders as `NOT CHECKED (deferred — unverified)` pointing at the Deferred section. Never label it "refuted" — it was not checked.
 
 ## 4. Coverage narrative
 
@@ -187,7 +188,7 @@ When `DEFERRED` is non-empty, render a `### Deferred — unverified` subsection 
 - **Where:** `file.ts:42` · **severity (claimed):** medium · **rule:** `<…>`
 ```
 
-Omit only when `DEFERRED` is empty; when non-empty, `RUN_META.deferredCount` matches. Deferred items are NOT confirmed findings, NOT held-untraced, and NOT positive controls — never in waves, never in the INFO section, never silently dropped. If the run deferred anything, the appendix must state coverage was budget-limited.
+Omit only when `DEFERRED` is empty; when non-empty, `RUN_META.deferredCount` matches. Deferred items are NOT confirmed findings, NOT held-untraced, and NOT positive controls — never in waves, never in the INFO section, never silently dropped. If a deferred item carries a `note` (e.g. a Variant sibling of a confirmed critical/high), keep it — it signals a high-prior lead. If the run deferred anything, the appendix must state coverage was budget-limited **and** that *which* candidates were deferred can vary run-to-run (budget is spent in review-arrival order), so a re-run may verify a different subset.
 
 ## 7. Positive controls (INFO)
 

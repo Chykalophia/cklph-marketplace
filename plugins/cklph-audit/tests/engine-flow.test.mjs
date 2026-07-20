@@ -188,7 +188,17 @@ if (!resultB?.report) { problems++; console.log('  ✗ report not written despit
 else console.log('  ✓ report written (deferred findings are not "clean")');
 // B5: crit/high verified before low — F1 (critical) should NOT be the one deferred
 if (defB.includes('F1')) { problems++; console.log('  ✗ critical F1 was deferred while lower-severity findings were verified'); }
-else console.log('  ✓ critical/high prioritized for verification over lower severities');
+else console.log('  ✓ critical/high prioritized (within-call) for verification over lower severities');
+// B6 (regression guard for the red-team HIGH): a rule whose ONLY cited finding was DEFERRED must NOT
+// be closed with a "refuted on verification" note — it was never verified. rule-5 cites F3, deferred here.
+const r5B = (dIn.ruleClosure || []).find(r => r.id === 'agents-md:rule-5');
+if (r5B && /refuted on verification/i.test(r5B.note || '')) { problems++; console.log('  ✗ rule-5 cites a DEFERRED finding but is labeled "refuted on verification" — misinformation'); }
+else if (r5B?.deferredBacked) console.log(`  ✓ rule-5 (cited finding deferred) honestly marked deferredBacked: "${(r5B.note||'').slice(0,44)}…"`);
+else console.log(`  · rule-5 status='${r5B?.status}' note='${(r5B?.note||'').slice(0,40)}'`);
+// B7: deferred variant sibling (V1, critical) keeps its pedigree note, not a generic label
+const v1def = (dIn.deferred || []).find(f => f.id === 'V1');
+if (v1def && !/sibling/i.test(v1def.note || '')) console.log('  · V1 deferred without pedigree note (minor)');
+else if (v1def) console.log('  ✓ deferred variant sibling V1 keeps its "sibling of a confirmed critical" pedigree');
 
 console.log(problems === 0 ? '\n✓ ALL SCENARIOS PASSED' : `\n✗ ${problems} conflict(s) found across scenarios`);
 process.exit(problems === 0 ? 0 : 1);
