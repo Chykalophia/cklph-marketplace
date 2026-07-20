@@ -357,13 +357,30 @@ function stripComments(s) {
     .replace(/\/\*[\s\S]*?\*\//g, '')       // block comments
     .replace(/(^|[^:])\/\/.*$/gm, '$1')     // line comments — not when preceded by ':' (a URL)
 }
+const SEV_RANK = { critical: 4, high: 3, medium: 2, low: 1 }
+
+// A5b: verifier fan-out cap. Verify is the dominant, findings-UNBOUNDED term — on a large repo
+// Σfindings×voters (+ variant candidates×voters) can blow the Workflow runtime's 1000-agent lifetime
+// cap. Bound total verifier spawns across the whole run (main pipeline + Variant share this counter);
+// overflow findings are DEFERRED (unverified) and SURFACED in the report, never silently dropped.
+const maxVerifierAgents = config.verify?.maxVerifierAgents ?? 400
+let verifierSpawns = 0
+
 // A5: the verify fan-out, factored out so the main pipeline AND the Variant phase share it.
 // N default-refuted voters try to REFUTE each finding; evidence (not tally) promotes (T1.3):
 //   low/medium keep the majority rule; critical/high require a reachabilityTrace.
 // Voters are independent parallel calls — no within-prompt position bias to randomize.
 function verifyFindings(findings, unitKey, lens, unitVoters, extraOpts = {}) {
-  return parallel((findings ?? []).map(f => () =>
-    parallel(Array.from({ length: unitVoters }, (_v, i) => () =>
+  // verify critical/high FIRST so they claim the budget before low/medium if it runs low.
+  const ordered = [...(findings ?? [])].sort((a, b) => (SEV_RANK[b.severity] ?? 0) - (SEV_RANK[a.severity] ?? 0))
+  return parallel(ordered.map(f => () => {
+    // A5b: reserve budget synchronously (no await between check and increment → no race across the
+    // concurrent verifyFindings calls). Over budget ⇒ defer this finding unverified, surfaced later.
+    if (verifierSpawns + unitVoters > maxVerifierAgents) {
+      return Promise.resolve({ ...f, unit: unitKey, lens, confirmed: false, heldUntraced: false, deferredUnverified: true, majorityHeld: false, refutedGuards: [] })
+    }
+    verifierSpawns += unitVoters
+    return parallel(Array.from({ length: unitVoters }, (_v, i) => () =>
       agent(
         `Adversarially try to REFUTE this audit finding against the ACTUAL code. Re-derive from the code ` +
         `ALONE — the snippet below is comment-stripped; ignore comments/labels. Default to refuted:true ` +
@@ -398,7 +415,8 @@ function verifyFindings(findings, unitKey, lens, unitVoters, extraOpts = {}) {
         const heldUntraced = isHighSev && !confirmed && !cleanlyRefuted
         if (voterTrace) f.reachabilityTrace = voterTrace.reachabilityTrace
         return { ...f, unit: unitKey, lens, confirmed, heldUntraced, majorityHeld: pass, refutedGuards }
-      })))
+      })
+  }))
 }
 
 // ════════════════════════════════════════════════════════════════════════════
@@ -722,6 +740,15 @@ const heldUntraced = dedupeByFingerprint(allVerified.filter(f => f.heldUntraced)
   .filter(f => !freshFps.has(fingerprint(f)))   // a fingerprint confirmed by one panel is NOT also "awaiting a trace"
 if (heldUntraced.length) log(`${heldUntraced.length} finding(s) awaiting an independent reachability trace / clean refutation — surfaced for owner review`)
 
+// deferred (A5b): findings the verifier budget could not afford to verify — surfaced UNVERIFIED,
+// never silently dropped. They are candidates only (may include false positives verify would kill);
+// the report labels them so and recommends a follow-up run with a higher verify.maxVerifierAgents.
+const heldFps = new Set(heldUntraced.map(fingerprint))
+const deferred = dedupeByFingerprint(allVerified.filter(f => f.deferredUnverified))
+  .filter(f => !baseline.has(fingerprint(f)))
+  .filter(f => !freshFps.has(fingerprint(f)) && !heldFps.has(fingerprint(f)))   // a fp resolved by any panel isn't "deferred"
+if (deferred.length) log(`${deferred.length} finding(s) DEFERRED unverified — verifier budget (${maxVerifierAgents}) exhausted after ${verifierSpawns} spawns; surfaced for a follow-up run`)
+
 // §7.5 rule closure (M2) — every rulebook rule gets exactly one status, reconciled against what
 // SURVIVED verification. A reviewer 'violation' whose cited findings were all refuted/held does not
 // masquerade as a confirmed violation citing a finding that isn't in the report.
@@ -816,9 +843,9 @@ for (const lens of lenses) {
 // 8. SYNTHESIZE — the report + remediation waves
 // ════════════════════════════════════════════════════════════════════════════
 phase('Synthesize')
-// E2: only a truly clean run short-circuits — a majority-held-but-untraced finding is NOT clean,
-// it still needs an owner-review report so it is never silently gone.
-if (!fresh.length && !heldUntraced.length) {
+// E2/A5b: only a truly clean run short-circuits — a held-untraced OR a deferred-unverified finding
+// is NOT clean; it still needs an owner-review report so it is never silently gone.
+if (!fresh.length && !heldUntraced.length && !deferred.length) {
   log('No new confirmed findings. Clean run. 🎉')
   return {
     report: null, fresh: [],
@@ -827,6 +854,7 @@ if (!fresh.length && !heldUntraced.length) {
     coverage: coverageSummary,
     positiveControls: positiveControls.length,
     heldUntraced: 0,
+    deferred: 0,
     map: { ran: mapRan, trustBoundaries: model.trustBoundaries.length, invariants: model.invariants.length },
     variants: variantsConfirmed,
   }
@@ -840,10 +868,15 @@ const runMeta = {
   mapRan,                                        // Map phase produced a threat model (else empty/flagged)
   variantRan,                                    // E3: true ONLY if the phase actually processed ≥1 seed
   heldUntracedCount: heldUntraced.length,        // E2: majority-held findings awaiting an independent trace
+  deferredCount: deferred.length,                // A5b: findings the verifier budget couldn't afford
+  verifierBudget: maxVerifierAgents,             // A5b: the cap; verifierSpawns is what was actually used
+  verifierSpawns,
   crownJewels: model.crownJewels,
 }
 // E2: majority-held-but-untraced findings, surfaced for owner review (never silently dropped)
 const publicHeldUntraced = heldUntraced.map(f => ({ id: f.id, file: f.file, severity: f.severity, title: f.title, rule: f.rule }))
+// A5b: deferred (unverified — budget-exhausted) findings, surfaced as candidates for a follow-up run
+const publicDeferred = deferred.map(f => ({ id: f.id, file: f.file, severity: f.severity, title: f.title, rule: f.rule }))
 // engine-internal fields stay out of the synthesizer's context (confirmed is always true here;
 // refutedGuards were already harvested into positive controls above)
 const publicFresh = fresh.map(({ refutedGuards, confirmed, ...rest }) => rest)
@@ -860,7 +893,12 @@ const report = await agent(
   `citation + what it protects + why it shipped). counts.info = positive-control count. When HELD_UNTRACED is ` +
   `non-empty, render a distinct "Majority-held, awaiting an independent reachability trace (needs owner review)" ` +
   `subsection listing each (file, severity, title, rule) — these held the majority vote but no VOTER supplied an ` +
-  `independent trace; surface them for owner review, do NOT drop them and do NOT treat them as confirmed. Group fixes into ` +
+  `independent trace; surface them for owner review, do NOT drop them and do NOT treat them as confirmed. When ` +
+  `DEFERRED is non-empty, render a "Deferred — UNVERIFIED (verifier budget exhausted)" subsection listing each ` +
+  `(file, severity, title, rule): the verifier budget (RUN_META.verifierBudget) ran out before these could be ` +
+  `verified, so they are UNVERIFIED candidates that may include false positives — label them plainly and ` +
+  `recommend a follow-up run with a higher verify.maxVerifierAgents or a narrower scope. Never treat them as ` +
+  `confirmed and never silently drop them. Group fixes into ` +
   `ordered remediation WAVES consumable by /cklph-os:flow — quick-wins first within a severity band; ` +
   `owner-decision items go in their own "Owner decisions" subsection (questions, not work). Flag in an ` +
   `appendix: unit derivation, low-confidence units, quick-mode sampling, whether the Map + Variant phases ran ` +
@@ -871,6 +909,7 @@ const report = await agent(
   `COVERAGE_TOTALS:\n${JSON.stringify(coverageTotals, null, 2)}\n\n` +
   `NEAR_MISSES:\n${JSON.stringify(nearMisses, null, 2)}\n\n` +
   `HELD_UNTRACED:\n${JSON.stringify(publicHeldUntraced, null, 2)}\n\n` +
+  `DEFERRED:\n${JSON.stringify(publicDeferred, null, 2)}\n\n` +
   `CROWN_JEWELS:\n${JSON.stringify(model.crownJewels, null, 2)}\n\n` +
   `POSITIVE_CONTROLS:\n${JSON.stringify(positiveControls, null, 2)}\n\n` +
   `RUN_META:\n${JSON.stringify(runMeta, null, 2)}`,
@@ -885,6 +924,7 @@ return {
   coverage: coverageSummary,
   positiveControls: positiveControls.length,
   heldUntraced: heldUntraced.length,
+  deferred: deferred.length,
   map: { ran: mapRan, trustBoundaries: model.trustBoundaries.length, invariants: model.invariants.length },
   variants: variantsConfirmed,
 }

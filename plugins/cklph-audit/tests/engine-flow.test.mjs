@@ -93,6 +93,7 @@ async function agent(prompt, opts = {}) {
       coverageTotals: parseAfter(prompt, 'COVERAGE_TOTALS:'),
       positiveControls: parseAfter(prompt, 'POSITIVE_CONTROLS:'),
       heldUntraced: parseAfter(prompt, 'HELD_UNTRACED:'),
+      deferred: parseAfter(prompt, 'DEFERRED:'),
       runMeta: parseAfter(prompt, 'RUN_META:'),
     };
     return { markdown: '# report', waves: [{ title: 'W1', findingIds: ['F1', 'V1'], rationale: 'idor' }], counts: { critical: 2, high: 0, medium: 0, low: 1, info: 3 } };
@@ -157,5 +158,37 @@ if (!pcs.length) { problems++; console.log('  ✗ no positive controls harvested
 const r5 = (synthInput?.ruleClosure || []).find(r => r.id === 'agents-md:rule-5');
 if (r5?.status === 'violation') { problems++; console.log('  ✗ rule-5 still "violation" though its only cited finding (F3) was refuted — phantom violation'); }
 else console.log(`  ✓ rule-5 (all-evidence-refuted) degraded to '${r5?.status}'${r5?.note ? ' (' + r5.note.slice(0,40) + '…)' : ''}`);
-console.log(problems === 0 ? '\n✓ all cross-phase checks passed' : `\n✗ ${problems} conflict(s) found`);
+console.log(problems === 0 ? '\n✓ scenario A (uncapped) — all cross-phase checks passed' : `\n✗ scenario A: ${problems} conflict(s) found`);
+
+// ── SCENARIO B: verifier fan-out cap (A5b) — a tiny budget must DEFER overflow, surfaced not dropped ─
+console.log('\n=== SCENARIO B: verifier fan-out cap ===');
+synthInput = null; logs.length = 0;
+const argsB = JSON.parse(JSON.stringify(args));
+argsB.config.verify = { voters: 1, maxVerifierAgents: 2 };   // only 2 verifier spawns allowed all run
+const resultB = await runFn({ agent, parallel, pipeline, phase, log, args: argsB, budget });
+const dIn = synthInput || {};
+const freshB = (dIn.findings || []).map(f => f.id);
+const heldB = (dIn.heldUntraced || []).map(f => f.id);
+const defB = (dIn.deferred || []).map(f => f.id);
+console.log('  budget=2 → verifierSpawns:', dIn.runMeta?.verifierSpawns, '| deferredCount:', dIn.runMeta?.deferredCount);
+console.log('  fresh:', freshB, '| held:', heldB, '| DEFERRED:', defB, '| report:', resultB?.report ? 'written' : 'null');
+// B1: the budget must be respected — no more than maxVerifierAgents spawns
+if ((dIn.runMeta?.verifierSpawns ?? 0) > 2) { problems++; console.log('  ✗ verifierSpawns exceeded the cap'); }
+else console.log('  ✓ verifier spawns stayed within the cap');
+// B2: with 5 findings (F1,F2,F3,D1,V1-variant) and budget 2, some MUST be deferred
+if (!defB.length) { problems++; console.log('  ✗ nothing deferred though budget < findings — cap not applied'); }
+else console.log(`  ✓ ${defB.length} finding(s) deferred (surfaced, unverified)`);
+// B3: NO finding may vanish — every reviewer finding ends up confirmed(fresh) | held | deferred | refuted-nearmiss
+const accountedB = new Set([...freshB, ...heldB, ...defB]);
+for (const id of ['F1', 'F2']) { // the crit/high that should be verified first (within budget) or surfaced
+  if (!accountedB.has(id)) { problems++; console.log(`  ✗ ${id} vanished — neither confirmed, held, nor deferred`); }
+}
+// B4: a deferred-only-ish run still writes a report (not treated as clean)
+if (!resultB?.report) { problems++; console.log('  ✗ report not written despite deferred findings'); }
+else console.log('  ✓ report written (deferred findings are not "clean")');
+// B5: crit/high verified before low — F1 (critical) should NOT be the one deferred
+if (defB.includes('F1')) { problems++; console.log('  ✗ critical F1 was deferred while lower-severity findings were verified'); }
+else console.log('  ✓ critical/high prioritized for verification over lower severities');
+
+console.log(problems === 0 ? '\n✓ ALL SCENARIOS PASSED' : `\n✗ ${problems} conflict(s) found across scenarios`);
 process.exit(problems === 0 ? 0 : 1);

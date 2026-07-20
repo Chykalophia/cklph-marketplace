@@ -34,6 +34,8 @@ coverage:
   checked: 10               # rules with any status other than unchecked
   unchecked: [agents-md:rule-7, claude-md:rule-2]   # NOT CHECKED — mirrored in the matrix
 positive_controls: 4        # entries in the Positive controls (INFO) section
+held_untraced: 1            # majority-held findings awaiting an independent trace
+deferred_unverified: 0      # reviewer candidates the verifier budget couldn't afford (0 = full coverage)
 suppressed_by_baseline: 4   # confirmed but already accepted
 skipped:
   by_budget: []             # units/jobs dropped when budget ran low
@@ -171,6 +173,21 @@ A `## Held-untraced` section, written from `HELD_UNTRACED`, immediately after th
 ```
 
 Omit the section only when `HELD_UNTRACED` is empty; whenever it is non-empty, `RUN_META.heldUntracedCount` matches the entry count. Ids are stable per-report (`U-1`, `U-2`, …). Held-untraced items are NOT findings and NOT positive controls — they never appear in waves or the INFO section.
+
+### Deferred — UNVERIFIED (verifier budget exhausted)
+
+When `DEFERRED` is non-empty, render a `### Deferred — unverified` subsection right after Held-untraced. These are reviewer candidates the run could **not afford to verify**: the verifier fan-out cap (`RUN_META.verifierBudget`, spent `RUN_META.verifierSpawns`) was hit before they reached the adversarial gate. They are **UNVERIFIED** — they never faced a refuter, so they may include false positives that verification would have killed. Say that plainly, and recommend a follow-up: raise `verify.maxVerifierAgents`, narrow the scope/path, or lower `verify.voters`.
+
+```markdown
+### Deferred — unverified (verifier budget exhausted)
+
+> The verifier budget (`RUN_META.verifierBudget`) was spent before these candidates could be verified. They are **UNVERIFIED** — treat as leads, not findings; re-run with a higher `verify.maxVerifierAgents` or a narrower scope. Critical/high are verified first, so what lands here skews lower-severity.
+
+### [X-1] <title>
+- **Where:** `file.ts:42` · **severity (claimed):** medium · **rule:** `<…>`
+```
+
+Omit only when `DEFERRED` is empty; when non-empty, `RUN_META.deferredCount` matches. Deferred items are NOT confirmed findings, NOT held-untraced, and NOT positive controls — never in waves, never in the INFO section, never silently dropped. If the run deferred anything, the appendix must state coverage was budget-limited.
 
 ## 7. Positive controls (INFO)
 
