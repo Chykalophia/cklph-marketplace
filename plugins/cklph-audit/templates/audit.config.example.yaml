@@ -15,6 +15,10 @@ severityFloor: low              # drop findings below this
 verify:
   voters: 3                     # refuters per finding
   passThreshold: majority       # majority | unanimous
+  maxVerifierAgents: 400        # cap on total verifier spawns (main + variant) — bounds the fan-out so a
+                                # findings-heavy repo can't blow the runtime's 1000-agent cap. Overflow
+                                # findings are DEFERRED (unverified) and surfaced, never dropped. Raise for
+                                # more coverage on huge repos; lower (or lower `voters`) if you hit the cap.
 riskRouting:                    # T1.4: verifier depth scales with a unit's riskScore
   enabled: true
   highThreshold: 0.7            # riskScore ≥ this → +highVotersDelta voters (+ effort high)

@@ -165,6 +165,13 @@ crown jewels; if none (the Map phase did not run), narrate per lens from the cov
 - **Why held:** majority couldn't refute; no voter produced an input→sink / invariant-violation trace.
 - **To resolve:** produce the reachability trace (promote) or the missing guard (refute).
 
+### Deferred — unverified (verifier budget exhausted)
+
+> The verifier budget (`verify.maxVerifierAgents`) was spent before these candidates could be verified. **UNVERIFIED** — leads, not findings; may include false positives. Re-run with a higher `verify.maxVerifierAgents` or a narrower scope. (Omit when nothing was deferred.)
+
+### X-1: <title>
+- **Where:** `<file>:<line>` · **severity (claimed):** <…> · **rule:** `<…>`
+
 ---
 
 ## Positive controls (INFO)
