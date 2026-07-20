@@ -1,0 +1,29 @@
+plugins/cklph-audit/tests/engine-flow.test.mjs
+  s_cef0814d5e85a3::t_747ac030458818 160-161
+  s_cef0814d5e85a3::t_4bd2d89ed7d6b9 1-13
+  s_d390aa5c673682::t_f9d97a03022a97 14-159
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.14",
+  "base_commit_sha": "0385bbe2001aebb235c1602ee635388e7c513d4d",
+  "prompts": {},
+  "sessions": {
+    "s_cef0814d5e85a3": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "b7d3a4cc-1f7b-4b8e-a37a-a4ed2537dfb2",
+        "model": "claude-opus-4-8"
+      },
+      "human_author": "Peter Krzyzek <peter@chykalophia.com>"
+    },
+    "s_d390aa5c673682": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "08e78cac-7829-4ca6-866a-c1e63eb8a906",
+        "model": "claude-opus-4-8"
+      },
+      "human_author": "Peter Krzyzek <peter@chykalophia.com>"
+    }
+  }
+}
