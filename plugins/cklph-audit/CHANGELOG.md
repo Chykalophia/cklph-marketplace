@@ -3,6 +3,18 @@
 All notable changes to `cklph-audit` are documented here. This project adheres to
 [Semantic Versioning](https://semver.org/).
 
+## 0.3.3 — 2026-07-20
+
+- Fix: the **Coverage matrix could cite findings that aren't in the report**. `ruleChecks` come from
+  the reviewer (pre-verification), and rule-closure trusted their `findingIds` verbatim — so a rule
+  the reviewer marked `violation` could point at a finding that verification later *refuted* (gone) or
+  *held-untraced* (in a different section). Rule closure now runs AFTER verification and reconciles
+  each violation's findingIds against what survived: it cites only confirmed findings; a violation
+  whose evidence survived only as held-untraced is marked `heldBacked` and points at the Held-untraced
+  section (which now carries finding ids); a violation whose evidence was fully refuted degrades to
+  inconclusive rather than masquerading as a confirmed violation. Found by a deterministic end-to-end
+  engine harness (real engine body, stubbed agents) driving the full seven-phase data flow.
+
 ## 0.3.2 — 2026-07-19
 
 - **Hard-blocker fix:** the audit workflow dispatched every sub-agent by BARE name

@@ -647,27 +647,16 @@ const sevRank = { critical: 4, high: 3, medium: 2, low: 1 }
 // near-misses, positive controls, coverage totals, and held-untraced are harvested AFTER the
 // Variant phase (E3) so refuted/near-miss/PC evidence from variant candidates is not lost.
 
-// rule closure (M2): every rulebook rule gets exactly one status — nothing silently absent.
-// Fold order per rule: violation > verified-safe > not-applicable > unchecked.
+// rule closure is computed AFTER the Variant merge + heldUntraced (§7.5 below) so a 'violation'
+// can only cite findings that actually SURVIVED verification — ruleChecks come from the reviewer
+// (pre-verify), so a violation it claimed may have been refuted or held downstream. Aggregating the
+// checks is cheap and order-independent, so do it here; fold it into statuses later.
 const checksByRule = new Map()
 for (const c of results.flatMap(r => r.ruleChecks)) {
   if (!c?.ruleId) continue
   if (!checksByRule.has(c.ruleId)) checksByRule.set(c.ruleId, [])
   checksByRule.get(c.ruleId).push(c)
 }
-const ruleClosure = rulebook.map(rule => {
-  const checks = checksByRule.get(rule.id) ?? []
-  const violations = checks.filter(c => c.status === 'violation')
-  if (violations.length) return { ...rule, status: 'violation', findingIds: [...new Set(violations.flatMap(c => c.findingIds ?? []))] }
-  const safe = checks.find(c => c.status === 'verified-safe')
-  if (safe) return { ...rule, status: 'verified-safe', evidence: safe.evidence }
-  const na = checks.find(c => c.status === 'not-applicable')
-  if (na) return { ...rule, status: 'not-applicable', evidence: na.evidence }
-  return { ...rule, status: 'unchecked' }                    // renders as NOT CHECKED
-})
-const uncheckedRuleIds = ruleClosure.filter(r => r.status === 'unchecked').map(r => r.id)
-const coverageSummary = { rulebookSize: rulebook.length, checked: rulebook.length - uncheckedRuleIds.length, uncheckedRuleIds }
-if (rulebook.length) log(`rule closure: ${coverageSummary.checked}/${rulebook.length} checked${uncheckedRuleIds.length ? `; NOT CHECKED: ${uncheckedRuleIds.join(', ')}` : ''}`)
 
 // ════════════════════════════════════════════════════════════════════════════
 // 7. VARIANT — sibling hunt on confirmed critical/high (T1.1, Project Zero variant analysis)
@@ -732,6 +721,38 @@ const heldUntraced = dedupeByFingerprint(allVerified.filter(f => f.heldUntraced)
   .filter(f => !baseline.has(fingerprint(f)))
   .filter(f => !freshFps.has(fingerprint(f)))   // a fingerprint confirmed by one panel is NOT also "awaiting a trace"
 if (heldUntraced.length) log(`${heldUntraced.length} finding(s) awaiting an independent reachability trace / clean refutation — surfaced for owner review`)
+
+// §7.5 rule closure (M2) — every rulebook rule gets exactly one status, reconciled against what
+// SURVIVED verification. A reviewer 'violation' whose cited findings were all refuted/held does not
+// masquerade as a confirmed violation citing a finding that isn't in the report.
+// Fold order: violation(confirmed) > violation(held-backed) > verified-safe > not-applicable > unchecked.
+const freshIdSet = new Set(fresh.map(f => f.id).filter(Boolean))
+const heldIdSet = new Set(heldUntraced.map(f => f.id).filter(Boolean))
+const ruleClosure = rulebook.map(rule => {
+  const checks = checksByRule.get(rule.id) ?? []
+  const violations = checks.filter(c => c.status === 'violation')
+  if (violations.length) {
+    const cited = [...new Set(violations.flatMap(c => c.findingIds ?? []))]
+    const confirmedIds = cited.filter(id => freshIdSet.has(id))   // findings that survived → in a severity section
+    const heldCited = cited.filter(id => heldIdSet.has(id))       // findings surfaced as held-untraced
+    if (confirmedIds.length) return { ...rule, status: 'violation', findingIds: confirmedIds, ...(heldCited.length ? { heldIds: heldCited } : {}) }
+    if (heldCited.length) return { ...rule, status: 'violation', findingIds: heldCited, heldBacked: true }  // only held evidence → row points at Held-untraced
+    // every finding the reviewer cited for this violation was REFUTED → the violation claim didn't survive
+    const safeR = checks.find(c => c.status === 'verified-safe')
+    if (safeR) return { ...rule, status: 'verified-safe', evidence: safeR.evidence }
+    const naR = checks.find(c => c.status === 'not-applicable')
+    if (naR) return { ...rule, status: 'not-applicable', evidence: naR.evidence }
+    return { ...rule, status: 'unchecked', note: 'reviewer flagged a violation but every cited finding was refuted on verification — inconclusive' }
+  }
+  const safe = checks.find(c => c.status === 'verified-safe')
+  if (safe) return { ...rule, status: 'verified-safe', evidence: safe.evidence }
+  const na = checks.find(c => c.status === 'not-applicable')
+  if (na) return { ...rule, status: 'not-applicable', evidence: na.evidence }
+  return { ...rule, status: 'unchecked' }                    // renders as NOT CHECKED
+})
+const uncheckedRuleIds = ruleClosure.filter(r => r.status === 'unchecked').map(r => r.id)
+const coverageSummary = { rulebookSize: rulebook.length, checked: rulebook.length - uncheckedRuleIds.length, uncheckedRuleIds }
+if (rulebook.length) log(`rule closure: ${coverageSummary.checked}/${rulebook.length} checked${uncheckedRuleIds.length ? `; NOT CHECKED: ${uncheckedRuleIds.join(', ')}` : ''}`)
 
 // near-misses (T2.2): majority-REFUTED critical/high whose counter-evidence tells the coverage story —
 // "probed X, held because Y". A majority-HELD-but-untraced finding is heldUntraced, NOT a near-miss.
@@ -822,7 +843,7 @@ const runMeta = {
   crownJewels: model.crownJewels,
 }
 // E2: majority-held-but-untraced findings, surfaced for owner review (never silently dropped)
-const publicHeldUntraced = heldUntraced.map(f => ({ file: f.file, severity: f.severity, title: f.title, rule: f.rule }))
+const publicHeldUntraced = heldUntraced.map(f => ({ id: f.id, file: f.file, severity: f.severity, title: f.title, rule: f.rule }))
 // engine-internal fields stay out of the synthesizer's context (confirmed is always true here;
 // refutedGuards were already harvested into positive controls above)
 const publicFresh = fresh.map(({ refutedGuards, confirmed, ...rest }) => rest)
