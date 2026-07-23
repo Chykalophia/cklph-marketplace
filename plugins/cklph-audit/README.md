@@ -1,9 +1,9 @@
 # cklph-audit
 
-**Scoped, adversarially-verified, agentic whole-repo audits — that also prove what they covered.**
+**Comprehensive, adversarially-verified, agentic whole-repo security suite — that also proves what it covered.**
 Marketplace: `cklph` · install: `claude plugin install cklph-audit@cklph` · CLI-only (sub-agents + workflows).
 
-> Diff-review tools (CodeRabbit, `/code-review ultra`, the cklph-reviewer agent) deliberately stay on the **diff**. `cklph-audit` fills the other gap: **deep reasoning over the _whole_ repo** — decompose the codebase, fan out a sub-agent per subsystem × lens, **refute** each finding to kill false positives, drop anything already accepted in a baseline, and synthesize a triaged report + a remediation-wave plan that feeds `/cklph-os:flow`. v2 adds the completeness accounting: recon denominators, a rule-closure coverage matrix, and positive controls — the report shows what was checked and clean, not just what's broken. v3 adds the master-practitioner mechanics: a threat-model **Map** phase before review, an evidence-arbitrated verifier (critical/high must supply a reachability trace), Project-Zero **variant analysis** on confirmed bugs, root-cause + violated-invariant per finding, risk-routed depth, and a positive-assurance **coverage narrative**.
+> Diff-review tools (CodeRabbit, `/code-review ultra`, the cklph-reviewer agent) deliberately stay on the **diff**. `cklph-audit` fills the other gap: **deep reasoning over the _whole_ repo** — decompose the codebase, fan out a sub-agent per subsystem × lens, **refute** each finding to kill false positives, drop anything already accepted in a baseline, and synthesize a triaged report + a remediation-wave plan that feeds `/cklph-os:flow`. v2 adds the completeness accounting: recon denominators, a rule-closure coverage matrix, and positive controls — the report shows what was checked and clean, not just what's broken. v3 adds the master-practitioner mechanics: a threat-model **Map** phase before review, an evidence-arbitrated verifier (critical/high must supply a reachability trace), Project-Zero **variant analysis** on confirmed bugs, root-cause + violated-invariant per finding, risk-routed depth, and a positive-assurance **coverage narrative**. **v1.0 (the comprehensive security suite)** adds nine new lenses (SCA, IaC, container, K8s, supply-chain, compliance, concurrency, state-machine, economic), deterministic-tool recall (Semgrep, Trivy, Grype, Syft, Checkov, Kubescape, gitleaks), opt-in **DAST** + exploit-to-confirm in sandbox (CodeMender core), opt-in **patch generation + validation** (test + re-exploit + LLM-judge), adversarial **self-review** of the report, **SOC 2 + CASA compliance matrix**, and vulnerability feed freshness checks.
 
 It's the productized version of the hand-run MailPrism **CASA 8-agent audit** (`AUDIT-2026-06-09.md`); v2 ports the coverage accounting from the ZenCoder SendBriefs audit methodology.
 
@@ -57,53 +57,74 @@ Project-agnostic knowledge packs. Each layers **over** the repo's own rules (e.g
 
 | Lens | Hunts for |
 | --- | --- |
-| **security** | CWE/ASVS/OWASP: authz/authn gaps, injection, secrets, SSRF, RLS/row-scoping, money & privilege paths, unsafe deserialization, missing rate-limit/CSRF. (The CASA lens.) |
+| **security** | CWE/ASVS/OWASP: authz/authn gaps, injection (Semgrep recall), secrets (gitleaks), SSRF, RLS/row-scoping, money & privilege paths, unsafe deserialization, path traversal, missing rate-limit/CSRF. (The CASA lens.) |
 | **correctness** | Silent failures, swallowed errors, missing error IDs, state-machine catch-block gaps, race conditions/TOCTOU, null/undefined handling, off-by-one, fail-open defaults. |
 | **architecture** | DRY/duplication (extract-when-3+), layering violations, dead code, god-objects, circular deps, contradictory sources of truth, files over the size limit. |
+| **sca** (v1.0) | Software composition analysis: dependency CVEs (Trivy/Grype/Syft/OSV-Scanner), transitive depth, abandoned/malicious packages, license risk. Judge by reachability — is the vulnerable function actually called? |
+| **iac** (v1.0) | Infrastructure-as-code misconfig (Checkov/KICS/tfsec): public S3 buckets, open security groups, IAM over-permission, unencrypted storage, missing logging. Terraform/CFN/Pulumi/Dockerfiles. |
+| **container** (v1.0) | OCI image scanning (Trivy/Grype/dive/hadolint): vulnerable base images, secrets in layers, root/privileged, missing healthcheck, unpinned digests. |
+| **k8s** (v1.0) | Kubernetes manifest scanning (Kubescape/kube-bench/kube-hunter): RBAC over-permission, privileged pods, hostPath mounts, missing network policies, pod security standards. |
+| **supply-chain** (v1.0) | CI/CD pipeline security (semgrep CI): `pull_request_target` with secrets, unsigned artifacts, SLSA gaps, dependency confusion, typosquatting. `.github/workflows/`, GitLab CI, Jenkinsfile. |
+| **compliance** (v1.0) | Compliance cross-mapping (NOT HIPAA): maps findings from all other lenses to SOC 2 Trust Services Criteria + CASA controls. Produces a compliance matrix — every control → met/violation/not-applicable/not-checked. |
+| **concurrency** (v1.0, T3.3) | Every check→use gap, TOCTOU, web race conditions (single-packet attacks), atomicity violations, deadlock potential. Pure reasoning — anchor to file:line. |
+| **state-machine** (v1.0, T3.3) | Reachable-but-unintended state transitions, missing terminal states, non-idempotent transitions. Pure reasoning. |
+| **economic** (v1.0, T3.3) | Value-bearing flow analysis: money/entitlement/privilege paths where the economic incentive is the attack vector. Pure reasoning. |
 | **docs-drift** (opt-in) | The rulebook itself: paths, script names, and scoped package names (`@scope/pkg`) in your `rulesFrom` docs that no longer match the tree — unscoped tech-name prose ("BullMQ" in the docs, QStash in the code) is the judgment layer's catch. LOW severity by default; MEDIUM+ only when the drift misleads a security control. |
 | **omission** (opt-in, v3) | Negative space — the code that _isn't_ there. Per external input / IO / branch it asserts `{ validation? error-path? logging? rollback? test? }` and reports the MISSING ones. Rule ids `omission:<kind>`; severity by real impact. The class of bug linters and pure-LLM passes miss most. |
 
-`docs-drift` is the exception to the unit × lens cross-product: when requested, the engine adds exactly **one** job over the `rulesFrom` docs — it never fans out per unit. It's not in the default lens list; ask for it explicitly (as is `omission`).
+`docs-drift` and `compliance` are exceptions to the unit × lens cross-product: `docs-drift` runs as exactly **one** job over the `rulesFrom` docs; `compliance` runs as a single post-reconcile mapping job that takes the aggregated confirmed findings from all other lenses and maps them to SOC 2 / CASA controls. Neither fans out per unit. Both are opt-in — ask for them explicitly (as is `omission`).
 
-Extensible (later): `performance` (N+1, hot paths, caching, bundle), `a11y` (WCAG/dark-mode), `compliance` (SOC2/CASA control mapping).
+Extensible (later): `performance` (N+1, hot paths, caching, bundle), `a11y` (WCAG/dark-mode).
 
 **How a lens stays honest:** a lens isn't just a prompt — it's a deterministic **tool** for recall (`jscpd` for DRY, ESLint for floating awaits, `gitleaks` for secrets, `dependency-cruiser` for layering) + the **LLM** for judgment + the **verifier** for precision. Pure-LLM detection of DRY/SOLID over-flags coincidental similarity and misses cross-file clones, so the tool does the enumerating and the model does the judging. Every lens is then validated against **golden fixtures** (planted issues it must catch / clean look-alikes it must not flag) and a **git backtest** before it's trusted — see `SPEC.md` §4 & §10.
 
 ---
 
-## How it works (7 phases)
+## How it works (11 phases)
 
 ```
-1. DISCOVER   audit-scout INFERS units (subsystem → globs) + surface; escalates to
-              audit-unit-mapper when the repo won't decompose cleanly, flags low-confidence
-              units. In parallel, a rulebook extractor parses the rulesFrom docs
-              (CLAUDE.md/AGENTS.md) into discrete, citable rules.
-2. RECON      one audit-recon per lens (concurrent with Discover): denominators
-              (re-runnable enumeration command + candidate count), cited seeds (hints,
-              not findings — reviewers re-verify every one), and safe-control candidates.
-              Skipped in :quick — and logged, never silent.
-3. MAP        one audit-modeler builds a lightweight threat model (v3): trust boundaries,
-              data-flows (source → sink), per-unit invariants, and crown jewels. Feeds the
-              reviewer its unit's invariants + the boundaries gating it. Skips in :quick; a
-              dead modeler degrades to an empty model — flagged in the appendix, never silent.
-4. REVIEW     audit-reviewer × (unit × lens) → findings + a ruleCheck for EVERY rule
-              handed + honest coverage counts. Traces symptom → rootCause + names the
-              violated invariant, cites the boundary crossed.   [pipeline, parallel]
-5. VERIFY     audit-verifier refutes each finding from COMMENT-STRIPPED code; evidence, not
-              vote tally, arbits (v3): low/medium promote on majority, critical/high require
-              a reachabilityTrace. Depth risk-routed per unit. Refuting counter-evidence is
-              harvested as positive controls + near-misses.   [adversarial]
-   RECONCILE  plain code (not an agent): dedup + baseline + rule closure + coverage totals
-              + near-misses + positive-control harvest.
-6. VARIANT    for each confirmed critical/high, an audit-reviewer hunts SIBLINGS repo-wide
-              (v3, Project Zero variant analysis) via variant-sweep.sh; candidates re-verify
-              through the SAME gate. Skips in :quick; flagged in the appendix.
-7. SYNTHESIZE audit-synthesizer → AUDIT-<date>.md (coverage summary + matrix + a
-              positive-assurance coverage narrative, severity buckets, positive controls
-              (INFO), remediation-wave plan that feeds /cklph-os:flow)
+ 1. DISCOVER    audit-scout INFERS units (subsystem → globs) + surface; escalates to
+               audit-unit-mapper when the repo won't decompose cleanly, flags low-confidence
+               units. In parallel, a rulebook extractor parses the rulesFrom docs
+               (CLAUDE.md/AGENTS.md) into discrete, citable rules.
+ 2. RECON       one audit-recon per lens (concurrent with Discover): denominators
+               (re-runnable enumeration command + candidate count), cited seeds (hints,
+               not findings — reviewers re-verify every one), and safe-control candidates.
+               Skipped in :quick — and logged, never silent.
+ 3. MAP         one audit-modeler builds a lightweight threat model (v3): trust boundaries,
+               data-flows (source → sink), per-unit invariants, and crown jewels. Feeds the
+               reviewer its unit's invariants + the boundaries gating it. Skips in :quick.
+ 4. REVIEW      audit-reviewer × (unit × lens) → findings + a ruleCheck for EVERY rule
+               handed + honest coverage counts. Traces symptom → rootCause + names the
+               violated invariant, cites the boundary crossed.   [pipeline, parallel]
+ 5. VERIFY      audit-verifier refutes each finding from COMMENT-STRIPPED code; evidence, not
+               vote tally, arbits (v3): low/medium promote on majority, critical/high require
+               a reachabilityTrace. Depth risk-routed per unit.   [adversarial]
+ 6. DAST        opt-in (dast.enabled): audit-dast-runner boots the app, runs ZAP/Nuclei/ffuf,
+               collects runtime findings → re-enter verify. Then audit-exploit-verifier
+               generates PoC exploits for confirmed critical/high, runs them in an isolated
+               sandbox (CodeMender core). Skips by default (read-only); off in :quick.
+    RECONCILE  plain code (not an agent): dedup + baseline + rule closure + coverage totals
+               + near-misses + positive-control harvest.
+ 7. VARIANT     for each confirmed critical/high, an audit-reviewer hunts SIBLINGS repo-wide
+               (v3, Project Zero variant analysis) via variant-sweep.sh; candidates re-verify
+               through the SAME gate. Skips in :quick.
+    COMPLIANCE  single post-reconcile job (when compliance lens is in scope): maps all
+               confirmed findings to SOC 2 + CASA controls → compliance matrix.
+ 8. PATCH       opt-in (patch.enabled, auto-on with DAST): audit-patcher generates patches
+               addressing root cause, applies in sandbox worktree, runs tests, re-runs exploit
+               (must fail), LLM-as-judge. Skips by default; off in :quick.
+ 9. SYNTHESIZE  audit-synthesizer → AUDIT-<date>.md (coverage summary + matrix + compliance
+               matrix + a positive-assurance coverage narrative, severity buckets with
+               DAST/exploit/patch evidence, positive controls (INFO), remediation-wave plan
+               that feeds /cklph-os:flow)
+10. SELFREVIEW  adversarial self-review of the report (the "check itself" loop): an
+               audit-reviewer re-reads the report for gaps, missed areas, under-explored
+               crown jewels. Gaps are surfaced in the appendix. Default true in full; off
+               in :quick.
 ```
 
-Implemented as one deterministic **Workflow** so the fan-out and verify are reproducible. `:quick` skips the Map + Variant phases (and recon) to stay cheap. See `SPEC.md` (v1 engine), `SPEC-v2.md` (the coverage delta), and `SPEC-v3.md` (the master-practice upgrade).
+Implemented as one deterministic **Workflow** so the fan-out and verify are reproducible. `:quick` skips the Map + Variant + DAST + Patch + SelfReview phases (and recon) to stay cheap. See `SPEC.md` (v1 engine), `SPEC-v2.md` (the coverage delta), and `SPEC-v3.md` (the master-practice upgrade).
 
 ---
 
@@ -142,9 +163,35 @@ Config-compatible: a v1/v2 `audit.config.yaml` runs with **no config changes req
 
 ---
 
+## What v1.0 adds (the comprehensive security suite)
+
+v1.0 takes the v3 engine and extends it from a "very good audit tool" to a **full enterprise-class security suite** — covering every layer from source code to cloud infrastructure, with dynamic verification, automated patching, compliance mapping, and self-review. Nine additions:
+
+1. **Nine new lenses.** SCA (dependency CVEs via Trivy/Grype/Syft/OSV-Scanner), IaC (Terraform/CFN/Dockerfile misconfig via Checkov/KICS/tfsec), container (OCI image scanning via Trivy/Grype/dive/hadolint), K8s (RBAC/pod-security via Kubescape/kube-bench/kube-hunter), supply-chain (CI/CD pipeline security via semgrep CI), compliance (SOC 2 + CASA cross-mapping), plus three Tier-3 "weird-machine" lenses (concurrency, state-machine, economic). Each security lens ships with a deterministic tool for recall and golden fixtures for precision/recall validation.
+
+2. **SAST recall for the security lens.** `sast.sh` wraps Semgrep (security-audit + owasp-top-ten rulesets) + optionally CodeQL. The security lens now runs it FIRST for exhaustive injection/SSRF/XSS/deserialization/path-traversal recall, then judges candidates. Plus `cpg.sh` for cross-file reachability queries (Joern or grep-fallback).
+
+3. **DAST + exploit-to-confirm (opt-in, sandboxed — the CodeMender core).** `audit-dast-runner` boots the app (Docker Compose / local dev), runs ZAP/Nuclei/ffuf, and collects runtime findings (auth bypass, session, IDOR, headers, rate limits). `audit-exploit-verifier` generates PoC exploit scripts for confirmed critical/high findings with reachability traces and runs them in an isolated Docker sandbox. A finding is only `confirmed-exploitable` if the PoC succeeds — "plausible" stays `likely`.
+
+4. **Patch generation + validation (opt-in, auto-on with DAST).** `audit-patcher` generates a code patch addressing the root cause, applies it in a sandbox git worktree, runs the test suite, re-runs the exploit (must FAIL — vuln closed), and runs an LLM-as-judge pass for functional correctness. Up to 3 iteration rounds. Patches are proposals for developer review, not auto-merges.
+
+5. **Adversarial self-review (the "check itself" loop).** After synthesis, an audit-reviewer re-reads the report for gaps — missed areas, under-explored crown jewels, coverage narrative honesty. Gaps are surfaced in the appendix. Default true in full mode; up to `selfReview.maxRounds` rounds.
+
+6. **SOC 2 + CASA compliance matrix (NOT HIPAA).** The compliance lens runs as a single post-reconcile mapping job, taking the aggregated confirmed findings from all other lenses and mapping them to SOC 2 Trust Services Criteria + CASA controls. Every control → `met` (cite the guard) / `violation` (link finding) / `not-applicable` (reason) / `not-checked` (gap requiring manual evidence). This is the audit's bridge to a formal attestation.
+
+7. **Feed freshness checks.** `feed-status.sh` checks CVE database age and tool versions. `/cklph-audit:refresh-feeds` updates vulnerability feeds and checks for new tools/CVE sources. The report appendix warns if feeds are stale.
+
+8. **Extended threat modeling.** The Map phase now includes cloud/infra trust boundaries (VPCs, security groups, IAM roles, public endpoints, container ingress, K8s policies, CI/CD trust) when IaC/container/k8s/supply-chain lenses are in scope.
+
+9. **Git-history hotspots (T3.1) + CPG reachability (T3.2).** `git-hotspots.sh` (churn × complexity + temporal coupling) and `cpg.sh` (Joern or grep-fallback for callers/sinks) — the Tier-3 roadmap items, now shipped.
+
+Config-compatible: a v3 `audit.config.yaml` runs unchanged — every new key defaults off-but-safe. DAST and Patch are **opt-in** (`dast.enabled: false`, `patch.enabled: false` by default — the audit stays read-only unless you explicitly break the seal). SelfReview defaults true in full mode. The compliance lens is opt-in (add `compliance` to the lenses list). The new security lenses (sca, iac, container, k8s, supply-chain) are available but not in the default lens list — add them explicitly. **No HIPAA** — explicitly excluded per requirements.
+
+---
+
 ## What you get out
 
-- **`AUDIT-<date>.md`** — a coverage summary (examined X/N per denominator, commands verbatim), the rule-closure coverage matrix, findings bucketed Critical/High/Medium/Low (each with `file:line`, confidence, remediation bucket, why it's real and how the verifier confirmed it, and a concrete fix), and a positive-controls (INFO) section of checked-and-clean patterns.
+- **`AUDIT-<date>.md`** — a coverage summary (examined X/N per denominator, commands verbatim), the rule-closure coverage matrix, an optional compliance matrix (SOC 2 + CASA), findings bucketed Critical/High/Medium/Low (each with `file:line`, confidence, remediation bucket, why it's real and how the verifier confirmed it, a concrete fix, and — when DAST/patch ran — exploit PoC evidence and patch diffs), a positive-controls (INFO) section of checked-and-clean patterns, and a self-review appendix documenting the "check itself" loop.
 - **A remediation-wave plan** — grouped, ordered fixes (quick wins first within a severity band) ready to hand to `/cklph-os:flow` or `cklph-implementer` waves; `owner-decision` items in their own subsection — they're questions, not work.
 - **An updated baseline** (when you run `:baseline`) so the next run is delta-only.
 

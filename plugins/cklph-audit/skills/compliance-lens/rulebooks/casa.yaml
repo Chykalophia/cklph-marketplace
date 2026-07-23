@@ -1,0 +1,99 @@
+# CASA (Cloud Application Security Assessment) — compliance rulebook.
+# Google Play's security assessment framework for cloud-connected apps.
+# NOT HIPAA.
+
+version: 1
+framework: casa
+name: "CASA — Cloud Application Security Assessment"
+
+controls:
+  # ── Data classification and handling ──────────────────────────────────────
+  - id: casa:DC1
+    text: "The application classifies data based on sensitivity and applies appropriate controls"
+    lensHint: "security,correctness"
+    severity: medium
+
+  - id: casa:DC2
+    text: "Sensitive data is encrypted at rest and in transit"
+    lensHint: "security,iac,container"
+    severity: high
+
+  - id: casa:DC3
+    text: "Sensitive data is not logged or exposed in error messages"
+    lensHint: "security,correctness"
+    severity: high
+
+  # ── Access control ────────────────────────────────────────────────────────
+  - id: casa:AC1
+    text: "The application enforces authentication for all access to sensitive data"
+    lensHint: "security,k8s"
+    severity: high
+
+  - id: casa:AC2
+    text: "The application enforces authorization checks on every request to protected resources"
+    lensHint: "security"
+    severity: high
+
+  - id: casa:AC3
+    text: "The application uses least-privilege access for service accounts and API keys"
+    lensHint: "security,iac,k8s"
+    severity: high
+
+  # ── Vulnerability management ──────────────────────────────────────────────
+  - id: casa:VM1
+    text: "A vulnerability management program exists with regular scanning"
+    lensHint: "sca,security,iac,container,k8s"
+    severity: high
+
+  - id: casa:VM2
+    text: "Known vulnerabilities in dependencies are remediated within defined SLAs"
+    lensHint: "sca"
+    severity: high
+
+  - id: casa:VM3
+    text: "The application undergoes regular penetration testing"
+    lensHint: "security,concurrency,economic"
+    severity: medium
+
+  - id: casa:VM4
+    text: "Static and dynamic application security testing is performed"
+    lensHint: "security,sca"
+    severity: high
+
+  # ── Secure development lifecycle ──────────────────────────────────────────
+  - id: casa:SD1
+    text: "Security requirements are defined and tracked through the development lifecycle"
+    lensHint: "security,architecture"
+    severity: medium
+
+  - id: casa:SD2
+    text: "Code changes are reviewed before deployment (change management)"
+    lensHint: "supply-chain,architecture"
+    severity: medium
+
+  - id: casa:SD3
+    text: "CI/CD pipelines are secured against injection and supply chain attacks"
+    lensHint: "supply-chain"
+    severity: high
+
+  # ── Data storage and destruction ──────────────────────────────────────────
+  - id: casa:DS1
+    text: "Data retention policies are defined and enforced"
+    lensHint: "correctness,architecture"
+    severity: low
+
+  - id: casa:DS2
+    text: "Data is securely destroyed when no longer needed"
+    lensHint: "correctness"
+    severity: low
+
+  # ── Incident response ─────────────────────────────────────────────────────
+  - id: casa:IR1
+    text: "An incident response plan exists and is tested"
+    lensHint: "correctness,state-machine"
+    severity: medium
+
+  - id: casa:IR2
+    text: "Security events are monitored and alerted on"
+    lensHint: "security,correctness"
+    severity: medium

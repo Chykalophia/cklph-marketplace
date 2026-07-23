@@ -125,23 +125,29 @@ case `[SoftwareSeni][eng-practices]`. `cklph-reviewer` already has an "omissions
 cklph-audit as a lens that, per external input / IO / branch, asserts {validation? error-path?
 logging? rollback? test?} and reports the missing ones. Scored separately from defect-finding.
 
-### Tier 3 — bigger bets, prove value first (the live backlog — deferred from 0.3.0)
+### Tier 3 — bigger bets — ✅ shipped in 1.0.0
 
-- **T3.1 Git-history hotspots / change-coupling** as a `riskScore` input: churn × complexity, and
-  temporal coupling ("you changed A but its historical co-change partner B is untouched") — signal a
-  snapshot analysis structurally cannot see `[CodeScene]`.
-- **T3.2 Graph/CPG reachability tool** (Joern/CodeQL-style) the reviewer queries for callers/reachability
-  instead of blind file reads — the fix for context-window blindness on cross-file bugs
-  `[CPG][Greptile]`.
-- **T3.3 Specialized "weird-machine" lenses**: a concurrency lens (every check→use gap, TOCTOU — now
-  web-exploitable via single-packet attacks `[PortSwigger]`), a state-machine lens (reachable-but-
-  unintended transitions), an economic lens on value-bearing flows `[PZero-more]`.
-- **T3.4 Ensemble panels** for crown-jewel units: diverse models/prompts beat depth for recall
-  (+18% recall in the studies) `[Ensemble]` — expensive, so gate it to the highest-risk units only.
-- **T3.5 Reproduction requirement** for the highest severities: Naptime/Big Sleep promote a finding
-  only when it's *verified with a PoC* `[Naptime]`. We're read-only, so the analogue is a
-  proven reachability trace (already in §1) — a full executable-repro lens is a later, opt-in bet for
-  units with a test harness.
+> **Outcome (1.0.0):** all five Tier 3 bets shipped in the 1.0.0 "comprehensive security suite" wave.
+> The original text is kept below for provenance.
+
+- **T3.1 Git-history hotspots / change-coupling** ✅ shipped as `tools/git-hotspots.sh` —
+  churn × complexity + temporal coupling as a `riskScore` input. A snapshot analysis structurally
+  cannot see this `[CodeScene]`.
+- **T3.2 Graph/CPG reachability tool** ✅ shipped as `tools/cpg.sh` — Joern or grep-fallback for
+  cross-file reachability queries (callers/sinks). The fix for context-window blindness on cross-file
+  bugs `[CPG][Greptile]`.
+- **T3.3 Specialized "weird-machine" lenses** ✅ shipped as `concurrency-lens`, `state-machine-lens`,
+  `economic-lens` — every check→use gap, TOCTOU (now web-exploitable via single-packet attacks
+  `[PortSwigger]`), reachable-but-unintended state transitions, and value-bearing flow analysis
+  `[PZero-more]`.
+- **T3.4 Ensemble panels** ✅ shipped as `ensemble` config block — diverse models/prompts beat depth
+  for recall (+18% recall in the studies) `[Ensemble]`. Gated to highest-risk units only via
+  `riskGate: 0.8`. Config: `ensemble: { enabled: false, models: [], riskGate: 0.8 }`.
+- **T3.5 Reproduction requirement** ✅ shipped as the DAST + exploit-verifier phase —
+  `audit-dast-runner` boots the app and runs ZAP/Nuclei/ffuf; `audit-exploit-verifier` generates PoC
+  exploit scripts for confirmed critical/high findings and runs them in an isolated Docker sandbox.
+  A finding is only `confirmed-exploitable` if the PoC succeeds — Naptime/Big Sleep's
+  verify-with-a-PoC `[Naptime]`. Opt-in (`dast.enabled: false` by default — breaks read-only).
 
 ---
 
@@ -169,15 +175,19 @@ bump tracked separately):
 ## 5. Suggested sequencing
 
 > **Outcome (0.3.0):** steps 1–5 all shipped in the one 0.3.0 "master-practice" wave (T2.1/T2.2/T2.3
-> came forward from the tentative v0.4 into 0.3.0), plus the §4 review-stack wins. Only step 6's
-> Tier 3 bets remain. The original plan is kept below for provenance.
+> came forward from the tentative v0.4 into 0.3.0), plus the §4 review-stack wins.
+>
+> **Outcome (1.0.0):** step 6's Tier 3 bets — all five (T3.1–T3.5) — shipped in the 1.0.0
+> "comprehensive security suite" wave, alongside nine new lenses, DAST + exploit verification,
+> patch generation, compliance mapping, self-review, and feed freshness. The original plan is kept
+> below for provenance.
 
 1. **§1 correction + T1.3 debiasing** — same file (verify stage), hardens what we shipped. One small PR.
 2. **T1.1 variant analysis + T1.2 root-cause schema** — the two biggest quality multipliers; a v0.3 `/cklph-os:flow`.
 3. **T1.4 risk-routed depth** — wires existing pieces together; folds into the v0.3 build.
 4. **T2.1 map phase** — the flagship v0.4; spec it separately, it's the largest design. *[Actually shipped in 0.3.0.]*
 5. **T2.2 coverage narrative + T2.3 omission lens** — round out v0.4's "trustworthy clean bill." *[Actually shipped in 0.3.0 — the `omission` lens is the opt-in `omission:<kind>` lens + `tools/omissions.sh`.]*
-6. Tier 3 + review-stack wins — opportunistic, value-proven first.
+6. Tier 3 + review-stack wins — opportunistic, value-proven first. *[All Tier 3 items shipped in 1.0.0.]*
 
 Everything in Tier 1 reuses machinery already in the engine (normalizedSnippet, riskScore, model
 routing, the verify fan-out). That's the boring-wins path: **the frontier architecture is built;

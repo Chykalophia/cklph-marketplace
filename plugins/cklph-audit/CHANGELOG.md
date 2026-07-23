@@ -3,6 +3,118 @@
 All notable changes to `cklph-audit` are documented here. This project adheres to
 [Semantic Versioning](https://semver.org/).
 
+## 1.0.0 — 2026-07-23
+
+The **comprehensive security suite** release. Transforms cklph-audit from a "very good audit tool"
+into a full enterprise-class security suite — covering every layer from source code to cloud
+infrastructure, with dynamic verification, automated patching, compliance mapping, and adversarial
+self-review. Backward-compatible: a v0.3 `audit.config.yaml` runs unchanged (every new key defaults
+off-but-safe).
+
+### Nine new lenses
+
+- **sca** — Software composition analysis: dependency CVEs (Trivy/Grype/Syft/OSV-Scanner),
+  transitive depth, abandoned/malicious packages, license risk. Judge by reachability.
+- **iac** — Infrastructure-as-code misconfig (Checkov/KICS/tfsec): public S3 buckets, open security
+  groups, IAM over-permission, unencrypted storage, missing logging. Terraform/CFN/Pulumi/Dockerfiles.
+- **container** — OCI image scanning (Trivy/Grype/dive/hadolint): vulnerable base images, secrets in
+  layers, root/privileged, missing healthcheck, unpinned digests.
+- **k8s** — Kubernetes manifest scanning (Kubescape/kube-bench/kube-hunter): RBAC over-permission,
+  privileged pods, hostPath mounts, missing network policies, pod security standards.
+- **supply-chain** — CI/CD pipeline security (semgrep CI): `pull_request_target` with secrets, unsigned
+  artifacts, SLSA gaps, dependency confusion, typosquatting.
+- **compliance** — SOC 2 Trust Services Criteria + CASA cross-mapping. Produces a compliance matrix
+  (every control → met/violation/not-applicable/not-checked). NOT HIPAA — explicitly excluded.
+- **concurrency** (T3.3) — Every check→use gap, TOCTOU, web race conditions (single-packet attacks),
+  atomicity violations, deadlock potential. Pure reasoning.
+- **state-machine** (T3.3) — Reachable-but-unintended state transitions, missing terminal states,
+  non-idempotent transitions. Pure reasoning.
+- **economic** (T3.3) — Value-bearing flow analysis: money/entitlement/privilege paths where the
+  economic incentive is the attack vector. Pure reasoning.
+
+### SAST recall for the security lens
+
+- `sast.sh` wraps Semgrep (security-audit + owasp-top-ten rulesets) + optionally CodeQL. The security
+  lens now runs it FIRST for exhaustive injection/SSRF/XSS/deserialization/path-traversal recall.
+- `cpg.sh` for cross-file reachability queries (Joern or grep-fallback).
+
+### DAST + exploit-to-confirm (opt-in, sandboxed — the CodeMender core)
+
+- **`audit-dast-runner`** agent boots the app (Docker Compose / local dev / provided URL), runs
+  ZAP/Nuclei/ffuf, collects runtime findings (auth bypass, session, IDOR, headers, rate limits).
+  DAST findings re-enter the same adversarial verify gate.
+- **`audit-exploit-verifier`** agent generates PoC exploit scripts for confirmed critical/high findings
+  with reachability traces, runs them in an isolated Docker sandbox. A finding is only
+  `confirmed-exploitable` if the PoC succeeds.
+- Config: `dast: { enabled: false, sandbox: "docker", target: "auto", tools: ["zap","nuclei","ffuf"], exploitVerify: true }`
+- OFF by default — breaks the read-only constraint. Explicit opt-in only.
+
+### Patch generation + validation (opt-in, auto-on with DAST)
+
+- **`audit-patcher`** agent generates a code patch addressing the root cause, applies it in a sandbox
+  git worktree, runs the test suite, re-runs the exploit (must FAIL — vuln closed), and runs an
+  LLM-as-judge pass. Up to 3 iteration rounds.
+- Config: `patch: { enabled: false, maxIterations: 3 }`
+- Patches are proposals for developer review, not auto-merges.
+
+### Adversarial self-review (the "check itself" loop)
+
+- After synthesis, an `audit-reviewer` re-reads the report for gaps — missed areas, under-explored
+  crown jewels, coverage narrative honesty. Gaps surfaced in the appendix.
+- Default true in full mode; up to `selfReview.maxRounds` (default 2) rounds.
+- Config: `selfReview: { enabled: true, maxRounds: 2 }`
+
+### SOC 2 + CASA compliance matrix
+
+- The compliance lens runs as a single post-reconcile mapping job, taking aggregated confirmed
+  findings from all other lenses and mapping them to SOC 2 TSC + CASA controls.
+- Rulebooks: `skills/compliance-lens/rulebooks/soc2-tsc.yaml`, `casa.yaml`.
+- Every control → `met` (cite guard) / `violation` (link finding) / `not-applicable` (reason) /
+  `not-checked` (gap requiring manual evidence for attestation).
+- Config: `compliance: { frameworks: [soc2, casa] }`
+
+### Feed freshness checks
+
+- `feed-status.sh` checks CVE database age and tool versions.
+- `/cklph-audit:refresh-feeds` command + `feed-refresh` skill updates vulnerability feeds and checks
+  for new tools/CVE sources.
+- Report appendix warns if feeds are stale.
+- Config: `feedRefresh: { maxAgeHours: 24, autoRefresh: true, sources: [nvd, ghsa, osv] }`
+
+### Tier 3 roadmap items — shipped
+
+- **T3.1** `git-hotspots.sh` — churn × complexity + temporal coupling as a `riskScore` input.
+- **T3.2** `cpg.sh` — Joern or grep-fallback for cross-file reachability queries.
+- **T3.3** Three "weird-machine" lenses: concurrency, state-machine, economic.
+- **T3.4** Ensemble panels for crown-jewel units: `ensemble: { enabled: false, models: [], riskGate: 0.8 }`.
+- **T3.5** Exploit-to-confirm (the DAST + exploit-verifier phase above).
+
+### Engine changes (audit.workflow.js v4)
+
+- Phases: Discover → Recon → Map → Review → Verify → DAST (opt-in) → Reconcile → Variant →
+  Patch (opt-in) → Synthesize → SelfReview.
+- 5 new schemas: `DAST_SCHEMA`, `EXPLOIT_SCHEMA`, `PATCH_SCHEMA`, `COMPLIANCE_SCHEMA`,
+  `SELF_REVIEW_SCHEMA`.
+- `RULEBOOK_SCHEMA.lensHint` enum expanded with all new lenses.
+- `compliance` filtered from recon phase (post-reconcile mapping job, not a scanning lens).
+- Synthesize call passes DAST findings, exploit results, patch results, compliance matrix.
+- SelfReview phase: adversarial review of the report for gaps, up to `maxRounds` iterations.
+- Return value includes `dast`, `patch`, `compliance`, `selfReview` metadata.
+
+### Files changed
+
+- 11 new bash tools: `sca.sh`, `sast.sh`, `iac.sh`, `container.sh`, `k8s.sh`, `supplychain.sh`,
+  `feed-status.sh`, `dast.sh`, `exploit-runner.sh`, `git-hotspots.sh`, `cpg.sh`
+- 9 new lens SKILL.md files: `sca-lens`, `iac-lens`, `container-lens`, `k8s-lens`, `supply-chain-lens`,
+  `compliance-lens`, `concurrency-lens`, `state-machine-lens`, `economic-lens`
+- 2 compliance rulebooks: `soc2-tsc.yaml`, `casa.yaml`
+- 3 new agents: `audit-dast-runner.md`, `audit-exploit-verifier.md`, `audit-patcher.md`
+- 1 new skill + 1 new command: `feed-refresh/SKILL.md`, `refresh-feeds.md`
+- 6 new fixture directories with should-flag + should-not-flag cases
+- Updated: `security-lens/SKILL.md`, `audit-modeler.md`, `audit-reviewer.md`,
+  `audit-report-format/SKILL.md`, `audit-synthesizer.md`, `README.md`, `plugin.json` (→1.0.0),
+  `marketplace.json`, `audit.config.example.yaml`
+
 ## 0.3.4 — 2026-07-20
 
 - **Verifier fan-out cap** (`verify.maxVerifierAgents`, default 400). Verify is the dominant,
