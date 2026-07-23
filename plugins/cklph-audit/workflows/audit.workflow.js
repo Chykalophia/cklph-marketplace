@@ -78,6 +78,12 @@ const baseline = new Set((args?.baseline?.fingerprints) ?? [])
 const mode = args?.mode ?? 'full'
 const rulesFromList = config.rulesFrom ?? ['CLAUDE.md', 'AGENTS.md']
 
+// vulnIntel: auto-detect MCP tools (cve-mcp, vuln-intel-ext) when available.
+// 'auto' (default) = use them if present, fall back to local tools if not.
+// 'true' = require them (log a warning if absent). 'false' = skip MCP entirely.
+const vulnIntelMode = config.vulnIntel?.enabled ?? 'auto'
+const vulnIntelEnabled = vulnIntelMode !== 'false'
+
 // ── schemas (single source of truth; agents are forced to match these) ───────
 const PLAN_SCHEMA = {
   type: 'object',
@@ -585,6 +591,9 @@ function verifyFindings(findings, unitKey, lens, unitVoters, extraOpts = {}) {
 // 1. DISCOVER + RECON — units, rulebook, and per-lens recon, all in parallel
 // ════════════════════════════════════════════════════════════════════════════
 phase('Discover')
+if (vulnIntelEnabled && lenses.includes('sca')) {
+  log(`vulnIntel: ${vulnIntelMode} — SCA lens will attempt MCP enrichment (cve-mcp/vuln-intel-ext) if available`)
+}
 const reconEnabled = (config.recon?.enabled ?? true) && (mode !== 'quick' || config.recon?.quick === true)
 if (!reconEnabled) {
   log(config.recon?.enabled === false
@@ -764,6 +773,13 @@ const reviewed = await pipeline(
       `owner-decision; owner-decision = intentional-but-not-locally-obvious — a question, not a defect). Trace ` +
       `symptom → rootCause (the underlying fault, not the symptom), name the invariant it violates, and REJECT ` +
       `a suggestedFix that only patches the symptom.\n` +
+      (job.lens === 'sca' && vulnIntelEnabled
+        ? `VULN_INTEL_MCP: cve-mcp and/or vuln-intel-ext MCP tools MAY be available. ` +
+          `If they are, use them to enrich findings: call diff_since for delta CVEs since last scan, ` +
+          `cve_enrich for EPSS/KEV/exploit-availability, cve_prioritize for risk ranking. ` +
+          `If the MCP tools are not available, proceed with local tools only. ` +
+          `See the sca-lens skill MCP section for details.\n`
+        : '') +
       (rules.length
         ? `RULEBOOK — return a ruleCheck for EVERY rule (violation|verified-safe|not-applicable; ` +
           `verified-safe/not-applicable need a one-line evidence citation/reason):\n${JSON.stringify(rules)}\n`
@@ -1262,6 +1278,8 @@ if (selfReviewEnabled && report?.markdown) {
       `(3) are there findings that should have been caught but weren't? (4) is the coverage narrative ` +
       `honest — does any "clean" area lack a narrative? (5) are DAST/exploit/patch results (if any) ` +
       `rendered? (6) is the compliance matrix complete (if compliance ran)? ` +
+      `(7) if the SCA lens ran, were MCP vulnerability intelligence tools (cve-mcp/vuln-intel-ext) ` +
+      `used for enrichment if available? If not, flag as a gap. ` +
       `Return gaps as { area, whatWasMissed } pairs. If there are NO gaps, return an empty array.\n\n` +
       `REPORT:\n${report.markdown}\n\n` +
       `RUN_META:\n${JSON.stringify({ units: units.map(u => u.key), lenses, mode, mapRan, variantRan, dastRan, patchRan })}`,
@@ -1305,4 +1323,5 @@ return {
   patch: { ran: patchRan, patches: patchResults.length },
   compliance: { ran: hasCompliance, controls: complianceMatrix.length },
   selfReview: { ran: selfReviewRan, gaps: selfReviewGaps.length, gapDetails: selfReviewGaps },
+  vulnIntel: { mode: vulnIntelMode, enabled: vulnIntelEnabled, lenses: lenses.includes('sca') ? ['sca'] : [] },
 }

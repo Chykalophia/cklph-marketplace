@@ -187,6 +187,8 @@ v1.0 takes the v3 engine and extends it from a "very good audit tool" to a **ful
 
 Config-compatible: a v3 `audit.config.yaml` runs unchanged — every new key defaults off-but-safe. DAST and Patch are **opt-in** (`dast.enabled: false`, `patch.enabled: false` by default — the audit stays read-only unless you explicitly break the seal). SelfReview defaults true in full mode. The compliance lens is opt-in (add `compliance` to the lenses list). The new security lenses (sca, iac, container, k8s, supply-chain) are available but not in the default lens list — add them explicitly. **No HIPAA** — explicitly excluded per requirements.
 
+**MCP vulnerability intelligence (v1.1):** The SCA lens now auto-detects and uses `cve-mcp` and `vuln-intel-ext` MCP servers when available, enriching dependency vulnerability findings with EPSS scores, CISA KEV status, exploit availability, delta scanning ("what's new since last audit"), and WordPress vuln lookups. Config: `vulnIntel: { enabled: auto }` (default — uses MCP tools if present, falls back to local tools if not). Install the companion plugins: `claude plugin install vuln-intel-ext@cklph` and `npx cve-mcp`.
+
 ---
 
 ## What you get out
@@ -212,6 +214,8 @@ Config-compatible: a v3 `audit.config.yaml` runs unchanged — every new key def
 - **v2 (0.2.0)**: the coverage upgrade — recon (denominators + seeds), rulebook + rule-closure matrix, coverage math, positive controls (INFO), docs-drift lens, richer finding schema. See `SPEC-v2.md`.
 - **v3 (0.3.0, current)**: the master-practice upgrade — Map phase (threat model) + `audit-modeler`, evidence-arbitrated verify (reachability trace), variant analysis + `variant-sweep.sh`, root-cause/invariant findings, risk-routed depth, coverage narrative, and the opt-in omission lens. See `SPEC-v3.md`.
 - **Deferred (Tier 3, prove value first)**: git-history hotspots / change-coupling as a `riskScore` input · a CPG/graph reachability tool the reviewer queries · specialized weird-machine lenses (concurrency, state-machine, economic) · ensemble panels for crown-jewel units · an executable-repro requirement for the highest severities. Tracked in `docs/MASTER-PRACTICE-ROADMAP.md`.
-- **Later**: `performance` + `a11y` + `compliance` lenses · a scheduled weekly **delta** audit (emails/ClickUps only NEW findings) · a CLI pre-promotion gate (fast security lens before dev→staging→main) · auto-handoff of confirmed Criticals into a `/cklph-os:flow` remediation run.
+- **v4 (1.0.0)**: the comprehensive security suite — 9 new lenses (sca, iac, container, k8s, supply-chain, compliance, concurrency, state-machine, economic), SAST recall, DAST + exploit-to-confirm, patch generation, adversarial self-review, SOC 2 + CASA compliance matrix, feed freshness checks. All Tier 3 items shipped.
+- **v4.1 (1.1.0)**: MCP vulnerability intelligence integration — SCA lens auto-detects and uses `cve-mcp` (EPSS/KEV/exploit-availability/risk-ranking) and `vuln-intel-ext` (diff_since/delta-scanning/WordPress) MCP servers when available. Feed-refresh skill enhanced with MCP feed_status + delta scan.
+- **Later**: `performance` + `a11y` lenses · a scheduled weekly **delta** audit (emails/ClickUps only NEW findings) · a CLI pre-promotion gate (fast security lens before dev→staging→main) · auto-handoff of confirmed Criticals into a `/cklph-os:flow` remediation run.
 
 See `SPEC.md` (the v1 engine), `SPEC-v2.md` (the coverage delta), and `SPEC-v3.md` (the master-practice upgrade) for the full build design.

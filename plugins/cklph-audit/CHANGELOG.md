@@ -3,6 +3,54 @@
 All notable changes to `cklph-audit` are documented here. This project adheres to
 [Semantic Versioning](https://semver.org/).
 
+## 1.1.0 — 2026-07-23
+
+### MCP vulnerability intelligence integration
+
+The SCA lens now **auto-detects and uses** `cve-mcp` and `vuln-intel-ext` MCP servers when available,
+enriching dependency vulnerability findings beyond what local CLI tools (Trivy/Grype/Syft/OSV-Scanner)
+provide. This is a pure enhancement layer — if the MCP tools are not configured, the audit proceeds
+normally with local tools only.
+
+**What the MCP enrichment adds:**
+- **`diff_since`** (vuln-intel-ext) — delta scan: "what new CVEs appeared for my dependencies since my
+  last audit?" Catches vulnerabilities that local tool DBs haven't ingested yet.
+- **`save_dependency_snapshot`** (vuln-intel-ext) — registers your dependency list for delta tracking
+  across audit runs.
+- **`cve_enrich`** (cve-mcp) — parallel enrichment from 8 sources: NVD (CVSS/CWE/CPE), EPSS
+  (exploitation probability), CISA KEV (exploited-in-the-wild), Nuclei (detection template),
+  Metasploit (exploit module), AttackerKB (community assessment).
+- **`cve_prioritize`** (cve-mcp) — risk-score ranking: `CVSS × EPSS × KEV-multiplier ×
+  Exploit-multiplier`. Used to severity-calibrate findings — a CVE in CISA KEV with a Metasploit
+  module and EPSS > 80% is CRITICAL regardless of CVSS alone.
+- **`exploit_search`** (cve-mcp) — checks for public PoC exploit code on GitHub.
+- **`wp_scan`** (vuln-intel-ext) — WordPress vulnerability lookup (the one ecosystem OSV doesn't
+  cover).
+
+**How it changes SCA findings:**
+- CISA KEV listed → severity CRITICAL (actively exploited)
+- EPSS > 70% → bump severity one level
+- Metasploit module exists → `confidence: confirmed` + "weaponized" note
+- diff_since new vuln → added to candidates even if local DB missed it
+- Advisory withdrawn → finding dropped, noted in report
+
+**Feed-refresh skill enhanced:**
+- Uses `feed_status` from vuln-intel-ext for live API reachability + last-scan history
+- Uses `diff_since` after local DB refresh to catch CVEs published between DB update and now
+
+**Engine changes:**
+- New config key: `vulnIntel: { enabled: auto }` (default `auto` — use MCP tools if available, fall
+  back to local tools if not; `true` = require; `false` = skip)
+- SCA reviewer prompt includes MCP enrichment hint when enabled
+- Self-review checks whether MCP enrichment was used (flags as gap if SCA ran but MCP wasn't used)
+- Return value includes `vulnIntel` metadata
+
+**Files changed:**
+- Updated: `skills/sca-lens/SKILL.md` (MCP enrichment section with 4-step process + impact table)
+- Updated: `skills/feed-refresh/SKILL.md` (MCP feed_status + delta scan sections)
+- Updated: `workflows/audit.workflow.js` (vulnIntel config, SCA prompt hint, self-review check, return value)
+- Updated: `templates/audit.config.example.yaml` (vulnIntel config section)
+
 ## 1.0.0 — 2026-07-23
 
 The **comprehensive security suite** release. Transforms cklph-audit from a "very good audit tool"

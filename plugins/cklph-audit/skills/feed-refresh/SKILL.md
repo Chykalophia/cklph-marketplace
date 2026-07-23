@@ -24,6 +24,28 @@ Or the audit engine runs this automatically at the start of an audit if `feedRef
 
 Run `${CLAUDE_PLUGIN_ROOT}/tools/feed-status.sh` to check the current state of all tool DBs and versions. It emits JSON lines: `{ tool, dbAge, lastUpdated, upToDate, currentVersion, latestVersion }`.
 
+## MCP FEED STATUS (optional — auto-detect)
+
+If the **vuln-intel-ext** MCP server is configured and available, call its `feed_status` tool IN ADDITION to the local `feed-status.sh`. This gives you live API reachability data (OSV ping latency) and last-scan history that the local bash tool can't provide.
+
+```
+feed_status()
+```
+
+Returns: `{ lastScan: { timestamp, since, newCount, ... } | null, sources: [{ source: "osv", reachable, latencyMs }], warnings: [...] }`
+
+**If `feed_status` is not available** (MCP server not configured), proceed with `feed-status.sh` only — the local tool covers tool-DB age and version checks.
+
+## MCP DELTA SCAN (optional — auto-detect)
+
+If **vuln-intel-ext** is available, after refreshing local tool DBs, also run a `diff_since` to catch any CVEs published between the local DB's last update and now:
+
+```
+diff_since({ since: "<last-feed-refresh-timestamp>", packages: [...] })
+```
+
+This closes the gap between "local DB was updated 2 hours ago" and "a CVE was published 30 minutes ago." If new vulns are found, log them so the next audit run picks them up.
+
 ## Output (FEED_STATUS_SCHEMA)
 
 ```json
