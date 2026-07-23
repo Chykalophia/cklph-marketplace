@@ -78,3 +78,10 @@ ensemble:                        # diverse-model panels for crown-jewel units (T
   enabled: false                 # expensive — gate to highest-risk units only
   models: []                     # e.g. ["claude-sonnet", "gpt-4o", "gemini-2.5-flash"]
   riskGate: 0.8                  # only units with riskScore ≥ this get ensemble panels
+vulnIntel:                       # MCP vulnerability intelligence integration
+  enabled: auto                  # auto (default — use cve-mcp/vuln-intel-ext if available, fall back to local tools) | true | false
+  # When enabled, the SCA lens will attempt to use MCP tools for enrichment:
+  #   - vuln-intel-ext: diff_since (delta CVEs since last scan), save_dependency_snapshot, feed_status, wp_scan
+  #   - cve-mcp: cve_enrich (EPSS/KEV/exploit-availability), cve_prioritize (risk ranking), osv_query, exploit_search
+  # Install: claude plugin install vuln-intel-ext@cklph  |  npx cve-mcp (configure in MCP client)
+  # If MCP tools are not available, the SCA lens proceeds with local CLI tools only (Trivy/Grype/Syft/OSV-Scanner).
