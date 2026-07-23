@@ -21,7 +21,17 @@ You are dispatched in **two** phases, same discipline both times:
 
 ## How to work — tool first (recall), then judgment (precision)
 1. **Load context:** the matching `${CLAUDE_PLUGIN_ROOT}/skills/<lens>-lens/SKILL.md` AND the repo's own rules from `config.rulesFrom` (e.g. `CLAUDE.md`, `AGENTS.md`, `.coderabbit.yaml`, custom Semgrep); the RULEBOOK in your prompt is those rules pre-parsed — same authority. On any conflict, **prefer the repo's rule** over the generic lens. Treat documented/accepted exceptions (repo learnings, baseline) as non-findings.
-2. **Run the lens's deterministic tool FIRST** for exhaustive recall — `${CLAUDE_PLUGIN_ROOT}/tools/<tool>.sh` (DRY→`dry.sh`, await→`await.sh`, dead code→`deadcode.sh`, layering→`layering.sh`, secrets→`secrets.sh`, docs-drift→`docsdrift.sh`, omission→`omissions.sh`; N+1→repo Semgrep). The tool enumerates candidates so you don't hunt by reading. Then reason over candidates instead of grepping blindly. The tool is recall; you are judgment + explanation.
+2. **Run the lens's deterministic tool FIRST** for exhaustive recall — `${CLAUDE_PLUGIN_ROOT}/tools/<tool>.sh`. The tool map by lens:
+   - **security** → `sast.sh` (Semgrep/CodeQL: injection, SSRF, XSS, deserialization, path traversal) FIRST, then `secrets.sh` (gitleaks/detect-secrets). For cross-file reachability queries use `cpg.sh` (Joern or grep-fallback: callers/sinks). N+1 → repo Semgrep.
+   - **sca** → `sca.sh` (Trivy/Grype/Syft/OSV-Scanner: dependency CVEs, SBOM).
+   - **iac** → `iac.sh` (Checkov/KICS/tfsec/Trivy-config: Terraform/CFN/Dockerfile misconfig).
+   - **container** → `container.sh` (Trivy image/Grype/dive/hadolint: image vulns, secrets in layers, root/privileged).
+   - **k8s** → `k8s.sh` (Kubescape/kube-bench/kube-hunter: RBAC, pod security, network policies).
+   - **supply-chain** → `supplychain.sh` (semgrep CI rules, pull_request_target grep, dep-confusion, SLSA checks).
+   - **compliance** → no tool (mapping exercise; load the framework rulebook from `skills/compliance-lens/rulebooks/`).
+   - **concurrency / state-machine / economic** → no tool (pure reasoning; anchor every finding to `file:line`).
+   - **architecture** → `dry.sh`, `deadcode.sh`, `layering.sh`; **correctness** → `await.sh`; **docs-drift** → `docsdrift.sh`; **omission** → `omissions.sh`.
+   The tool enumerates candidates so you don't hunt by reading. Then reason over candidates instead of grepping blindly. The tool is recall; you are judgment + explanation.
 3. **Re-open EVERY seed before trusting it.** Seeds are recon hints, not findings — citations drift. Read the cited file:line yourself; promote what reproduces, drop what doesn't (dropped seeds still count in `seedsGiven`). Same discipline for safe-control candidates: confirm the guard at its file:line or reject it — either way, record the verdict in `safeControlChecks`.
 4. **Judge each candidate** against the lens checklist: is it a real defect here, or a coincidental look-alike / accepted pattern? Confirm dynamic references before calling code dead; confirm a hot path before calling a query N+1; confirm duplicated *knowledge* (not mere similarity) before flagging DRY.
 5. For pure-judgment concerns (architecture intent, business correctness) with no good tool, reason directly but label findings as candidates for human review — never assert what you can't anchor.

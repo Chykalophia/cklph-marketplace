@@ -5,9 +5,9 @@ description: The exact AUDIT-<date>.md contract — front-matter, coverage summa
 
 # audit-report-format — the AUDIT-<date>.md contract
 
-This skill defines the exact shape `audit-synthesizer` must emit as `report.markdown`. The contract exists so reports are consistent, git-diffable across runs, and feed cleanly into `/cklph-os:flow`. **Nothing is silently truncated** — anything not audited, whether a *unit*, a *rulebook rule*, an *enumerated pattern* (budget, sampling, low-confidence, recon gaps), or a skipped *phase* (whether the Map + Variant phases ran), is named in the report.
+This skill defines the exact shape `audit-synthesizer` must emit as `report.markdown`. The contract exists so reports are consistent, git-diffable across runs, and feed cleanly into `/cklph-os:flow`. **Nothing is silently truncated** — anything not audited, whether a *unit*, a *rulebook rule*, an *enumerated pattern* (budget, sampling, low-confidence, recon gaps), or a skipped *phase* (whether the Map + Variant + DAST + Patch + SelfReview phases ran), is named in the report.
 
-The document has nine parts, in order: **Front-matter → Coverage summary → Coverage matrix → Coverage narrative → Severity sections → Held-untraced → Positive controls (INFO) → Remediation waves → Appendix.**
+The document has ten parts, in order: **Front-matter → Coverage summary → Coverage matrix → Compliance matrix → Coverage narrative → Severity sections → Held-untraced → Positive controls (INFO) → Remediation waves → Appendix.**
 
 An OPTIONAL `## Summary` lead block (new-finding counts, rule closure, positive-control count, unit derivation, a one-or-two-line headline) may sit between the front-matter and the Coverage summary — a human skim layer only, never a substitute for the sections below. The template includes one.
 
@@ -28,6 +28,9 @@ mode: full                  # full | quick
 phases:                     # v3 optional phases — false = skipped (quick mode / disabled / agent died); see appendix
   map: true                 # Map (threat model: trust boundaries + invariants) ran
   variant: true             # Variant (sibling hunt on confirmed critical/high) ran
+  dast: false               # DAST (dynamic testing: ZAP/Nuclei) ran — opt-in, off by default
+  patch: false              # Patch (generate + test + re-exploit) ran — opt-in, auto-on with DAST
+  self_review: true         # SelfReview (adversarial red-team of the report) ran — default in full
 counts: { critical: 2, high: 5, medium: 8, low: 3, info: 4 }   # info = positive controls
 coverage:
   rulebook_size: 12         # discrete rules extracted from the rulesFrom docs
@@ -43,7 +46,7 @@ skipped:
 ---
 ```
 
-If a field is empty, emit it empty (`[]` / `0`) — never omit it. The reader must be able to tell coverage from the front-matter alone: `coverage.checked` of `coverage.rulebook_size` rules, every `unchecked` rule id named, and whether the Map + Variant phases ran (`phases.map` / `phases.variant` — a skipped phase is expanded in the appendix).
+If a field is empty, emit it empty (`[]` / `0`) — never omit it. The reader must be able to tell coverage from the front-matter alone: `coverage.checked` of `coverage.rulebook_size` rules, every `unchecked` rule id named, and whether the Map + Variant + DAST + Patch + SelfReview phases ran (`phases.map` / `phases.variant` / `phases.dast` / `phases.patch` / `phases.self_review` — a skipped phase is expanded in the appendix).
 
 ## 2. Coverage summary
 
@@ -90,6 +93,36 @@ Rules for the matrix:
 - `verified-safe` rows cite the evidence (`file:line`); `not-applicable` rows give the one-line reason.
 - `unchecked` rows render as **NOT CHECKED** with the **whole row bold** — an honest NOT CHECKED is a feature, not an embarrassment. The same rule ids appear in front-matter `coverage.unchecked`.
 - A `deferredBacked: true` closure row (the reviewer flagged a violation but its cited finding was **deferred — never verified**, budget exhausted) renders as `NOT CHECKED (deferred — unverified)` pointing at the Deferred section. Never label it "refuted" — it was not checked.
+
+## 3b. Compliance matrix (when the compliance lens ran)
+
+A `## Compliance matrix` section after the Coverage matrix and before the Coverage narrative — **one row per control per framework** (SOC 2 / CASA). Statuses are `met` | `violation` | `not-applicable` | `not-checked`. This is the audit's bridge to a formal attestation.
+
+```markdown
+## Compliance matrix
+
+### SOC 2 — Trust Services Criteria
+
+| Control | Description (short) | Status | Finding IDs / evidence / reason |
+| --- | --- | --- | --- |
+| CC6.1 | Logical access controls | violation | C-1, H-2 |
+| CC6.7 | Restrict access to assets | verified-safe | RLS policies on all tables (`db/migrations/003_rls.sql:12`) |
+| CC7.1 | Detect vulnerabilities | violation | SCA: 3 known CVEs in deps (H-5, H-6, M-3) |
+| C1.2 | Protect confidential info | not-checked | no encryption-at-rest verification performed |
+
+### CASA — Cloud Application Security Assessment
+
+| Control | Description (short) | Status | Finding IDs / evidence / reason |
+| --- | --- | --- | --- |
+| VM1 | Vulnerability management program | met | SCA lens ran with Trivy/Grype/OSV-Scanner |
+| VM2 | Remediate dep vulns within SLA | violation | H-5, H-6 |
+| SD3 | CI/CD pipelines secured | violation | SC-1 (pull_request_target with secrets) |
+```
+
+Rules for the compliance matrix:
+- `violation` rows link the finding IDs from other lenses. `met` rows cite the evidence (the guard/pattern/scan that proved the control). `not-applicable` rows give the one-line reason. `not-checked` rows are **gaps** — controls with no automated evidence; the owner must provide manual evidence for attestation.
+- A `not-checked` compliance control is the most actionable output for a team pursuing SOC 2 / CASA — it tells them exactly what they still need to prove.
+- Omit the section entirely if the compliance lens did not run.
 
 ## 4. Coverage narrative
 
@@ -138,6 +171,8 @@ One section per severity, highest first: `## Critical` → `## High` → `## Med
 - **Invariant:** <the property the code must guarantee that this finding violates>
 - **Boundary:** <the trust boundary crossed — only when the Map phase supplied one>
 - **Reachability:** <the concrete attacker-input→sink or invariant-violation path the verifier confirmed>
+- **Exploit proof:** <when DAST/exploit ran: the PoC script + sandbox result — "confirmed-exploitable" or "likely (static only)">
+- **Patch:** <when the Patch phase ran: the diff summary + "testsPass: ✓, exploitClosed: ✓, judge: addresses root cause" or "patch-unverified" + why>
 
 ```ts
 // the offending code, quoted exactly (a few lines of context)
@@ -146,8 +181,10 @@ await supabase.from('users').update({ role: body.role }).eq('id', user.id)
 
 **Why it's real.** <the concrete reason this is a true issue — what an attacker/bug does>.
 *Verifier:* survived adversarial refutation — majority of N voters confirmed; the reviewer's missed-guard hunt found no mitigating middleware/RLS/validation/caller. <one line on what the verifier checked>.
+*Exploit:* <when DAST ran: "PoC confirmed in sandbox — curl request bypassed authz and returned another user's data" or "PoC could not reproduce (likely static-only)">.
 
 **Fix.** <a specific, actionable remediation — not "add validation" but what/where>.
+*Patch:* <when the Patch phase ran: the generated diff, test results, and exploit re-run result — or "not auto-patched, needs manual remediation">.
 ```
 
 Rules for every finding:
@@ -244,6 +281,11 @@ A closing `## Appendix` that makes coverage auditable:
 - **Rulebook extraction failure** — if RUN_META says `rulebookMissing: true`, state that the Coverage matrix is empty because rulebook extraction died — NOT because the `rulesFrom` docs contain no rules. Silence must never read as "no rules".
 - **Map phase (threat model)** — state whether the Map phase ran (`RUN_META.mapRan`). If it did NOT, say why: quick mode (Map skips), `map.enabled: false`, or the `audit-modeler` died — and note the consequence: reviewers got no trust-boundary/invariant context, so findings carry no `boundary` and the Coverage narrative has no crown jewels. An empty threat model must never read as "no threats" — it means the model wasn't built.
 - **Variant phase (sibling hunt)** — state whether the Variant phase ran (`RUN_META.variantRan`). If it did NOT, say why: quick mode (Variant skips) or `variant.enabled: false` — and note the consequence: confirmed `critical`/`high` findings were NOT swept for siblings, so the same root cause may recur elsewhere unexamined. If it ran but had no confirmed `critical`/`high` to seed from, say that plainly instead.
+- **DAST phase (dynamic testing)** — state whether the DAST phase ran (`RUN_META.dastRan`). If it did NOT, say why: `dast.enabled: false` (default — opt-in), quick mode, or the runner died. Note the consequence: runtime-only issues (auth bypass, session, IDOR, headers, rate limits) were NOT dynamically tested — the audit is static-only for this run. If it ran, note what was booted (Docker Compose / local dev / provided URL), which tools ran (ZAP/Nuclei/ffuf), and how many runtime findings were collected.
+- **Exploit verification** — state whether exploit verification ran (`RUN_META.exploitRan`). If it did, note how many confirmed critical/high findings had PoC exploits attempted, how many were `confirmed-exploitable` vs `likely (static only)`. If it did NOT, note that findings are based on static reachability only — no dynamic proof of exploitability.
+- **Patch phase** — state whether the Patch phase ran (`RUN_META.patchRan`). If it did, note how many findings were auto-patched vs `patch-unverified` vs `patch-failed`. If it did NOT, note that patches are suggestions only (the reviewer's `suggestedFix`) — no automated patch generation or validation occurred.
+- **SelfReview phase (adversarial self-review)** — state whether the SelfReview phase ran (`RUN_META.selfReviewRan`). If it did, render a `### Self-review results` subsection: what the red-team agent checked, what gaps it found, whether they were resolved (re-scanned) or remain unresolved. If unresolved gaps remain, list them as "coverage is incomplete in these areas." If it did NOT, note that no adversarial self-review of the report was performed.
+- **Feed freshness** — state when vulnerability databases were last updated (`RUN_META.feedStatus`). If stale (older than `feedRefresh.maxAgeHours`), warn: "Security findings are based on a vulnerability database N hours old — re-run `/cklph-audit:refresh-feeds` for current data." Note which tools' DBs are current vs stale.
 - **Denominator commands (verbatim)** — every recon denominator command, exactly as run, so the coverage math is re-runnable by the reader.
 - If the run was `quick` mode, state plainly at the top of the appendix: **coverage is partial — only the top-N highest-risk units were audited.**
 

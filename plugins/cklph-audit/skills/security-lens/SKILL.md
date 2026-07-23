@@ -15,9 +15,11 @@ This lens is **gated by the fixture precision/recall test** (`fixtures/security/
 
 ## TOOL
 
+- **SAST (injection, SSRF, XSS, deserialization, path traversal):** run `${CLAUDE_PLUGIN_ROOT}/tools/sast.sh` on the unit's globs FIRST. This wraps Semgrep (with the security-audit + owasp-top-ten rulesets) and optionally CodeQL. It enumerates injection sinks, SSRF patterns, XSS sinks, deserialization calls, and path traversal candidates exhaustively. Your job is to judge which candidates are real (reachable with attacker input) vs false positives (guarded upstream). This is your primary recall pass for code-level security flaws.
 - **Secrets:** run `${CLAUDE_PLUGIN_ROOT}/tools/secrets.sh` (gitleaks / detect-secrets) on the unit's globs. This is your recall pass for hardcoded credentials; the linter is near-exact, so your job is only real-secret-vs-test-fixture judgment.
+- **CPG reachability (if available):** run `${CLAUDE_PLUGIN_ROOT}/tools/cpg.sh <root> callers <function-name>` to find all callers of a suspicious function, or `cpg.sh <root> sinks <pattern>` to enumerate all sinks matching a pattern. This fixes context-window blindness on cross-file bugs. Falls back to grep-based approximation if Joern isn't installed.
 - **N+1 / query / Supabase patterns:** prefer the repo's own Semgrep rules (e.g. `supabase-query-analyzer`) when present (loaded via repo rules below).
-- **Everything else** (authz/authn logic, injection sinks, SSRF, money/state, fail-direction) has **no good deterministic tool** — that's pure reasoning. Anchor every such finding to `file:line` + quoted code; ship it labeled honestly (`source: "reasoning"`, treat as candidate-for-human-review). No speculation without a code anchor.
+- **Everything else** (authz/authn logic, money/state, fail-direction, business-logic) has **no good deterministic tool** — that's pure reasoning. Anchor every such finding to `file:line` + quoted code; ship it labeled honestly (`source: "reasoning"`, treat as candidate-for-human-review). No speculation without a code anchor.
 
 ## Checklist (the judgment layer)
 
