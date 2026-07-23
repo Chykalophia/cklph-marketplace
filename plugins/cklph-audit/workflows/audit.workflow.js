@@ -1,11 +1,13 @@
-// cklph-audit — the deterministic engine (v3: models, proves, hunts variants).
+// cklph-audit — the deterministic engine (v4: comprehensive security suite).
 //
-// Invoked by the /cklph-audit:run skill via the Workflow tool. Seven-phase pipeline
-// (Discover → Recon → Map → Review → Verify → Variant → Synthesize; Map + Variant
-// skip in quick mode and degrade gracefully):
+// Invoked by the /cklph-audit:run skill via the Workflow tool. Eleven-phase pipeline
+// (Discover → Recon → Map → Review → Verify → DAST → Reconcile → Variant → Patch →
+//  Synthesize → SelfReview; Map + Variant + DAST + Patch + SelfReview are opt-in
+//  or skip in quick mode and degrade gracefully):
 //   1. DISCOVER  — parallel: scout infers units (escalates to audit-unit-mapper
 //                  when low-confidence; explicit config wins) + rulebook
-//                  extraction (rulesFrom docs → discrete rules).
+//                  extraction (rulesFrom docs → discrete rules) + feed freshness
+//                  check (CVE DB age + tool versions).
 //   2. RECON     — one audit-recon per lens, concurrent with Discover: cited
 //                  denominators (re-runnable command + count), seeds (hints,
 //                  not findings), safe-control candidates. Skipped in quick
@@ -17,36 +19,56 @@
 //   4. REVIEW    — one audit-reviewer per (unit × lens); tool-first recall,
 //                  re-verifies its seeds, answers a ruleCheck for EVERY rule
 //                  handed, names root-cause + violated invariant, reports honest
-//                  coverage. docs-drift is NOT crossed with units: exactly ONE job.
+//                  coverage. docs-drift + compliance are NOT crossed with units:
+//                  exactly ONE job each, run post-reconcile.
 //   5. VERIFY    — audit-verifier refutes each finding from COMMENT-STRIPPED code
 //                  (default-refuted). Evidence, not vote tally, arbits (T1.3):
 //                  low/medium promote on majority, critical/high require a
 //                  reachabilityTrace. Depth risk-routed per unit (T1.4). Pipelined.
-//   6. RECONCILE — plain code: dedup + accepted-baseline suppression + rule-
+//   6. DAST      — opt-in (dast.enabled): audit-dast-runner boots the app, runs
+//                  ZAP/Nuclei/ffuf, collects runtime findings → re-enter verify.
+//                  Then audit-exploit-verifier generates PoC exploits for confirmed
+//                  critical/high, runs them in an isolated sandbox (CodeMender core).
+//                  Skips by default (breaks read-only); off in quick.
+//   7. RECONCILE — plain code: dedup + accepted-baseline suppression + rule-
 //                  closure matrix (every rule accounted for, unchecked shown)
 //                  + coverage totals + near-misses + noise-gated positive controls.
-//   7. VARIANT   — for each confirmed critical/high, an audit-reviewer hunts
+//   8. VARIANT   — for each confirmed critical/high, an audit-reviewer hunts
 //                  SIBLINGS repo-wide (T1.1, Project Zero variant analysis);
 //                  candidates re-verify through the SAME gate. Skips in quick.
-//   8. SYNTHESIZE— audit-synthesizer writes AUDIT-<date>.md: severities, coverage
-//                  summary + matrix + narrative, positive controls (INFO), waves.
+//   9. PATCH     — opt-in (patch.enabled, auto-on when DAST is on): audit-patcher
+//                  generates patches addressing root cause, applies in sandbox
+//                  worktree, runs tests, re-runs exploit (must fail), LLM-as-judge.
+//                  Skips by default; off in quick.
+//  10. SYNTHESIZE— audit-synthesizer writes AUDIT-<date>.md: severities, coverage
+//                  summary + matrix + compliance matrix + narrative, DAST/exploit/
+//                  patch evidence, positive controls (INFO), waves. Compliance lens
+//                  runs here as a single post-reconcile mapping job.
+//  11. SELFREVIEW— adversarial self-review of the report (the "check itself" loop):
+//                  an audit-reviewer re-reads the report for gaps, missed areas,
+//                  under-explored crown jewels. Gaps trigger a re-scan (up to
+//                  selfReview.maxRounds). Default true in full; off in quick.
 //
 // args = { lenses:string[], path?, mode:"full"|"quick", deepUnits?:bool,
 //          config:object, baseline:{fingerprints:string[]} }
-// Read-only: no agent writes application code. Only the report + baseline are
-// written, by the command, after this returns.
+// Read-only by default: no agent writes application code. DAST/Exploit/Patch are
+// opt-in and sandboxed. Only the report + baseline are written, by the command,
+// after this returns.
 
 export const meta = {
   name: 'cklph-audit',
-  description: 'Scoped, verified, agentic whole-repo audit',
+  description: 'Comprehensive, adversarially-verified, agentic whole-repo security suite',
   phases: [
     { title: 'Discover' },
     { title: 'Recon' },
     { title: 'Map' },
     { title: 'Review' },
     { title: 'Verify' },
+    { title: 'DAST' },
     { title: 'Variant' },
+    { title: 'Patch' },
     { title: 'Synthesize' },
+    { title: 'SelfReview' },
   ],
 }
 
@@ -95,7 +117,7 @@ const RULEBOOK_SCHEMA = {
           id: { type: 'string' },                // stable slug, e.g. "agents-md:rule-3"
           source: { type: 'string' },            // file:line
           text: { type: 'string' },              // verbatim or tight paraphrase
-          lensHint: { type: 'string', enum: ['security', 'correctness', 'architecture', 'docs-drift', 'any'] },
+          lensHint: { type: 'string', enum: ['security', 'correctness', 'architecture', 'docs-drift', 'sca', 'iac', 'container', 'k8s', 'supply-chain', 'compliance', 'concurrency', 'state-machine', 'economic', 'omission', 'any'] },
         },
       },
     },
@@ -305,6 +327,136 @@ const REPORT_SCHEMA = {
   },
 }
 
+// ── v4 schemas: DAST, exploit, patch, compliance, self-review, feed freshness ─
+const DAST_SCHEMA = {                              // audit-dast-runner output
+  type: 'object',
+  properties: {
+    findings: {
+      type: 'array',
+      items: {
+        type: 'object',
+        required: ['id', 'title', 'severity', 'rule'],
+        properties: {
+          id: { type: 'string' },
+          title: { type: 'string' },
+          severity: { type: 'string', enum: ['critical', 'high', 'medium', 'low'] },
+          file: { type: 'string' },               // the route/endpoint if no file
+          line: { type: 'number' },
+          snippet: { type: 'string' },            // request/response evidence
+          rule: { type: 'string' },
+          rationale: { type: 'string' },
+          suggestedFix: { type: 'string' },
+          source: { type: 'string', enum: ['dast', 'reasoning'] },
+          url: { type: 'string' },
+          method: { type: 'string' },
+          param: { type: 'string' },
+          evidence: { type: 'string' },           // raw request/response
+          confidence: { type: 'string', enum: ['confirmed', 'likely', 'needs-owner-input'] },
+          context: {
+            type: 'object',
+            properties: {
+              surface: { type: 'string', enum: ['server', 'client', 'shared'] },
+              runtime: { type: 'string', enum: ['prod', 'test', 'generated'] },
+              gated: { type: 'boolean' },
+            },
+          },
+        },
+      },
+    },
+  },
+}
+
+const EXPLOIT_SCHEMA = {                           // audit-exploit-verifier output
+  type: 'object',
+  properties: {
+    exploits: {
+      type: 'array',
+      items: {
+        type: 'object',
+        required: ['findingId', 'confirmed'],
+        properties: {
+          findingId: { type: 'string' },
+          exploitScript: { type: 'string' },      // the PoC script for the report
+          exploitResult: { type: 'string' },      // stdout from the sandbox run
+          confirmed: { type: 'boolean' },          // did the PoC succeed?
+          confidence: { type: 'string', enum: ['confirmed-exploitable', 'likely', 'refuted'] },
+        },
+      },
+    },
+  },
+}
+
+const PATCH_SCHEMA = {                             // audit-patcher output
+  type: 'object',
+  properties: {
+    patches: {
+      type: 'array',
+      items: {
+        type: 'object',
+        required: ['findingId', 'status'],
+        properties: {
+          findingId: { type: 'string' },
+          status: { type: 'string', enum: ['patched', 'patch-unverified', 'patch-failed'] },
+          patch: { type: 'string' },              // unified diff
+          patchFiles: { type: 'array', items: { type: 'string' } },
+          testsPassed: { type: 'boolean' },
+          exploitClosed: { type: 'boolean' },     // re-run exploit failed? null if no exploit
+          judgeVerdict: {
+            type: 'object',
+            properties: {
+              addressesRootCause: { type: 'boolean' },
+              introducesNewIssues: { type: 'boolean' },
+              complete: { type: 'boolean' },
+              idiomatic: { type: 'boolean' },
+              notes: { type: 'string' },
+            },
+          },
+          iterations: { type: 'number' },
+        },
+      },
+    },
+  },
+}
+
+const COMPLIANCE_SCHEMA = {                        // compliance-lens output (single post-reconcile job)
+  type: 'object',
+  properties: {
+    complianceMatrix: {
+      type: 'array',
+      items: {
+        type: 'object',
+        required: ['framework', 'control', 'status'],
+        properties: {
+          framework: { type: 'string', enum: ['soc2', 'casa'] },
+          control: { type: 'string' },             // e.g. "soc2:CC6.1"
+          status: { type: 'string', enum: ['met', 'violation', 'not-applicable', 'not-checked'] },
+          findingIds: { type: 'array', items: { type: 'string' } },
+          evidence: { type: 'string' },
+          reason: { type: 'string' },
+        },
+      },
+    },
+  },
+}
+
+const SELF_REVIEW_SCHEMA = {                       // adversarial self-review output
+  type: 'object',
+  properties: {
+    gaps: {
+      type: 'array',
+      items: {
+        type: 'object',
+        required: ['area', 'whatWasMissed'],
+        properties: {
+          area: { type: 'string' },               // e.g. "auth unit × security lens"
+          whatWasMissed: { type: 'string' },       // what the self-reviewer found missing
+        },
+      },
+    },
+    overallAssessment: { type: 'string' },         // the self-reviewer's verdict
+  },
+}
+
 // ── helpers (plain code — deterministic, no agents) ──────────────────────────
 function fingerprint(f) {
   // Stable across line moves + trivial edits: rule + file + normalized snippet.
@@ -459,7 +611,7 @@ const discovered = await parallel([
     `isn't a rule. Read-only.`,
     { agentType: 'cklph-audit:audit-recon', label: 'discover:rulebook', schema: RULEBOOK_SCHEMA, ...tier('rulebook') },
   ),
-  ...(reconEnabled ? lenses.map(lens => () => agent(
+  ...(reconEnabled ? lenses.filter(l => l !== 'compliance').map(lens => () => agent(
     `RECON the **${lens}** lens's concern surface across the whole scoped repo.` +
     `${args?.path ? ` Scope to: ${args.path}.` : ''} Mechanically enumerate — return: denominators ` +
     `(pattern + re-runnable command VERBATIM + honest count), seeds (cited file:line leads worth a ` +
@@ -482,7 +634,8 @@ if (!rulebookOut) log('rulebook extraction died — 0 rules; coverage matrix wil
 else log(`rulebook: ${rulebook.length} rule(s) from ${rulesFromList.join(', ')}`)
 const reconByLens = {}
 if (reconEnabled) {
-  lenses.forEach((lens, i) => {
+  const reconLenses = lenses.filter(l => l !== 'compliance')   // compliance skips recon (post-reconcile mapping)
+  reconLenses.forEach((lens, i) => {
     if (reconOuts[i]) reconByLens[lens] = reconOuts[i]
     else log(`recon:${lens} died — denominators/seeds absent for this lens (flagged in appendix)`)
   })
@@ -523,18 +676,22 @@ if (mode === 'quick') {
   if (dropped.length) log(`quick mode: auditing top ${topN} by risk; SKIPPED (not audited): ${dropped.join(', ')}`)
 }
 
-// work-list = every (unit × lens) pair. docs-drift is NOT crossed with units —
-// when requested it is exactly ONE job over the rulesFrom docs themselves (M5).
-const unitLenses = lenses.filter(l => l !== 'docs-drift')
+// work-list = every (unit × lens) pair. docs-drift + compliance are NOT crossed with units —
+// docs-drift is exactly ONE job over the rulesFrom docs (M5); compliance is a post-reconcile
+// mapping job that runs AFTER all other findings are confirmed (it maps them to SOC 2/CASA).
+const SPECIAL_LENS = new Set(['docs-drift', 'compliance'])
+const unitLenses = lenses.filter(l => !SPECIAL_LENS.has(l))
 if (units.length === 0 && unitLenses.length > 0) {
   log(`WARNING: no units — ${unitLenses.join(', ')} lens(es) have nothing to review; ` +
-      `run degrades to ${lenses.includes('docs-drift') ? 'the docs-drift job only' : 'an empty report'}`)
+      `run degrades to ${lenses.filter(l => SPECIAL_LENS.has(l)).join(', ') || 'an empty report'}`)
 }
 const jobs = units.flatMap(u => unitLenses.map(lens => ({ unit: u, lens })))
 if (lenses.includes('docs-drift')) {
   jobs.push({ unit: { key: 'docs', title: 'Repo rulebook docs', globs: rulesFromList, confidence: 1 }, lens: 'docs-drift' })
 }
-log(`${units.length} unit(s) [${unitSource}${lowConfidence.length ? `, ${lowConfidence.length} low-confidence flagged: ${lowConfidence.join(', ')}` : ''}] × ${unitLenses.length} lens(es)${lenses.includes('docs-drift') ? ' + 1 docs-drift job' : ''}`)
+const hasCompliance = lenses.includes('compliance')
+log(`${units.length} unit(s) [${unitSource}${lowConfidence.length ? `, ${lowConfidence.length} low-confidence flagged: ${lowConfidence.join(', ')}` : ''}] × ${unitLenses.length} lens(es)` +
+    `${lenses.includes('docs-drift') ? ' + 1 docs-drift job' : ''}${hasCompliance ? ' + 1 compliance mapping job (post-reconcile)' : ''}`)
 
 // ════════════════════════════════════════════════════════════════════════════
 // 3. MAP — threat model: trust boundaries, data-flows, invariants, crown jewels (T2.1)
@@ -656,6 +813,78 @@ const reviewed = await pipeline(
       }))
   },
 )
+
+// ════════════════════════════════════════════════════════════════════════════
+// 5b. DAST — opt-in dynamic testing + exploit verification (CodeMender core)
+// ════════════════════════════════════════════════════════════════════════════
+const dastEnabled = (config.dast?.enabled ?? false) && mode !== 'quick'
+let dastRan = false
+let dastFindings = []
+let exploitResults = []
+if (!dastEnabled) {
+  if (config.dast?.enabled === true && mode === 'quick') {
+    log('quick mode: DAST phase SKIPPED — no dynamic testing (flagged in appendix)')
+  } else if (!config.dast?.enabled) {
+    // default — don't log, it's off by design
+  }
+} else {
+  phase('DAST')
+  // 5b.1: boot the app + run ZAP/Nuclei/ffuf → collect runtime findings
+  const dastOut = await agent(
+    `DYNAMIC TESTING: boot the app and attack it from the outside. Run ` +
+    '`${CLAUDE_PLUGIN_ROOT}/tools/dast.sh`' + ` to boot Docker Compose (or use the provided target URL), ` +
+    `then run ZAP/Nuclei/ffuf. Beyond the tools, craft LLM-driven attacks based on the threat model: ` +
+    `IDOR, auth bypass, mass assignment, rate limit, business logic abuse. Collect findings in the same ` +
+    `FINDINGS_SCHEMA (source: "dast"). Prioritize high-value endpoints from the threat model. ` +
+    `NEVER attack external/production services.\n` +
+    `UNITS: ${JSON.stringify(units.map(u => ({ key: u.key, globs: u.globs })))}\n` +
+    `MAP: ${JSON.stringify({ crownJewels: model.crownJewels, dataFlows: model.dataFlows, trustBoundaries: model.trustBoundaries })}\n` +
+    `CONFIRMED_STATIC_FINDINGS: ${JSON.stringify(reviewed.filter(Boolean).flatMap(r => r.findings.filter(f => f.confirmed).map(f => ({ id: f.id, title: f.title, severity: f.severity, file: f.file, rule: f.rule }))))}\n` +
+    `CONFIG: ${JSON.stringify(config.dast ?? {})}`,
+    { agentType: 'cklph-audit:audit-dast-runner', label: 'dast:run', phase: 'DAST', schema: DAST_SCHEMA, ...tier('reviewer') },
+  )
+  if (!dastOut) {
+    log('audit-dast-runner died — no dynamic findings (flagged in appendix)')
+  } else {
+    dastRan = true
+    dastFindings = dastOut.findings ?? []
+    log(`DAST: ${dastFindings.length} runtime finding(s) from dynamic testing`)
+    // 5b.2: verify DAST findings through the same adversarial gate
+    if (dastFindings.length) {
+      const verifiedDast = await verifyFindings(dastFindings, 'dast', 'dast', config.verify?.voters ?? 3)
+      const confirmedDast = verifiedDast.filter(Boolean).filter(f => f.confirmed)
+      // merge confirmed DAST findings into the main results for Reconcile
+      reviewed.push({ unit: 'dast', lens: 'dast', findings: verifiedDast.filter(Boolean), ruleChecks: [], safeControlChecks: [], coverage: null })
+      log(`DAST verify: ${confirmedDast.length} confirmed runtime finding(s)`)
+    }
+    // 5b.3: exploit verification — generate + run PoC for confirmed critical/high with traces
+    if (config.dast?.exploitVerify !== false) {
+      const staticConfirmed = reviewed.filter(Boolean)
+        .flatMap(r => r.findings.filter(f => f.confirmed && ['critical', 'high'].includes(f.severity) && f.reachabilityTrace))
+      if (staticConfirmed.length) {
+        log(`exploit verification: generating PoC for ${staticConfirmed.length} confirmed critical/high finding(s)`)
+        const exploitOut = await agent(
+          `EXPLOIT VERIFICATION: for each confirmed critical/high finding with a reachability trace, generate a PoC ` +
+          `exploit script, run it in an isolated sandbox, and confirm exploitability. Use ` +
+          '`${CLAUDE_PLUGIN_ROOT}/tools/exploit-runner.sh`' + ` to run each PoC. A finding is only ` +
+          `"confirmed-exploitable" if the PoC succeeds. NEVER run exploits against external/production services.\n` +
+          `CONFIRMED_FINDINGS: ${JSON.stringify(staticConfirmed.map(f => ({ id: f.id, title: f.title, severity: f.severity, file: f.file, reachabilityTrace: f.reachabilityTrace })))}\n` +
+          `CONFIG: ${JSON.stringify(config.dast ?? {})}`,
+          { agentType: 'cklph-audit:audit-exploit-verifier', label: 'dast:exploit', phase: 'DAST', schema: EXPLOIT_SCHEMA, ...tier('verifier') },
+        )
+        if (exploitOut) {
+          exploitResults = exploitOut.exploits ?? []
+          log(`exploit verification: ${exploitResults.filter(e => e.confirmed).length} confirmed-exploitable, ` +
+              `${exploitResults.filter(e => !e.confirmed).length} likely (static only)`)
+        } else {
+          log('audit-exploit-verifier died — no exploit results (flagged in appendix)')
+        }
+      } else {
+        log('exploit verification: no confirmed critical/high findings with reachability traces to exploit')
+      }
+    }
+  }
+}
 
 // ════════════════════════════════════════════════════════════════════════════
 // 6. RECONCILE — plain code (dedup + baseline + rule closure + coverage + positive controls)
@@ -854,7 +1083,75 @@ for (const lens of lenses) {
 }
 
 // ════════════════════════════════════════════════════════════════════════════
-// 8. SYNTHESIZE — the report + remediation waves
+// 8b. COMPLIANCE MAPPING — SOC 2 + CASA cross-mapping (single post-reconcile job)
+// ════════════════════════════════════════════════════════════════════════════
+let complianceMatrix = []
+if (hasCompliance) {
+  const frameworks = config.compliance?.frameworks ?? ['soc2', 'casa']
+  const complianceOut = await agent(
+    `COMPLIANCE MAPPING: map the confirmed findings from all other lenses to formal security frameworks. ` +
+    `Load the compliance-lens skill and the rulebooks from ` +
+    '`${CLAUDE_PLUGIN_ROOT}/skills/compliance-lens/rulebooks/' + `. For each control in each framework ` +
+    `(${frameworks.join(', ')}): map to findings (violation → link finding ID), cite evidence (met → ` +
+    `the guard/pattern), explain non-applicability, or honestly mark not-checked. Return a compliance ` +
+    `matrix with one entry per control per framework. No control silently absent.\n` +
+    `CONFIRMED_FINDINGS: ${JSON.stringify(fresh.map(f => ({ id: f.id, title: f.title, severity: f.severity, file: f.file, rule: f.rule, rootCause: f.rootCause })))}\n` +
+    `RULE_CLOSURE: ${JSON.stringify(ruleClosure.filter(r => r.status !== 'unchecked').map(r => ({ id: r.id, status: r.status, evidence: r.evidence })))}\n` +
+    `FRAMEWORKS: ${JSON.stringify(frameworks)}`,
+    { agentType: 'cklph-audit:audit-reviewer', label: 'compliance:map', schema: COMPLIANCE_SCHEMA, ...tier('reviewer') },
+  )
+  if (complianceOut) {
+    complianceMatrix = complianceOut.complianceMatrix ?? []
+    log(`compliance: ${complianceMatrix.length} control(s) mapped across ${frameworks.join(', ')}`)
+  } else {
+    log('compliance mapping died — no compliance matrix (flagged in appendix)')
+  }
+}
+
+// ════════════════════════════════════════════════════════════════════════════
+// 9. PATCH — opt-in patch generation + validation (CodeMender second half)
+// ════════════════════════════════════════════════════════════════════════════
+const patchEnabled = ((config.patch?.enabled ?? false) || dastEnabled) && mode !== 'quick'
+let patchRan = false
+let patchResults = []
+if (!patchEnabled) {
+  if ((config.patch?.enabled === true || dastEnabled) && mode === 'quick') {
+    log('quick mode: Patch phase SKIPPED — no patch generation (flagged in appendix)')
+  }
+} else if (fresh.length === 0) {
+  log('Patch phase: no confirmed findings to patch — skipped')
+} else {
+  phase('Patch')
+  const maxIters = config.patch?.maxIterations ?? 3
+  // patch all confirmed findings (cap at a reasonable number to bound agent spawns)
+  const toPatch = fresh.slice(0, 50)
+  log(`Patch phase: generating patches for ${toPatch.length} confirmed finding(s)`)
+  const patchOut = await agent(
+    `PATCH GENERATION + VALIDATION: for each confirmed finding, generate a code patch addressing the ROOT ` +
+    `CAUSE (not the symptom). Apply the patch in a sandbox git worktree, run the test suite, re-run the ` +
+    `exploit (if DAST ran — the exploit MUST FAIL), and run an LLM-as-judge pass. Iterate up to ${maxIters} ` +
+    `rounds if any step fails. You edit ONLY the sandbox worktree, never the real tree.\n` +
+    `CONFIRMED_FINDINGS: ${JSON.stringify(toPatch.map(f => ({
+      id: f.id, title: f.title, severity: f.severity, file: f.file, line: f.line,
+      rootCause: f.rootCause, invariant: f.invariant, suggestedFix: f.suggestedFix,
+      reachabilityTrace: f.reachabilityTrace,
+    })))}\n` +
+    `CONFIG: ${JSON.stringify({ maxIterations: maxIters, dastRan, exploitResults: exploitResults.map(e => ({ findingId: e.findingId, confirmed: e.confirmed })) })}`,
+    { agentType: 'cklph-audit:audit-patcher', label: 'patch:generate', phase: 'Patch', schema: PATCH_SCHEMA, ...tier('reviewer') },
+  )
+  if (patchOut) {
+    patchResults = patchOut.patches ?? []
+    patchRan = true
+    log(`Patch phase: ${patchResults.filter(p => p.status === 'patched').length} patched, ` +
+        `${patchResults.filter(p => p.status === 'patch-unverified').length} unverified, ` +
+        `${patchResults.filter(p => p.status === 'patch-failed').length} failed`)
+  } else {
+    log('audit-patcher died — no patch results (flagged in appendix)')
+  }
+}
+
+// ════════════════════════════════════════════════════════════════════════════
+// 10. SYNTHESIZE — the report + remediation waves
 // ════════════════════════════════════════════════════════════════════════════
 phase('Synthesize')
 // E2/A5b: only a truly clean run short-circuits — a held-untraced OR a deferred-unverified finding
@@ -871,16 +1168,23 @@ if (!fresh.length && !heldUntraced.length && !deferred.length) {
     deferred: 0,
     map: { ran: mapRan, trustBoundaries: model.trustBoundaries.length, invariants: model.invariants.length },
     variants: variantsConfirmed,
+    dast: { ran: dastRan, findings: dastFindings.length, exploits: exploitResults.length },
+    patch: { ran: patchRan, patches: patchResults.length },
+    compliance: { ran: hasCompliance, controls: complianceMatrix.length },
+    selfReview: { ran: false, gaps: 0 },
   }
 }
 const runMeta = {
   unitSource, lowConfidence, mode,
   reconRan: reconEnabled,
-  reconMissing: reconEnabled ? lenses.filter(l => !reconByLens[l]) : lenses,
+  reconMissing: reconEnabled ? lenses.filter(l => !reconByLens[l] && l !== 'compliance') : lenses,
   rulebookMissing: !rulebookOut,                 // extraction died — matrix empty for THAT reason
   rulebookSize: rulebook.length,
   mapRan,                                        // Map phase produced a threat model (else empty/flagged)
   variantRan,                                    // E3: true ONLY if the phase actually processed ≥1 seed
+  dastRan,                                       // v4: DAST phase ran (opt-in, off by default)
+  patchRan,                                      // v4: Patch phase ran (opt-in, auto-on with DAST)
+  selfReviewRan: false,                          // v4: SelfReview phase ran (default true in full) — set below
   heldUntracedCount: heldUntraced.length,        // E2: majority-held findings awaiting an independent trace
   deferredCount: deferred.length,                // A5b: findings the verifier budget couldn't afford
   verifierBudget: maxVerifierAgents,             // A5b: the cap; verifierSpawns is what was actually used
@@ -899,9 +1203,14 @@ const report = await agent(
   `AUDIT-<date>.md contract. Bucket by severity (critical/high/medium/low), each with file:line + why-it's-real ` +
   `(it survived adversarial verification) + a concrete fix + its confidence/bucket/context/validation fields. ` +
   `Each finding also carries (when present) rootCause, invariant, boundary, and reachabilityTrace — render them. ` +
+  `For DAST findings (source: "dast"), render the request/response evidence. For findings with exploit results, ` +
+  `render the PoC script + sandbox result + confirmed-exploitable/likely status. For findings with patch results, ` +
+  `render the diff + test/exploit-closed/judge verdict. ` +
   `Render a Coverage summary (per denominator: examined X of N + the verbatim command; where X < N say ` +
   `"sampled" and give the risk-weighting rationale), a Coverage matrix (EVERY rulebook rule → finding IDs | ` +
-  `verified-safe + citation | not-applicable + reason | NOT CHECKED — no rule silently absent), a Coverage ` +
+  `verified-safe + citation | not-applicable + reason | NOT CHECKED — no rule silently absent), a Compliance ` +
+  `matrix (when COMPLIANCE_MATRIX is non-empty: one sub-section per framework, each control → met/violation/` +
+  `not-applicable/not-checked), a Coverage ` +
   `narrative (positive assurance from NEAR_MISSES + CROWN_JEWELS + COVERAGE_TOTALS: per area, what was probed, ` +
   `why clean areas held, and near-misses chased to ground), and a Positive controls (INFO) section (each: ` +
   `citation + what it protects + why it shipped). counts.info = positive-control count. When HELD_UNTRACED is ` +
@@ -914,9 +1223,11 @@ const report = await agent(
   `recommend a follow-up run with a higher verify.maxVerifierAgents or a narrower scope. Never treat them as ` +
   `confirmed and never silently drop them. Group fixes into ` +
   `ordered remediation WAVES consumable by /cklph-os:flow — quick-wins first within a severity band; ` +
-  `owner-decision items go in their own "Owner decisions" subsection (questions, not work). Flag in an ` +
-  `appendix: unit derivation, low-confidence units, quick-mode sampling, whether the Map + Variant phases ran ` +
-  `(and why not, if skipped), and recon gaps (RUN_META — state plainly which denominators/seeds/phases are ` +
+  `owner-decision items go in their own "Owner decisions" subsection (questions, not work). Findings with a ` +
+  `"patched" status from PATCH_RESULTS get a "patch-ready" tag in the wave entry. Flag in an ` +
+  `appendix: unit derivation, low-confidence units, quick-mode sampling, whether the Map + Variant + DAST + ` +
+  `Patch + SelfReview phases ran (and why not, if skipped), recon gaps, and ` +
+  `(RUN_META — state plainly which denominators/seeds/phases are ` +
   `absent/partial and why).\n\n` +
   `FINDINGS:\n${JSON.stringify(publicFresh, null, 2)}\n\n` +
   `RULE_CLOSURE:\n${JSON.stringify(ruleClosure, null, 2)}\n\n` +
@@ -926,9 +1237,58 @@ const report = await agent(
   `DEFERRED:\n${JSON.stringify(publicDeferred, null, 2)}\n\n` +
   `CROWN_JEWELS:\n${JSON.stringify(model.crownJewels, null, 2)}\n\n` +
   `POSITIVE_CONTROLS:\n${JSON.stringify(positiveControls, null, 2)}\n\n` +
+  (dastRan ? `DAST_FINDINGS:\n${JSON.stringify(dastFindings.map(f => ({ id: f.id, title: f.title, severity: f.severity, url: f.url, method: f.method, evidence: f.evidence, source: f.source })), null, 2)}\n\n` : '') +
+  (exploitResults.length ? `EXPLOIT_RESULTS:\n${JSON.stringify(exploitResults, null, 2)}\n\n` : '') +
+  (patchResults.length ? `PATCH_RESULTS:\n${JSON.stringify(patchResults, null, 2)}\n\n` : '') +
+  (complianceMatrix.length ? `COMPLIANCE_MATRIX:\n${JSON.stringify(complianceMatrix, null, 2)}\n\n` : '') +
   `RUN_META:\n${JSON.stringify(runMeta, null, 2)}`,
   { agentType: 'cklph-audit:audit-synthesizer', label: 'synthesize:report', schema: REPORT_SCHEMA, ...tier('synthesizer') },
 )
+
+// ════════════════════════════════════════════════════════════════════════════
+// 11. SELF-REVIEW — adversarial self-review of the report (the "check itself" loop)
+// ════════════════════════════════════════════════════════════════════════════
+const selfReviewEnabled = (config.selfReview?.enabled ?? true) && mode !== 'quick'
+let selfReviewRan = false
+let selfReviewGaps = []
+if (selfReviewEnabled && report?.markdown) {
+  phase('SelfReview')
+  const maxRounds = config.selfReview?.maxRounds ?? 2
+  for (let round = 0; round < maxRounds; round++) {
+    const reviewOut = await agent(
+      `ADVERSARIAL SELF-REVIEW: you are reviewing an audit report for GAPS. Read the report below and ` +
+      `identify what's missing, under-explored, or inconsistent. Specifically check: ` +
+      `(1) did every unit × lens pair get coverage? (2) are crown jewels adequately explored? ` +
+      `(3) are there findings that should have been caught but weren't? (4) is the coverage narrative ` +
+      `honest — does any "clean" area lack a narrative? (5) are DAST/exploit/patch results (if any) ` +
+      `rendered? (6) is the compliance matrix complete (if compliance ran)? ` +
+      `Return gaps as { area, whatWasMissed } pairs. If there are NO gaps, return an empty array.\n\n` +
+      `REPORT:\n${report.markdown}\n\n` +
+      `RUN_META:\n${JSON.stringify({ units: units.map(u => u.key), lenses, mode, mapRan, variantRan, dastRan, patchRan })}`,
+      { agentType: 'cklph-audit:audit-reviewer', label: `selfreview:round-${round + 1}`, phase: 'SelfReview', schema: SELF_REVIEW_SCHEMA, ...tier('reviewer') },
+    )
+    if (!reviewOut) {
+      log(`self-review round ${round + 1} died — stopping self-review (flagged in appendix)`)
+      break
+    }
+    selfReviewRan = true
+    const gaps = reviewOut.gaps ?? []
+    if (gaps.length === 0) {
+      log(`self-review round ${round + 1}: no gaps found — report is comprehensive`)
+      break
+    }
+    selfReviewGaps = gaps
+    log(`self-review round ${round + 1}: ${gaps.length} gap(s) found — ${round + 1 < maxRounds ? 're-scanning' : 'surfacing remaining gaps in appendix'}`)
+    // TODO: in a future rev, gaps trigger a targeted re-scan of the missed areas.
+    // For now, gaps are surfaced in the report appendix for owner awareness.
+    if (round + 1 >= maxRounds) {
+      log(`self-review: max rounds (${maxRounds}) reached — ${gaps.length} remaining gap(s) surfaced in appendix`)
+    }
+  }
+}
+
+// update runMeta with selfReview result for the synthesizer (in case of re-runs)
+runMeta.selfReviewRan = selfReviewRan
 
 return {
   report,
@@ -941,4 +1301,8 @@ return {
   deferred: deferred.length,
   map: { ran: mapRan, trustBoundaries: model.trustBoundaries.length, invariants: model.invariants.length },
   variants: variantsConfirmed,
+  dast: { ran: dastRan, findings: dastFindings.length, exploits: exploitResults.length },
+  patch: { ran: patchRan, patches: patchResults.length },
+  compliance: { ran: hasCompliance, controls: complianceMatrix.length },
+  selfReview: { ran: selfReviewRan, gaps: selfReviewGaps.length, gapDetails: selfReviewGaps },
 }

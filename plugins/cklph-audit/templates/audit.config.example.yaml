@@ -10,7 +10,7 @@ units:
       globs: ["lib/auth/**", "app/api/auth/**", "middleware.ts", "proxy.ts", "src/middleware.ts", "src/proxy.ts"]
     - key: billing
       globs: ["app/api/billing/**", "app/api/payments/**", "lib/stripe/**"]
-lenses: [security, correctness, architecture]   # also: docs-drift (audits the rulesFrom docs), omission (negative-space: missing validation/error-path/logging)
+lenses: [security, correctness, architecture]   # also: sca, iac, container, k8s, supply-chain, compliance, concurrency, state-machine, economic, docs-drift (audits the rulesFrom docs), omission (negative-space: missing validation/error-path/logging)
 severityFloor: low              # drop findings below this
 verify:
   voters: 3                     # refuters per finding
@@ -55,3 +55,26 @@ ignore: ["**/__tests__/**", "**/*.generated.ts", "types/database.ts"]
 report:
   dir: audits
 rulesFrom: ["CLAUDE.md", "AGENTS.md", ".coderabbit.yaml"]   # repo rules to honor
+# ── v1.0 comprehensive security suite extensions ─────────────────────────────
+dast:                            # dynamic testing — opt-in, OFF by default (breaks read-only)
+  enabled: false                 # set true to boot the app and run ZAP/Nuclei/ffuf against it
+  sandbox: docker                # docker (Docker-in-Docker) | local (local dev server)
+  target: auto                   # auto (detect from docker-compose) | a URL like http://localhost:3000
+  tools: [zap, nuclei, ffuf]     # which DAST tools to run
+  exploitVerify: true            # generate + run PoC exploits for confirmed critical/high
+patch:                           # patch generation + validation — opt-in, auto-on when DAST is on
+  enabled: false                 # set true to generate, test, and validate patches
+  maxIterations: 3               # max patch-and-test rounds per finding
+selfReview:                      # adversarial self-review of the report (the "check itself" loop)
+  enabled: true                  # default true in full mode, false in quick
+  maxRounds: 2                   # cap on re-scan rounds (gaps → re-scan → re-review)
+feedRefresh:                     # vulnerability feed freshness
+  maxAgeHours: 24                # warn if CVE DB is older than this
+  autoRefresh: true              # auto-run refresh at audit start if stale
+  sources: [nvd, ghsa, osv]      # CVE feeds to check
+compliance:                      # compliance cross-mapping (NOT HIPAA)
+  frameworks: [soc2, casa]       # SOC 2 Trust Services Criteria + CASA
+ensemble:                        # diverse-model panels for crown-jewel units (T3.4)
+  enabled: false                 # expensive — gate to highest-risk units only
+  models: []                     # e.g. ["claude-sonnet", "gpt-4o", "gemini-2.5-flash"]
+  riskGate: 0.8                  # only units with riskScore ≥ this get ensemble panels

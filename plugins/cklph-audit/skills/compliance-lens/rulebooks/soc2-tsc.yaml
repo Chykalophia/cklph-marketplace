@@ -1,0 +1,136 @@
+# SOC 2 Trust Services Criteria — compliance rulebook for the compliance lens.
+# Each entry is a discrete control the reviewer maps findings against.
+# NOT HIPAA — this is SOC 2 only.
+# Source: AICPA Trust Services Criteria (2017, with 2022 revisions).
+
+version: 1
+framework: soc2
+name: "SOC 2 Trust Services Criteria"
+
+controls:
+  # ── Common Criteria (CC1-CC9) ─────────────────────────────────────────────
+  - id: soc2:CC1.1
+    text: "The entity demonstrates commitment to integrity and ethical values"
+    lensHint: "architecture,docs-drift"
+    severity: low
+
+  - id: soc2:CC1.5
+    text: "The entity enforces accountability for adherence to system security policies"
+    lensHint: "security,supply-chain"
+    severity: medium
+
+  - id: soc2:CC2.1
+    text: "The entity communicates security information internally and externally"
+    lensHint: "security,correctness"
+    severity: low
+
+  - id: soc2:CC2.3
+    text: "The entity assesses and communicates security events to internal and external stakeholders"
+    lensHint: "security,correctness"
+    severity: medium
+
+  - id: soc2:CC3.2
+    text: "The entity identifies risks to the achievement of its objectives and analyzes risks as a basis for determining how risks should be managed"
+    lensHint: "security,iac,container,k8s"
+    severity: medium
+
+  - id: soc2:CC3.4
+    text: "The entity identifies and manages changes that could significantly impact the system"
+    lensHint: "supply-chain,architecture"
+    severity: medium
+
+  - id: soc2:CC4.1
+    text: "The entity detects deviations from security policies and procedures and responds to them"
+    lensHint: "security,correctness,concurrency"
+    severity: medium
+
+  - id: soc2:CC5.1
+    text: "The entity selects and develops control activities that mitigate risks to acceptable levels"
+    lensHint: "security,iac,container,k8s,supply-chain"
+    severity: medium
+
+  - id: soc2:CC5.2
+    text: "The entity selects and develops general control activities over technology to support the achievement of objectives"
+    lensHint: "security,iac,container,k8s"
+    severity: medium
+
+  - id: soc2:CC6.1
+    text: "The entity implements logical access controls over infrastructure and software to protect assets from unauthorized access"
+    lensHint: "security,iac,k8s"
+    severity: high
+
+  - id: soc2:CC6.2
+    text: "The entity transmits and disposes of assets in a manner that prevents unauthorized access"
+    lensHint: "security,container"
+    severity: high
+
+  - id: soc2:CC6.3
+    text: "The entity authorizes, modifies, or removes access to data, software, functions, and other protected resources"
+    lensHint: "security,k8s"
+    severity: high
+
+  - id: soc2:CC6.6
+    text: "The entity implements logical access controls over infrastructure and software"
+    lensHint: "security,iac,container,k8s"
+    severity: high
+
+  - id: soc2:CC6.7
+    text: "The entity restricts access to assets and components to authorized users"
+    lensHint: "security,iac,k8s"
+    severity: high
+
+  - id: soc2:CC6.8
+    text: "The entity implements controls to prevent or detect unauthorized software"
+    lensHint: "supply-chain,container"
+    severity: medium
+
+  - id: soc2:CC7.1
+    text: "The entity detects or monitors for vulnerabilities and misconfigurations"
+    lensHint: "sca,security,iac,container,k8s"
+    severity: high
+
+  - id: soc2:CC7.2
+    text: "The entity monitors system components to identify potential security events"
+    lensHint: "security,iac,correctness"
+    severity: medium
+
+  - id: soc2:CC7.3
+    text: "The entity evaluates security events to determine whether they are security incidents"
+    lensHint: "security,correctness"
+    severity: medium
+
+  - id: soc2:CC7.4
+    text: "The entity responds to identified security incidents by executing a defined incident response program"
+    lensHint: "security,correctness,state-machine"
+    severity: medium
+
+  - id: soc2:CC7.5
+    text: "The entity identifies, develops, and performs activities to recover from identified security incidents"
+    lensHint: "correctness,state-machine"
+    severity: medium
+
+  - id: soc2:CC8.1
+    text: "The entity authorizes, designs, develops, configures, tests, and approves changes before implementation"
+    lensHint: "supply-chain,architecture,correctness"
+    severity: medium
+
+  - id: soc2:CC9.1
+    text: "The entity identifies, selects, and develops risk mitigation activities for risks arising from potential business disruptions"
+    lensHint: "container,k8s,iac"
+    severity: medium
+
+  - id: soc2:CC9.2
+    text: "The entity protects sensitive information from unauthorized access during its lifecycle"
+    lensHint: "security,container"
+    severity: high
+
+  # ── Confidentiality (C1) ──────────────────────────────────────────────────
+  - id: soc2:C1.1
+    text: "The entity identifies and maintains confidential information"
+    lensHint: "security,correctness"
+    severity: medium
+
+  - id: soc2:C1.2
+    text: "The entity protects confidential information during its lifecycle"
+    lensHint: "security,container,iac"
+    severity: high
