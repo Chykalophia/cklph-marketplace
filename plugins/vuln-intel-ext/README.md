@@ -1,0 +1,36 @@
+# vuln-intel-ext
+
+Sidecar MCP server extending [cve-mcp](https://github.com/badchars/cve-mcp) with diff-since-last-scan, dependency snapshots, feed status, and WordPress vulnerability lookup.
+
+## Tools
+
+| Tool | Description |
+|---|---|
+| `save_dependency_snapshot` | Save a named dependency list so `diff_since` can track what's new for your specific dependencies. |
+| `diff_since` | Query OSV.dev for all your dependencies and return only what's NEW, MODIFIED, or WITHDRAWN since a given timestamp. |
+| `feed_status` | Check OSV API reachability and last scan freshness. |
+| `wp_scan` | WordPress core/plugin/theme vulnerability lookup via WPScan API (24h cached). Requires `WPSCAN_TOKEN`. |
+
+## Setup
+
+On first use, the wrapper script (`scripts/start.sh`) automatically runs `npm install` to fetch the native `better-sqlite3` dependency. This requires Node.js 18+ and a C compiler (present by default on macOS/Linux).
+
+### Environment Variables
+
+| Variable | Required | Description |
+|---|---|---|
+| `WPSCAN_TOKEN` | No | WPScan API token for WordPress lookups. Get one at [wpscan.com/api](https://wpscan.com/api/). |
+| `VULN_INTEL_DB_PATH` | No | Custom SQLite path. Defaults to `~/.vuln-intel-ext/snapshot.db`. |
+
+## Relationship to cve-mcp
+
+Run both plugins together. Use `cve-mcp` for CVE details, EPSS scores, KEV checks, exploit search. Use `vuln-intel-ext` for "what changed since my last scan" diffs and WordPress lookups.
+
+## Data Sources
+
+- **[OSV.dev](https://osv.dev)** — 30+ ecosystems, no API key, no rate limits. Powers `diff_since`.
+- **[WPScan](https://wpscan.com)** — WordPress vulnerability database. Powers `wp_scan`.
+
+## License
+
+MIT

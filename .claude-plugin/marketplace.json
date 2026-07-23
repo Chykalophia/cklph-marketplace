@@ -76,6 +76,12 @@
       "source": "./plugins/cro-research-reporting",
       "description": "Audit conversion funnels, run deep sourced research, write conversion copy and outbound/positioning, and produce render-safe reports + annotated redesign blueprints. Chykalophia CRO toolkit.",
       "category": "marketing"
+    },
+    {
+      "name": "vuln-intel-ext",
+      "source": "./plugins/vuln-intel-ext",
+      "description": "Sidecar MCP server extending cve-mcp with diff_since (what new CVEs hit my deps since my last scan), dependency snapshots, feed status, and WordPress vulnerability lookup. Powered by OSV.dev (30+ ecosystems, no API key required).",
+      "category": "quality"
     }
   ]
 }

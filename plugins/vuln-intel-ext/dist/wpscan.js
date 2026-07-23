@@ -1,0 +1,56 @@
+import { getWPScanCache, setWPScanCache } from "./db.js";
+const WPSCAN_API = "https://api.wpscan.com/api/v3";
+const CACHE_TTL_HOURS = 24;
+export async function lookup(type, name, version) {
+    const cached = getWPScanCache(type, name, version);
+    if (cached) {
+        const cacheAge = Date.now() - new Date(cached.cached_at).getTime();
+        const maxAge = CACHE_TTL_HOURS * 60 * 60 * 1000;
+        if (cacheAge < maxAge) {
+            return {
+                vulnerabilities: cached.data,
+                cached: true,
+                cached_at: cached.cached_at,
+            };
+        }
+    }
+    const token = process.env.WPSCAN_TOKEN;
+    if (!token) {
+        return {
+            vulnerabilities: [],
+            cached: false,
+        };
+    }
+    const path = type === "core"
+        ? `/wordpresses/${name}`
+        : `/${type}s/${name}`;
+    const url = `${WPSCAN_API}${path}`;
+    const resp = await fetch(url, {
+        headers: {
+            Authorization: `Token token=${token}`,
+            Accept: "application/json",
+        },
+    });
+    if (!resp.ok) {
+        if (resp.status === 404) {
+            setWPScanCache(type, name, version, []);
+            return { vulnerabilities: [], cached: false };
+        }
+        throw new Error(`WPScan API returned ${resp.status}: ${await resp.text()}`);
+    }
+    const data = (await resp.json());
+    let vulns = [];
+    if (type === "core") {
+        const versionData = (data[version ?? ""] ?? data);
+        vulns = versionData.vulnerabilities
+            ? Object.values(versionData.vulnerabilities)
+            : [];
+    }
+    else {
+        const pluginData = data;
+        vulns = pluginData.vulnerabilities ? Object.values(pluginData.vulnerabilities) : [];
+    }
+    setWPScanCache(type, name, version, vulns);
+    return { vulnerabilities: vulns, cached: false };
+}
+//# sourceMappingURL=wpscan.js.map
