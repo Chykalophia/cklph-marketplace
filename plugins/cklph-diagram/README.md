@@ -159,7 +159,8 @@ Devicon (MIT).
 
 ## Licence
 
-MIT. See [`LICENSE`](LICENSE) — it carries both the upstream copyright and
-Chykalophia's, because this is a derivative work and the upstream notice has to
-travel with it. Upstream's original file is also preserved verbatim at
-[`LICENSE.upstream`](LICENSE.upstream).
+MIT. [`LICENSE`](LICENSE) carries both the upstream copyright and Chykalophia's,
+because this is a derivative work and the upstream notice has to travel with it.
+[`NOTICE`](NOTICE) records the provenance in full — what came from upstream, what
+this fork added, and the licences of the bundled icon sets. Upstream's original
+licence file is preserved verbatim at [`LICENSE.upstream`](LICENSE.upstream).

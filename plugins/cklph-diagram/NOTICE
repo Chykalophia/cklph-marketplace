@@ -1,0 +1,30 @@
+cklph-diagram
+Copyright (c) 2026 Peter Krzyzek / Chykalophia
+
+This product is a derivative work of:
+
+    diagram-design
+    https://github.com/cathrynlavery/diagram-design
+    commit 3c5c34b
+    Copyright (c) 2025 Cathryn Lavery
+    Licensed under the MIT License
+
+Upstream's licence file is preserved verbatim at LICENSE.upstream. Both
+copyright holders are named in LICENSE, as the MIT terms require.
+
+Inherited from upstream: the editorial design system, the 27 diagram types and
+their reference documents, the draw.io and Mermaid import extractors, the export
+procedure, the templates, and the taste gate.
+
+Added by this fork: the multi-brand token registry and its refusal path,
+mechanically enforced accessibility (rules A1-A8 and scripts/lint-a11y.py), the
+cognitive-load rules (C1-C9), the WCAG contrast library, and CI. FORK-NOTES.md
+records what changed and why, decision by decision.
+
+Third-party icon sources, redistributed under their own terms in
+skills/cklph-diagram/references/primitive-icons.md and assets/icons.html:
+
+    Tabler Icons    MIT     https://github.com/tabler/tabler-icons
+    Simple Icons    CC0     https://github.com/simple-icons/simple-icons
+    log-z/logos     MIT     https://github.com/log-z/logos
+    Devicon         MIT     https://github.com/devicons/devicon
