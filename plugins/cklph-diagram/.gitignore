@@ -1,0 +1,24 @@
+# Client brand files never belong in a public repo. The registry ships with the
+# house brand, the neutral skin, the template, and one synthetic stub; every
+# other brand file is created locally against a real client's design system and
+# stays on the machine that made it.
+#
+# The negations below are what keep the shipped four tracked. If you add a brand
+# for a client, it is ignored on purpose -- do not `git add -f` it.
+skills/cklph-diagram/references/brands/*.md
+!skills/cklph-diagram/references/brands/_default.md
+!skills/cklph-diagram/references/brands/_template.md
+!skills/cklph-diagram/references/brands/_example-stub.md
+!skills/cklph-diagram/references/brands/cklph.md
+
+# Build output and packaging artifacts
+out/
+*.skill
+*.tar.gz
+
+# Python
+__pycache__/
+*.py[cod]
+
+# macOS
+.DS_Store

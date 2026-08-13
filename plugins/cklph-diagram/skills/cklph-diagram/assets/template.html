@@ -1,0 +1,130 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Diagram</title>
+  <link href="https://fonts.googleapis.com/css2?family=Instrument+Serif:ital@0;1&family=Geist:wght@400;500;600&family=Geist+Mono:wght@400;500;600&display=swap" rel="stylesheet">
+  <style>
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+    /* ------------------------------------------------------------------
+       BRAND TOKENS -- replace this whole :root block with the output of:
+
+           python3 scripts/brand-tokens.py <slug>            # light
+           python3 scripts/brand-tokens.py <slug> --mode dark
+
+       The block below is the `_default` neutral skin so this template renders
+       standalone. Do not hand-edit these values for a client -- resolve the
+       brand (SKILL.md section 0) and paste, so the a11y lint can verify what
+       actually shipped.
+       ------------------------------------------------------------------ */
+    :root {
+      --font-display: "Instrument Serif", Georgia, serif;
+      --font-mono: "Geist Mono", monospace;
+      --font-sans: Geist, system-ui, sans-serif;
+      --paper: #f7f5f2;
+      --paper-2: #efece7;
+      --ink: #1c1917;
+      --ink-2: #3f4a5a;
+      --muted: #4a4642;
+      --soft: #6b6660;
+      --rule: rgba(28,25,23,0.14);
+      --rule-solid: #8d877f;
+      --accent: #a8452a;
+      --accent-tint: rgba(168,69,42,0.08);
+      --link: #2d5578;
+      --cat-1: #3f4a5a;
+      --cat-2: #7a5a2a;
+      --cat-3: #2d5578;
+      --cat-4: #8a3a24;
+      --cat-5: #55524d;
+      --seq-1: #eef2f6;
+      --seq-2: #cbdae8;
+      --seq-3: #a3b8cd;
+      --seq-4: #6f8aa8;
+      --seq-5: #42607f;
+      --seq-6: #22384f;
+      --div-neg-2: #8a3a24;
+      --div-neg-1: #c07a5e;
+      --div-mid: #efece7;
+      --div-pos-1: #7f97b3;
+      --div-pos-2: #2b3f57;
+    }
+
+    @media (prefers-contrast: more) {
+      :root {
+        --paper: #ffffff;
+        --ink: #000000;
+        --muted: #000000;
+        --soft: #000000;
+        --rule: rgba(0,0,0,0.55);
+      }
+    }
+
+    body {
+      font-family: var(--font-sans);
+      background: var(--paper);
+      color: var(--ink);
+      min-height: 100vh;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      padding: 3rem 2rem;
+    }
+
+    .frame { max-width: 1200px; width: 100%; }
+
+    .eyebrow {
+      font-family: var(--font-mono);
+      font-size: 0.66rem;
+      font-weight: 500;
+      letter-spacing: 0.18em;
+      text-transform: uppercase;
+      color: var(--muted);
+      margin-bottom: 0.5rem;
+    }
+
+    h1 {
+      font-family: var(--font-display);
+      font-size: clamp(1.5rem, 2.4vw + 0.75rem, 2rem);
+      font-weight: 400;
+      letter-spacing: -0.02em;
+      line-height: 1.15;
+      color: var(--ink);
+      margin-bottom: 1.5rem;
+    }
+
+    svg { width: 100%; min-width: 900px; display: block; }
+  </style>
+</head>
+<body>
+  <div class="frame">
+    <p class="eyebrow">[Type] · Diagram Design</p>
+    <h1>[Diagram title]</h1>
+
+    <!-- Replace [diagram-slug] with a unique slug for this diagram before export. -->
+    <svg viewBox="0 0 1000 600" xmlns="http://www.w3.org/2000/svg" role="img" aria-labelledby="[diagram-slug]-title [diagram-slug]-desc">
+      <title id="[diagram-slug]-title">[Diagram title]</title>
+      <desc id="[diagram-slug]-desc">[One sentence describing what the diagram shows]</desc>
+      <defs>
+        <marker id="arrow" markerWidth="8" markerHeight="6" refX="7" refY="3" orient="auto"><polygon points="0 0, 8 3, 0 6" fill="#4f5d75"/></marker>
+        <marker id="arrow-accent" markerWidth="8" markerHeight="6" refX="7" refY="3" orient="auto"><polygon points="0 0, 8 3, 0 6" fill="#eb6c36"/></marker>
+        <marker id="arrow-link" markerWidth="8" markerHeight="6" refX="7" refY="3" orient="auto"><polygon points="0 0, 8 3, 0 6" fill="#2e5aa8"/></marker>
+
+        <!-- OPTIONAL: dot-pattern background. Uncomment the <pattern> and the second <rect> below if you want the dotted paper look. -->
+        <!--
+        <pattern id="dots" width="22" height="22" patternUnits="userSpaceOnUse">
+          <circle cx="1" cy="1" r="0.9" fill="rgba(45,49,66,0.10)"/>
+        </pattern>
+        -->
+      </defs>
+
+      <rect width="100%" height="100%" fill="#f5f5f5"/>
+      <!-- <rect width="100%" height="100%" fill="url(#dots)" opacity="0.55"/> -->
+
+      <!-- Draw arrows first, then nodes. Replace with your content. -->
+
+    </svg>
+  </div>
+</body>
+</html>

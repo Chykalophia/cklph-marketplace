@@ -1,0 +1,33 @@
+name: verify
+
+# Accessibility that is only checked by hand is accessibility that ships broken
+# the first time someone is in a hurry. This runs the same script a developer
+# runs locally -- ./scripts/verify.sh -- so a green check and a green terminal
+# mean the same thing.
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+  workflow_dispatch:
+
+jobs:
+  verify:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Brand audits, renders, a11y lint, refusal path
+        run: ./scripts/verify.sh
+
+      - name: Upload rendered proofs
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: rendered-diagrams
+          path: out/
+          if-no-files-found: error
