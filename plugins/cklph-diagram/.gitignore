@@ -11,6 +11,10 @@ skills/cklph-diagram/references/brands/*.md
 !skills/cklph-diagram/references/brands/_example-stub.md
 !skills/cklph-diagram/references/brands/cklph.md
 
+# Local-only backup of client brand files taken during an upgrade. Same rule as
+# above: client design systems do not belong in a public repo.
+.local-brands-backup/
+
 # Build output and packaging artifacts
 out/
 *.skill
