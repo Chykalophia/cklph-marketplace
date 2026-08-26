@@ -1,0 +1,29 @@
+plugins/vuln-intel-ext/src/wpscan.ts
+  s_b257cb8f73ecc4::t_75b2206f7bb258 3-7
+plugins/vuln-intel-ext/package.json
+  s_b257cb8f73ecc4::t_796956399e489c 3
+plugins/vuln-intel-ext/.claude-plugin/plugin.json
+  s_b257cb8f73ecc4::t_623e6e062ec5e5 4
+plugins/vuln-intel-ext/dist/wpscan.js
+  s_b257cb8f73ecc4::t_a5126ad4f58430 2-6
+plugins/vuln-intel-ext/dist/wpscan.js.map
+  s_b257cb8f73ecc4::t_a607cc5fc7e677 1
+plugins/vuln-intel-ext/package-lock.json
+  s_b257cb8f73ecc4::t_014d9e7398280b 1-1680
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.24",
+  "base_commit_sha": "be1b34b24a79d2141afb7892127bf50b78928686",
+  "prompts": {},
+  "sessions": {
+    "s_b257cb8f73ecc4": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "1d31b630-6be2-48e4-bbc0-326991131362",
+        "model": "claude-opus-5"
+      },
+      "human_author": "Peter Krzyzek <peter@chykalophia.com>"
+    }
+  }
+}
