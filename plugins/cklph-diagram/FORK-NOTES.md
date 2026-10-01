@@ -1,7 +1,7 @@
 # Fork notes
 
 **Base:** [`cathrynlavery/diagram-design`](https://github.com/cathrynlavery/diagram-design) @ `3c5c34b` (MIT), synced to `57148ac` (upstream 2.6.46) on 2026-10-01
-**Fork:** `cklph-diagram` v3.1-cklph, by Peter Krzyzek / Chykalophia
+**Fork:** `cklph-diagram` v3.2-cklph, by Peter Krzyzek / Chykalophia
 **Status:** Phase 1 complete, upstream sync complete, verified by `./scripts/verify.sh`
 
 This file records what changed from upstream and why, so a future merge from
@@ -141,6 +141,43 @@ from upstream's `.diagram-design` marker:
 
 Precedence is request → marker → house; a request that overrides a marker is
 stated in the confirm-before-drawing line so a stale marker gets noticed.
+
+---
+
+## Lessons from Archify (2026-10-01)
+
+[`tt-a1i/archify`](https://github.com/tt-a1i/archify) (MIT) has the model
+write typed JSON, renders it with a program, and runs one `finalize` command of
+gates ending in real Chrome. We are not an interactive viewer and do not want a
+renderer, so we took the parts that transfer:
+
+- **Source as the authoring format, Claude as the renderer.** Archify keeps its
+  JSON beside the HTML and links them by hash. Here the HTML is the only
+  deliverable, so the source is both a sidecar and embedded, and `check.py`
+  proves they are identical and that the drawing matches.
+- **One command, gates in order, stop at the first failure**, compact
+  findings with fixes, bounded repair, truthful reporting — Archify's
+  `finalize` contract.
+- **Measure in a real browser.** Archify's own browser gate checks overflow and
+  a 6px reading size; ours checks a 12px floor at 375px plus text-in-box,
+  text overlap and labels on nodes, which Archify only estimates statically.
+- **Diff by id; refuse when no ids are shared** (Archify's `compare`).
+- **Folder per request, never overwrite.**
+- **Logo provenance rules** (`brand-marks.md`).
+
+Not taken: the renderer and viewer runtime, JSON Schema + generated validators
+(a stdlib validator is enough until the shape settles), hash-linked delivery
+receipts and atomic-publish plumbing, the 6px floor and shrink-to-fit text,
+mono-only type. Considered next: Archify's layout rules — text-width
+estimation in the source validator, attach points ordered by the far endpoint,
+route-quality floors (segments ≥ 8px, detour cap), and an edge-classification
+placement recipe.
+
+**Known limits.** `match` compares nodes (first rect, texts), edges (endpoints,
+label text), title, desc, canvas and brand; it does not yet compare every
+corner of a route, chart geometry against `data`, or groups. The inherited
+`assets/example-*.html` have no source and fail `check.py` at the first gate —
+the Phase 2 backlog now includes writing their sources.
 
 ---
 

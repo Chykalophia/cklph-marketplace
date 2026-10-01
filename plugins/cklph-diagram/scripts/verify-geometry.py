@@ -54,7 +54,7 @@ NODE_MIN_H = 40.0
 MASK_MIN_W = 20.0
 MASK_MAX_W = 200.0
 MASK_MIN_H = 8.0
-MASK_MAX_H = 14.0
+MASK_MAX_H = 16.0  # this fork floors label text at 12px, so its masks are 16px tall
 EPSILON = 0.5
 
 

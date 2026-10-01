@@ -50,7 +50,10 @@ SI_URL = "https://raw.githubusercontent.com/simple-icons/simple-icons/develop/ic
 SI_CDN_URL = "https://cdn.jsdelivr.net/npm/simple-icons/icons/{slug}.svg"
 LOGZ_URL = "https://raw.githubusercontent.com/log-z/logos/main/website-logos/{name}.svg"
 DEVICON_URL = "https://raw.githubusercontent.com/devicons/devicon/master/icons/{name}/{name}-{variant}.svg"
-# For "url" source: source_id is the full URL; blurb should note license
+# There is deliberately no "url" source any more. Five logos were once fetched
+# straight from vendor sites and logo CDNs with no licence for the SVG file; this
+# repo is public, so it was redistributing them. Only libraries whose licence
+# covers redistribution are allowed (see the License attribution section).
 
 
 # (slot_name, source, source_id, blurb)
@@ -144,9 +147,6 @@ ICONS: dict[str, list[tuple[str, str, str, str]]] = {
     "Data stack": [
         ("nifi",      "simple", "apachenifi",      "Apache NiFi data flow."),
         ("airflow",   "simple", "apacheairflow",   "Apache Airflow scheduler / DAG runner."),
-        ("hop",     "url", "https://hop.apache.org/img/hop-logo.svg",                                                                                    "Apache Hop data orchestration / ETL."),
-        ("pentaho", "url", "https://cdn.worldvectorlogo.com/logos/pentaho-2.svg",                                                                          "Pentaho PDI (Kettle) ETL & data integration."),
-        ("dagster", "url", "https://cdn.prod.website-files.com/681399f654933b29e12fb8bd/6a04996c4dd28c8ad73bbf3d_Dagster%20Icon.svg", "Dagster data orchestration platform."),
         ("trino",     "simple", "trino",           "Trino distributed SQL query engine."),
         ("superset",  "simple", "apachesuperset",  "Apache Superset BI / dashboards."),
         ("redash",    "simple", "redash",          "Redash open-source BI & dashboards."),
@@ -161,8 +161,7 @@ ICONS: dict[str, list[tuple[str, str, str, str]]] = {
     ],
     "Statistical tools": [
         ("spss",    "devicon:plain", "spss",            "IBM SPSS Statistics."),
-        ("sas",     "url", "https://upload.wikimedia.org/wikipedia/commons/1/10/SAS_logo_horiz.svg", "SAS analytics platform."),
-        ("stata",   "url", "https://icon.icepanel.io/Technology/svg/Stata.svg", "Stata statistical software."),
+        ("stata",   "devicon:original-wordmark", "stata", "Stata statistical software (wordmark)."),
         ("rstudio", "devicon:plain", "rstudio",         "RStudio / Posit IDE for R and Python."),
         ("qgis",    "simple",        "qgis",            "QGIS open-source GIS platform."),
     ],
@@ -382,6 +381,19 @@ def build() -> tuple[list[str], list[str]]:
         "Generic icons are stroked (1.5px, hairline, like the rest of the "
         "skill); brand silhouettes are filled. Don't mix the two styles in "
         "the same diagram unnecessarily.\n\n"
+        "## Provenance and logos\n\n"
+        "Every icon below ends with a `Source:` line naming its origin and "
+        "licence, and every source is a library whose licence permits "
+        "redistribution. The licence covers the SVG artwork; a **brand logo is "
+        "still its owner's trademark**, used here only to name the product it "
+        "stands for.\n\n"
+        "- **Use only a logo listed here.** Never draw a lookalike, approximate "
+        "one from memory, or fetch one from a URL. If the product has no entry, "
+        "label the node in text instead.\n"
+        "- **A logo identifies; it never encodes.** It takes `currentColor`, sits "
+        "beside the node's name rather than replacing it, and never stands in for "
+        "the node's type cue or category colour (A1). Brand colours from a logo "
+        "never recolour the node, edge or legend.\n\n"
     )
 
     for category, items in ICONS.items():
@@ -405,9 +417,7 @@ def build() -> tuple[list[str], list[str]]:
                 normalize = normalize_devicon
                 attribution = f"Devicon / `{source_id}-{variant}` (MIT)"
             elif source == "url":
-                normalize = normalize_url
-                domain = re.sub(r"https?://([^/]+)/.*", r"\1", source_id)
-                attribution = f"Direct fetch / `{domain}` — verify license before use"
+                raise ValueError(f"{slot}: direct-fetch logos are not allowed; use a licensed icon set")
             else:
                 raise ValueError(f"unknown source: {source}")
 

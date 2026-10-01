@@ -20,6 +20,8 @@ draw.io, Mermaid and Excalidraw sources; optional accessible motion.
 | **Accessibility** | Contrast checked at onboarding; SVG title/desc linted | Eight rules (A1–A8), most enforced by `lint-a11y.py`, which fails the build |
 | **Cognitive load** | Density budget | Nine rules (C1–C9) — predictable grammar, one reading order, node ceiling, no crossing lines |
 | **Type sizes** | 7–9px mono labels | 12px floor, enforced |
+| **Source of truth** | The HTML | A JSON source (content + placement) beside and inside every HTML; `check.py` fails a drawing that disagrees with it |
+| **Checking** | Static linters | `check.py`: static gates plus measurement in real Chrome at desktop and phone widths |
 | **CI** | — | `./scripts/verify.sh`, run identically in GitHub Actions |
 
 The design tension behind all of it — "vibrant" versus "low sensory load" — is
@@ -118,6 +120,7 @@ skills/cklph-diagram/
 │   ├── prose-alternative.md    the text alternative every diagram ships with
 │   ├── brand-onboarding.md     adding a client brand
 │   ├── brands/                 the registry
+│   ├── diagram-source.md       the JSON every diagram is drawn from
 │   ├── semantic-patterns.md    behavioural patterns, chosen before the type
 │   ├── type-*.md               41 visual types
 │   ├── primitives-core.md      SVG markup, connector rules, in brand tokens
@@ -129,6 +132,10 @@ scripts/
 ├── brand-tokens.py             resolve + audit a brand; the refusal path
 ├── colorlib.py                 WCAG maths, ramp validation
 ├── lint-a11y.py                fails the build on a11y violations
+├── check.py                    one verdict per diagram: source → embed → match → a11y → safety → browser
+├── diagram_source.py           validate / embed / match / diff the JSON source
+├── browser_check.py            measured in headless Chrome at 1440px and 375px
+├── test-check.py               19 planted defects, each caught at the right gate
 ├── self_check.py               single-file safety + accessible-SVG contract
 ├── verify-export.py            an SVG export keeps the brand's tokens and fonts
 ├── verify-geometry.py          label masks never clipped by a later node

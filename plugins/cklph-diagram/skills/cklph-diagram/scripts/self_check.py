@@ -16,6 +16,7 @@ remain the authority for contributions to the repository itself.
 from __future__ import annotations
 
 import argparse
+import json
 import re
 import sys
 from collections import Counter
@@ -324,12 +325,40 @@ def check_svgs(parser: DiagramParser, errors: list[str]) -> None:
             errors.append(f"svg {number} aria-labelledby must name title then desc")
 
 
+SOURCE_SCRIPT_ID = "cklph-diagram-source"
+
+
+def is_source_block(script: dict[str, object]) -> bool:
+    """The embedded diagram source: inert JSON, exactly these two attributes."""
+    attrs = script["attrs"]
+    assert isinstance(attrs, dict)
+    return (
+        script["attr_names"] == ["type", "id"]
+        and attrs.get("type") == "application/json"
+        and attrs.get("id") == SOURCE_SCRIPT_ID
+    )
+
+
 def check_scripts(parser: DiagramParser, errors: list[str]) -> None:
-    if not parser.scripts:
+    # The embedded source (references/diagram-source.md) is data the browser
+    # never executes. Allow exactly one, require it to parse, and hold every
+    # other <script> to the motion-controller rule below.
+    sources = [s for s in parser.scripts if is_source_block(s)]
+    if len(sources) > 1:
+        errors.append(f"at most one embedded diagram source is allowed; found {len(sources)}")
+    for script in sources:
+        body = script["body"]
+        assert isinstance(body, list)
+        try:
+            json.loads("".join(body))
+        except ValueError as exc:
+            errors.append(f"embedded diagram source is not valid JSON: {exc}")
+    executable = [s for s in parser.scripts if not is_source_block(s)]
+    if not executable:
         return
-    if len(parser.scripts) > 1:
-        errors.append(f"at most one script is allowed; found {len(parser.scripts)}")
-    for number, script in enumerate(parser.scripts, 1):
+    if len(executable) > 1:
+        errors.append(f"at most one script is allowed; found {len(executable)}")
+    for number, script in enumerate(executable, 1):
         attrs = script["attrs"]
         attr_names = script["attr_names"]
         body = script["body"]
@@ -347,7 +376,8 @@ def check_scripts(parser: DiagramParser, errors: list[str]) -> None:
 
 
 def check_motion(parser: DiagramParser, source: str, errors: list[str]) -> None:
-    has_motion_markup = bool(parser.roots or parser.items or parser.scripts)
+    scripts = [x for x in parser.scripts if not is_source_block(x)]
+    has_motion_markup = bool(parser.roots or parser.items or scripts)
     if not has_motion_markup:
         return
     if len(parser.roots) != 1:
@@ -394,11 +424,11 @@ def check_motion(parser: DiagramParser, source: str, errors: list[str]) -> None:
     if crowded:
         errors.append(f"no more than two semantic items may share a step; found {crowded}")
 
-    if mode in {"none", "loop"} and parser.scripts:
+    if mode in {"none", "loop"} and scripts:
         errors.append(f"{mode} mode must be script-free")
     if mode in {"none", "loop"} and (parser.controls or parser.actions or parser.statuses):
         errors.append(f"{mode} mode must not expose playback controls or live status")
-    controlled = mode == "step" or (mode == "reveal" and bool(parser.scripts))
+    controlled = mode == "step" or (mode == "reveal" and bool(scripts))
     if controlled:
         if parser.controls != 1:
             errors.append(f"controlled mode needs one in-root control group; found {parser.controls}")
@@ -417,11 +447,11 @@ def check_motion(parser: DiagramParser, source: str, errors: list[str]) -> None:
                 errors.append("motion status needs role=status, aria-live=polite, aria-atomic=true")
             if parser.statuses_in_controls:
                 errors.append("motion status must sit outside data-motion-controls")
-        if not parser.scripts:
+        if not scripts:
             errors.append("controlled mode needs the scoped control script")
 
     style_source = "".join(parser.styles)
-    if parser.scripts:
+    if scripts:
         if re.search(r"prefers-reduced-motion\s*:\s*reduce", style_source, re.IGNORECASE) is None:
             errors.append("missing reduced-motion CSS fallback (prefers-reduced-motion)")
         if re.search(r"@media\s+print\b", style_source, re.IGNORECASE) is None:

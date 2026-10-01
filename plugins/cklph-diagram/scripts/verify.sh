@@ -61,29 +61,42 @@ done
 
 echo
 echo "=============================================="
-echo " 3. Accessibility lint"
+echo " 3. Full check of every rendered diagram"
 echo "=============================================="
-for slug in $(live_brands); do
-  for mode in light dark; do
-    # build-examples.py names files with slug.strip('_'), so _default -> default
-    fslug="${slug#_}"
-    files=("$OUT"/*-"$fslug"-"$mode".html)
-    [ -e "${files[0]}" ] || { echo "no output for $slug/$mode"; fail=1; continue; }
-    python3 scripts/lint-a11y.py "${files[@]}" --brand "$slug" --mode "$mode" || fail=1
-  done
+# check.py is the gate an author runs on one diagram: source -> embed -> match
+# -> a11y -> safety -> browser. The browser gate needs Chrome; a run without it
+# fails unless ALLOW_NO_BROWSER=1 says so on purpose -- a skipped gate is never
+# reported as a pass.
+browser_flag=""
+if [ "${ALLOW_NO_BROWSER:-0}" = "1" ]; then browser_flag="--no-browser"; fi
+for f in "$OUT"/*.html; do
+  if python3 scripts/check.py "$f" $browser_flag >"$OUT/.check.log" 2>&1; then
+    echo "ok   $(basename "$f")"
+  else
+    cat "$OUT/.check.log"; fail=1
+  fi
 done
+rm -f "$OUT/.check.log"
 
 echo
 echo "=============================================="
-echo " 4. Self-check and SVG export of rendered output"
+echo " 4. SVG export of rendered output"
 echo "=============================================="
-# self_check.py is what an installed skill runs on its own output; it has to
-# accept everything the brand pipeline emits. verify-export.py asserts that a
-# standalone SVG keeps the brand's tokens and fonts once it leaves the HTML.
-python3 scripts/self_check.py "$OUT"/*.html >/dev/null || { python3 scripts/self_check.py "$OUT"/*.html | grep -v '^OK'; fail=1; }
-echo "self-check: rendered output ok"
-python3 scripts/verify-export.py "$OUT"/*.html | tail -1 || fail=1
+# verify-export.py asserts that a standalone SVG keeps the brand's tokens and
+# fonts once it leaves the HTML.
+python3 scripts/verify-export.py "$OUT"/*.html | tail -1
 python3 scripts/verify-export.py "$OUT"/*.html >/dev/null || fail=1
+
+echo
+echo "=============================================="
+echo " 4b. The checker has teeth (planted defects)"
+echo "=============================================="
+# Every defect class check.py claims to catch, planted one at a time into a
+# passing fixture, must fail at the right gate; the clean fixture must pass.
+test_flag=""
+if [ "${ALLOW_NO_BROWSER:-0}" = "1" ]; then test_flag="--static"; fi
+python3 scripts/test-check.py $test_flag | tail -1
+python3 scripts/test-check.py $test_flag >/dev/null || fail=1
 
 echo
 echo "=============================================="

@@ -8,6 +8,51 @@ The major version tracks the skill's `metadata.version` in
 `skills/cklph-diagram/SKILL.md`, which inherits `3.x` from the upstream skill
 this forked from.
 
+## [3.2.0] — 2026-10-01
+
+Source-first diagrams and a real-browser gate. Ideas borrowed, adapted, from
+[`tt-a1i/archify`](https://github.com/tt-a1i/archify) (MIT); record in
+`FORK-NOTES.md` § Lessons from Archify.
+
+### Added
+
+- **Diagram source** (`references/diagram-source.md`). Every diagram is a JSON
+  record of its content *and* placement, written before drawing and read back
+  on every edit; the HTML is drawn from it and embeds a copy. Claude is the
+  renderer; there is no renderer program. `diagram_source.py` validates it
+  (strict fields, stable ids, sound geometry: no diagonals, no edge through a
+  node, no stacked edges, no overlapping nodes), embeds it, matches it against
+  the drawing, and diffs two versions by id — refusing when they share no id.
+- **`check.py`**: one verdict per diagram. Gates source → embed → match → a11y
+  → safety → browser, stopping at the first failure, at most eight findings,
+  each with what was measured and a fix.
+- **`browser_check.py`**: headless Chrome, stdlib only, at 1440px and 375px:
+  rendered text size, text spilling out of boxes, overlapping text, labels on
+  nodes, clipping, sideways page scroll. A missing Chrome is "skipped", never a
+  pass.
+- **`test-check.py`**: 19 planted-defect cases plus a clean baseline, each
+  asserting the gate and code that catches it. In `verify.sh`.
+- One folder per request (`diagrams/<type>-<slug>-<timestamp>/`), never
+  overwritten; updates get a new folder seeded with the old source.
+- Repair rules (fix the source first, gate order, two rounds then report) and
+  truthful hand-over reporting (checks passed vs browser ran vs actually viewed).
+- Logo provenance rules in `primitive-icons.md`.
+
+### Fixed
+
+- **Text shrank below 12px on phones.** The proof diagrams scaled to a 375px
+  screen (labels at 6.7px) while `lint-a11y.py` passed them, because it assumes
+  the declared render width. The SVG now holds its width in a scrolling
+  container, and the browser gate measures the real size.
+- `verify-geometry.py` ignored 16px label masks, so it checked nothing on
+  this fork's own output.
+- **Five logos had no licence.** Hop, Pentaho, Dagster, SAS and Stata were
+  fetched straight from vendor sites and logo CDNs, marked "verify license
+  before use", and never verified, while this public repo redistributed them.
+  Stata is replaced by Devicon's MIT `stata-original-wordmark`; the other four
+  have no licensed version in Simple Icons or Devicon and are removed (label
+  those products in text). `build-icons.py` now refuses direct-fetch sources.
+
 ## [3.1.0] — 2026-10-01
 
 Synced with upstream [`cathrynlavery/diagram-design`](https://github.com/cathrynlavery/diagram-design)
