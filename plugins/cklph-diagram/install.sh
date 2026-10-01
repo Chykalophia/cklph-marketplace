@@ -92,6 +92,21 @@ for slug in $(python3 "$SRC/scripts/brand-tokens.py" --list 2>/dev/null \
 done
 echo "  registry ok"
 
+# True when $2 is byte-identical to some committed version of repo path $1:
+# the installed file is just out of date, so the repo's version can replace it.
+# A file matching no committed version was edited in place, and stops the install.
+was_committed() {
+  git -C "$(dirname "$1")" rev-parse --is-inside-work-tree >/dev/null 2>&1 || return 1
+  local rel
+  rel="$(git -C "$(dirname "$1")" ls-files --full-name "$(basename "$1")")"
+  [ -n "$rel" ] || return 1
+  local h
+  for h in $(git -C "$(dirname "$1")" log --format=%H -- "$(basename "$1")"); do
+    if git -C "$(dirname "$1")" show "${h}:${rel}" 2>/dev/null | cmp -s - "$2"; then return 0; fi
+  done
+  return 1
+}
+
 case "$MODE" in
   uninstall)
     if [ -d "$DEST" ]; then rm -rf "$DEST"; echo "removed $DEST"; else echo "nothing at $DEST"; fi
@@ -129,13 +144,18 @@ case "$MODE" in
       rb="$SRC/references/brands"
       only=""
       differ=""
+      stale=""
       for f in "$ib"/*.md; do
         [ -e "$f" ] || continue
         b="$(basename "$f")"
         if [ ! -e "$rb/$b" ]; then
           only="$only $b"
         elif ! cmp -s "$f" "$rb/$b"; then
-          differ="$differ $b"
+          if was_committed "$SRC/references/brands/$b" "$f"; then
+            stale="$stale $b"   # an older committed version: out of date, not edited
+          else
+            differ="$differ $b"
+          fi
         fi
       done
       if [ -n "$differ" ] && [ -z "$BRANDS_FROM" ]; then
@@ -180,6 +200,9 @@ case "$MODE" in
         cp -Rp "$keep/fonts/." "$DEST/references/brands/fonts/"
       fi
       rm -rf "$keep"
+      if [ -n "$stale" ]; then
+        echo "Updated brand(s) that were an older committed version:$stale"
+      fi
       if [ -n "$kept_only" ]; then
         echo "Kept brand(s) that exist only in the installed copy:$kept_only"
         echo "  They are not in the repo. To keep a backup there (git-ignored):"

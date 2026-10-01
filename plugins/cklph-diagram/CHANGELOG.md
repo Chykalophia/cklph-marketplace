@@ -8,6 +8,16 @@ The major version tracks the skill's `metadata.version` in
 `skills/cklph-diagram/SKILL.md`, which inherits `3.x` from the upstream skill
 this forked from.
 
+## [3.5.1] — 2026-10-01
+
+### Fixed
+
+- **Reinstalling refused after every update to a tracked brand.** The
+  brand-protection guard could not tell "the repo moved ahead" from "someone
+  edited the installed copy". A differing brand file that matches any committed
+  version of itself is now recognised as out of date and updated; only a file
+  that matches no committed version stops the install.
+
 ## [3.5.0] — 2026-10-01
 
 ### Added
