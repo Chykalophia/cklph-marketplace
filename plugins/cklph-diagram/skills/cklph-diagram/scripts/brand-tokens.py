@@ -13,6 +13,16 @@ stops a CKLPH-skinned diagram landing inside a client deliverable.
     python scripts/brand-tokens.py cklph --json
     python scripts/brand-tokens.py cklph --check         # contrast audit only
     python scripts/brand-tokens.py --list
+    python scripts/brand-tokens.py --resolve            # which brand this project uses
+    python scripts/brand-tokens.py --resolve --from ~/Development/fundae-site
+
+A project can pin its brand with a ``.cklph-diagram`` marker file at its root
+containing one line, ``brand: <slug>``. ``--resolve`` finds it (walking up from
+``--from`` to the enclosing git root, never past it), validates it, and prints
+``<slug><TAB><source>``. With no marker the answer is the house brand. A marker
+that is malformed, or names a brand that is missing or still a stub, is refused:
+falling back to the house brand there is the exact failure the registry exists
+to prevent.
 """
 
 from __future__ import annotations
@@ -91,6 +101,76 @@ CORE_ROLES = [
 
 class BrandError(RuntimeError):
     """Raised when a brand cannot be resolved. Always fatal by design."""
+
+
+DEFAULT_BRAND = "cklph"
+MARKER_NAME = ".cklph-diagram"
+# Marker content arrives with whatever repo was cloned, so it is untrusted data:
+# a slug is a filename stem, never a path, and nothing else is accepted.
+MARKER_SLUG_RE = re.compile(r"[a-z0-9_][a-z0-9_-]{0,63}")
+MARKER_LINE_RE = re.compile(r"brand:[ \t]*(\S+)[ \t]*")
+MARKER_MAX_BYTES = 4096
+
+
+def find_marker(start: Path) -> Path | None:
+    """The nearest ``.cklph-diagram`` between ``start`` and its git root.
+
+    Never searches above the git root, and outside a git repo checks ``start``
+    only -- a stray marker in a home directory must not brand every project
+    beneath it.
+    """
+    start = start.resolve()
+    if start.is_file():
+        start = start.parent
+    chain = [start, *start.parents]
+    root = next((d for d in chain if (d / ".git").exists()), None)
+    search = chain[: chain.index(root) + 1] if root else [start]
+    for d in search:
+        if (d / MARKER_NAME).is_file():
+            return d / MARKER_NAME
+    return None
+
+
+def parse_marker(path: Path) -> str:
+    """Return the slug a marker names. Anything unexpected is fatal, not ignored."""
+    def bad(why: str) -> BrandError:
+        return BrandError(
+            f"{path} is not a valid brand marker: {why}.\n"
+            f"  expected exactly one line: brand: <slug>  (lowercase, [a-z0-9_-])\n"
+            f"  refusing rather than falling back to the house brand."
+        )
+
+    raw = path.read_bytes()
+    if len(raw) > MARKER_MAX_BYTES:
+        raise bad(f"larger than {MARKER_MAX_BYTES} bytes")
+    try:
+        text = raw.decode("utf-8")
+    except UnicodeDecodeError:
+        raise bad("not UTF-8 text") from None
+    lines = [ln.strip() for ln in text.splitlines()]
+    lines = [ln for ln in lines if ln and not ln.startswith("#")]
+    if len(lines) != 1:
+        raise bad(f"{len(lines)} non-comment lines")
+    m = MARKER_LINE_RE.fullmatch(lines[0])
+    if not m:
+        raise bad("the line is not 'brand: <slug>'")
+    slug = m.group(1)
+    if not MARKER_SLUG_RE.fullmatch(slug) or slug == "_template":
+        raise bad(f"{slug[:40]!r} is not a brand slug")
+    return slug
+
+
+def resolve_project_brand(start: Path) -> tuple[str, str]:
+    """(slug, human-readable source) for the project containing ``start``."""
+    marker = find_marker(start)
+    if marker is None:
+        return DEFAULT_BRAND, f"house default (no {MARKER_NAME} marker)"
+    named = parse_marker(marker)
+    try:
+        slug = resolve_slug(named)
+    except BrandError as exc:
+        raise BrandError(f"marker {marker} names brand {named!r}, which is not in the registry.\n{exc}") from None
+    return slug, f"marker {marker}"
 
 
 def available() -> list[str]:
@@ -322,7 +402,29 @@ def main() -> int:
     ap.add_argument("--json", action="store_true", help="emit JSON instead of CSS")
     ap.add_argument("--check", action="store_true", help="validate only, emit nothing")
     ap.add_argument("--list", action="store_true", help="list known brands")
+    ap.add_argument("--resolve", action="store_true",
+                    help=f"print the brand this project uses ({MARKER_NAME} marker, else {DEFAULT_BRAND})")
+    ap.add_argument("--from", dest="start", default=".", metavar="DIR",
+                    help="where --resolve starts looking (default: current directory)")
     args = ap.parse_args()
+
+    if args.resolve:
+        if args.brand:
+            ap.error("--resolve takes no brand argument: it reports the project's brand")
+        try:
+            slug, source = resolve_project_brand(Path(args.start).expanduser())
+            brand = load(slug)
+        except BrandError as exc:
+            print(f"REFUSED — {exc}", file=sys.stderr)
+            return 2
+        problems = validate(brand, "light") + validate(brand, "dark")
+        if problems:
+            print(f"REFUSED — {source} selects brand '{slug}', which cannot render:", file=sys.stderr)
+            for p in dict.fromkeys(problems):
+                print(f"  - {p}", file=sys.stderr)
+            return 1
+        print(f"{slug}\t{source}")
+        return 0
 
     if args.list or not args.brand:
         print("brands in the registry:\n")

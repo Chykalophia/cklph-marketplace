@@ -10,8 +10,9 @@
 > the failure mode is a CKLPH-skinned diagram shipping inside a client
 > deliverable.
 
-This file survives for two reasons only: several type references still deep-link
-to the terminal skin below, and older references use the `series-*` token names.
+This file survives because type references deep-link into it — for the terminal
+skin, the node-treatment table, and the non-Latin label rules below — and older
+references use the `series-*` token names. None of it is brand-specific.
 
 ---
 
@@ -58,3 +59,81 @@ A self-contained palette for the terminal-window primitive (see [primitive-termi
 | `terminal-accent-tint` | `rgba(255,90,54,0.12)` | Fill for accent-bordered boxes |
 
 **1-accent rule still holds.** Everything that isn't `terminal-ink` or `terminal-muted`/`terminal-soft` should be `terminal-accent` — never introduce a second hue.
+
+---
+
+## Node type → treatment
+
+Moved to [`../SKILL.md` §5 — Node type → treatment](../SKILL.md). Type references
+that link here mean that table. Its roles resolve against the brand file, so
+"white" there is `paper-2`, not a literal `#ffffff`.
+
+---
+
+## Non-Latin labels
+
+Upstream wrote these rules for its Geist / Instrument Serif skin. They hold for
+any brand; what changes per brand is *which* faces need extending. Check the
+brand file's Typography table against the script you are setting before you draw.
+
+**Extend the family on the element; never swap the skin.** A label in a script
+the brand faces do not cover gets its own `font-family` stack that starts with the
+brand face (so Latin characters inside it still match) and then adds a covering
+face:
+
+```svg
+<text font-family="var(--font-sans), 'Noto Sans KR', 'Apple SD Gothic Neo', 'Malgun Gothic', sans-serif">결제 서비스</text>
+```
+
+Add the Noto face to the page's Google Fonts `<link>` so the same file renders
+identically on every machine; Google's `css2` endpoint slices CJK by
+unicode-range, so a handful of labels downloads only the slices it touches.
+`self_check.py` and `export_svg.py` both read that one link — no `@import`.
+
+**Width budget — measure per character, never per script.** Every Unicode wide or
+full-width character (Hangul, Han, full-width punctuation `（）「」，。：`) costs
+1em; every other character costs its face's Latin advance (about 0.60em sans,
+0.62em mono); nonspacing marks cost nothing. `주문 v2.1` is two wide and five
+narrow characters — a formula that tallies "Hangul, Latin letters, spaces"
+silently drops `2`, `.`, `1`. Add padding, then round the box up to a multiple of 4.
+
+**The 12px floor binds harder here.** Hangul goes muddy, and Han packs more strokes
+into the em box. If a name does not fit at 12px, cut the name; never shrink the type.
+
+### Korean labels
+
+Covering stack: `'Noto Sans KR', 'Apple SD Gothic Neo', 'Malgun Gothic'`; titles
+`var(--font-display), 'Noto Serif KR', serif`, or a mixed Latin/Korean title draws
+its two halves from different serifs.
+
+- **Sublabels stay Latin.** Ports, protocols, field types, URLs — keep the brand
+  mono and don't translate them. Hangul has no mono face to fall back to.
+- **Mono slots switch register.** Arrow labels, eyebrows, and legend keys are
+  uppercase, tracked mono. A Korean label in one of those slots becomes 12px brand
+  sans at weight 500, no tracking, no uppercase transform; its mask rect stays
+  16px tall with the width from the budget above. Latin labels in the same diagram
+  keep the mono treatment.
+
+### Traditional Chinese labels
+
+Covering stack: `'Noto Sans TC', 'PingFang TC', 'Microsoft JhengHei'`; titles
+`var(--font-display), 'Noto Serif TC', serif`. Same three rules as Korean. A
+sublabel that is prose rather than a value may be Chinese, but then it switches
+register too. Simplified Chinese takes the same rules with `'Noto Sans SC',
+'PingFang SC', 'Microsoft YaHei'`.
+
+### Cyrillic labels
+
+Check the brand faces first, on each family's Google Fonts page (the "Language
+support" list): many Latin families ship Cyrillic and many do not. Where they do
+there is **no register switch** — names, sublabels, and mono slots keep the Latin treatment. Display
+serifs frequently do not; extend the title with `'Noto Serif'`, and put it
+**ahead of** any CJK serif in the same stack, since Google also slices Cyrillic
+into those faces and the first face reached wins.
+
+Proportional sans faces run wide on `Ж Ш Щ Ю Ы`, past the 0.60em average: measure a
+Cyrillic sans name in the browser rather than trusting the budget. **Preserve
+printed labels** — a string the reader matches against a physical thing (a cabinet,
+a port map) is never transliterated or re-cased; drop the uppercase transform for
+that label instead.
+

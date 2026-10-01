@@ -85,6 +85,16 @@ python scripts/build-examples.py --brand <slug> --out out/
 python scripts/lint-a11y.py out/*-<slug>-light.html --brand <slug>
 ```
 
+If you are working inside that client's own repo, offer to pin it there with a
+project marker (SKILL.md §0) — write it only on a yes:
+
+```bash
+# <client-repo>/.cklph-diagram  — exactly this one line
+brand: <slug>
+
+python scripts/brand-tokens.py --resolve --from <client-repo>   # must print <slug>
+```
+
 ## 5. The guardrail
 
 The loader refuses any brand whose `status` is `stub` or that still contains a
