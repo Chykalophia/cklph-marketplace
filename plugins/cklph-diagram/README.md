@@ -4,7 +4,8 @@ A Chykalophia fork of [`cathrynlavery/diagram-design`](https://github.com/cathry
 (MIT), turning a single-skin personal diagramming skill into a multi-brand
 agency tool with mechanically enforced accessibility.
 
-Twenty-seven diagram types, rendered as self-contained HTML with inline SVG.
+Forty-one visual types, rendered as self-contained HTML with inline SVG. Imports
+draw.io, Mermaid and Excalidraw sources; optional accessible motion.
 
 ---
 
@@ -14,10 +15,13 @@ Twenty-seven diagram types, rendered as self-contained HTML with inline SVG.
 |---|---|---|
 | **Brands** | One global `references/style-guide.md` | A registry: `references/brands/<slug>.md`, resolved per request |
 | **Client safety** | First-run gate, once per project | A named client with no brand file **stops the run**. No fallback to house colours, ever. |
+| **Per-repo brand** | `.diagram-design` profile marker, ignored if invalid | `.cklph-diagram` marker (`brand: <slug>`) at a client repo's root; an invalid one **refuses** |
 | **Colour** | One accent, one series palette | Categorical / sequential / diverging scales, each AA-verified, each with a mandatory non-colour cue |
 | **Accessibility** | Contrast checked at onboarding; SVG title/desc linted | Eight rules (A1–A8), most enforced by `lint-a11y.py`, which fails the build |
 | **Cognitive load** | Density budget | Nine rules (C1–C9) — predictable grammar, one reading order, node ceiling, no crossing lines |
 | **Type sizes** | 7–9px mono labels | 12px floor, enforced |
+| **Source of truth** | The HTML | A JSON source (content + placement) beside and inside every HTML; `check.py` fails a drawing that disagrees with it |
+| **Checking** | Static linters | `check.py`: static gates plus measurement in real Chrome at desktop and phone widths |
 | **CI** | — | `./scripts/verify.sh`, run identically in GitHub Actions |
 
 The design tension behind all of it — "vibrant" versus "low sensory load" — is
@@ -116,7 +120,11 @@ skills/cklph-diagram/
 │   ├── prose-alternative.md    the text alternative every diagram ships with
 │   ├── brand-onboarding.md     adding a client brand
 │   ├── brands/                 the registry
-│   ├── type-*.md               27 diagram types
+│   ├── diagram-source.md       the JSON every diagram is drawn from
+│   ├── semantic-patterns.md    behavioural patterns, chosen before the type
+│   ├── type-*.md               41 visual types
+│   ├── primitives-core.md      SVG markup, connector rules, in brand tokens
+│   ├── animation.md            optional accessible motion
 │   └── primitive-*.md          annotation, icons, sketchy, terminal
 └── assets/                     examples and templates
 
@@ -124,6 +132,15 @@ scripts/
 ├── brand-tokens.py             resolve + audit a brand; the refusal path
 ├── colorlib.py                 WCAG maths, ramp validation
 ├── lint-a11y.py                fails the build on a11y violations
+├── check.py                    one verdict per diagram: source → embed → match → a11y → safety → browser
+├── diagram_source.py           validate / embed / match / diff the JSON source
+├── browser_check.py            measured in headless Chrome at 1440px and 375px
+├── test-check.py               19 planted defects, each caught at the right gate
+├── self_check.py               single-file safety + accessible-SVG contract
+├── verify-export.py            an SVG export keeps the brand's tokens and fonts
+├── verify-geometry.py          label masks never clipped by a later node
+├── verify-motion.py            the accessible motion contract
+├── verify-<type>.py            upstream's per-type data-contract checks
 ├── build-examples.py           verification harness, not the production path
 ├── build-icons.py              regenerates the icon catalog (maintainers only)
 ├── fix-mojibake.py             one-off encoding repair utility
@@ -137,9 +154,10 @@ SVG by hand against the references — the harness is not a diagram generator.
 
 ## Status
 
-Phase 1 of the scoping spec is complete and verified. Phases 2–4 (a11y hardening
-across all 27 inherited example assets, the orthogonal connector routing engine,
-and new chart types) are not started — see [`FORK-NOTES.md`](FORK-NOTES.md), which
+Phase 1 of the scoping spec is complete and verified, and the skill is synced
+with upstream 2.6.46. Phases 2–4 (a11y hardening across the 167 inherited
+example assets, the orthogonal connector routing engine, and the remaining new
+chart types) are not started — see [`FORK-NOTES.md`](FORK-NOTES.md), which
 records what is measured rather than estimated.
 
 ## Credits
@@ -148,8 +166,9 @@ Built by [Peter Krzyzek](https://github.com/PiotrKrzyzek) at
 [Chykalophia](https://chykalophia.com).
 
 Forked from [`cathrynlavery/diagram-design`](https://github.com/cathrynlavery/diagram-design)
-@ `3c5c34b` by Cathryn Lavery, which is where the editorial design system, the 27
-diagram types, the import extractors, and the taste gate come from. This fork adds
+@ `3c5c34b` (synced to `57148ac`) by Cathryn Lavery, which is where the editorial
+design system, the 41 visual types, the semantic patterns, the import extractors,
+and the taste gate come from. This fork adds
 the multi-brand registry and its refusal path, mechanically enforced accessibility,
 the cognitive-load rules, and CI. What changed and why is recorded in
 [`FORK-NOTES.md`](FORK-NOTES.md).

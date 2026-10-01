@@ -5,16 +5,18 @@ This product is a derivative work of:
 
     diagram-design
     https://github.com/cathrynlavery/diagram-design
-    commit 3c5c34b
+    forked at commit 3c5c34b, synced to 57148ac (2.6.46) on 2026-10-01
     Copyright (c) 2025 Cathryn Lavery
     Licensed under the MIT License
 
 Upstream's licence file is preserved verbatim at LICENSE.upstream. Both
 copyright holders are named in LICENSE, as the MIT terms require.
 
-Inherited from upstream: the editorial design system, the 27 diagram types and
-their reference documents, the draw.io and Mermaid import extractors, the export
-procedure, the templates, and the taste gate.
+Inherited from upstream: the editorial design system, the 41 visual types and
+their reference documents, the semantic patterns, the accessible motion
+contract, the draw.io, Mermaid and Excalidraw import extractors, the export
+procedure and SVG exporter, the self-check and per-type verifiers, the
+templates, and the taste gate.
 
 Added by this fork: the multi-brand token registry and its refusal path,
 mechanically enforced accessibility (rules A1-A8 and scripts/lint-a11y.py), the

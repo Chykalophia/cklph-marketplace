@@ -8,6 +8,108 @@ The major version tracks the skill's `metadata.version` in
 `skills/cklph-diagram/SKILL.md`, which inherits `3.x` from the upstream skill
 this forked from.
 
+## [3.2.0] — 2026-10-01
+
+Source-first diagrams and a real-browser gate. Ideas borrowed, adapted, from
+[`tt-a1i/archify`](https://github.com/tt-a1i/archify) (MIT); record in
+`FORK-NOTES.md` § Lessons from Archify.
+
+### Added
+
+- **Diagram source** (`references/diagram-source.md`). Every diagram is a JSON
+  record of its content *and* placement, written before drawing and read back
+  on every edit; the HTML is drawn from it and embeds a copy. Claude is the
+  renderer; there is no renderer program. `diagram_source.py` validates it
+  (strict fields, stable ids, sound geometry: no diagonals, no edge through a
+  node, no stacked edges, no overlapping nodes), embeds it, matches it against
+  the drawing, and diffs two versions by id — refusing when they share no id.
+- **`check.py`**: one verdict per diagram. Gates source → embed → match → a11y
+  → safety → browser, stopping at the first failure, at most eight findings,
+  each with what was measured and a fix.
+- **`browser_check.py`**: headless Chrome, stdlib only, at 1440px and 375px:
+  rendered text size, text spilling out of boxes, overlapping text, labels on
+  nodes, clipping, sideways page scroll. A missing Chrome is "skipped", never a
+  pass.
+- **`test-check.py`**: 19 planted-defect cases plus a clean baseline, each
+  asserting the gate and code that catches it. In `verify.sh`.
+- One folder per request (`diagrams/<type>-<slug>-<timestamp>/`), never
+  overwritten; updates get a new folder seeded with the old source.
+- Repair rules (fix the source first, gate order, two rounds then report) and
+  truthful hand-over reporting (checks passed vs browser ran vs actually viewed).
+- Logo provenance rules in `primitive-icons.md`.
+
+### Fixed
+
+- **Text shrank below 12px on phones.** The proof diagrams scaled to a 375px
+  screen (labels at 6.7px) while `lint-a11y.py` passed them, because it assumes
+  the declared render width. The SVG now holds its width in a scrolling
+  container, and the browser gate measures the real size.
+- `verify-geometry.py` ignored 16px label masks, so it checked nothing on
+  this fork's own output.
+- **Five logos had no licence.** Hop, Pentaho, Dagster, SAS and Stata were
+  fetched straight from vendor sites and logo CDNs, marked "verify license
+  before use", and never verified, while this public repo redistributed them.
+  Stata is replaced by Devicon's MIT `stata-original-wordmark`; the other four
+  have no licensed version in Simple Icons or Devicon and are removed (label
+  those products in text). `build-icons.py` now refuses direct-fetch sources.
+
+## [3.1.0] — 2026-10-01
+
+Synced with upstream [`cathrynlavery/diagram-design`](https://github.com/cathrynlavery/diagram-design)
+@ `57148ac` (2.6.46), 123 commits past the fork point. Full record, including
+what was skipped and why, in `FORK-NOTES.md` § Upstream sync.
+
+### Added
+
+- **14 visual types** (27 → 41): polar, waterfall, treemap (+ marimekko),
+  heatmap, Sankey, fishbone, Wardley map, kanban, user journey, deployment,
+  dependency graph, UML class, story map, database schema. Plus slopegraph,
+  ridgeline, streamgraph and bump (line), dumbbell (bar), bubble and beeswarm
+  (scatter) variants, and 73 example files.
+- **Semantic patterns** (`semantic-patterns.md`): pick a behavioural pattern
+  before the layout type. SKILL.md §3 now routes through it.
+- **Accessible motion**: `animation.md` and `template-motion.html`, ported to
+  the brand-token vocabulary.
+- **Excalidraw import**: `excalidraw_extract.py`, `import-excalidraw.md`, and
+  the `import-excalidraw` command and prompt.
+- **`export_svg.py`** standalone SVG exporter and the `--registry` metadata
+  sidecar (`export-registry.md`).
+- **`self_check.py`**, which an installed skill runs on its own output.
+- `print-a3-landscape` size preset; "confirm before drawing" step (§3), which
+  here also states the resolved brand.
+- `verify.sh` steps 4–5: self-check and SVG-export checks on every rendered
+  brand file, template lint, label geometry, the motion contract, and 14
+  per-type data-contract verifiers over the inherited examples.
+- SKILL.md §13 (Accessibility) and §14 (Cognitive load), cited since 3.0.0
+  but never written.
+- **Project brand marker.** A `.cklph-diagram` file (`brand: <slug>`) at a
+  client repo's root pins its brand; `brand-tokens.py --resolve --from <dir>`
+  reports it. Precedence: brand named in the request → marker → house brand.
+  Unlike upstream, a malformed marker or one naming a missing/stub brand is
+  refused, never ignored — ignoring it would fall back to house colours. The
+  search stops at the git root. `scripts/test-brand-marker.py` (23 cases, in
+  `verify.sh`) covers hostile content and the search boundary.
+
+### Fixed
+
+- **SVG export shipped the wrong brand's fonts.** Upstream's exporter
+  hardcoded its own Google Fonts import; it now uses the source page's link.
+  `scripts/verify-export.py` asserts the outcome.
+- **Template arrowheads and backgrounds ignored the brand.** The static
+  templates' markers and background rect still carried upstream hexes.
+- **Templates failed their own linter** (no prose-alternative slot, no
+  `data-render-width`). `template.html`, `template-dark.html` and
+  `template-motion.html` now lint clean and are gated.
+- `self_check.py` rejected every brand-rendered file (URLs in provenance
+  comments, the font `preconnect`).
+- Templates scroll locally on narrow screens instead of scrolling the page,
+  and print without clipping (from upstream).
+
+### Changed
+
+- SKILL.md detail moved to `primitives-core.md` and `layout-budget.md`, as
+  upstream did; their snippets are rewritten in brand tokens at the 12px floor.
+
 ## [3.0.0] — 2026-08-13
 
 First public release. Forked from
