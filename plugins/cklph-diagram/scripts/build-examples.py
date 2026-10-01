@@ -38,10 +38,11 @@ assert _spec.loader is not None
 _spec.loader.exec_module(brand_tokens)
 
 import diagram_source  # noqa: E402
+import scaffold  # noqa: E402
 
 GRID = 4
 R = 8  # elbow radius
-SKILL_VERSION = "3.3-cklph"
+SKILL_VERSION = "3.4-cklph"
 
 
 def snap(v: float) -> int:
@@ -308,25 +309,10 @@ def draw_legend(src: dict, x: int, y: int, x2: int, step: int = 192) -> list[str
 
 
 def draw(src: dict) -> str:
-    """The SVG for a source record. Reads nothing but ``src``."""
-    slug, c, m = src["id"], src["canvas"], src["meta"]
-    lines = [
-        f'<svg viewBox="0 0 {c["width"]} {c["height"]}" data-render-width="{c["render_width"]}"'
-        f' style="min-width: {c["render_width"]}px" role="img"',
-        f'     aria-labelledby="{slug}-title {slug}-desc"',
-        '     xmlns="http://www.w3.org/2000/svg">',
-        f'  <title id="{slug}-title">{esc(m["title"])}</title>',
-        f'  <desc id="{slug}-desc">{esc(m["desc"])}</desc>',
-        f"""  <defs>
-    <marker id="{slug}-arrow" markerWidth="8" markerHeight="6" refX="7" refY="3" orient="auto">
-      <polygon points="0 0, 8 3, 0 6" fill="var(--muted)"/>
-    </marker>
-    <marker id="{slug}-arrow-accent" markerWidth="8" markerHeight="6" refX="7" refY="3" orient="auto">
-      <polygon points="0 0, 8 3, 0 6" fill="var(--accent)"/>
-    </marker>
-  </defs>""",
-        '  <rect width="100%" height="100%" fill="var(--paper)"/>',
-    ]
+    """The drawing for a source record -- what goes between scaffold's draw markers.
+    Reads nothing but ``src``; scaffold.py builds the svg element and page around it."""
+    slug = src["id"]
+    lines: list[str] = []
     kind = src["type"]
     if kind == "architecture":
         lines += draw_edges(src, slug)
@@ -366,91 +352,12 @@ def draw(src: dict) -> str:
         lines += draw_legend(src, 88, 224, 712)
     else:
         raise ValueError(f"no proof drawing for {kind}")
-    lines.append("</svg>")
-    return "\n".join(lines)
+    return "\n" + "\n".join(lines) + "\n  "
 
 
-def alt_html(src: dict) -> str:
-    a = src["alt"]
-    parts = [f"<p><strong>What it shows.</strong> {esc(a['summary'])}</p>",
-             f"<p><strong>Reading order.</strong> {esc(a['reading_order'])}</p>",
-             "<ol>" + "".join(f"<li>{esc(i)}</li>" for i in a["items"]) + "</ol>"]
-    if a.get("connections"):
-        parts.append(f"<p><strong>Connections.</strong> {esc(a['connections'])}</p>")
-    if a.get("highlighted"):
-        parts.append(f"<p><strong>Highlighted.</strong> {esc(a['highlighted'])}</p>")
-    return "\n".join(parts)
-
-
-def shell(src: dict, label: str, css_vars: str, svg: str, fonts: str) -> str:
-    slug, mode = src["id"], src["brand"]["modes"][0]
-    eyebrow = f"{esc(label.upper())} &middot; {esc(src['meta']['eyebrow'])}"
-    title = esc(src["meta"]["title"])
-    return f"""<!DOCTYPE html>
-<html lang="en" data-cklph-brand="{esc(src['brand']['slug'])}" data-cklph-mode="{mode}">
-<head>
-<meta charset="utf-8">
-<meta name="viewport" content="width=device-width, initial-scale=1">
-<title>{title}</title>
-<link rel="preconnect" href="https://fonts.googleapis.com">
-{fonts}
-<style>
-{css_vars}
-* {{ box-sizing: border-box; }}
-body {{
-  margin: 0; padding: 48px 32px;
-  background: var(--paper);
-  color: var(--ink);
-  font-family: var(--font-sans);
-  line-height: 1.5;
-}}
-.wrap {{ max-width: 784px; margin: 0 auto; }}
-.eyebrow {{
-  font-family: var(--font-mono); font-size: 12px; font-weight: 500;
-  letter-spacing: 0.16em; text-transform: uppercase; color: var(--muted);
-  margin: 0 0 8px;
-}}
-h1 {{ font-family: var(--font-display); font-size: 28px; font-weight: 400; margin: 0 0 24px; }}
-/* The SVG holds its rendered width (its inline min-width == data-render-width)
-   so the 12px floor survives a phone; the container scrolls instead of the page. */
-.diagram-container {{ width: 100%; overflow-x: auto; }}
-svg {{ width: 100%; height: auto; display: block; }}
-@media print {{ .diagram-container {{ overflow-x: visible; }} svg {{ min-width: 0 !important; }} }}
-.diagram-alt {{
-  margin-top: 32px; border-top: 1px solid var(--rule); padding-top: 16px;
-  font-size: 16px;
-}}
-.diagram-alt summary {{
-  font-family: var(--font-mono); font-size: 12px; letter-spacing: 0.08em;
-  text-transform: uppercase; color: var(--muted); cursor: pointer;
-}}
-.diagram-alt ol {{ padding-left: 20px; }}
-.diagram-alt li {{ margin-bottom: 8px; }}
-footer {{
-  margin-top: 32px; padding-top: 16px; border-top: 1px solid var(--rule);
-  font-family: var(--font-mono); font-size: 12px; color: var(--muted);
-}}
-</style>
-</head>
-<body>
-<div class="wrap">
-<p class="eyebrow">{eyebrow}</p>
-<h1>{title}</h1>
-<div class="diagram-container">
-{svg}
-</div>
-<details class="diagram-alt">
-<summary>Text description of this diagram</summary>
-<div id="{slug}-alt">
-{alt_html(src)}
-</div>
-</details>
-<footer>{eyebrow} &middot; drawn from {slug}.json</footer>
-</div>
-{diagram_source.embed_block(src)}
-</body>
-</html>
-"""
+def render(src: dict, mode: str) -> str:
+    """The page, built by scaffold.py exactly as for a hand-drawn diagram."""
+    return scaffold.page(src, mode, draw(src))
 
 
 def main() -> int:
@@ -475,7 +382,6 @@ def main() -> int:
             print(f"  - {p}", file=sys.stderr)
         return 1
 
-    css = brand_tokens.to_css(brand, args.mode)
     args.out.mkdir(parents=True, exist_ok=True)
     for name in args.types:
         src = SOURCES[name](slug, args.mode)
@@ -484,7 +390,7 @@ def main() -> int:
             for f in rep.errors:
                 print(f.line(), file=sys.stderr)
             return 1
-        page = shell(src, brand["label"], css, draw(src), brand["font_link"])
+        page = render(src, args.mode)
         (args.out / f"{src['id']}.json").write_text(json.dumps(src, indent=2, ensure_ascii=False) + "\n",
                                                    encoding="utf-8")
         path = args.out / f"{src['id']}.html"

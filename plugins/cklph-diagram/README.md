@@ -4,8 +4,9 @@ A Chykalophia fork of [`cathrynlavery/diagram-design`](https://github.com/cathry
 (MIT), turning a single-skin personal diagramming skill into a multi-brand
 agency tool with mechanically enforced accessibility.
 
-Forty-one visual types, rendered as self-contained HTML with inline SVG. Imports
-draw.io, Mermaid and Excalidraw sources; optional accessible motion.
+Forty-one visual types, built as deliverables: every diagram ships as SVG and
+PNG (and GIF/MP4 when animated) for docs, slides and client email, plus a
+self-contained HTML page. Imports draw.io, Mermaid and Excalidraw sources.
 
 ---
 
@@ -133,9 +134,13 @@ scripts/
 ├── colorlib.py                 WCAG maths, ramp validation
 ├── lint-a11y.py                fails the build on a11y violations
 ├── check.py                    one verdict per diagram: source → embed → match → a11y → safety → browser
+├── layout.py                   grid intent → coordinates and orthogonal routes
+├── scaffold.py                 the page from the source; you draw between its markers
+├── export.py                   SVG, PNG, and GIF/MP4 from the source's steps
 ├── diagram_source.py           validate / embed / match / diff the JSON source
 ├── browser_check.py            measured in headless Chrome at 1440px and 375px
-├── test-check.py               19 planted defects, each caught at the right gate
+├── test-check.py               24 planted defects + 3 warnings, each caught at the right gate
+├── test-tools.py               30 outcome tests for scaffold, layout and export
 ├── self_check.py               single-file safety + accessible-SVG contract
 ├── verify-export.py            an SVG export keeps the brand's tokens and fonts
 ├── verify-geometry.py          label masks never clipped by a later node

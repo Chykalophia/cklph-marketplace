@@ -18,6 +18,7 @@
        brand (SKILL.md section 0) and paste, so the a11y lint can verify what
        actually shipped.
        ------------------------------------------------------------------ */
+    /* cklph:tokens:start */
     :root {
       --font-display: "Instrument Serif", Georgia, serif;
       --font-mono: "Geist Mono", monospace;
@@ -60,6 +61,7 @@
         --rule: rgba(0,0,0,0.55);
       }
     }
+    /* cklph:tokens:end */
 
     body {
       font-family: var(--font-sans);
@@ -128,9 +130,9 @@
         <title id="[diagram-slug]-title">[Diagram title]</title>
         <desc id="[diagram-slug]-desc">[One sentence describing what the diagram shows]</desc>
         <defs>
-          <marker id="arrow" markerWidth="8" markerHeight="6" refX="7" refY="3" orient="auto"><polygon points="0 0, 8 3, 0 6" style="fill: var(--muted)"/></marker>
-          <marker id="arrow-accent" markerWidth="8" markerHeight="6" refX="7" refY="3" orient="auto"><polygon points="0 0, 8 3, 0 6" style="fill: var(--accent)"/></marker>
-          <marker id="arrow-link" markerWidth="8" markerHeight="6" refX="7" refY="3" orient="auto"><polygon points="0 0, 8 3, 0 6" style="fill: var(--link)"/></marker>
+          <marker id="arrow" markerWidth="8" markerHeight="6" refX="7" refY="3" orient="auto" markerUnits="userSpaceOnUse"><polygon points="0 0, 8 3, 0 6" style="fill: var(--muted)"/></marker>
+          <marker id="arrow-accent" markerWidth="8" markerHeight="6" refX="7" refY="3" orient="auto" markerUnits="userSpaceOnUse"><polygon points="0 0, 8 3, 0 6" style="fill: var(--accent)"/></marker>
+          <marker id="arrow-link" markerWidth="8" markerHeight="6" refX="7" refY="3" orient="auto" markerUnits="userSpaceOnUse"><polygon points="0 0, 8 3, 0 6" style="fill: var(--link)"/></marker>
 
           <!-- OPTIONAL: dot-pattern background. Uncomment the <pattern> and the second <rect> below if you want the dotted paper look. -->
           <!--

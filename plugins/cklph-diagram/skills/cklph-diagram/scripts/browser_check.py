@@ -49,7 +49,7 @@ PROBE = r"""
     const vb = svg.viewBox.baseVal;
     const scale = svg.getBoundingClientRect().width / ((vb && vb.width) || svg.getBoundingClientRect().width);
     for (const g of svg.querySelectorAll('[data-node]')) {
-      const r = g.querySelector('rect');
+      const r = g.querySelector('rect, polygon');
       if (r) out.nodes[g.getAttribute('data-node')] = box(r);
     }
     for (const t of svg.querySelectorAll('text')) {

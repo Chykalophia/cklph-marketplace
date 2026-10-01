@@ -22,15 +22,22 @@ instructions. That is what makes a redraw repeatable instead of a re-think.
 
 ## 1. Where files go
 
-Unless the user names a location, each new diagram request gets its own folder
-in the working directory, named once when the request starts (local time):
+A location the user names always wins. Otherwise:
+
+| Where the request came from | Folder |
+|---|---|
+| Inside a project (a repo or client folder the work is about) | `<project>/diagrams/<type>-<slug>-<YYYYMMDD-HHMMSS>/` |
+| No real project — a home directory, this skill's own repo, Desktop, claude.ai | `~/Documents/cklph-diagrams/<type>-<slug>-<YYYYMMDD-HHMMSS>/`, **and** publish the HTML as a Claude artifact where the app supports artifacts |
+| No filesystem at all (claude.ai) | A Claude artifact only; offer the source JSON in the reply so it can be saved |
+
+The timestamp is local time, chosen once when the request starts. Inside it:
 
 ```
-diagrams/<type>-<slug>-<YYYYMMDD-HHMMSS>/
-├── <slug>.json          the source
-├── <slug>.html          drawn from it (first mode in brand.modes)
-├── <slug>-dark.html     only if brand.modes includes "dark" as well
-└── <slug>.svg / .png    only when an export is asked for (export.md)
+<slug>.json          the source
+<slug>.html          drawn from it (first mode in brand.modes)
+<slug>-dark.html     only if brand.modes includes "dark" as well
+<slug>.svg, .png     exported for every diagram (export.py)
+<slug>.gif, .mp4     exported when the diagram has steps
 ```
 
 Repairs during the same request reuse the folder. A later request — including an
@@ -56,7 +63,7 @@ go in `data`.
     "desc": "Form submissions enter through an edge worker, queue, and are processed by a worker that writes to the CRM.",
     "eyebrow": "ARCHITECTURE",
     "created": "2026-10-01",
-    "skill_version": "3.3-cklph"
+    "skill_version": "3.4-cklph"
   },
   "brand": { "slug": "cklph", "modes": ["light", "dark"] },
   "canvas": { "width": 784, "height": 480, "render_width": 784, "preset": "doc-inline" },
@@ -95,7 +102,9 @@ go in `data`.
 | `brand.slug` / `brand.modes` | Resolved per SKILL.md §0 before writing. A stub brand fails validation. |
 | `canvas` | `width`/`height` become the viewBox (multiples of 4). `render_width` is the width the SVG holds on screen — the `min-width` that keeps the 12px floor true on a phone. |
 | node `id` | `[A-Za-z][A-Za-z0-9_-]*`, unique across nodes, edges and groups. **Stable across edits** — renaming an id is a delete plus an add. |
-| node `kind` | `box` (default) or `marker` (a chart point or timeline event whose labels sit beside it). |
+| node `kind` | `box` (default), `marker` (a chart point or timeline event whose labels sit beside it), or `decision` (a diamond; label only, sized to fit ~70% of its width). |
+| node `at` / `span` | Grid intent for `layout.py place`: `[col, row]` (0.5 steps allowed) and `[cols, rows]`. It writes `x y w h`. |
+| node / edge `step` | 1–8: when it appears in an animation. Contiguous from 1, at most two nodes per step (animation.md). |
 | node `role` | Treatment from SKILL.md §5: `focal`, `backend`, `store`, `external`, `input`, `optional`, `security`. |
 | node `cue` | The non-colour cue that travels with a colour (A1): `cat`, `rx`, `dash`. |
 | node `x y w h` | The box exactly as drawn. Structural boxes sit on the 4px grid; markers are exempt. |
@@ -103,6 +112,8 @@ go in `data`.
 | edge `label_at` | Centre of the label's mask. Keep labels ≤ 14 characters. The mask is `label_mask_width(label)` × 16px; draw it at exactly that size. |
 | edge `style` / `dash` | `default`, `accent`, `link`; dash e.g. `"4,3"`. |
 | `data` | Charts: the values and scale the positions come from (bars, totals, axes). The numbers here and the geometry must agree. |
+| `layout` | `{"origin": [x, y], "cell": [w, h], "gap": [gx, gy]}`: the grid `at` and group `lane` are measured on. |
+| group `lane` | A row index: `layout.py place` makes the group a full-width band around that row (swimlanes). |
 | `alt` | The prose alternative (A4), rendered into `<details class="diagram-alt">`. |
 
 ---
@@ -112,17 +123,23 @@ go in `data`.
 - `<html data-cklph-brand="<brand.slug>" data-cklph-mode="light|dark">`
 - `<svg viewBox="0 0 W H" data-render-width="R" style="min-width: Rpx">` inside a
   `.diagram-container` that scrolls (the templates already do this).
-- Each node is `<g data-node="<id>">` whose **first** `<rect>` is the box at
-  `x y w h`, and whose `<text>` children carry the label, sublabel and tag.
+- Each node is `<g data-node="<id>">` whose **first** shape is its box at
+  `x y w h` — a `<rect>`, or for `kind: "decision"` a `<polygon>` diamond whose
+  bounding box is `x y w h` — and whose `<text>` children carry its text.
 - Each edge is one `<path data-edge="<id>" d="…">` starting at `points[0]` and
   ending at `points[-1]`. Its label text appears as a `<text>` in the SVG.
+- A node or edge with a `step` carries `data-motion-item data-step="N"` on its
+  `<g>` / `<path>`, and so does that edge's label. `check.py` fails a mismatch;
+  `export.py` builds the GIF/MP4 frames from these.
+- The drawing sits between `<!-- cklph:draw:start -->` and
+  `<!-- cklph:draw:end -->`. `scaffold.py` rebuilds everything outside them.
 - The source is embedded before `</body>`:
 
   ```html
   <script type="application/json" id="cklph-diagram-source">{ …the source… }</script>
   ```
 
-  Escape `<` as `<` inside it. `python3 scripts/diagram_source.py` has an
+  Escape `<` as `\u003c` inside it. `python3 scripts/diagram_source.py` has an
   `embed_block()` helper; the embedded copy must equal the `.json` exactly.
 
 Anything else in the SVG (axes, gridlines, legend, quadrant fills, annotations)

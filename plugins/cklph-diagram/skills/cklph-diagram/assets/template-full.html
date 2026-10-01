@@ -20,6 +20,7 @@
        brand (SKILL.md section 0) and paste, so the a11y lint can verify what
        actually shipped.
        ------------------------------------------------------------------ */
+    /* cklph:tokens:start */
     :root {
       --font-display: "Instrument Serif", Georgia, serif;
       --font-mono: "Geist Mono", monospace;
@@ -62,6 +63,7 @@
         --rule: rgba(0,0,0,0.55);
       }
     }
+    /* cklph:tokens:end */
 
     body {
       font-family: var(--font-sans);
@@ -243,17 +245,17 @@
           -->
 
           <!-- Arrow: muted (default — generic / internal connections) -->
-          <marker id="arrow" markerWidth="8" markerHeight="6" refX="7" refY="3" orient="auto">
+          <marker id="arrow" markerWidth="8" markerHeight="6" refX="7" refY="3" orient="auto" markerUnits="userSpaceOnUse">
             <polygon points="0 0, 8 3, 0 6" style="fill: var(--muted)"/>
           </marker>
 
           <!-- Arrow: coral (accent — primary / highlighted flows) -->
-          <marker id="arrow-accent" markerWidth="8" markerHeight="6" refX="7" refY="3" orient="auto">
+          <marker id="arrow-accent" markerWidth="8" markerHeight="6" refX="7" refY="3" orient="auto" markerUnits="userSpaceOnUse">
             <polygon points="0 0, 8 3, 0 6" style="fill: var(--accent)"/>
           </marker>
 
           <!-- Arrow: link (HTTP/API / external calls) -->
-          <marker id="arrow-link" markerWidth="8" markerHeight="6" refX="7" refY="3" orient="auto">
+          <marker id="arrow-link" markerWidth="8" markerHeight="6" refX="7" refY="3" orient="auto" markerUnits="userSpaceOnUse">
             <polygon points="0 0, 8 3, 0 6" style="fill: var(--link)"/>
           </marker>
 

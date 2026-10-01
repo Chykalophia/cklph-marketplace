@@ -37,7 +37,16 @@ CSS = bt.to_css(brand, "light")
 
 def build(src: dict) -> tuple[str, str]:
     """(sidecar json, html) drawn from ``src`` exactly as the harness does."""
-    return json.dumps(src, indent=2), bx.shell(src, brand["label"], CSS, bx.draw(src), brand["font_link"])
+    try:
+        page = bx.render(src, "light")
+    except SystemExit:
+        # scaffold refuses a stub brand outright (correctly); to test that
+        # check.py catches one anyway, draw with a valid brand and plant the
+        # stub in the embedded source, as a hand-edited file would carry it.
+        safe = copy.deepcopy(src)
+        safe["brand"]["slug"] = BRAND
+        page = bx.render(safe, "light").replace(diagram_source.embed_block(safe), diagram_source.embed_block(src))
+    return json.dumps(src, indent=2), page
 
 
 def fixture() -> dict:

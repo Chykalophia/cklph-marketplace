@@ -1,10 +1,11 @@
 # Export to PNG / SVG
 
-Convert a generated diagram HTML file into a portable `.svg` and/or `.png` next to it. **Manual only — never run unprompted.**
+Convert a diagram HTML file into deliverables next to it: `.svg` and `.png` for every diagram, `.gif` and `.mp4` when it has steps (SKILL.md §12).
 
 ## Trigger
 
-Load this file when:
+Every diagram is exported as part of finishing it (SKILL.md §10 step 7): SVG and
+PNG always, GIF and MP4 when it has steps. Also load this file when:
 
 - The user invokes `/cklph-diagram:export-diagram <html-file>` (the plugin's slash command — defined in `commands/export-diagram.md` at the repo root).
 - The user asks in natural language to export, save, rasterize, convert, or download a diagram in `.svg` or `.png` form. Typical phrasings:
@@ -13,6 +14,7 @@ Load this file when:
   - "give me a PNG of that diagram"
   - "rasterize it"
   - "convert to png and svg"
+  - "make it a GIF for the email" / "animated version for the deck"
 
 The slash command is a thin wrapper that delegates here — both paths run the same procedure below.
 
@@ -88,58 +90,38 @@ That script is the source of truth for the transform below (CSS carry-forward, d
 
 Tools that don't fetch remote fonts at import time (offline Illustrator, some Figma import paths, older SVG viewers) will substitute typography. The SVG renders correctly in any modern browser. For pixel-perfect portability, recommend the PNG export.
 
-## PNG export procedure
+## PNG, GIF and MP4 — `scripts/export.py`
 
-Render **the original HTML** (not the extracted SVG) and screenshot only the `<svg>` element's bounding box. This keeps font loading reliable (already wired in the source HTML) while satisfying the "diagram only" rule. The PNG always has a **transparent background** (`omit_background=True`) so it can be placed on any slide or doc colour without a white halo. For motion-enabled HTML, append `?motion=static`, await `document.fonts.ready`, and assert the motion root has `data-frame="static"` before capture; never export at an arbitrary wall-clock delay.
-
-### Detection
-
-Before running anything, verify Playwright is installed:
-
-```
-python -c "import playwright" 2>NUL || python -c "import playwright"
+```bash
+python3 scripts/export.py <slug>.html                       # <slug>.svg + <slug>.png at 2x
+python3 scripts/export.py <slug>.html --png --scale 3       # just a 3x PNG (1–4, fractions allowed)
+python3 scripts/export.py <slug>.html --png --transparent   # no paper behind the diagram
+python3 scripts/export.py <slug>.html --gif --mp4           # step animation
+python3 scripts/export.py <slug>.html --all                 # everything that applies
 ```
 
-If the import fails, surface this exact instruction to the user and stop:
+It needs headless Chrome (PNG and frames) and ffmpeg (GIF, MP4); both are
+detected, and a missing one stops the export with a message rather than a
+partial result. Nothing is installed automatically.
 
-> Playwright is not available. PNG export requires an approved Playwright
-> installation and a compatible browser to be provisioned by the host
-> environment; the skill never installs runtime dependencies automatically.
-> Then ask me to export again.
+**PNG.** The standalone SVG (the same one `--svg` writes, carrying the brand's
+tokens and fonts) is rendered in Chrome at exactly its viewBox size × `--scale`,
+and the result is checked for that pixel size. The diagram only — no page title,
+no prose alternative. The brand's `paper` fills the background by default,
+because email clients paint transparency unpredictably (some of them black);
+`--transparent` drops it for slides and docs with their own background.
 
-Don't auto-install. The user asked for one feature, not a system change.
-
-### Rasterize
-
-Write the snippet below to a temp file and run it with `python <tmp.py> <src.html> <out.png>`:
-
-```python
-from playwright.sync_api import sync_playwright
-import sys, pathlib
-
-src, out = sys.argv[1], sys.argv[2]
-scale = int(sys.argv[3]) if len(sys.argv) > 3 else 2
-
-with sync_playwright() as p:
-    browser = p.chromium.launch()
-    page = browser.new_page(device_scale_factor=scale)
-    page.goto(f"file://{pathlib.Path(src).resolve()}")
-    page.wait_for_load_state("networkidle")
-    svg = page.locator("svg").first
-    # Release every clipping ancestor (local scroller, overflow:hidden chrome)
-    # so an SVG wider than its frame is captured whole.
-    svg.evaluate("el => { for (let a = el.parentElement; a; a = a.parentElement) a.style.setProperty('overflow', 'visible', 'important'); }")
-    svg.screenshot(path=out, omit_background=True)
-    browser.close()
-```
-
-Default `device_scale_factor=2` for crisp output. Accept `1` for compact assets or `3` for print/retina hero use, passed as a third CLI arg.
-
-The overflow release matters for the wide presets. `min-width` equals the viewBox width (see [`output-spec.md`](output-spec.md)), so a `doc-wide` or `slide-16x9` SVG is 1280px inside a 1200px frame, and its `.diagram-container` scroller clips the last 80px on screen. The screenshot covers the SVG's box but not what an ancestor clipped, so without the release the PNG comes out full size with a blank right edge. This is the screen-side counterpart of the templates' `@media print` rule.
+**GIF and MP4.** Animation comes from the source's `step` fields, drawn as
+`data-step="N"` (diagram-source.md §3). Frame N shows every element with
+step ≤ N; elements without a step always show; `data-motion-decorative` overlays
+never appear. Frames cross-fade (0.35s), each holds 1s, the complete diagram holds
+2.5s, then the GIF loops. The MP4 is H.264 and suits slides and video embeds; the
+GIF is for email and chat, capped at 1200px wide. A diagram with no steps has
+nothing to animate, and `--gif`/`--mp4` say so rather than producing a still.
 
 ### Output naming
 
-`example-architecture.html` → `example-architecture.png`, written next to the source. Honour explicit user-provided paths.
+`<slug>.html` → `<slug>.svg`, `.png`, `.gif`, `.mp4`, written next to the source.
 
 ## Sizing the export
 
@@ -154,7 +136,7 @@ The PNG's pixel dimensions are the SVG's `viewBox` × `device_scale_factor`. So 
 
 ### Hitting an exact pixel size
 
-When the user needs specific dimensions (an OG card at exactly 1200×630, a slide image at 1920×1080), compute the scale factor instead of guessing — Playwright accepts fractional values:
+When the user needs specific dimensions (an OG card at exactly 1200×630, a slide image at 1920×1080), compute the scale factor instead of guessing — `--scale` accepts fractional values:
 
 ```
 scale = target_width / viewBox_width
@@ -172,7 +154,7 @@ If the target aspect ratio doesn't match the `viewBox` aspect ratio, say so and 
 - **Source is `assets/index.html`** (the gallery, multiple SVGs in one file): refuse the export and ask the user which specific diagram file they meant. Don't guess.
 - **No `<svg>` block found**: the source isn't a diagram file. Tell the user; don't write anything.
 - **Surrounding HTML matters to the user**: they want cards/header in the image. Tell them this skill exports diagrams only, and recommend a browser-based full-page screenshot (or a separate PDF print).
-- **Source is missing fonts at runtime**: Playwright will substitute, the screenshot will look off. Check that the source HTML has the `<link href="...fonts.googleapis.com...">` tag in `<head>`. If absent, the file isn't from a current template — fix the source rather than working around it in export.
+- **Source is missing fonts at runtime**: Chrome will substitute, and the PNG will look off. Check that the source HTML has the `<link href="...fonts.googleapis.com...">` tag in `<head>`. If absent, the file isn't from a current template — fix the source rather than working around it in export.
 
 ## What this command never does
 

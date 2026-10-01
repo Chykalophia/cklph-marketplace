@@ -1,7 +1,7 @@
 # Fork notes
 
 **Base:** [`cathrynlavery/diagram-design`](https://github.com/cathrynlavery/diagram-design) @ `3c5c34b` (MIT), synced to `57148ac` (upstream 2.6.46) on 2026-10-01
-**Fork:** `cklph-diagram` v3.3-cklph, by Peter Krzyzek / Chykalophia
+**Fork:** `cklph-diagram` v3.4-cklph, by Peter Krzyzek / Chykalophia
 **Status:** Phase 1 complete, upstream sync complete, verified by `./scripts/verify.sh`
 
 This file records what changed from upstream and why, so a future merge from
@@ -141,6 +141,28 @@ from upstream's `.diagram-design` marker:
 
 Precedence is request → marker → house; a request that overrides a marker is
 stated in the confirm-before-drawing line so a stale marker gets noticed.
+
+---
+
+## The first real diagram (2026-10-01)
+
+The Chykalophia task process swimlane was the first diagram made through the
+installed skill rather than the test harness. Every check passed first time;
+the cost was elsewhere. Logged friction and what fixed it:
+
+| Friction | Fix |
+|---|---|
+| ~60 coordinates computed by hand | `layout.py`: grid intent → coordinates and routes |
+| Page assembly by hand: token splice, font link, attributes, width CSS | `scaffold.py` |
+| No decision shape | `kind: "decision"` |
+| Treatment table named colours that aren't tokens | rewritten as token + opacity |
+| Default folder landed inside the skill's own repo | location rule (diagram-source.md §1) |
+| Oversized accent arrowhead; doubled legend rule | `markerUnits="userSpaceOnUse"`; one-separator rule |
+
+The second pass at the same diagram took grid cells instead of pixels and
+exported SVG, PNG, GIF and MP4. Open: the brand's licensed title face (The
+Silver Editorial) is not on Google Fonts, so titles fall back to Georgia; it can
+be self-hosted only if the licence allows web embedding.
 
 ---
 

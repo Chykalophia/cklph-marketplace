@@ -8,6 +8,50 @@ The major version tracks the skill's `metadata.version` in
 `skills/cklph-diagram/SKILL.md`, which inherits `3.x` from the upstream skill
 this forked from.
 
+## [3.4.0] — 2026-10-01
+
+Deliverables first, and the friction from the first real diagram removed. A
+diagram is now made from grid intent, scaffolded, drawn, checked and exported
+to SVG, PNG and (when it has steps) GIF and MP4.
+
+### Added
+
+- **`export.py`**: SVG, PNG (2x by default, `--scale 1–4`, `--transparent`),
+  and GIF + MP4 built from the source's steps: one still per step, cross-faded,
+  ending on the complete diagram. Needs Chrome and ffmpeg; the PNG is checked
+  for its exact pixel size. Replaces the Playwright procedure, which the skill
+  never installed.
+- **`scaffold.py`**: builds the page from the source (brand tokens, fonts,
+  title, `<svg>` element, arrow markers, prose alternative, embedded source)
+  for every mode, leaving only the drawing between `cklph:draw` markers.
+  Re-running keeps the drawing; a page without markers is refused, not
+  overwritten. `--motion` builds on the canonical motion controller.
+- **`layout.py`**: `layout` grid + node `at` / group `lane` → coordinates;
+  orthogonal routes (straight, L, Z) for edges without points, attach points
+  fanned in far-endpoint order, labels on the visible gap. Reproduces the
+  hand-built trial swimlane exactly.
+- Source format: `kind: "decision"` (diamond), `step` on nodes and edges,
+  `layout`, `at`, `span`, `lane`. `check.py` matches diamonds and steps.
+- **Where diagrams live**: the project folder they were requested from;
+  otherwise `~/Documents/cklph-diagrams/`, also published as a Claude artifact.
+- `test-tools.py`: 30 outcome tests for scaffold, layout, export, decisions and
+  steps. In `verify.sh`.
+
+### Changed
+
+- Every diagram is exported as part of finishing it (SVG + PNG; GIF + MP4 when
+  animated). Export used to be "manual only".
+- The node treatment table is written in tokens (`fill="var(--ink)"
+  fill-opacity="0.05"`), so following it literally passes the a11y lint.
+- `build-examples.py` builds its pages through `scaffold.py`: one page shell.
+
+### Fixed
+
+- Arrowheads scaled with stroke width (a 2px accent line got a doubled head):
+  every marker is `markerUnits="userSpaceOnUse"`.
+- Legends stacked a second rule on a diagram's last full-width rule.
+- `diagram-source.md` told authors to escape `<` as `<` (should be `\u003c`).
+
 ## [3.3.1] — 2026-10-01
 
 ### Fixed

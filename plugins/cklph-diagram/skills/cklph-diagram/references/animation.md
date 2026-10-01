@@ -108,6 +108,15 @@ Declare `data-step-count`; do not infer steps from transition events. Set `--mot
 
 The final-state capture contract is synchronous: `?motion=static`, `<html data-motion="static">`, or mode `none` exposes every semantic item, hides controls and decorative overlays, and sets `data-frame="static"`. Wait for `document.fonts.ready` before capture. Two captures from the same URL, viewport, fonts, and device scale must be pixel-identical; random delays, generated IDs, clocks, and runtime path measurement are forbidden.
 
+## Exporting animation as files (GIF, MP4)
+
+Everything above is in-page motion. For a deliverable that moves outside a
+browser — an email, a slide — export it: `python3 scripts/export.py <slug>.html
+--gif --mp4`. The frames come from the same `data-step` marks (frame N shows
+step ≤ N), cross-fade, and end on the complete diagram, so the GIF and the
+in-page animation tell the same story. Give steps in the source (`"step": N` on
+nodes and edges, diagram-source.md) and both follow from it.
+
 ## Export and verification
 
 PNG and SVG exports are static final-state artifacts unless the user explicitly requests a named step. Before capture, open `?motion=static`, await `document.fonts.ready`, and assert `data-frame="static"`. SVG extraction omits HTML controls and scripts; source-visible semantic markup keeps the result complete.
