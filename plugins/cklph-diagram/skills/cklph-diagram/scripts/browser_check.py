@@ -85,23 +85,36 @@ def find_chrome() -> str | None:
     return None
 
 
+ATTEMPTS, TIMEOUT_S = 2, 45
+
+
 def measure(chrome: str, html: str, width: int) -> dict:
+    """One probe run at ``width``. Headless Chrome occasionally hangs on launch, so
+    a timeout is retried once; a second failure raises RuntimeError, which check()
+    reports as a failed gate -- never as a crash and never as a pass."""
     body_close = html.rfind("</body>")
     page = html[:body_close] + PROBE + html[body_close:] if body_close != -1 else html + PROBE
-    with tempfile.TemporaryDirectory() as tmp:
-        f = Path(tmp) / "probe.html"
-        f.write_text(page, encoding="utf-8")
-        run = subprocess.run(
-            [chrome, "--headless=new", "--disable-gpu", "--no-first-run", "--no-default-browser-check",
-             "--hide-scrollbars", "--force-device-scale-factor=1",
-             f"--window-size={width},900", "--virtual-time-budget=5000", "--dump-dom", f.as_uri()],
-            capture_output=True, text=True, timeout=60,
-        )
-    m = re.search(r'<pre id="cklph-probe-out">(.*?)</pre>', run.stdout, re.S)
-    if not m:
-        raise RuntimeError(f"probe produced no result at {width}px: {run.stderr.strip()[:300]}")
-    raw = m.group(1).replace("&quot;", '"').replace("&lt;", "<").replace("&gt;", ">").replace("&amp;", "&")
-    return json.loads(raw)
+    last = ""
+    for _attempt in range(ATTEMPTS):
+        with tempfile.TemporaryDirectory() as tmp:
+            f = Path(tmp) / "probe.html"
+            f.write_text(page, encoding="utf-8")
+            try:
+                run = subprocess.run(
+                    [chrome, "--headless=new", "--disable-gpu", "--no-first-run", "--no-default-browser-check",
+                     "--hide-scrollbars", "--force-device-scale-factor=1",
+                     f"--window-size={width},900", "--virtual-time-budget=5000", "--dump-dom", f.as_uri()],
+                    capture_output=True, text=True, timeout=TIMEOUT_S,
+                )
+            except subprocess.TimeoutExpired:
+                last = f"Chrome did not finish within {TIMEOUT_S}s"
+                continue
+        m = re.search(r'<pre id="cklph-probe-out">(.*?)</pre>', run.stdout, re.S)
+        if m:
+            raw = m.group(1).replace("&quot;", '"').replace("&lt;", "<").replace("&gt;", ">").replace("&amp;", "&")
+            return json.loads(raw)
+        last = f"probe produced no result: {run.stderr.strip()[:200]}"
+    raise RuntimeError(f"at {width}px after {ATTEMPTS} attempts: {last}")
 
 
 def _overlap(a, b) -> float:
@@ -176,7 +189,12 @@ def check(path: Path) -> dict:
         pass
     findings: list[dict] = []
     for w in WIDTHS:
-        findings += findings_for(measure(chrome, html, w), w, markers)
+        try:
+            findings += findings_for(measure(chrome, html, w), w, markers)
+        except RuntimeError as exc:
+            findings.append({"gate": "browser", "code": "probe-failed", "subject": f"page @{w}px",
+                             "message": str(exc), "fix": "rerun; if it persists, check Chrome starts headless",
+                             "severity": "error"})
     return {"status": "failed" if findings else "passed", "widths": list(WIDTHS), "findings": findings}
 
 

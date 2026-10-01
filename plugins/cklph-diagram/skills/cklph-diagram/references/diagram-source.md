@@ -56,7 +56,7 @@ go in `data`.
     "desc": "Form submissions enter through an edge worker, queue, and are processed by a worker that writes to the CRM.",
     "eyebrow": "ARCHITECTURE",
     "created": "2026-10-01",
-    "skill_version": "3.2-cklph"
+    "skill_version": "3.3-cklph"
   },
   "brand": { "slug": "cklph", "modes": ["light", "dark"] },
   "canvas": { "width": 784, "height": 480, "render_width": 784, "preset": "doc-inline" },
@@ -100,7 +100,7 @@ go in `data`.
 | node `cue` | The non-colour cue that travels with a colour (A1): `cat`, `rx`, `dash`. |
 | node `x y w h` | The box exactly as drawn. Structural boxes sit on the 4px grid; markers are exempt. |
 | edge `points` | The drawn route as orthogonal corner points, first and last included. Rounded corners are drawing detail; the corners here are what is checked. |
-| edge `label_at` | Centre of the label's mask. Keep labels ≤ 14 characters. |
+| edge `label_at` | Centre of the label's mask. Keep labels ≤ 14 characters. The mask is `label_mask_width(label)` × 16px; draw it at exactly that size. |
 | edge `style` / `dash` | `default`, `accent`, `link`; dash e.g. `"4,3"`. |
 | `data` | Charts: the values and scale the positions come from (bars, totals, axes). The numbers here and the geometry must agree. |
 | `alt` | The prose alternative (A4), rendered into `<details class="diagram-alt">`. |
@@ -137,7 +137,8 @@ python3 scripts/check.py diagrams/<folder>/<slug>.html      # every HTML you han
 ```
 
 Gates, in order; the first failure stops the run: **source** (well-formed,
-sound geometry) → **embed** → **match** (drawing = source) → **a11y** →
+sound geometry, and the layout rules in `layout-budget.md`: text fit, label
+placement, segment floors, attach points) → **embed** → **match** (drawing = source) → **a11y** →
 **safety** → **browser** (real Chrome at 1440px and 375px: rendered text size,
 text spilling out of boxes, overlapping text, labels on nodes, clipping,
 sideways scroll). Each finding names what was measured and a fix.

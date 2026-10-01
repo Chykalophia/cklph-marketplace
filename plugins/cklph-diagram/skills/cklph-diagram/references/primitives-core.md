@@ -67,6 +67,7 @@ These six rules are **non-negotiable**. Run the pre-output checklist (SKILL.md �
 
 4. **Shared edge → fan the attach points.** When two or more connectors enter or exit the *same edge* of a box, each must have its own distinct attach point along that edge — **no two connectors may share a single point on a box**. Spread the attach points evenly along the edge with **≥12px** between adjacent points (8px minimum for very small boxes). Routing rules:
    - For N connectors on an edge of length L, attach point `k` (1..N) sits at offset `L * k / (N + 1)` from the edge's leading corner.
+   - **Order the attach points by the far endpoint.** Sort the connectors leaving one edge by the position of the node each one goes to, and assign attach points in that order; otherwise two lines cross right next to the box. A side carrying N points needs at least `2 × 16 + 12 × (N − 1)` px.
    - When the connectors fan out to destinations on different sides, route each one orthogonally from its own attach point — no merging strokes near the box.
    - When two parallel connectors run in the same direction, keep them ≥12px apart along their entire length, not just at the attach point. Each arrow must remain independently traceable end-to-end.
 

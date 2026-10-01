@@ -93,6 +93,21 @@ def no_alt(src):
     src["alt"]["items"] = []
 
 
+def short_segment(src):
+    # a corner 8px after the start: no room for the 8px corner radius
+    edge(src, "crm-notify")["points"] = [[676, 200], [676, 208], [700, 208], [700, 340], [560, 340]]
+
+
+def attach_collision(src):
+    # a second line leaving worker's bottom 4px from the existing one
+    src["edges"].append({"id": "worker-notify-b", "from": "worker", "to": "notify",
+                         "points": [[488, 200], [488, 288]]})
+
+
+def label_on_line(src):
+    edge(src, "intake-queue")["label_at"] = [196, 156]
+
+
 # --- HTML-only mutations: the drawing drifts from the record --------------- #
 
 def relabel_svg(html):
@@ -121,6 +136,16 @@ def stale_embed(html):
 
 def wrong_mode(html):
     return html.replace('data-cklph-mode="light"', 'data-cklph-mode="dark"', 1)
+
+
+def bigger_sublabel_svg(html):
+    # the drawing quietly uses 28px where the source budgeted 12px
+    return re.sub(r'(<text [^>]*font-size=")12("[^>]*>durable, 7d</text>)', r"\g<1>28\2", html, count=1)
+
+
+def label_moved_svg(html):
+    # the drawn label lands on the Intake box although label_at is clear
+    return re.sub(r'<text x="\d+"( y="\d+"[^>]*>POST</text>)', r'<text x="100"\1', html, count=1)
 
 
 def shrink_on_phone(html):
@@ -153,14 +178,53 @@ CASES = [
     ("mode not in source", None, wrong_mode, "match", "mode", False),
     ("text shrinks on a phone", None, shrink_on_phone, "browser", "rendered-size", True),
     ("page scrolls sideways", None, page_overflow, "browser", "page-overflow", True),
-    ("text spills out of its box", spill, None, "browser", "text-spill", True),
-    ("arrow label on a node", label_on_node, None, "browser", "label-on-node", True),
+    ("text too long for its box", spill, None, "source", "text-fit", False),
+    ("arrow label placed on a node", label_on_node, None, "source", "label-on-node", False),
+    ("arrow label on its own line", label_on_line, None, "source", "label-on-line", False),
+    ("segment too short for a corner", short_segment, None, "source", "short-segment", False),
+    ("two lines share an attach point", attach_collision, None, "source", "attach-collision", False),
+    ("drawn text larger than budgeted", None, bigger_sublabel_svg, "browser", "text-spill", True),
+    ("drawn label lands on a node", None, label_moved_svg, "browser", "label-on-node", True),
 ]
+
+
+WARN_CASES = [
+    # name, edges to add to an empty two-node source, expected warning code
+    ("lines leave a side out of order", "attach-order"),
+    ("route detours far past the direct path", "detour"),
+    ("route with too many bends", "bends"),
+]
+
+
+def warn_fixture(name: str) -> dict:
+    src = copy.deepcopy(fixture())
+    if name == "lines leave a side out of order":
+        # two lines leave worker's bottom; the left one goes right, the right one goes left
+        src["nodes"].append({"id": "left", "label": "Left", "sublabel": "a", "tag": "L",
+                             "x": 32, "y": 384, "w": 136, "h": 88})
+        src["edges"] += [
+            {"id": "w-crm", "from": "worker", "to": "crm", "points": [[460, 200], [460, 360], [652, 360], [652, 208]]},
+            {"id": "w-left", "from": "worker", "to": "left", "points": [[508, 200], [508, 344], [100, 344], [100, 376]]},
+        ]
+        src["canvas"]["height"] = 480
+        src["legend"] = []
+    elif name == "route detours far past the direct path":
+        edge(src, "intake-queue")["points"] = [[168, 156], [192, 156], [192, 460], [212, 460], [212, 156], [216, 156]]
+    elif name == "route with too many bends":
+        edge(src, "crm-notify")["points"] = [[676, 200], [676, 240], [700, 240], [700, 280], [720, 280], [720, 340], [560, 340]]
+    return src
 
 
 def main() -> int:
     static = "--static" in sys.argv
     failures = []
+    for name, code in WARN_CASES:
+        rep = diagram_source.validate(warn_fixture(name))
+        warns = {f.code for f in rep.findings if f.severity == "warn"}
+        ok = code in warns
+        print(f"{'ok  ' if ok else 'FAIL'} warning: {name}" + ("" if ok else f"  → want warn {code}, got {sorted(warns)}"))
+        if not ok:
+            failures.append(name)
     with tempfile.TemporaryDirectory() as tmp:
         for name, smut, hmut, gate, code, needs_browser in CASES:
             if needs_browser and static:
