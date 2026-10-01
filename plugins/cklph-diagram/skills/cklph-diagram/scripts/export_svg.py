@@ -237,6 +237,11 @@ def diagram_css_from_html(html: str, root_id: str) -> str:
             body = match.group(2).strip()
             if not selector or not body:
                 continue
+            if selector.lower() == "@font-face":
+                # Brand faces embedded by scaffold.py travel with the SVG, unscoped:
+                # an at-rule has no selector to prefix.
+                kept.append(escape_css_for_xml(f"@font-face {{ {body} }}"))
+                continue
             inherited = body_inherited_css(selector, body, root_id)
             if inherited:
                 kept.append(escape_css_for_xml(inherited))

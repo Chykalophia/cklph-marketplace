@@ -61,6 +61,12 @@ it. Rules that matter:
   label has to be legible — the swatch does not have to match the hero image.
 - **`paper` is never pure `#ffffff`.** See [`cognitive-load.md`](cognitive-load.md) C5.
 - **Fill both modes.** A brand with no dark tokens is half a brand.
+- **Licensed faces** (not on Google Fonts): when the client's licence allows use
+  in their deliverables, put the files in `references/brands/fonts/<slug>/`
+  (git-ignored — the repo is public) and list them in a `### Local fonts` table
+  under Typography: `| Family | Weight | Style | File |`. `scaffold.py` embeds
+  them in every page and `export.py` carries them into SVG, PNG, GIF and MP4.
+  Without the files, the face falls back to its stack and `--check` says so.
 
 ## 3. Verify — mechanically
 

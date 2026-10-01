@@ -152,6 +152,18 @@ case "$MODE" in
         for b in $differ; do cp -p "$ib/$b" "$keep/$b"; done
       fi
       kept_only="$only"
+      # Licensed font files (git-ignored, like client brands) get the same care:
+      # one that exists only in the installed copy survives the reinstall.
+      if [ -d "$ib/fonts" ]; then
+        while IFS= read -r f; do
+          rel="${f#$ib/fonts/}"
+          if [ ! -e "$rb/fonts/$rel" ]; then
+            mkdir -p "$keep/fonts/$(dirname "$rel")"
+            cp -p "$f" "$keep/fonts/$rel"
+            kept_only="$kept_only fonts/$rel"
+          fi
+        done < <(find "$ib/fonts" -type f)
+      fi
       echo "Replacing existing install at $DEST"
       rm -rf "$DEST"
     fi
@@ -163,6 +175,10 @@ case "$MODE" in
         [ -e "$f" ] || continue
         cp -p "$f" "$DEST/references/brands/"
       done
+      if [ -d "$keep/fonts" ]; then
+        mkdir -p "$DEST/references/brands/fonts"
+        cp -Rp "$keep/fonts/." "$DEST/references/brands/fonts/"
+      fi
       rm -rf "$keep"
       if [ -n "$kept_only" ]; then
         echo "Kept brand(s) that exist only in the installed copy:$kept_only"

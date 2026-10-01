@@ -34,6 +34,12 @@ CSS_ESCAPE_RE = re.compile(
 )
 CSS_IMPORT_RE = re.compile(r"@import\b", re.IGNORECASE)
 CSS_COMMENT_RE = re.compile(r"/\*.*?\*/", re.DOTALL)
+# An embedded font (scaffold.py writes the brand's licensed faces this way) is
+# inert data: allow it inside @font-face, and only as a font MIME type.
+CSS_FONT_DATA_RE = re.compile(
+    r"url\(\s*['\"]?data:(?:font/(?:woff2|woff|ttf|otf)|application/font-woff2?);base64,[A-Za-z0-9+/=]+['\"]?\s*\)",
+    re.IGNORECASE,
+)
 FONT_PRECONNECT_HOSTS = {"fonts.googleapis.com", "fonts.gstatic.com"}
 CSS_URL_RE = re.compile(r"url\(\s*([^)]+?)\s*\)", re.IGNORECASE)
 CSS_IMAGE_SET_RE = re.compile(r"(?:-webkit-)?image-set\s*\(", re.IGNORECASE)
@@ -262,6 +268,9 @@ def check_css_references(parser: DiagramParser, errors: list[str]) -> None:
     # brand's source site and webfont link) in comments, so leaving them in would
     # fail every brand-resolved diagram on a URL the browser never fetches.
     source = CSS_COMMENT_RE.sub(" ", source)
+    # Strip embedded fonts before the loader checks: base64 can contain "//",
+    # which would otherwise read as a protocol-relative remote URL.
+    source = CSS_FONT_DATA_RE.sub(" ", source)
     found_loader = False
     if CSS_IMPORT_RE.search(source):
         errors.append("CSS @import is not allowed")

@@ -106,8 +106,19 @@ do not survive a projector or a 60-year-old donor's eyes.
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Public+Sans:wght@400;500;600&family=JetBrains+Mono:wght@400;500&display=swap">
 ```
 
-The Silver Editorial is a licensed face and is not on Google Fonts. Fall back to
-Georgia for anything leaving the CKLPH machine.
+The Silver Editorial is a licensed face, not on Google Fonts. Chykalophia's
+licence covers using it wherever its work needs it, so `scaffold.py` embeds it
+in every page (and `export.py` carries it into SVG, PNG, GIF and MP4). The files
+are **not** in git — the repo is public — and live in
+`references/brands/fonts/cklph/`, copied from the Chykalophia-Website repo
+(`apps/web/public/fonts/`). Without them the title falls back to Georgia.
+
+### Local fonts
+
+| Family | Weight | Style | File |
+|---|---|---|---|
+| The Silver Editorial | 400 | normal | `TheSilverEditorial-Regular.woff2` |
+| The Silver Editorial | 400 | italic | `TheSilverEditorial-Italic.woff2` |
 
 ## Geometry
 

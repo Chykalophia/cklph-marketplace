@@ -28,7 +28,9 @@ to prevent.
 from __future__ import annotations
 
 import argparse
+import base64
 import json
+import os
 import re
 import sys
 from pathlib import Path
@@ -60,6 +62,13 @@ def _find_brands_dir() -> Path:
 
 BRANDS = _find_brands_dir()
 ROOT = BRANDS.parent.parent
+# Licensed font files live beside the registry, git-ignored (the repo is public;
+# the faces are licensed to Chykalophia, not to the world). Overridable for tests.
+FONTS_DIR = Path(os.environ.get("CKLPH_FONTS_DIR", BRANDS / "fonts"))
+LOCAL_FONT_RE = re.compile(
+    r"^\|\s*([A-Z][^|]*?)\s*\|\s*(\d{3})\s*\|\s*(normal|italic)\s*\|\s*`?([\w.-]+\.(?:woff2|woff|ttf|otf))`?\s*\|"
+)
+FONT_MIME = {"woff2": "font/woff2", "woff": "font/woff", "ttf": "font/ttf", "otf": "font/otf"}
 
 ROW_RE = re.compile(r"^\|\s*`?([a-z0-9-]+)`?\s*\|\s*([^|]+?)\s*\|\s*([^|]+?)\s*\|")
 FM_RE = re.compile(r"^---\n(.*?)\n---", re.DOTALL)
@@ -267,6 +276,17 @@ def load(slug: str) -> dict:
             shape_cues[role] = cue[4].strip()
 
     link = FONT_LINK_RE.search(text)
+    local_fonts = []
+    in_local = False
+    for raw in text.splitlines():
+        if raw.startswith("#"):
+            in_local = raw.lstrip("#").strip().lower() == "local fonts"
+            continue
+        m = LOCAL_FONT_RE.match(raw) if in_local else None
+        if m:
+            family, weight, style, file = m.groups()
+            local_fonts.append({"family": family, "weight": weight, "style": style,
+                                "path": FONTS_DIR / slug / file})
 
     return {
         "slug": slug,
@@ -278,6 +298,7 @@ def load(slug: str) -> dict:
         "shape_cues": shape_cues,
         "fonts": fonts,
         "font_link": link.group(0) if link else "",
+        "local_fonts": local_fonts,
         "has_todo": "TODO" in text,
     }
 
@@ -357,6 +378,25 @@ def validate(brand: dict, mode: str = "light") -> list[str]:
             f"fill the Typography table rows: {wanted}"
         )
     return problems
+
+
+def font_face_css(brand: dict) -> tuple[str, list[str]]:
+    """@font-face rules with the brand's local font files embedded as data, and
+    the files that are listed but missing (those faces fall back to the stack)."""
+    rules, missing = [], []
+    for f in brand.get("local_fonts", []):
+        path = f["path"]
+        if not path.is_file():
+            missing.append(str(path))
+            continue
+        ext = path.suffix.lstrip(".").lower()
+        data = base64.b64encode(path.read_bytes()).decode("ascii")
+        rules.append(
+            f'@font-face {{ font-family: "{f["family"]}"; font-weight: {f["weight"]}; '
+            f'font-style: {f["style"]}; font-display: swap; '
+            f'src: url(data:{FONT_MIME[ext]};base64,{data}) format("{ "truetype" if ext == "ttf" else "opentype" if ext == "otf" else ext}"); }}'
+        )
+    return "\n".join(rules), missing
 
 
 def to_css(brand: dict, mode: str) -> str:
@@ -454,6 +494,9 @@ def main() -> int:
     if args.check:
         n = len(brand[args.mode])
         print(f"ok: {slug} ({brand['label']}) — {n} tokens, {args.mode}, AA clean")
+        _, missing = font_face_css(brand)
+        for path in missing:
+            print(f"  note: local font {path} is not installed; that face falls back to its stack")
         return 0
 
     if args.json:

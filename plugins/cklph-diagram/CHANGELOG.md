@@ -8,6 +8,22 @@ The major version tracks the skill's `metadata.version` in
 `skills/cklph-diagram/SKILL.md`, which inherits `3.x` from the upstream skill
 this forked from.
 
+## [3.5.0] — 2026-10-01
+
+### Added
+
+- **Licensed brand fonts in deliverables.** A brand file can list local font
+  files (`### Local fonts`); `scaffold.py` embeds them in every page as
+  `@font-face` data and `export.py` carries them into SVG, PNG, GIF and MP4.
+  CKLPH now renders its titles in The Silver Editorial instead of Georgia.
+  The files live in `references/brands/fonts/<slug>/`, git-ignored because this
+  repo is public; `install.sh` installs them and keeps installed-only ones.
+- `self_check.py` accepts embedded font data (font MIME types only, inside
+  CSS), and strips it before the remote-URL check (base64 can contain `//`).
+- `export_svg.py` carries `@font-face` rules unscoped.
+- `test-tools.py`: 5 font cases, including one proving a mangled
+  `#root @font-face` is caught.
+
 ## [3.4.0] — 2026-10-01
 
 Deliverables first, and the friction from the first real diagram removed. A
