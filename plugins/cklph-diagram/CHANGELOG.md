@@ -8,6 +8,17 @@ The major version tracks the skill's `metadata.version` in
 `skills/cklph-diagram/SKILL.md`, which inherits `3.x` from the upstream skill
 this forked from.
 
+## [3.3.1] — 2026-10-01
+
+### Fixed
+
+- **Reinstalling could delete or overwrite a client brand.** `install.sh`
+  replaced the installed copy wholesale, so a brand onboarded straight into it
+  was deleted and a local edit to a brand file was overwritten. It now carries
+  installed-only brand files across, and refuses to install while a brand file
+  differs between the two copies until `--brands-from installed|repo` says
+  which wins.
+
 ## [3.3.0] — 2026-10-01
 
 Layout rules adapted from Archify's authoring contract, enforced on the source
