@@ -5,6 +5,13 @@
 #   ./install.sh --bundle        build cklph-diagram.skill for claude.ai upload
 #   ./install.sh --dir <path>    install somewhere else
 #   ./install.sh --uninstall     remove an installed copy
+#   ./install.sh --brands-from installed|repo
+#                                which copy wins when a brand file differs
+#
+# Client brands are git-ignored and can be onboarded straight into the
+# installed copy, so a reinstall never deletes one: brand files that exist only
+# in the installed copy are carried over, and a brand file that differs between
+# the two copies stops the install until --brands-from says which one wins.
 #
 # The skill folder is self-contained: SKILL.md, references/ (including the brand
 # registry) and scripts/ all travel together, so the brand gate and the a11y
@@ -24,13 +31,17 @@ SRC="skills/cklph-diagram"
 NAME="cklph-diagram"
 DEST="${HOME}/.claude/skills/${NAME}"
 MODE="install"
+BRANDS_FROM=""
 
 while [ $# -gt 0 ]; do
   case "$1" in
     --bundle)    MODE="bundle"; shift ;;
     --uninstall) MODE="uninstall"; shift ;;
     --dir)       DEST="$2/${NAME}"; shift 2 ;;
-    -h|--help)   sed -n '2,10p' "$0" | sed 's/^# \{0,1\}//'; exit 0 ;;
+    --brands-from)
+      case "${2:-}" in installed|repo) BRANDS_FROM="$2" ;; *) echo "--brands-from takes 'installed' or 'repo'" >&2; exit 2 ;; esac
+      shift 2 ;;
+    -h|--help)   sed -n '2,17p' "$0" | sed 's/^# \{0,1\}//'; exit 0 ;;
     *)           echo "unknown option: $1" >&2; exit 2 ;;
   esac
 done
@@ -111,13 +122,54 @@ case "$MODE" in
     ;;
 
   install)
+    keep=""
+    kept_only=""
     if [ -d "$DEST" ]; then
+      ib="$DEST/references/brands"
+      rb="$SRC/references/brands"
+      only=""
+      differ=""
+      for f in "$ib"/*.md; do
+        [ -e "$f" ] || continue
+        b="$(basename "$f")"
+        if [ ! -e "$rb/$b" ]; then
+          only="$only $b"
+        elif ! cmp -s "$f" "$rb/$b"; then
+          differ="$differ $b"
+        fi
+      done
+      if [ -n "$differ" ] && [ -z "$BRANDS_FROM" ]; then
+        echo "REFUSED: these brand files differ between the installed copy and the repo:" >&2
+        for b in $differ; do echo "  $b   (diff \"$ib/$b\" \"$rb/$b\")" >&2; done
+        echo "Reinstalling would overwrite one of them. Compare, then rerun with" >&2
+        echo "  --brands-from installed   (keep the installed copy's version)" >&2
+        echo "  --brands-from repo        (use the repo's version)" >&2
+        exit 1
+      fi
+      keep="$(mktemp -d)"
+      for b in $only; do cp -p "$ib/$b" "$keep/$b"; done
+      if [ "$BRANDS_FROM" = "installed" ]; then
+        for b in $differ; do cp -p "$ib/$b" "$keep/$b"; done
+      fi
+      kept_only="$only"
       echo "Replacing existing install at $DEST"
       rm -rf "$DEST"
     fi
     mkdir -p "$(dirname "$DEST")"
     cp -R "$SRC" "$DEST"
     find "$DEST" -name '__pycache__' -type d -prune -exec rm -rf {} + 2>/dev/null || true
+    if [ -n "$keep" ]; then
+      for f in "$keep"/*.md; do
+        [ -e "$f" ] || continue
+        cp -p "$f" "$DEST/references/brands/"
+      done
+      rm -rf "$keep"
+      if [ -n "$kept_only" ]; then
+        echo "Kept brand(s) that exist only in the installed copy:$kept_only"
+        echo "  They are not in the repo. To keep a backup there (git-ignored):"
+        echo "  cp \"$DEST/references/brands/<file>\" \"$SRC/references/brands/\""
+      fi
+    fi
 
     # Prove the installed copy stands on its own, with no repo in sight.
     if ( cd "$DEST" && python3 scripts/brand-tokens.py --list >/dev/null 2>&1 ); then
