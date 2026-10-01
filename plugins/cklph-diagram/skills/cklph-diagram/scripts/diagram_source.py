@@ -255,6 +255,7 @@ def validate(src: object, check_brand: bool = True) -> Report:
         rep.err("source", "alt", "alt", "summary, reading_order and a non-empty items list are required (A4)")
 
     _geometry(rep, nodes, edges)
+    _layout(rep, nodes, edges)
     return rep
 
 
@@ -347,6 +348,198 @@ def _geometry(rep: Report, nodes: list, edges: list) -> None:
             elif crossed:
                 rep.warn("source", "crossing", f"{ea} / {eb}",
                          "the routes cross (C4)", "reroute, or draw a bridge/hop where unavoidable")
+
+
+# --------------------------------------------------------------------------- #
+# layout rules (adapted from Archify's authoring contract; layout-budget.md)
+# --------------------------------------------------------------------------- #
+
+# Advance per character, in em. Measured averages, deliberately on the wide side:
+# an estimate that under-counts lets a label spill, one that over-counts only
+# costs a few px of padding. The browser gate measures the real thing later.
+ADVANCE = {"sans": 0.60, "sans-600": 0.64, "mono": 0.62}
+NODE_PAD = 8           # px of clear space each side of node text (layout-budget.md minimum)
+LABEL_PAD = 4          # px each side of an arrow label inside its mask
+LABEL_H = 16           # mask height for 12px label text
+LABEL_GAP = (6, 16)    # visible gap between a label mask and its own stroke (§6 rule 2)
+ATTACH_MIN, ATTACH_OK = 8, 12   # px between attach points on one box side (§6 rule 4)
+SEGMENT_MIN = 16       # px: a rounded corner (R=8) and an arrowhead each need 8
+DETOUR_FACTOR, DETOUR_SLACK = 2.5, 200
+MAX_BENDS = 3
+
+# (field, font size px, face, tracking em) for a box node's three text lines,
+# matching primitives-core.md § Node box.
+NODE_TEXT = (("label", 16, "sans-600", 0.0), ("sublabel", 12, "mono", 0.0), ("tag", 12, "mono", 0.08))
+
+
+def _wide(ch: str) -> bool:
+    import unicodedata
+    return unicodedata.east_asian_width(ch) in ("W", "F")
+
+
+def text_width(text: str, size: float, face: str = "sans", tracking: float = 0.0) -> float:
+    """Estimated rendered width in px. Per character, never per script:
+    a wide/full-width character costs 1em, anything else its face's advance,
+    nonspacing marks nothing (style-guide.md § Non-Latin labels)."""
+    import unicodedata
+    em = 0.0
+    for ch in text:
+        if unicodedata.combining(ch):
+            continue
+        em += 1.0 if _wide(ch) else ADVANCE[face]
+        em += tracking
+    return em * size
+
+
+def _ceil4(v: float) -> int:
+    return int(-(-v // 4) * 4)
+
+
+def label_mask_width(label: str) -> int:
+    """Width of an arrow label's mask: 12px mono, 0.06em tracking, padded, on the
+    4px grid. The drawing and the checker both use this, so they cannot disagree."""
+    return _ceil4(text_width(label, 12, "mono", 0.06) + 2 * LABEL_PAD)
+
+
+def _side(point, r, tol: float = 10.0) -> str | None:
+    """Which side of box r an endpoint attaches to (arrowheads stop up to 8px short)."""
+    x, y, w, h = r
+    px, py = point
+    if y - 1 <= py <= y + h + 1:
+        if abs(px - x) <= tol:
+            return "left"
+        if abs(px - (x + w)) <= tol:
+            return "right"
+    if x - 1 <= px <= x + w + 1:
+        if abs(py - y) <= tol:
+            return "top"
+        if abs(py - (y + h)) <= tol:
+            return "bottom"
+    return None
+
+
+def _rect_gap(rect, a, b) -> float:
+    """Shortest distance from an axis-aligned rect to segment a-b (0 if they touch)."""
+    x0, y0, x1, y1 = rect
+    if a[1] == b[1]:
+        lo, hi = sorted((a[0], b[0]))
+        dx = max(x0 - hi, lo - x1, 0.0)
+        dy = max(y0 - a[1], a[1] - y1, 0.0)
+    else:
+        lo, hi = sorted((a[1], b[1]))
+        dx = max(x0 - a[0], a[0] - x1, 0.0)
+        dy = max(y0 - hi, lo - y1, 0.0)
+    return (dx * dx + dy * dy) ** 0.5
+
+
+def _layout(rep: Report, nodes: list, edges: list) -> None:
+    boxes = {n["id"]: n for n in nodes if isinstance(n, dict) and _rect(n) and isinstance(n.get("id"), str)}
+
+    # 1. text fit -- box nodes only; a marker's labels sit beside it by design
+    for nid, n in boxes.items():
+        if n.get("kind", "box") == "marker":
+            continue
+        room = n["w"] - 2 * NODE_PAD
+        for field_name, size, face, tracking in NODE_TEXT:
+            text = n.get(field_name)
+            if not isinstance(text, str) or not text:
+                continue
+            need = text_width(text, size, face, tracking)
+            if need > room:
+                rep.err("source", "text-fit", f"node {nid}",
+                        f"{field_name} {text!r} needs ~{need:.0f}px at {size}px; the box leaves {room:g}px",
+                        f"shorten it, or widen the box to w={_ceil4(need + 2 * NODE_PAD)} "
+                        f"(never shrink the type below 12px)")
+
+    for e in edges:
+        if not isinstance(e, dict) or not isinstance(e.get("points"), list):
+            continue
+        eid = str(e.get("id"))
+        try:
+            segs = _segments(e["points"])
+            pts = [(float(p[0]), float(p[1])) for p in e["points"]]
+        except (TypeError, ValueError, IndexError):
+            continue
+        if not segs:
+            continue
+
+        # 2. route floors
+        for a, b in segs:
+            length = abs(a[0] - b[0]) + abs(a[1] - b[1])
+            if length < SEGMENT_MIN:
+                rep.err("source", "short-segment", f"edge {eid}",
+                        f"segment {a}→{b} is {length:g}px; every segment needs {SEGMENT_MIN}px "
+                        f"(an 8px corner radius and an 8px arrowhead)",
+                        "move a node to lengthen it, or drop the corner")
+        route_len = sum(abs(a[0] - b[0]) + abs(a[1] - b[1]) for a, b in segs)
+        direct = abs(pts[0][0] - pts[-1][0]) + abs(pts[0][1] - pts[-1][1])
+        if route_len > DETOUR_FACTOR * direct + DETOUR_SLACK:
+            rep.warn("source", "detour", f"edge {eid}",
+                     f"route is {route_len:.0f}px for a {direct:.0f}px separation",
+                     "move its endpoints closer, or reroute more directly")
+        if len(segs) - 1 > MAX_BENDS:
+            rep.warn("source", "bends", f"edge {eid}", f"{len(segs) - 1} bends (more than {MAX_BENDS})",
+                     "one crossing costs about as much as three bends; a simpler route usually reads better")
+
+        # 3. label placement, measured from the label's own text
+        label, at = e.get("label"), e.get("label_at")
+        if isinstance(label, str) and label and isinstance(at, list) and len(at) == 2 and all(_num(c) for c in at):
+            mw = label_mask_width(label)
+            mask = (at[0] - mw / 2, at[1] - LABEL_H / 2, at[0] + mw / 2, at[1] + LABEL_H / 2)
+            for nid, n in boxes.items():
+                x, y, w, h = _rect(n)
+                if mask[0] < x + w and mask[2] > x and mask[1] < y + h and mask[3] > y:
+                    rep.err("source", "label-on-node", f"edge {eid}",
+                            f"label {label!r} (mask ~{mw}x{LABEL_H} at {at[0]:g},{at[1]:g}) sits on node {nid} (§6 rule 6)",
+                            "move label_at onto a stretch of the route that runs through open canvas")
+                    break
+            gap = min(_rect_gap(mask, a, b) for a, b in segs)
+            if gap < 2:
+                rep.err("source", "label-on-line", f"edge {eid}",
+                        f"label {label!r} mask touches its own line (§6 rule 2)",
+                        f"move label_at {LABEL_GAP[0]}–{LABEL_GAP[1]}px clear of the stroke")
+            elif not (LABEL_GAP[0] <= gap <= LABEL_GAP[1]):
+                rep.warn("source", "label-gap", f"edge {eid}",
+                         f"label {label!r} is {gap:.0f}px from its line; keep {LABEL_GAP[0]}–{LABEL_GAP[1]}px")
+
+    # 4. attach points: spacing, and order matching where each line goes
+    sides: dict[tuple[str, str], list[tuple[float, float, str]]] = {}
+    for e in edges:
+        if not isinstance(e, dict) or not isinstance(e.get("points"), list) or len(e["points"]) < 2:
+            continue
+        try:
+            pts = [(float(p[0]), float(p[1])) for p in e["points"]]
+        except (TypeError, ValueError, IndexError):
+            continue
+        for end, point, far in (("from", pts[0], pts[-1]), ("to", pts[-1], pts[0])):
+            nid = e.get(end)
+            if nid not in boxes:
+                continue
+            side = _side(point, _rect(boxes[nid]))
+            if side is None:
+                continue
+            horizontal_side = side in ("top", "bottom")
+            pos = point[0] if horizontal_side else point[1]
+            far_pos = far[0] if horizontal_side else far[1]
+            sides.setdefault((nid, side), []).append((pos, far_pos, str(e.get("id"))))
+    for (nid, side), entries in sides.items():
+        if len(entries) < 2:
+            continue
+        entries.sort()
+        for (p1, _f1, e1), (p2, _f2, e2) in zip(entries, entries[1:]):
+            d = p2 - p1
+            if d < ATTACH_MIN:
+                rep.err("source", "attach-collision", f"node {nid} {side}",
+                        f"edges {e1} and {e2} attach {d:g}px apart (§6 rule 4)",
+                        f"fan them out: N points on a side of length L sit at L·k/(N+1), {ATTACH_OK}px or more apart")
+            elif d < ATTACH_OK:
+                rep.warn("source", "attach-spacing", f"node {nid} {side}",
+                         f"edges {e1} and {e2} attach {d:g}px apart; aim for {ATTACH_OK}px or more")
+        fars = [f for _p, f, _e in entries]
+        if fars != sorted(fars):
+            rep.warn("source", "attach-order", f"node {nid} {side}",
+                     "lines leave this side in a different order from where they go, so they cross near the node",
+                     "order the attach points along the side by the far endpoint's position")
 
 
 def _proper_cross(a1, a2, b1, b2) -> bool:

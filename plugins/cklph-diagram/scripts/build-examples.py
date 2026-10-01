@@ -41,7 +41,7 @@ import diagram_source  # noqa: E402
 
 GRID = 4
 R = 8  # elbow radius
-SKILL_VERSION = "3.2-cklph"
+SKILL_VERSION = "3.3-cklph"
 
 
 def snap(v: float) -> int:
@@ -281,7 +281,7 @@ def draw_edges(src: dict, slug: str) -> list[str]:
                    f' marker-end="url(#{marker})"/>')
         if e.get("label") and e.get("label_at"):
             lx, ly = e["label_at"]
-            mw = 48
+            mw = diagram_source.label_mask_width(e["label"])
             labels.append(
                 f'    <rect x="{lx - mw // 2}" y="{ly - 8}" width="{mw}" height="16" rx="2" fill="var(--paper)"/>\n'
                 f'    <text x="{lx}" y="{ly + 4}" fill="var(--muted)" font-size="12" font-family="var(--font-mono)"'

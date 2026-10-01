@@ -60,6 +60,44 @@ These are the per-type limits. The universal rows in SKILL.md §7 (9 nodes, 12 a
 
 If you exceed, split into two diagrams (overview + detail).
 
+### Placement recipe — before any coordinates
+
+Adapted from Archify's authoring defaults. Decide these in order, then write the
+coordinates into the source (`diagram-source.md`):
+
+1. **Find the main path** — the journey the diagram exists to show. Lay it on one
+   axis (left→right, or top→bottom for a stack) with nothing between its nodes.
+2. **Classify every other edge** before placing its node:
+   - *branch / store* — hangs off the main path to one side;
+   - *return* — runs back against the main direction, routed around the outside,
+     dashed if async;
+   - *second entrance* — another way in; enters from the side the main entrance
+     doesn't use;
+   - *fan-out* — one node to several; the targets sit in a row or column so their
+     lines spread from one side.
+3. **Budget each gap from what crosses it.** A gap that carries a labelled line is
+   at least that label's mask plus 8px: `label_mask_width(label) + 8`. A 4-letter
+   label needs ~52px; the 14-character maximum needs ~132px. An unlabelled gap
+   needs 32px or more (16px minimum segment each side of a corner).
+4. **Size a fan-out side for its lines:** a side carrying N attach points is at
+   least `2 × 16 + 12 × (N − 1)` px (16px corner gutters, 12px between points).
+5. **Size every box from its text** (below), then snap up to the grid.
+
+### Layout rules the source validator enforces
+
+`diagram_source.py` checks these on the source, before anything is drawn.
+
+| Rule | Error | Warning |
+|---|---|---|
+| **Text fit.** A box node's label (16px sans 600), sublabel and tag (12px mono) fit its width minus 8px each side. Width is estimated per character: wide/full-width characters 1em, otherwise 0.64em (sans 600), 0.60em (sans), 0.62em (mono), plus tracking. | `text-fit` — the fix names the box width needed | |
+| **Label placement.** An arrow label's mask (`label_mask_width`, 16px tall at `label_at`) never overlaps any node, and keeps 6–16px from its own line. | `label-on-node`, `label-on-line` | `label-gap` |
+| **Segment floor.** Every segment of a route is 16px or longer — an 8px corner radius and an 8px arrowhead each need room. | `short-segment` | |
+| **Attach points.** Lines sharing one side of a box are 12px or more apart, and leave in the same order as where they go, so they don't cross at the box. | `attach-collision` (under 8px) | `attach-spacing`, `attach-order` |
+| **Directness.** A route longer than 2.5× the direct distance + 200px, or with more than 3 bends, is a review signal. One crossing costs about as much as three bends. | | `detour`, `bends` |
+
+Text width is an estimate, wide on purpose; `check.py`'s browser gate measures
+the real rendered text afterwards. When the two disagree, the browser wins.
+
 ### Page layout
 
 1. **Header** — eyebrow (brand mono), title (brand display face), optional subtitle (brand sans, `muted`).

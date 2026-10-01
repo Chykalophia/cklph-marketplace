@@ -3,7 +3,7 @@ name: cklph-diagram
 description: Create accessible, brand-correct diagrams as standalone HTML with inline SVG, across 41 types, including architecture, flowchart, sequence, state, ER, DB schema, UML, deployment, timeline, swimlane, journey, kanban, org chart, fishbone, Wardley, Sankey, treemap, heatmap, bar, waterfall, line, Gantt, scatter and more. Use this skill whenever a diagram, chart, schematic, flow, architecture drawing, or "can you visualise this" comes up for Chykalophia or any Chykalophia client, even if the user does not say "diagram". Renders in the correct client brand from a multi-brand token registry (CKLPH by default, per-client override by name), and refuses to render a named client whose brand has not been onboarded rather than silently shipping house colours into a client deliverable. Every diagram is WCAG AA at the sizes actually used, carries a non-colour cue for every colour distinction, and ships with a prose alternative. Imports draw.io, Mermaid and Excalidraw; optional accessible motion.
 license: MIT
 metadata:
-  version: "3.2-cklph"
+  version: "3.3-cklph"
   upstream: cathrynlavery/diagram-design @ 57148ac (2.6.46)
 ---
 
@@ -350,7 +350,7 @@ Non-negotiable, and §9 checks each one. Full text and edge cases: [primitives-c
 1. **Orthogonal only.** Connectors between off-axis nodes are rounded right-angle elbows at `r=8` (`r=6` minimum in tight layouts); a straight `<line>` only when both ends share x or y. Diagonals fail.
 2. **Label gap.** Every arrow label (14 characters max, all caps, centered on its segment) sits on an opaque mask with a visible 6 to 16px gap from its stroke, beside vertical segments, never on the line.
 3. **No overlaps.** No shared or stacked strokes: offset parallel routes by 12px or more, and use the bridge/hop at a single crossing.
-4. **Fan attach points.** Connectors on one box edge each get their own point at `L * k / (N + 1)`, 12px or more apart (8px on very small boxes).
+4. **Fan attach points.** Connectors on one box edge each get their own point at `L * k / (N + 1)`, 12px or more apart (8px on very small boxes), **ordered along the edge by where each line goes** so they don't cross at the box.
 5. **No transit behind a non-endpoint box.** Reroute. Only when the box is geometrically unavoidable: dashed stroke (`4,3`), label at the visible end, no marker on the intervening box.
 6. **Mask before node.** A label mask must not overlap a node drawn after it; badge masks fully inside a node and masks over earlier zones are fine. From a repository checkout, verify with `python3 scripts/verify-geometry.py <file>`.
 
@@ -440,7 +440,8 @@ Run before producing any diagram.
 - [ ] **§6 rule 1:** off-axis connectors are `r=8` elbows, no diagonal slants?
 - [ ] **§6 rule 2:** a visible gap between every label mask and its connector?
 - [ ] **§6 rule 3:** no overlapping or stacked connectors; bridge/hop at crossings?
-- [ ] **§6 rule 4:** a distinct attach point per connector on a shared edge, 12px or more apart, none hiding another?
+- [ ] **§6 rule 4:** a distinct attach point per connector on a shared edge, 12px or more apart, ordered by where each line goes, none hiding another?
+- [ ] Placed with the recipe in [layout-budget.md](references/layout-budget.md#placement-recipe--before-any-coordinates): main path first, every other edge classified, each gap budgeted from the label that crosses it, boxes sized from their text? (`diagram_source.py` enforces text fit, label placement, segment floors and attach spacing.)
 - [ ] **§6 rule 5:** no transit behind a non-endpoint box, except the unavoidable case (dashed, label at the visible end)?
 - [ ] **§6 rule 6:** no label mask overlapping a node drawn after it? (From a repository checkout, run `python3 scripts/verify-geometry.py <file>`.)
 - [ ] Every arrow label has an opaque `paper` rect behind it?

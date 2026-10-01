@@ -1,7 +1,7 @@
 # Fork notes
 
 **Base:** [`cathrynlavery/diagram-design`](https://github.com/cathrynlavery/diagram-design) @ `3c5c34b` (MIT), synced to `57148ac` (upstream 2.6.46) on 2026-10-01
-**Fork:** `cklph-diagram` v3.2-cklph, by Peter Krzyzek / Chykalophia
+**Fork:** `cklph-diagram` v3.3-cklph, by Peter Krzyzek / Chykalophia
 **Status:** Phase 1 complete, upstream sync complete, verified by `./scripts/verify.sh`
 
 This file records what changed from upstream and why, so a future merge from
@@ -168,10 +168,13 @@ renderer, so we took the parts that transfer:
 Not taken: the renderer and viewer runtime, JSON Schema + generated validators
 (a stdlib validator is enough until the shape settles), hash-linked delivery
 receipts and atomic-publish plumbing, the 6px floor and shrink-to-fit text,
-mono-only type. Considered next: Archify's layout rules — text-width
-estimation in the source validator, attach points ordered by the far endpoint,
-route-quality floors (segments ≥ 8px, detour cap), and an edge-classification
-placement recipe.
+mono-only type. Archify's layout rules followed in 3.3: the placement recipe, text-width
+estimation, label placement, attach-point order and spacing, and route floors,
+all checked on the source before drawing (`layout-budget.md`). Adapted, not
+copied: our segment floor is 16px (corner radius plus arrowhead) where Archify's
+is 8, padding is 8px each side, and their per-type coordinate lattices are not
+taken — the recipe plus the checks cover the same failure without fixing every
+type to one grid.
 
 **Known limits.** `match` compares nodes (first rect, texts), edges (endpoints,
 label text), title, desc, canvas and brand; it does not yet compare every

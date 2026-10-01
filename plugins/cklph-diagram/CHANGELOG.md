@@ -8,6 +8,31 @@ The major version tracks the skill's `metadata.version` in
 `skills/cklph-diagram/SKILL.md`, which inherits `3.x` from the upstream skill
 this forked from.
 
+## [3.3.0] — 2026-10-01
+
+Layout rules adapted from Archify's authoring contract, enforced on the source
+before anything is drawn.
+
+### Added
+
+- **Placement recipe** (`layout-budget.md`): main path first, every other edge
+  classified (branch/store, return, second entrance, fan-out), each gap
+  budgeted from the label that crosses it, boxes sized from their text.
+- **Source-time layout checks** in `diagram_source.py`: text fit (per-character
+  width estimate, wide glyphs 1em), arrow label on a node or on its own line,
+  segments under 16px, attach points under 8px apart. Warnings for attach
+  spacing under 12px, attach order that crosses at the box, detours and more
+  than three bends.
+- `label_mask_width()`, one formula shared by the drawing and the checker.
+- Connector rule 4 now orders attach points by where each line goes.
+- `test-check.py`: 24 planted-defect cases plus 3 warning cases.
+
+### Fixed
+
+- `check.py` crashed with a traceback when headless Chrome hung. The probe now
+  retries once and reports `probe-failed` as a failed gate.
+- The proof generator drew every arrow-label mask at 48px whatever the text.
+
 ## [3.2.1] — 2026-10-01
 
 ### Fixed
