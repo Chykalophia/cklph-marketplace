@@ -34,6 +34,11 @@ Don't use the dot pattern when the diagram sits inside a product page, slide, or
 
 ## Arrow markers (define all three, always)
 
+`scaffold.py` defines these as `<slug>-arrow`, `<slug>-arrow-accent` and
+`<slug>-arrow-link`. Always give a marker `markerUnits="userSpaceOnUse"`: the
+default scales the arrowhead with the stroke, so a 2px accent line gets a head
+twice the size of its neighbours.
+
 ```svg
 <marker id="arrow" markerWidth="8" markerHeight="6" refX="7" refY="3" orient="auto">
   <polygon points="0 0, 8 3, 0 6" fill="var(--muted)"/>
@@ -123,6 +128,24 @@ Rules:
 - Never `writing-mode` vertical.
 - For vertical segments, place the label to the side (not on the line) with the same 6–10px horizontal gap.
 
+## Decision diamond
+
+A `kind: "decision"` node is a diamond inscribed in its `x y w h` box, label only
+(the outgoing edges' labels carry the detail — YES / NO, PASS / FAILS):
+
+```svg
+<g data-node="check">
+  <polygon points="CX,Y X+W,CY CX,Y+H X,CY" fill="var(--paper)"/>
+  <polygon points="CX,Y X+W,CY CX,Y+H X,CY" fill="var(--paper-2)" stroke="var(--ink)" stroke-width="1.2"/>
+  <text x="CX" y="CY+6" fill="var(--ink)" font-size="16" font-weight="600"
+        font-family="var(--font-sans)" text-anchor="middle">Valid?</text>
+</g>
+```
+
+Lines attach at the four vertices (the box's side midpoints), which is where
+`layout.py route` puts them. The label must fit about 70% of the width — the
+source validator checks it.
+
 ## Legend — horizontal strip at the bottom
 
 **Never put the legend inside the diagram area.** Place as a horizontal strip after all nodes, with a hairline separator:
@@ -138,6 +161,11 @@ Rules:
 ```
 
 Expand SVG `viewBox` height by ~64px.
+
+**One separator, not two.** When the diagram already ends in a full-width rule — a
+swimlane's last lane line, a timeline axis band — that rule *is* the legend's
+separator: start the legend 32px below it and draw no second line. Two parallel
+hairlines a few pixels apart read as one heavy band.
 
 ## Accessible SVG contract
 

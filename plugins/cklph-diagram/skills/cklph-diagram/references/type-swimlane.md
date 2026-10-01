@@ -9,6 +9,16 @@
 - Handoffs (arrows crossing lane boundaries) are the most important edges — consider coral on the handoff that introduces the most coupling or latency.
 - Don't force equal step count per lane; a lane with one step is fine.
 
+## In the source
+
+Make each lane a group with `"lane": <row>` and put steps on that row with
+`"at": [col, row]`; `layout.py place` sizes the bands to the grid and
+`layout.py route` routes the handoffs. Keep handoffs short and vertical by
+placing the receiving step in the same column, one lane down, so the main path
+stays left to right.
+
+The last lane's bottom rule doubles as the legend separator — no second line.
+
 ## Anti-patterns
 - Lanes without labels.
 - A step drawn across two lanes (pick one owner).

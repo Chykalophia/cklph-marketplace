@@ -83,6 +83,18 @@ coordinates into the source (`diagram-source.md`):
    least `2 × 16 + 12 × (N − 1)` px (16px corner gutters, 12px between points).
 5. **Size every box from its text** (below), then snap up to the grid.
 
+### The layout helper
+
+`python3 scripts/layout.py all <slug>.json --write` turns grid intent into
+coordinates: a `layout` grid (`origin`, `cell`, `gap`), each node's `"at":
+[col, row]` (and optional `"span"`), each swimlane group's `"lane": row`. It
+routes every edge that has no `points` — straight, one elbow or two, whichever
+clears every other node with the fewest bends — fans attach points that share a
+side in far-endpoint order, and places labels on the visible gap. It writes only
+coordinates, keeps anything set by hand, reports any edge it can't route simply,
+and finishes by running the validator. Size the grid with the recipe above:
+`cell` from the longest text, `gap` from the longest label that crosses it.
+
 ### Layout rules the source validator enforces
 
 `diagram_source.py` checks these on the source, before anything is drawn.

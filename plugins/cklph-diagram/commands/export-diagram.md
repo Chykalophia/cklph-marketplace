@@ -1,6 +1,6 @@
 ---
-description: Export a cklph-diagram HTML file to .svg and .png next to the source
-argument-hint: <html-file> [--svg-only|--png-only] [--scale=N] [--output=<path>] [--registry]
+description: Export a cklph-diagram HTML file to .svg, .png, and (when it has steps) .gif / .mp4
+argument-hint: <html-file> [--svg|--png|--gif|--mp4|--all] [--scale=N] [--transparent] [--registry]
 allowed-tools:
   - Read
   - Write
@@ -9,32 +9,37 @@ allowed-tools:
   - Glob
 ---
 
-Export the diagram HTML at `$1` to `.svg` and/or `.png`, following the procedure documented in [`skills/cklph-diagram/references/export.md`](../skills/cklph-diagram/references/export.md). Treat that reference as the source of truth — don't reimplement the logic here. For SVG output, prefer running the packaged helper at `skills/cklph-diagram/scripts/export_svg.py` when available (it implements the CSS carry-forward and defs ID namespacing steps). If `--registry` is present, also follow [`skills/cklph-diagram/references/export-registry.md`](../skills/cklph-diagram/references/export-registry.md) to emit the metadata sidecar — a separate procedure from the SVG/PNG rasterization above.
+Export the diagram HTML at `$1` as deliverables by running the packaged helper
+`skills/cklph-diagram/scripts/export.py` (installed: `<skill-dir>/scripts/export.py`).
+[`skills/cklph-diagram/references/export.md`](../skills/cklph-diagram/references/export.md)
+is the source of truth for what each format is for and the sizing rules — don't
+reimplement the logic here.
 
 Full argument string: `$ARGUMENTS`
 
 ## Defaults
 
-- **With no format flags, or with `--svg-only`/`--png-only`/`--scale`/`--output` but no `--registry`:** produce **both** `.svg` and `.png` next to the source (e.g. `diagram.html` → `diagram.svg` + `diagram.png`).
-- PNG renders at `device_scale_factor=2`.
-- **`--registry` given by itself, with neither `--svg-only` nor `--png-only` also present, produces *only* the registry JSON.** The SVG/PNG defaults above do not also apply, and Playwright is never required for a registry-only call. To get an image alongside the registry, add `--svg-only` and/or `--png-only` explicitly.
+- No format flags → `.svg` and `.png` (2x) next to the source.
+- `--all` → SVG, PNG, and GIF + MP4 when the diagram has steps (it skips the
+  animation, and says so, when it has none).
+- `--registry` → also follow [`export-registry.md`](../skills/cklph-diagram/references/export-registry.md)
+  to emit `<basename>.registry.json`. Given alone, it is the only output and needs
+  neither Chrome nor ffmpeg.
 
 ## Flags
 
-- `--svg-only` — emit only the SVG. Skip Playwright entirely.
-- `--png-only` — emit only the PNG.
-- `--scale=1` / `--scale=2` / `--scale=3` — override the PNG device scale factor. Default `2`.
-- `--output=<path>` — override the output base path; the format extension is appended. Applies to both formats when both are produced.
-- `--registry` — emit `<basename>.registry.json`, a metadata sidecar of every block's `data-block-*` attributes. Follows [`skills/cklph-diagram/references/export-registry.md`](../skills/cklph-diagram/references/export-registry.md), a procedure independent of the SVG/PNG rasterization above — it never needs Playwright. Used alone (see Defaults), it is the *only* output produced. Combine with `--svg-only` and/or `--png-only` to also produce an image in the same call.
+- `--svg`, `--png`, `--gif`, `--mp4`, `--all` — pick formats.
+- `--scale=N` — PNG scale, 1 to 4 (fractions allowed for an exact pixel size). Default 2.
+- `--transparent` — PNG without the brand's paper behind it (slides, docs with their own background).
+- `--registry` — the metadata sidecar above.
 
 ## Required behaviour
 
-1. **No source path provided** → ask the user which `.html` file to export. Don't guess.
-2. **Source is `assets/index.html`** (the gallery, multiple SVGs in one file) → refuse and ask which specific diagram file. Per the reference's edge-case section.
-3. **Source has no `<svg>` block** → refuse and tell the user; don't write anything.
-4. **PNG requested but Playwright not installed** → surface the install instruction from the reference verbatim and stop. Do **not** auto-install.
-5. **PNG requested with `--scale` outside {1,2,3}** → reject; valid values are 1, 2, 3.
-6. **`--registry` requested but source has no `data-block-id` attributes** → refuse and tell the user; don't emit an empty or partial registry file. Per the export-registry reference's edge-case section.
-7. **`--registry` is the only flag given** (no `--svg-only`/`--png-only`) → emit only the registry JSON. Do not also produce SVG/PNG, and do not check for Playwright — a registry-only call must succeed on a host that doesn't have it installed at all.
+1. **No source path** → ask which `.html` file. Don't guess.
+2. **Source is `assets/index.html`** (the gallery) → refuse; ask which diagram.
+3. **Source has no `<svg>`** → refuse; write nothing.
+4. **Chrome or ffmpeg missing** → report `export.py`'s message verbatim and stop. Never install anything.
+5. **`--gif`/`--mp4` on a diagram with no steps** → report that there is nothing to animate; offer to add `step`s to its source.
+6. **`--registry` with no `data-block-id` attributes** → refuse; never emit an empty registry.
 
-After producing the outputs, report the file paths and sizes back to the user.
+After exporting, report every file path, its size, and the PNG's pixel dimensions.

@@ -40,7 +40,8 @@ TYPES = sorted(p.stem[len("type-"):] for p in (SKILL_DIR / "references").glob("t
 SLUG_RE = re.compile(r"[a-z0-9][a-z0-9-]{0,63}")
 ID_RE = re.compile(r"[A-Za-z][A-Za-z0-9_-]{0,63}")
 ROLES = {"focal", "backend", "store", "external", "input", "optional", "security"}
-KINDS = {"box", "marker"}
+KINDS = {"box", "marker", "decision"}
+MAX_STEPS = 8          # animation.md: at most 8 semantic steps
 EDGE_STYLES = {"default", "accent", "link"}
 MODES = {"light", "dark"}
 
@@ -48,11 +49,11 @@ TOP_KEYS = {
     "format": True, "schema_version": True, "id": True, "type": True, "pattern": False,
     "meta": True, "brand": True, "canvas": True, "nodes": True, "edges": False,
     "groups": False, "legend": False, "annotations": False, "data": False,
-    "alt": True, "notes": False,
+    "alt": True, "notes": False, "layout": False,
 }
-NODE_KEYS = {"id", "kind", "label", "sublabel", "tag", "role", "cue", "x", "y", "w", "h"}
-EDGE_KEYS = {"id", "from", "to", "label", "style", "dash", "points", "label_at"}
-GROUP_KEYS = {"id", "label", "contains", "x", "y", "w", "h", "dash"}
+NODE_KEYS = {"id", "kind", "label", "sublabel", "tag", "role", "cue", "x", "y", "w", "h", "step", "at", "span"}
+EDGE_KEYS = {"id", "from", "to", "label", "style", "dash", "points", "label_at", "step"}
+GROUP_KEYS = {"id", "label", "contains", "x", "y", "w", "h", "dash", "lane"}
 
 POS_TOLERANCE = 1.0      # px: a drawn node rect may differ from the record by this much
 ENDPOINT_TOLERANCE = 2.0  # px: a drawn path's first/last point vs the record
@@ -108,7 +109,8 @@ def _check_box(rep: Report, kind: str, item: dict, canvas: tuple[float, float]) 
     sid = item.get("id", "?")
     r = _rect(item)
     if r is None:
-        rep.err("source", "geometry", f"{kind} {sid}", "x, y, w, h must all be numbers")
+        rep.err("source", "geometry", f"{kind} {sid}", "x, y, w, h must all be numbers",
+                "set them, or give it \"at\" / \"lane\" and run `python3 scripts/layout.py place <slug>.json --write`")
         return
     x, y, w, h = r
     if w <= 0 or h <= 0:
@@ -247,13 +249,34 @@ def validate(src: object, check_brand: bool = True) -> Report:
         if not (isinstance(pts, list) and len(pts) >= 2
                 and all(isinstance(p, list) and len(p) == 2 and all(_num(c) for c in p) for p in pts)):
             rep.err("source", "points", f"edge {eid}",
-                    "points is required: the drawn route as [[x,y], ...], first and last point included")
+                    "points is required: the drawn route as [[x,y], ...], first and last point included",
+                    "run `python3 scripts/layout.py route <slug>.json --write`, or write them by hand")
 
     alt = src.get("alt") if isinstance(src.get("alt"), dict) else None
     if alt is None or not all(isinstance(alt.get(k), str) and alt[k].strip() for k in ("summary", "reading_order")) \
             or not (isinstance(alt.get("items"), list) and alt["items"]):
         rep.err("source", "alt", "alt", "summary, reading_order and a non-empty items list are required (A4)")
 
+    steps: dict[int, list[str]] = {}
+    for kind_name, coll in (("node", nodes), ("edge", edges)):
+        for item in coll:
+            if not isinstance(item, dict) or "step" not in item:
+                continue
+            st = item["step"]
+            if not (isinstance(st, int) and not isinstance(st, bool) and 1 <= st <= MAX_STEPS):
+                rep.err("source", "step", f"{kind_name} {item.get('id')}",
+                        f"step must be an integer 1–{MAX_STEPS} (animation.md)")
+                continue
+            if kind_name == "node":
+                steps.setdefault(st, []).append(str(item.get("id")))
+    if steps:
+        missing = [k for k in range(1, max(steps) + 1) if k not in steps]
+        if missing:
+            rep.warn("source", "step-gap", "steps", f"no node enters at step(s) {missing}; steps should be contiguous")
+        for st, ids in sorted(steps.items()):
+            if len(ids) > 2:
+                rep.warn("source", "step-crowded", f"step {st}",
+                         f"{len(ids)} nodes enter at once ({', '.join(ids)}); animation.md allows two")
     _geometry(rep, nodes, edges)
     _layout(rep, nodes, edges)
     return rep
@@ -439,6 +462,21 @@ def _layout(rep: Report, nodes: list, edges: list) -> None:
     for nid, n in boxes.items():
         if n.get("kind", "box") == "marker":
             continue
+        if n.get("kind") == "decision":
+            # A diamond holds one centred line: its width at the label's half-height
+            # band is about 70% of the box. Tag and sublabel have nowhere to go.
+            for extra in ("sublabel", "tag"):
+                if n.get(extra):
+                    rep.err("source", "decision-text", f"node {nid}",
+                            f"a decision diamond carries its label only; drop the {extra}",
+                            "put the detail on the outgoing edges' labels instead")
+            need = text_width(str(n.get("label", "")), 16, "sans-600")
+            room = n["w"] * 0.7 - 2 * NODE_PAD
+            if need > room:
+                rep.err("source", "text-fit", f"node {nid}",
+                        f"label {n.get('label')!r} needs ~{need:.0f}px; a {n['w']:g}px diamond leaves {room:.0f}px",
+                        f"shorten it, or widen the diamond to w={_ceil4((need + 2 * NODE_PAD) / 0.7)}")
+            continue
         room = n["w"] - 2 * NODE_PAD
         for field_name, size, face, tracking in NODE_TEXT:
             text = n.get(field_name)
@@ -580,6 +618,7 @@ class _Svg(HTMLParser):
         self.title = self.desc = ""
         self.nodes: dict[str, dict] = {}
         self.edges: dict[str, str] = {}
+        self.edge_steps: dict[str, str | None] = {}
         self.texts: list[str] = []
         self.source_json: list[str] | None = None
         self._depth = 0
@@ -605,17 +644,23 @@ class _Svg(HTMLParser):
         self._depth += 1
         if "data-node" in a:
             nid = a["data-node"]
-            self.nodes[nid] = {"rect": None, "texts": []}
+            self.nodes[nid] = {"rect": None, "texts": [], "step": a.get("data-step")}
             self._node_stack.append((nid, self._depth))
-        if tag == "rect" and self._node_stack:
+        if tag in ("rect", "polygon") and self._node_stack:
             node = self.nodes[self._node_stack[-1][0]]
             if node["rect"] is None:
                 try:
-                    node["rect"] = tuple(float(a[k]) for k in ("x", "y", "width", "height"))
+                    if tag == "rect":
+                        node["rect"] = tuple(float(a[k]) for k in ("x", "y", "width", "height"))
+                    else:  # a decision diamond: compare its bounding box
+                        nums = [float(v) for v in re.findall(r"-?\d+(?:\.\d+)?", a.get("points", ""))]
+                        xs, ys = nums[0::2], nums[1::2]
+                        node["rect"] = (min(xs), min(ys), max(xs) - min(xs), max(ys) - min(ys))
                 except (KeyError, ValueError):
                     pass
         if "data-edge" in a:
             self.edges[a["data-edge"]] = a.get("d", "")
+            self.edge_steps[a["data-edge"]] = a.get("data-step")
         if tag in ("title", "desc", "text"):
             self._cap = tag
             if tag == "text":
@@ -775,6 +820,11 @@ def match(src: dict, html: str) -> Report:
             if n.get(k) and " ".join(str(n[k]).split()) not in own:
                 rep.err("match", "label", f"node {nid}", f"{k} {n[k]!r} is not among its drawn texts {own}",
                         "edit the source first, then redraw — never the SVG alone")
+        want_step = str(n["step"]) if "step" in n else None
+        if drawn.get("step") != want_step:
+            rep.err("match", "step", f"node {nid}",
+                    f"drawn data-step={drawn.get('step')!r}, source step={want_step!r}",
+                    "put data-motion-item data-step on the node's <g> exactly as the source says")
         r = _rect(n)
         if r and drawn["rect"]:
             dx = max(abs(a - b) for a, b in zip(r, drawn["rect"]))
@@ -796,6 +846,10 @@ def match(src: dict, html: str) -> Report:
             rep.err("match", "missing-edge", f"edge {eid}", "is in the source but not drawn",
                     f'put data-edge="{eid}" on its <path>')
             continue
+        want_step = str(e["step"]) if "step" in e else None
+        if p.edge_steps.get(eid) != want_step:
+            rep.err("match", "step", f"edge {eid}",
+                    f"drawn data-step={p.edge_steps.get(eid)!r}, source step={want_step!r}")
         ends = path_ends(p.edges[eid])
         pts = e.get("points") or []
         if ends and len(pts) >= 2:

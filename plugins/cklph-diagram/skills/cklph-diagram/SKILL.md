@@ -1,9 +1,9 @@
 ---
 name: cklph-diagram
-description: Create accessible, brand-correct diagrams as standalone HTML with inline SVG, across 41 types, including architecture, flowchart, sequence, state, ER, DB schema, UML, deployment, timeline, swimlane, journey, kanban, org chart, fishbone, Wardley, Sankey, treemap, heatmap, bar, waterfall, line, Gantt, scatter and more. Use this skill whenever a diagram, chart, schematic, flow, architecture drawing, or "can you visualise this" comes up for Chykalophia or any Chykalophia client, even if the user does not say "diagram". Renders in the correct client brand from a multi-brand token registry (CKLPH by default, per-client override by name), and refuses to render a named client whose brand has not been onboarded rather than silently shipping house colours into a client deliverable. Every diagram is WCAG AA at the sizes actually used, carries a non-colour cue for every colour distinction, and ships with a prose alternative. Imports draw.io, Mermaid and Excalidraw; optional accessible motion.
+description: Create accessible, brand-correct diagrams as standalone HTML with inline SVG, across 41 types, including architecture, flowchart, sequence, state, ER, DB schema, UML, deployment, timeline, swimlane, journey, kanban, org chart, fishbone, Wardley, Sankey, treemap, heatmap, bar, waterfall, line, Gantt, scatter and more. Use this skill whenever a diagram, chart, schematic, flow, architecture drawing, or "can you visualise this" comes up for Chykalophia or any Chykalophia client, even if the user does not say "diagram". Renders in the correct client brand from a multi-brand token registry (CKLPH by default, per-client override by name), and refuses to render a named client whose brand has not been onboarded rather than silently shipping house colours into a client deliverable. Every diagram is WCAG AA at the sizes used, with a non-colour cue for every colour distinction and a prose alternative. Ships SVG, PNG and animated GIF/MP4 for docs, slides and email; imports draw.io, Mermaid, Excalidraw.
 license: MIT
 metadata:
-  version: "3.3-cklph"
+  version: "3.4-cklph"
   upstream: cathrynlavery/diagram-design @ 57148ac (2.6.46)
 ---
 
@@ -299,11 +299,16 @@ Using a categorical scale for magnitude, or a sequential ramp for unordered kind
 |---|---|---|
 | **Focal** (1–2 max) | `accent-tint` | `accent` |
 | **Backend / API / Step** | `paper-2` | `ink` |
-| **Store / State** | `ink @ 0.05` | `muted` |
-| **External / Cloud** | `ink @ 0.03` | `ink @ 0.30` |
-| **Input / User** | `muted @ 0.10` | `soft` |
-| **Optional / Async** | `ink @ 0.02` | `ink @ 0.20` dashed `4,3` |
-| **Security / Boundary** | `accent @ 0.05` | `accent @ 0.50` dashed `4,4` |
+| **Store / State** | `ink` at 0.05 | `muted` |
+| **External / Cloud** | `ink` at 0.03 | `ink` at 0.30 |
+| **Input / User** | `muted` at 0.10 | `soft` |
+| **Optional / Async** | `ink` at 0.02 | `ink` at 0.20, dashed `4,3` |
+| **Security / Boundary** | `accent` at 0.05 | `accent` at 0.50, dashed `4,4` |
+| **Decision** (`kind: "decision"`) | `paper-2` | `ink` — drawn as a diamond, label only |
+
+"`ink` at 0.05" is the token plus an opacity attribute, never a mixed colour:
+`fill="var(--ink)" fill-opacity="0.05"`, `stroke="var(--ink)" stroke-opacity="0.30"`.
+A literal `rgba(…)` is an untokenised colour and fails A2.
 
 ### Typography (families and sizes come from the resolved brand file)
 
@@ -451,6 +456,8 @@ Run before producing any diagram.
 - [ ] **`min-width` equals the viewBox width, the SVG sits in a local `overflow-x: auto` wrapper, and `data-render-width` states that width? (Otherwise a phone scrolls the whole page, an `overflow: hidden` ancestor clips the diagram, and the linter measures A5 against the wrong width. See [output-spec.md](references/output-spec.md).)**
 - [ ] Node origins, dimensions, gaps, padding on the 4px grid; type sizes on the role ramp and ≥12px rendered?
 - [ ] **Did `python3 scripts/check.py <file>.html` pass every gate** — source, embed, match, a11y, safety, browser? Run it from the installed skill directory on every HTML you hand over. A skipped browser gate is not a pass.
+- [ ] Deliverables exported (`export.py`): SVG and PNG always, GIF/MP4 when animation was requested?
+- [ ] Legend sits below the last content rule with no second separator stacked on it?
 - [ ] If animated, does the complete static/no-JS frame work, does reduced motion hide/disable playback, and is the controller copied verbatim from `assets/template-motion.html`? From a repository checkout, also run `python3 scripts/verify-motion.py <file>`.
 
 **Typography — families come from the resolved brand file (§0), never from this list:**
@@ -485,29 +492,42 @@ Every diagram ships in three variants (see `assets/`):
 
 ### To create a new diagram
 
-The source comes first; the drawing follows it. Full contract:
+The source comes first; the drawing follows it. The tools do the arithmetic and
+the page; you decide the layout and draw. Full contract:
 [`references/diagram-source.md`](references/diagram-source.md).
 
-1. Resolve the brand (§0), choose the type (and pattern, §3), confirm the plan,
-   and create the request folder `diagrams/<type>-<slug>-<YYYYMMDD-HHMMSS>/`
-   (unless the user names a location).
-2. **Write the source** `<slug>.json`: every node, edge, group, label,
-   coordinate and size, the canvas, the brand, chart `data`, and the `alt`
-   prose. This is where the layout is decided. Validate it:
-   `python3 scripts/diagram_source.py <slug>.json` — fix every error before drawing.
-3. Copy the template closest to what you want (`template.html` for minimal,
-   `template-full.html` for cards, `template-motion.html` only when motion is
-   requested) to `<slug>.html`. Replace the marked `BRAND TOKENS` `:root` block
-   with `python3 scripts/brand-tokens.py <slug> [--mode dark]`, the font `<link>`
-   with the brand's, and set `data-cklph-brand` / `data-cklph-mode` on `<html>`.
-4. **Draw the SVG from the source** and nothing else: each node a
-   `<g data-node="<id>">` with its box first, each edge a
-   `<path data-edge="<id>">` along its `points`, title/desc copied from `meta`,
-   viewBox and `data-render-width` from `canvas`, the `diagram-alt` from `alt`.
-   If motion is requested, load `animation.md`; otherwise keep mode `none`.
-5. Embed the source: `python3 scripts/diagram_source.py embed <slug>.json <slug>.html`.
+1. **Decide where it lives** ([diagram-source.md §1](references/diagram-source.md)):
+   requested from inside a project folder → `<project>/diagrams/<type>-<slug>-<YYYYMMDD-HHMMSS>/`;
+   no real project (a home directory, the skill's own repo, Desktop or claude.ai) →
+   `~/Documents/cklph-diagrams/<type>-<slug>-<YYYYMMDD-HHMMSS>/`, and also publish it
+   as a Claude artifact where the app supports artifacts. A location the user
+   names always wins.
+2. Resolve the brand (§0), choose the type (and pattern, §3), confirm the plan.
+3. **Write the source** `<slug>.json` as intent: a `layout` grid, each node's
+   `"at": [col, row]`, swimlane groups' `"lane": row`, edges with `from`/`to`/
+   `label`, the canvas, brand, chart `data`, `alt` prose, and `step`s if it
+   should animate. Then let the helper do the arithmetic, and fix every error:
+
+   ```bash
+   python3 scripts/layout.py all <slug>.json --write    # coordinates, routes, label positions
+   ```
+
+   Anything it can't route is reported; route that edge by hand. Coordinates you
+   set by hand are kept.
+4. **Scaffold the page:** `python3 scripts/scaffold.py <slug>.json` (add
+   `--motion` for in-page step animation). It writes the brand tokens, fonts,
+   title, the `<svg>` element, the prose alternative and the embedded source for
+   every mode — everything except the drawing.
+5. **Draw** between `<!-- cklph:draw:start -->` and `<!-- cklph:draw:end -->`,
+   from the source and nothing else: each node a `<g data-node="<id>">` whose
+   first child is its box (a `<polygon>` diamond for a decision), each edge a
+   `<path data-edge="<id>">` along its `points`, labels at `label_at`, stepped
+   elements with `data-motion-item data-step="N"`. Arrowhead markers are already
+   defined: `url(#<slug>-arrow)`, `-arrow-accent`, `-arrow-link`.
 6. Run the §9 taste gate, then `python3 scripts/check.py <slug>.html`. Repair in
-   the source, at most two rounds (diagram-source.md §4).
+   the source, re-run `scaffold.py` (your drawing is kept), at most two rounds.
+7. **Export the deliverables** (§12): `python3 scripts/export.py <slug>.html` —
+   SVG and PNG by default; `--gif --mp4` when the diagram has steps.
 
 ### To edit, update, or reuse an existing diagram
 
@@ -572,16 +592,39 @@ The `<desc>` is the short form. The required long form is the `diagram-alt` pros
 
 ### Handing it over — report truthfully
 
-Give the folder and file paths, then report as **separate** facts: which
+Give the folder and every file path — the HTML and each export, and the artifact
+link if you published one — then report as **separate** facts: which
 `check.py` gates passed; whether the browser gate ran or was skipped (never call
 a skipped gate a pass); and whether you actually looked at the rendered result.
 "All checks passed" is not "I reviewed it". If two repair rounds did not get
 `check.py` to pass, hand over the remaining findings verbatim instead of claiming
 success.
 
-### Exporting to PNG / SVG
+### Deliverables — export every diagram
 
-When the user asks to export, save, rasterize, or convert a generated diagram to `.png` or `.svg`, load [`references/export.md`](references/export.md) and follow the procedure there. For the SVG half, prefer the packaged helper `scripts/export_svg.py`: it scopes the brand's `:root` tokens onto the exported `<svg>`, carries class-based CSS into the fragment, namespaces `<defs>` IDs so exports stay inline-safe, and imports the **source page's own** font stylesheet, so a client diagram keeps the client's faces outside its HTML wrapper. Both formats deliver the diagram only (the `<svg>` node) — editorial wrappers like cards and headers are dropped by design. Export is **manual** — never produce export files unprompted. For a machine-readable sidecar of `data-block-*` metadata, see [export-registry.md](references/export-registry.md).
+This skill makes things that get embedded somewhere else: a doc, a slide, a
+proposal, an email to a client. So every diagram ships as files, not just a page:
+
+```bash
+python3 scripts/export.py <slug>.html            # <slug>.svg + <slug>.png (2x)
+python3 scripts/export.py <slug>.html --all      # + <slug>.gif and <slug>.mp4 when it has steps
+```
+
+| File | Use it for |
+|---|---|
+| `.svg` | Docs, slides, websites. Scales cleanly; carries the brand's tokens and fonts. |
+| `.png` | Email, chat, anything that won't take SVG. 2x by default (`--scale 1–4`). |
+| `.gif` | Email and chat when it should move: loops, plays everywhere, no controls. |
+| `.mp4` | Slides and docs that embed video: smoother and much smaller than the GIF. |
+| `.html` | A link or attachment: the diagram with its title and prose alternative, readable alone. |
+
+Export the SVG and PNG for every diagram by default; add GIF/MP4 when animation
+was requested. Animation comes from the source's `step`s: frame N shows every
+element with step ≤ N, the frames cross-fade, the last holds. Every export is
+the diagram only, on its paper — the page title and prose alternative stay in
+the HTML. Detail and exact-size rules: [`references/export.md`](references/export.md).
+For a machine-readable sidecar of `data-block-*` metadata, see
+[export-registry.md](references/export-registry.md).
 
 For an imported diagram, pixel dimensions come from the `viewBox` × scale factor, so its size decision belongs to §11, not to export. For any diagram that needs an exact frame (an OG card or a slide image), see [`export.md` § Sizing the export](references/export.md).
 

@@ -100,6 +100,16 @@ python3 scripts/test-check.py $test_flag >/dev/null || fail=1
 
 echo
 echo "=============================================="
+echo " 4c. Authoring tools: scaffold, layout, export"
+echo "=============================================="
+# Each tool asserted by what it produces or refuses: scaffold keeps a drawing
+# across re-runs, layout reproduces a hand layout, export writes the right
+# PNG size and a GIF/MP4 that actually animates.
+python3 scripts/test-tools.py $test_flag | tail -1
+python3 scripts/test-tools.py $test_flag >/dev/null || fail=1
+
+echo
+echo "=============================================="
 echo " 5. Shipped templates and inherited examples"
 echo "=============================================="
 ASSETS="skills/cklph-diagram/assets"
