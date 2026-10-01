@@ -93,9 +93,20 @@ case "$MODE" in
     tmp="$(mktemp -d)"
     cp -R "$SRC" "$tmp/${NAME}"
     find "$tmp" -name '__pycache__' -type d -prune -exec rm -rf {} + 2>/dev/null || true
+    # claude.ai rejects an upload with more than 200 files. The inherited
+    # example diagrams ship in three variants (light, dark, full) and are layout
+    # reading only, never the copy path, so the bundle keeps one per type: the
+    # light example. Every template, reference and script still ships.
+    find "$tmp/${NAME}/assets" \( -name 'example-*-dark.html' -o -name 'example-*-full.html' \) -delete
+    MAX_FILES=200
+    count="$(find "$tmp/${NAME}" -type f | wc -l | tr -d ' ')"
+    if [ "$count" -gt "$MAX_FILES" ]; then
+      echo "FAILED: bundle has $count files; claude.ai accepts at most $MAX_FILES." >&2
+      rm -rf "$tmp"; exit 1
+    fi
     ( cd "$tmp" && zip -qr "$OLDPWD/$OUT" "$NAME" )
     rm -rf "$tmp"
-    echo "built $OUT ($(du -h "$OUT" | cut -f1))"
+    echo "built $OUT ($(du -h "$OUT" | cut -f1), $count files, limit $MAX_FILES)"
     echo "Upload it in claude.ai under Settings > Capabilities > Skills."
     ;;
 

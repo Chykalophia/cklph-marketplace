@@ -8,6 +8,16 @@ The major version tracks the skill's `metadata.version` in
 `skills/cklph-diagram/SKILL.md`, which inherits `3.x` from the upstream skill
 this forked from.
 
+## [3.2.1] — 2026-10-01
+
+### Fixed
+
+- **The claude.ai upload was rejected** ("Zip contains too many files (maximum
+  200)"): `install.sh --bundle` packed 262 files. The bundle now keeps one
+  inherited example per type (the light variant; they are layout reading, never
+  the copy path) and still ships every template, reference, script and brand:
+  151 files. The build fails, writing nothing, if a bundle ever exceeds 200.
+
 ## [3.2.0] — 2026-10-01
 
 Source-first diagrams and a real-browser gate. Ideas borrowed, adapted, from
