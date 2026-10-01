@@ -126,7 +126,11 @@ def tokens_for(src: dict, mode: str) -> tuple[str, str]:
     if problems:
         raise SystemExit(f"REFUSED — brand {src['brand']['slug']!r} cannot render in {mode}:\n  - "
                          + "\n  - ".join(problems))
-    return brand_tokens.to_css(brand, mode), brand.get("font_link") or ""
+    faces, missing = brand_tokens.font_face_css(brand)
+    for path in missing:
+        print(f"note: {path} is not installed; that face falls back to its stack", file=sys.stderr)
+    css = brand_tokens.to_css(brand, mode)
+    return (css + "\n" + faces if faces else css), brand.get("font_link") or ""
 
 
 def page(src: dict, mode: str, body: str) -> str:

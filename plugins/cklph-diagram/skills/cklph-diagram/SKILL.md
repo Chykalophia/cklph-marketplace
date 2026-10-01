@@ -3,7 +3,7 @@ name: cklph-diagram
 description: Create accessible, brand-correct diagrams as standalone HTML with inline SVG, across 41 types, including architecture, flowchart, sequence, state, ER, DB schema, UML, deployment, timeline, swimlane, journey, kanban, org chart, fishbone, Wardley, Sankey, treemap, heatmap, bar, waterfall, line, Gantt, scatter and more. Use this skill whenever a diagram, chart, schematic, flow, architecture drawing, or "can you visualise this" comes up for Chykalophia or any Chykalophia client, even if the user does not say "diagram". Renders in the correct client brand from a multi-brand token registry (CKLPH by default, per-client override by name), and refuses to render a named client whose brand has not been onboarded rather than silently shipping house colours into a client deliverable. Every diagram is WCAG AA at the sizes used, with a non-colour cue for every colour distinction and a prose alternative. Ships SVG, PNG and animated GIF/MP4 for docs, slides and email; imports draw.io, Mermaid, Excalidraw.
 license: MIT
 metadata:
-  version: "3.4-cklph"
+  version: "3.5-cklph"
   upstream: cathrynlavery/diagram-design @ 57148ac (2.6.46)
 ---
 
@@ -329,7 +329,7 @@ Every brand file carries a `Typography` table. Read it; do not hardcode a family
 
 **Mono is for technical content** — ports, commands, URLs, field types, arrow labels. Human-readable names go in the brand's sans face. Titles and callouts go in the brand's display face.
 
-> Upstream bans JetBrains Mono as a blanket "dev" font. CKLPH's actual brand mono *is* JetBrains Mono, so this fork keeps the intent and drops the letter: the rule was always "mono is for technical content", not "not that typeface". Per-brand font stacks live in the brand file, and `brand-tokens.py` emits them as `--font-display` / `--font-sans` / `--font-mono` — `cklph.md` loads Public Sans + JetBrains Mono; a brand with no licensed faces falls back to system stacks.
+> Upstream bans JetBrains Mono as a blanket "dev" font. CKLPH's actual brand mono *is* JetBrains Mono, so this fork keeps the intent and drops the letter: the rule was always "mono is for technical content", not "not that typeface". Per-brand font stacks live in the brand file, and `brand-tokens.py` emits them as `--font-display` / `--font-sans` / `--font-mono` — `cklph.md` loads Public Sans + JetBrains Mono from Google Fonts and its licensed display face, The Silver Editorial, from local files that `scaffold.py` embeds in every page (and `export.py` carries into every export). Licensed font files are git-ignored; a brand whose files aren't installed falls back to its stack.
 
 ---
 

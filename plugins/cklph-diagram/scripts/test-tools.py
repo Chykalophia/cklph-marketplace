@@ -41,9 +41,10 @@ def case(name: str, ok: bool, detail: str = "") -> None:
         failures.append(name)
 
 
-def run(*args: str, cwd: Path | None = None) -> subprocess.CompletedProcess:
+def run(*args: str, cwd: Path | None = None, env: dict | None = None) -> subprocess.CompletedProcess:
     return subprocess.run([sys.executable, *args], capture_output=True, text=True, cwd=cwd,
-                          env={"PYTHONDONTWRITEBYTECODE": "1", "PATH": "/usr/bin:/bin:/opt/homebrew/bin:/usr/local/bin"})
+                          env={"PYTHONDONTWRITEBYTECODE": "1", "PATH": "/usr/bin:/bin:/opt/homebrew/bin:/usr/local/bin",
+                               **(env or {})})
 
 
 def fixture(mode_list=("light",)) -> dict:
@@ -231,6 +232,43 @@ def test_export(tmp: Path) -> None:
         case("the GIF animates (many frames)", frames > 10, frames)
 
 
+def test_fonts(tmp: Path) -> None:
+    fonts = tmp / "fonts"
+    (fonts / "cklph").mkdir(parents=True)
+    for name in ("TheSilverEditorial-Regular.woff2", "TheSilverEditorial-Italic.woff2"):
+        (fonts / "cklph" / name).write_bytes(b"wOF2" + bytes(range(256)) * 4)  # stand-in bytes
+    src = bx.SOURCES["architecture"]("cklph", "light")
+    src["id"] = "fonted"
+    p = tmp / "fonted.json"
+    p.write_text(json.dumps(src), encoding="utf-8")
+    env = {"CKLPH_FONTS_DIR": str(fonts)}
+    r = run(str(SCRIPTS / "scaffold.py"), str(p), env=env)
+    page = (tmp / "fonted.html").read_text() if (tmp / "fonted.html").exists() else ""
+    case("scaffold embeds the brand's local fonts", r.returncode == 0 and page.count("@font-face") == 2
+         and "data:font/woff2;base64," in page, r.stdout + r.stderr)
+    sc = run(str(SCRIPTS / "self_check.py"), str(tmp / "fonted.html"))
+    case("an embedded font passes the self-check", sc.returncode == 0, sc.stdout[-300:])
+    r = run(str(SCRIPTS / "export.py"), str(tmp / "fonted.html"), "--svg", env=env)
+    svg = (tmp / "fonted.svg").read_text() if (tmp / "fonted.svg").exists() else ""
+    # a real at-rule, not one mangled into "#…-root @font-face {…}" (which browsers ignore)
+    unscoped = re.findall(r"(?<![\w-] )@font-face \{", svg)
+    case("the SVG export carries the embedded fonts as real @font-face rules", len(unscoped) == 2,
+         f"{len(unscoped)} unscoped of {svg.count('@font-face')}")
+
+    empty = tmp / "nofonts"
+    empty.mkdir()
+    (tmp / "fonted.html").unlink()
+    r = run(str(SCRIPTS / "scaffold.py"), str(p), env={"CKLPH_FONTS_DIR": str(empty)})
+    page = (tmp / "fonted.html").read_text() if (tmp / "fonted.html").exists() else ""
+    case("a missing font still builds, falling back, and says so",
+         r.returncode == 0 and "@font-face" not in page and "not installed" in r.stderr, r.stdout + r.stderr)
+
+    bad = page.replace("</style>", ".x { background: url(data:text/css;base64,QUFBQQ==) }</style>", 1)
+    (tmp / "bad-data.html").write_text(bad, encoding="utf-8")
+    sc = run(str(SCRIPTS / "self_check.py"), str(tmp / "bad-data.html"))
+    case("non-font data in CSS is still rejected", sc.returncode != 0, sc.stdout[-200:])
+
+
 def main() -> int:
     with tempfile.TemporaryDirectory() as t:
         tmp = Path(t)
@@ -238,6 +276,7 @@ def main() -> int:
         test_motion(tmp)
         test_layout()
         test_decision_and_steps()
+        test_fonts(tmp)
         if not STATIC:
             test_export(tmp)
     print(f"\n{'all cases pass' if not failures else f'{len(failures)} case(s) failed'}")

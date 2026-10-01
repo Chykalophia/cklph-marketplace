@@ -63,7 +63,7 @@ go in `data`.
     "desc": "Form submissions enter through an edge worker, queue, and are processed by a worker that writes to the CRM.",
     "eyebrow": "ARCHITECTURE",
     "created": "2026-10-01",
-    "skill_version": "3.4-cklph"
+    "skill_version": "3.5-cklph"
   },
   "brand": { "slug": "cklph", "modes": ["light", "dark"] },
   "canvas": { "width": 784, "height": 480, "render_width": 784, "preset": "doc-inline" },

@@ -1,7 +1,7 @@
 # Fork notes
 
 **Base:** [`cathrynlavery/diagram-design`](https://github.com/cathrynlavery/diagram-design) @ `3c5c34b` (MIT), synced to `57148ac` (upstream 2.6.46) on 2026-10-01
-**Fork:** `cklph-diagram` v3.4-cklph, by Peter Krzyzek / Chykalophia
+**Fork:** `cklph-diagram` v3.5-cklph, by Peter Krzyzek / Chykalophia
 **Status:** Phase 1 complete, upstream sync complete, verified by `./scripts/verify.sh`
 
 This file records what changed from upstream and why, so a future merge from
@@ -160,9 +160,11 @@ the cost was elsewhere. Logged friction and what fixed it:
 | Oversized accent arrowhead; doubled legend rule | `markerUnits="userSpaceOnUse"`; one-separator rule |
 
 The second pass at the same diagram took grid cells instead of pixels and
-exported SVG, PNG, GIF and MP4. Open: the brand's licensed title face (The
-Silver Editorial) is not on Google Fonts, so titles fall back to Georgia; it can
-be self-hosted only if the licence allows web embedding.
+exported SVG, PNG, GIF and MP4. The brand's licensed title face (The Silver
+Editorial) was then wired in (3.5): Peter confirmed the licence covers use
+wherever the work needs it, so it is embedded in deliverables — but the files
+stay out of git, because this repo is public and publishing the font files to
+everyone is not a use the licence was asked about.
 
 ---
 
