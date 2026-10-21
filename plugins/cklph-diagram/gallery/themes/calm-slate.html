@@ -1,0 +1,97 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Calm Slate — theme</title>
+<style>
+  body { margin:0; padding:52px 40px; background:#16191d; color:#e8e6e1;
+         font-family:'Inter', system-ui, sans-serif; line-height:1.6; -webkit-font-smoothing:antialiased; }
+  main { max-width:880px; margin:0 auto; }
+  .tag { font-family:ui-monospace, monospace; font-size:14px; letter-spacing:.12em; text-transform:uppercase;
+          color:#a3a8b0; margin:0 0 8px; }
+  h1 { font-family:'Inter', system-ui, sans-serif; font-size:34px; font-weight:600;
+        letter-spacing:0; margin:0 0 12px; }
+  .note { color:#a3a8b0; font-size:17px; max-width:64ch; margin:0 0 14px; }
+  .use { color:#e8e6e1; font-size:16px; max-width:64ch; margin:0 0 30px; }
+  svg { width:100%; height:auto; display:block; }
+  .alt { margin-top:30px; padding-top:20px; border-top:1px solid #333940; }
+  .alt h2 { font-family:ui-monospace, monospace; font-size:14px; font-weight:500; letter-spacing:.12em;
+             text-transform:uppercase; color:#a3a8b0; margin:0 0 10px; }
+  .alt p { color:#a3a8b0; font-size:16px; max-width:68ch; margin:0; }
+  @media (prefers-reduced-motion: reduce) { * { animation:none!important; transition:none!important; } }
+  @media (prefers-contrast: more) {
+    body { background:#fff; color:#000; } .note,.alt p,.tag,.use,.alt h2 { color:#000; } }
+</style>
+</head>
+<body>
+<main>
+  <p class="tag">theme · calm-slate</p>
+  <h1>Calm Slate</h1>
+  <p class="note">Dark done for sensory comfort: never pure black, desaturated accents, low luminance step between surfaces. Dark that rests the eye instead of glowing at it.</p>
+  <p class="use"><strong>Reach for it when:</strong> Dark-mode sites, long working sessions, evening reading.</p>
+
+  <svg viewBox="0 0 768 356" xmlns="http://www.w3.org/2000/svg"
+       role="img" aria-labelledby="calm-slate-t calm-slate-d">
+    <title id="calm-slate-t">Content pipeline, Calm Slate theme</title>
+    <desc id="calm-slate-d">Six stages: intake and triage feed review and enrich,
+      which feed publish and archive.</desc>
+    <defs></defs>
+    <rect width="768" height="356" fill="#16191d"/>
+    
+    
+    <line x1="216" y1="136" x2="286" y2="136" stroke="#a3a8b0" stroke-width="1.5"/>
+    <line x1="216" y1="248" x2="286" y2="248" stroke="#a3a8b0" stroke-width="1.5"/>
+    <line x1="472" y1="136" x2="542" y2="136" stroke="#a3a8b0" stroke-width="1.5"/>
+    <line x1="472" y1="248" x2="542" y2="248" stroke="#a3a8b0" stroke-width="1.5"/>
+    <path d="M128,176 V196 Q128,208 140,208 H296" fill="none" stroke="#a3a8b0"
+          stroke-width="1.5" stroke-dasharray="5,4"/>
+  <g data-node="intake">
+    <rect x="40" y="96" width="176" height="80" rx="0" fill="#1e2228" stroke="#8fb8de" stroke-width="1.2"/>
+    <text x="60" y="130" font-family="'Inter', system-ui, sans-serif" font-size="18" font-weight="600"
+          fill="#e8e6e1" letter-spacing="0">Intake</text>
+    <text x="60" y="154" font-family="ui-monospace, monospace" font-size="14" fill="#a3a8b0">form + email</text>
+  </g>
+  <g data-node="triage">
+    <rect x="40" y="208" width="176" height="80" rx="0" fill="#1e2228" stroke="#8fb8de" stroke-width="1.2"/>
+    <text x="60" y="242" font-family="'Inter', system-ui, sans-serif" font-size="18" font-weight="600"
+          fill="#e8e6e1" letter-spacing="0">Triage</text>
+    <text x="60" y="266" font-family="ui-monospace, monospace" font-size="14" fill="#a3a8b0">rules engine</text>
+  </g>
+  <g data-node="review">
+    <rect x="296" y="96" width="176" height="80" rx="8" fill="#1e2228" stroke="#e8a33d" stroke-width="2.2"/>
+    <text x="316" y="130" font-family="'Inter', system-ui, sans-serif" font-size="18" font-weight="600"
+          fill="#e8e6e1" letter-spacing="0">Review</text>
+    <text x="316" y="154" font-family="ui-monospace, monospace" font-size="14" fill="#a3a8b0">human check</text>
+  </g>
+  <g data-node="enrich">
+    <rect x="296" y="208" width="176" height="80" rx="8" fill="#1e2228" stroke="#e8a33d" stroke-width="1.2"/>
+    <text x="316" y="242" font-family="'Inter', system-ui, sans-serif" font-size="18" font-weight="600"
+          fill="#e8e6e1" letter-spacing="0">Enrich</text>
+    <text x="316" y="266" font-family="ui-monospace, monospace" font-size="14" fill="#a3a8b0">lookup + tag</text>
+  </g>
+  <g data-node="publish">
+    <rect x="552" y="96" width="176" height="80" rx="8" fill="#1e2228" stroke="#9fc6a0" stroke-width="1.2" stroke-dasharray="6,4"/>
+    <text x="572" y="130" font-family="'Inter', system-ui, sans-serif" font-size="18" font-weight="600"
+          fill="#e8e6e1" letter-spacing="0">Publish</text>
+    <text x="572" y="154" font-family="ui-monospace, monospace" font-size="14" fill="#a3a8b0">public API</text>
+  </g>
+  <g data-node="archive">
+    <rect x="552" y="208" width="176" height="80" rx="8" fill="#1e2228" stroke="#9fc6a0" stroke-width="1.2" stroke-dasharray="6,4"/>
+    <text x="572" y="242" font-family="'Inter', system-ui, sans-serif" font-size="18" font-weight="600"
+          fill="#e8e6e1" letter-spacing="0">Archive</text>
+    <text x="572" y="266" font-family="ui-monospace, monospace" font-size="14" fill="#a3a8b0">cold storage</text>
+  </g>
+    <line x1="40" y1="300" x2="728" y2="300" stroke="#333940" stroke-width="1"/><rect x="40" y="322" width="20" height="14" rx="0" fill="none" stroke="#8fb8de" stroke-width="1.2"/><text x="68" y="333" font-family="ui-monospace, monospace" font-size="14" fill="#a3a8b0">source</text><rect x="230" y="322" width="20" height="14" rx="8" fill="none" stroke="#e8a33d" stroke-width="1.2"/><text x="258" y="333" font-family="ui-monospace, monospace" font-size="14" fill="#a3a8b0">processing</text><rect x="420" y="322" width="20" height="14" rx="8" fill="none" stroke="#9fc6a0" stroke-width="1.2" stroke-dasharray="6,4"/><text x="448" y="333" font-family="ui-monospace, monospace" font-size="14" fill="#a3a8b0">destination</text>
+  </svg>
+
+  <div class="alt">
+    <h2>Described in words</h2>
+    <p>A content pipeline in three stages: intake and triage collect and sort,
+    review and enrich add judgement and metadata, publish and archive are the two
+    destinations. Category is carried by shape and border pattern as well as
+    colour.</p>
+  </div>
+</main>
+</body>
+</html>

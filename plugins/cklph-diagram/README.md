@@ -21,6 +21,7 @@ self-contained HTML page. Imports draw.io, Mermaid and Excalidraw sources.
 | **Accessibility** | Contrast checked at onboarding; SVG title/desc linted | Eight rules (A1–A8), most enforced by `lint-a11y.py`, which fails the build |
 | **Cognitive load** | Density budget | Nine rules (C1–C9) — predictable grammar, one reading order, node ceiling, no crossing lines |
 | **Type sizes** | 7–9px mono labels | 12px floor, enforced |
+| **Themes** | One look | 23 opt-in themes for geometry, chrome and density, plus a 10-file component library; the brand always keeps colour and typefaces |
 | **Source of truth** | The HTML | A JSON source (content + placement) beside and inside every HTML; `check.py` fails a drawing that disagrees with it |
 | **Checking** | Static linters | `check.py`: static gates plus measurement in real Chrome at desktop and phone widths |
 | **CI** | — | `./scripts/verify.sh`, run identically in GitHub Actions |
@@ -121,6 +122,8 @@ skills/cklph-diagram/
 │   ├── prose-alternative.md    the text alternative every diagram ships with
 │   ├── brand-onboarding.md     adding a client brand
 │   ├── brands/                 the registry
+│   ├── themes/                 23 opt-in themes: geometry, chrome, density
+│   ├── components/             the menu themes are built from
 │   ├── diagram-source.md       the JSON every diagram is drawn from
 │   ├── semantic-patterns.md    behavioural patterns, chosen before the type
 │   ├── type-*.md               41 visual types
@@ -148,8 +151,16 @@ scripts/
 ├── verify-<type>.py            upstream's per-type data-contract checks
 ├── build-examples.py           verification harness, not the production path
 ├── build-icons.py              regenerates the icon catalog (maintainers only)
+├── build-themes.py             regenerates the 14 baseline themes + gallery/themes
+├── build-artdirected.py        gallery/artdirected (demos 23-44)
+├── build-form-explorations.py  gallery/forms
+├── build-ui-explorations.py    gallery/ui (demos 11-21)
+├── build-line-lab.py           gallery/ui/22-line-lab.html
+├── check-themes.py             every theme's fallback palette passes AA
 ├── fix-mojibake.py             one-off encoding repair utility
 └── verify.sh                   the whole gate
+
+gallery/                        every theme and component, rendered (repo only)
 ```
 
 `build-examples.py` renders three proof diagrams to answer one question

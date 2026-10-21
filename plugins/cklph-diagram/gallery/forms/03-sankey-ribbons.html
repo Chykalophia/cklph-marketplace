@@ -1,0 +1,35 @@
+<!DOCTYPE html>
+<html lang="en"><head><meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Sankey Ribbons</title>
+<style>
+ body{margin:0;padding:52px 40px;background:#faf8f4;color:#191621;
+   font-family:'Inter',system-ui,sans-serif;line-height:1.6;-webkit-font-smoothing:antialiased}
+ main{max-width:900px;margin:0 auto}
+ .tag{font-family:ui-monospace,monospace;font-size:13px;letter-spacing:.14em;
+   text-transform:uppercase;color:#57505f;margin:0 0 6px}
+ h1{font-size:32px;font-weight:650;letter-spacing:-.02em;margin:0 0 10px}
+ .note{color:#57505f;font-size:17px;max-width:64ch;margin:0 0 6px}
+ .tech{font-size:15px;max-width:64ch;margin:0 0 28px;padding:10px 14px;
+   border-left:3px solid #b4245f;background:rgba(180,36,95,.05)}
+ .cav{font-size:15px;color:#57505f;max-width:64ch;margin:22px 0 0;
+   padding:10px 14px;border-left:3px solid #8a5a12;background:rgba(138,90,18,.06)}
+ svg{width:100%;height:auto;display:block}
+ .alt{margin-top:26px;padding-top:18px;border-top:1px solid #ded6cc}
+ .alt h2{font-family:ui-monospace,monospace;font-size:13px;font-weight:500;
+   letter-spacing:.14em;text-transform:uppercase;color:#57505f;margin:0 0 8px}
+ .alt p{color:#57505f;font-size:15px;max-width:70ch;margin:0}
+ @media (prefers-reduced-motion:reduce){*{animation:none!important;transition:none!important}}
+ @media (prefers-contrast:more){body{background:#fff;color:#000}.note,.alt p,.tag,.cav{color:#000}}
+</style></head><body><main>
+<p class="tag">form 03 of 10</p>
+<h1>Sankey Ribbons</h1>
+<p class="note">A funnel where the width of every band is the number of users.</p>
+<p class="tech"><strong>Technique — quantity as geometry.</strong> Band thickness encodes volume, so the shape answers 'how much' before any label is read. Translucent overlaps let crossing flows coexist without a bridge.</p>
+<svg viewBox="0 0 860 400" xmlns="http://www.w3.org/2000/svg" role="img"
+   aria-labelledby="t d"><title id="t">User flow as a Sankey where band width encodes user volume</title><desc id="d">User flow as a Sankey where band width encodes user volume</desc>
+ <defs></defs><rect width="860" height="400" fill="#faf8f4"/>
+ <path d="M150,60 C265.0,60 265.0,60 380,60 L380,190 C265.0,190 265.0,190 150,190 Z" fill="#1f5f8b" opacity="0.55"/><path d="M150,200 C265.0,200 265.0,200 380,200 L380,260 C265.0,260 265.0,290 150,290 Z" fill="#b4245f" opacity="0.55"/><path d="M150,300 C265.0,300 265.0,268 380,268 L380,308 C265.0,308 265.0,360 150,360 Z" fill="#046a52" opacity="0.55"/><path d="M430,60 C555.0,60 555.0,60 680,60 L680,156 C555.0,156 555.0,190 430,190 Z" fill="#1f5f8b" opacity="0.55"/><path d="M430,200 C555.0,200 555.0,168 680,168 L680,212 C555.0,212 555.0,260 430,260 Z" fill="#b4245f" opacity="0.55"/><path d="M430,268 C555.0,268 555.0,224 680,224 L680,254 C555.0,254 555.0,308 430,308 Z" fill="#046a52" opacity="0.55"/><path d="M430,190 C555.0,190 555.0,266 680,266 L680,326 C555.0,326 555.0,198 430,198 Z" fill="#8a5a12" opacity="0.5"/><rect x="138" y="60" width="12" height="130" fill="#1f5f8b"/><rect x="136" y="62" width="104" height="42" rx="4" fill="#faf8f4" opacity="0.94"/><text x="142" y="78" font-size="15" font-weight="600" fill="#191621">Organic</text><text x="142" y="97" font-size="13" font-family="ui-monospace,monospace" fill="#57505f">1,300 users</text><rect x="138" y="200" width="12" height="90" fill="#b4245f"/><rect x="136" y="202" width="88" height="42" rx="4" fill="#faf8f4" opacity="0.94"/><text x="142" y="218" font-size="15" font-weight="600" fill="#191621">Paid</text><text x="142" y="237" font-size="13" font-family="ui-monospace,monospace" fill="#57505f">900 users</text><rect x="138" y="300" width="12" height="60" fill="#046a52"/><rect x="136" y="302" width="88" height="42" rx="4" fill="#faf8f4" opacity="0.94"/><text x="142" y="318" font-size="15" font-weight="600" fill="#191621">Referral</text><text x="142" y="337" font-size="13" font-family="ui-monospace,monospace" fill="#57505f">600 users</text><rect x="380" y="60" width="12" height="130" fill="#1f5f8b"/><rect x="396" y="62" width="104" height="42" rx="4" fill="#faf8f4" opacity="0.94"/><text x="402" y="78" font-size="15" font-weight="600" fill="#191621">Landing</text><text x="402" y="97" font-size="13" font-family="ui-monospace,monospace" fill="#57505f">1,300 users</text><rect x="380" y="200" width="12" height="60" fill="#b4245f"/><rect x="396" y="202" width="88" height="42" rx="4" fill="#faf8f4" opacity="0.94"/><text x="402" y="218" font-size="15" font-weight="600" fill="#191621">Signup</text><text x="402" y="237" font-size="13" font-family="ui-monospace,monospace" fill="#57505f">600 users</text><rect x="380" y="268" width="12" height="40" fill="#046a52"/><rect x="396" y="270" width="88" height="42" rx="4" fill="#faf8f4" opacity="0.94"/><text x="402" y="286" font-size="15" font-weight="600" fill="#191621">Trial</text><text x="402" y="305" font-size="13" font-family="ui-monospace,monospace" fill="#57505f">400 users</text><rect x="680" y="60" width="12" height="96" fill="#1f5f8b"/><rect x="696" y="62" width="88" height="42" rx="4" fill="#faf8f4" opacity="0.94"/><text x="702" y="78" font-size="15" font-weight="600" fill="#191621">Retained</text><text x="702" y="97" font-size="13" font-family="ui-monospace,monospace" fill="#57505f">960 users</text><rect x="680" y="168" width="12" height="44" fill="#b4245f"/><rect x="696" y="170" width="88" height="42" rx="4" fill="#faf8f4" opacity="0.94"/><text x="702" y="186" font-size="15" font-weight="600" fill="#191621">Churned</text><text x="702" y="205" font-size="13" font-family="ui-monospace,monospace" fill="#57505f">440 users</text><rect x="680" y="224" width="12" height="102" fill="#8a5a12"/><rect x="696" y="226" width="104" height="42" rx="4" fill="#faf8f4" opacity="0.94"/><text x="702" y="242" font-size="15" font-weight="600" fill="#191621">Dormant</text><text x="702" y="261" font-size="13" font-family="ui-monospace,monospace" fill="#57505f">1,020 users</text><text x="138" y="24" font-size="12" font-family="ui-monospace,monospace" letter-spacing=".14em" fill="#57505f">SOURCE</text><text x="380" y="24" font-size="12" font-family="ui-monospace,monospace" letter-spacing=".14em" fill="#57505f">JOURNEY</text><text x="680" y="24" font-size="12" font-family="ui-monospace,monospace" letter-spacing=".14em" fill="#57505f">OUTCOME</text></svg>
+<p class="cav"><strong>Watch out:</strong> Translucency stacks: three overlapping bands can produce a fourth colour that means nothing. Cap overlap depth and keep every band's label outside the ribbon.</p>
+<div class="alt"><h2>Described in words</h2><p>A funnel where the width of every band is the number of users.</p></div>
+</main></body></html>

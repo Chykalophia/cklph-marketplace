@@ -47,6 +47,10 @@ for slug in $(live_brands); do
 done
 
 echo
+echo "Theme fallback palettes (WCAG AA, every theme file):"
+python3 scripts/check-themes.py || fail=1
+
+echo
 echo "=============================================="
 echo " 2. Render proof diagrams"
 echo "=============================================="

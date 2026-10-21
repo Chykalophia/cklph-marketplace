@@ -8,6 +8,27 @@ The major version tracks the skill's `metadata.version` in
 `skills/cklph-diagram/SKILL.md`, which inherits `3.x` from the upstream skill
 this forked from.
 
+## [3.6.0] — 2026-10-21
+
+### Added
+
+- **Themes and the component library**, ported from the generic `diagram-kit`
+  v1.0.0 line, which built them on 2026-08-12/13 and never reached this repo:
+  23 themes in `references/themes/` and ten component files in
+  `references/components/`. Themes are opt-in, with no default, so an unthemed
+  diagram looks exactly as before. A brand is always resolved here, so brand
+  colour and brand typefaces win; a theme contributes geometry, chrome, density
+  and texture. SKILL.md §0.5 and §0.6.
+- **`gallery/`** (repo only, not bundled): every theme, ten structural forms,
+  a component specimen sheet, a 36-treatment line lab and 22 art-directed demos,
+  with their generators (`build-themes.py`, `build-artdirected.py`,
+  `build-form-explorations.py`, `build-ui-explorations.py`, `build-line-lab.py`).
+  Regenerating reproduces the ported files byte for byte.
+- **`scripts/check-themes.py`**, run by `verify.sh`. Every theme file already
+  claimed to be verified by it, but it never existed, and the nine hand-written
+  art-directed themes were checked by nothing. It reads each theme's fallback
+  palette table and fails on any text role below 4.5:1.
+
 ## [3.5.1] — 2026-10-01
 
 ### Fixed
