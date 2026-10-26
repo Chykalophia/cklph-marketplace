@@ -4,7 +4,7 @@
 > agent, hook, or instruction file doesn't match this doc, fix it or fix this doc — never
 > leave them out of sync.
 >
-> Status: **v0.2** · Owner: Peter Krzyzek (Chykalophia) · Repo: `Chykalophia/cklph-marketplace` (hosts `cklph-os`, `cklph-nextjs`, `cklph-architect`, `cklph-eos`)
+> Status: **v0.2** · Owner: Peter Krzyzek (Chykalophia) · Repo: `Chykalophia/cklph-marketplace` (hosts `cklph-os`, `cklph-nextjs`, and the other plugins in its marketplace.json)
 
 ---
 
