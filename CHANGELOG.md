@@ -11,7 +11,7 @@ Format: [Keep a Changelog](https://keepachangelog.com); versioning follows [SemV
   first/last-line check. Scoped to replies *to the user*; never reshapes emails or docs written for
   others. Adapted from `ayghri/i-have-adhd` (MIT, `NOTICE.md`) rather than installing it, so no
   third-party hooks run.
-- **`hooks/reply-shape-context.sh`**: SessionStart hook (`startup|resume|clear|compact`) that prints
+- **`hooks/reply-shape-context.sh`**: SessionStart hook (`startup|resume|clear|compact|fork`) that prints
   the skill body into context, so the contract is always on in the CLI and survives `/compact`.
   Read-only, no network, fails open. **Opt out with `CKLPH_REPLY_SHAPE=off`**, since this plugin is
   public and the hook shapes every installer's sessions.

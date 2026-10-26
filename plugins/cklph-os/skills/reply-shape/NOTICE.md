@@ -1,4 +1,5 @@
-Adapted from i-have-adhd (https://github.com/ayghri/i-have-adhd), main branch.
+Adapted from i-have-adhd (https://github.com/ayghri/i-have-adhd), commit 89ea6c6de1b88790f54f4ea5f069578518d82e83
+(the upstream main branch as of 2026-09-29, when this adaptation was made).
 Licensed under the MIT License (full text below).
 Modified by Chykalophia: rewritten as a cklph-os skill with a SessionStart hook; no upstream hooks or code are included.
 

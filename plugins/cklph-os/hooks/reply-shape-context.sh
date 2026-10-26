@@ -1,5 +1,6 @@
 #!/usr/bin/env bash
-# reply-shape-context.sh — SessionStart hook.
+# reply-shape-context.sh — SessionStart hook (sources startup|resume|clear|compact|fork; `fork`
+# verified empirically on Claude Code 2.1.310 with --resume --fork-session).
 # Prints the reply-shape rules (SKILL.md minus frontmatter) to stdout; Claude Code adds
 # SessionStart stdout to the session context, so the contract is always on in the CLI.
 # Read-only, no network. Fails open: a missing file never blocks a session.

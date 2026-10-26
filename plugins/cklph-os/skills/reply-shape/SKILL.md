@@ -1,6 +1,6 @@
 ---
 name: reply-shape
-description: The user's reply contract — answer or next action first, state restated each turn, real time estimates. Injected at session start by hook on the CLI; on Desktop/Cowork, apply before sending any multi-step, status, or error reply to the user.
+description: Load before answering any status question, error or failure report, or request for steps or a plan, unless these reply rules are already in context from the SessionStart hook. Sets the shape of the reply, answer or next action first.
 ---
 
 # reply-shape — how to answer the user
