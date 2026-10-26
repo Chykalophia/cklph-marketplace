@@ -1,6 +1,6 @@
 # CASA (Cloud Application Security Assessment) — compliance rulebook.
 # Google Play's security assessment framework for cloud-connected apps.
-# NOT HIPAA.
+# NOT HIPAA (that is hipaa.yaml).
 
 version: 1
 framework: casa

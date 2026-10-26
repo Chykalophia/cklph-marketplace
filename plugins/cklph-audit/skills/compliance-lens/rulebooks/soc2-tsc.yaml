@@ -1,6 +1,6 @@
 # SOC 2 Trust Services Criteria — compliance rulebook for the compliance lens.
 # Each entry is a discrete control the reviewer maps findings against.
-# NOT HIPAA — this is SOC 2 only.
+# SOC 2 only (HIPAA is hipaa.yaml).
 # Source: AICPA Trust Services Criteria (2017, with 2022 revisions).
 
 version: 1

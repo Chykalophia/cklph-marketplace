@@ -30,7 +30,7 @@ Do not invent config — `init` is a deliberate one-time scaffold.
 
 From the slash-command invocation, derive:
 
-- **`lenses`** — comma list (`security,correctness,architecture`). For `/cklph-audit:quick`, a single lens. If omitted, fall back to `config.lenses`.
+- **`lenses`** — comma list (`security,correctness,architecture`). For `/cklph-audit:quick`, a single lens. If omitted, fall back to `config.lenses`. `docs-drift`, `agent-config`, and `compliance` are single-job lenses (not crossed with units); `agent-config` reviews the AI-tooling globs (`config.agentConfig.globs` overrides the default) and is static-only.
 - **`path`** — optional positional that scopes the audit to a subtree (e.g. `app/api/billing`). Passed through to the scout.
 - **`mode`** — `"full"` for `:run`, `"quick"` for `:quick`. **Quick = top-risk sampling**: only the top-N units by `riskScore` are audited (`config.quick.topN`, default 5); the rest are SKIPPED and logged — coverage is partial and the report must say so. Never present a quick run as exhaustive. Quick also skips recon (denominators/seeds absent — the report appendix says so) unless the config sets `recon.quick: true`, and skips the **Map** and **Variant** phases entirely (no threat model, no sibling hunt — the appendix flags both).
 - **`deepUnits`** — pass `true` when `--deep-units` was given (forces escalation to `audit-unit-mapper`).

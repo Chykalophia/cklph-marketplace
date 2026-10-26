@@ -73,3 +73,5 @@ Run the primary flow through VoiceOver (Cmd+F5) or NVDA before shipping. **Can a
 - Skipping heading levels (h1 → h3 with no h2).
 
 Pair with **discipline** for the rule it extends, **component-standards** for the underlying primitives.
+
+React/Next.js **performance** (waterfalls, bundle size, RSC serialization, re-renders, hydration) is not covered here: use `vercel:react-best-practices`, which carries the full Vercel rule set.

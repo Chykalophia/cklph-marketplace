@@ -37,7 +37,7 @@ This is detection for tailoring — keep it fast. You are not auditing; the scou
 
 Start from `${CLAUDE_PLUGIN_ROOT}/templates/audit.config.example.yaml` and tailor it to what you detected:
 
-- Set `lenses: [security, correctness, architecture]` (add `docs-drift` and/or `omission` — the negative-space lens — when the repo warrants them).
+- Set `lenses: [security, correctness, architecture]` (add `docs-drift`, `omission` — the negative-space lens — and/or `agent-config` when the repo ships MCP configs, hooks, or agent instructions).
 - Seed `units.list` with the high-risk subsystems you found, with real `globs` for THIS repo (or leave `units.list` empty and `autoInfer: true` to let the scout infer — but always set the high-risk ones if obvious).
 - Set `ignore` to the patterns that actually apply here.
 - Set `rulesFrom` to the rule files that actually exist in the repo.

@@ -1,0 +1,8 @@
+{
+  "_fixture": "agent-config lens · should-flag (RECALL). Planted: (1) defaultMode bypassPermissions -> agentcfg:perm-bypass (high); (2) Bash(*) in allow -> agentcfg:perm-broad (high); (3) broad allow with no deny for .env or keys -> agentcfg:perm-no-deny; (4) enableAllProjectMcpServers true -> agentcfg:mcp-autotrust. Expected verdict: FLAG all four.",
+  "permissions": {
+    "defaultMode": "bypassPermissions",
+    "allow": ["Bash(*)", "Write(**)", "WebFetch"]
+  },
+  "enableAllProjectMcpServers": true
+}

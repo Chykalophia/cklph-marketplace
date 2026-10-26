@@ -39,6 +39,8 @@ create policy "users delete own" on public.<name>
 
 UPDATE needs both `USING` (which rows you can target) and `WITH CHECK` (what the new row looks like) — skipping `WITH CHECK` lets a user reassign `user_id`.
 
+On large tables write `(select auth.uid()) = user_id` instead of `auth.uid() = user_id`: wrapped in a subselect, Postgres evaluates it once per query (an initPlan) instead of once per row. Same rule for `auth.jwt()` and any stable helper function in a policy. Index the column the policy filters on (`user_id`, `organization_id`).
+
 ## Indexes — separate migration, named consistently
 
 `create index idx_<table>_<columns> on public.<table> (<columns>);` — only index what you actually query. Every index slows writes; discipline matters.
@@ -59,6 +61,7 @@ The Supabase MCP is **read-only** here. Use it for `execute_sql` (SELECTs only),
 - Using MCP for DDL — no migration file, drifts across environments.
 - User-data table without RLS enabled.
 - UPDATE policy with `USING` but no `WITH CHECK` — lets users reassign `user_id`.
+- Bare `auth.uid()` in a policy on a big table — re-evaluated per row; wrap it as `(select auth.uid())`.
 - Foreign key without an index — every join does a sequential scan.
 - Missing `UNIQUE` on app-unique columns (slug, email-per-workspace) — RLS won't save you from duplicates.
 

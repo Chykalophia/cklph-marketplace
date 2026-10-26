@@ -1,0 +1,107 @@
+# HIPAA (US) — technical-safeguard rulebook for the compliance lens.
+# Opt-in: select with `compliance: { frameworks: [hipaa] }` (alone or alongside soc2/casa).
+# Scope: what code review can evidence — PHI classification, access control, audit trails,
+# leak vectors, and vendor data boundaries. It does NOT attest administrative or physical
+# safeguards, risk analysis, or BAA paperwork; those stay `not-checked` (owner evidence).
+# Adapted from ECC healthcare-phi-compliance + hipaa-compliance (MIT); see NOTICE-hipaa.md.
+
+version: 1
+framework: hipaa
+name: "HIPAA Security Rule — technical safeguards (code-reviewable subset)"
+
+controls:
+  # ── Data classification ───────────────────────────────────────────────────
+  - id: hipaa:DC1
+    text: "PHI is identified and classified: tables/columns holding identifiers tied to health, care, insurance, or appointment data are marked (schema comments, type tags, or a data map) so reviewers can see what is PHI"
+    lensHint: "security,architecture"
+    severity: medium
+
+  - id: hipaa:DC2
+    text: "Records are referenced by opaque internal IDs (UUIDs), not names, medical record numbers, national IDs, phone numbers, or emails"
+    lensHint: "security,architecture"
+    severity: medium
+
+  # ── Access control (164.312(a)) ───────────────────────────────────────────
+  - id: hipaa:AC1
+    text: "Every PHI endpoint, server action, and query path requires an authenticated identity validated server-side"
+    lensHint: "security"
+    severity: high
+
+  - id: hipaa:AC2
+    text: "Row-level access control (e.g. Postgres RLS) is enabled on every PHI table and scopes rows to the user's organization/facility/care relationship; cross-tenant reads return zero rows"
+    lensHint: "security,iac"
+    severity: high
+
+  - id: hipaa:AC3
+    text: "Minimum necessary: queries and API responses return only the PHI fields the caller's role needs (no SELECT * of patient rows to the client)"
+    lensHint: "security,architecture"
+    severity: medium
+
+  - id: hipaa:AC4
+    text: "Privileged keys that bypass row-level security (service-role keys, admin DB credentials) never reach client code and are used server-side only with an explicit ownership check"
+    lensHint: "security"
+    severity: critical
+
+  - id: hipaa:AC5
+    text: "Sessions expire after inactivity (automatic logoff) on surfaces that display PHI"
+    lensHint: "security,correctness"
+    severity: medium
+
+  # ── Audit controls (164.312(b)) ───────────────────────────────────────────
+  - id: hipaa:AU1
+    text: "Every PHI read, create, update, delete, export, and print is recorded with actor, record ID, action, timestamp, and request context"
+    lensHint: "security,omission"
+    severity: high
+
+  - id: hipaa:AU2
+    text: "The audit trail is tamper-evident: insert-only for application roles (UPDATE/DELETE denied by policy), with no code path that rewrites or deletes audit rows"
+    lensHint: "security,iac"
+    severity: high
+
+  # ── Integrity + transmission (164.312(c), (e)) ────────────────────────────
+  - id: hipaa:IN1
+    text: "PHI modifications are validated and attributable (before/after captured or versioned) so improper alteration is detectable"
+    lensHint: "correctness,state-machine"
+    severity: medium
+
+  - id: hipaa:TX1
+    text: "PHI is encrypted in transit (TLS only, no plain-HTTP endpoints or webhooks) and at rest in every store, including backups and file buckets"
+    lensHint: "security,iac,container"
+    severity: high
+
+  # ── Leak vectors ──────────────────────────────────────────────────────────
+  - id: hipaa:LV1
+    text: "No PHI in logs, console output, traces, or error-tracking payloads; log opaque record IDs only and scrub stack traces before export"
+    lensHint: "security,omission"
+    severity: high
+
+  - id: hipaa:LV2
+    text: "No PHI in client-visible error messages; return a generic error and log details server-side with opaque IDs"
+    lensHint: "security,correctness"
+    severity: high
+
+  - id: hipaa:LV3
+    text: "No PHI in URLs (path segments or query strings), which land in access logs, analytics, referrers, and browser history"
+    lensHint: "security"
+    severity: high
+
+  - id: hipaa:LV4
+    text: "No PHI in product analytics, session replay, or marketing pixels; events use a non-PHI schema"
+    lensHint: "security,supply-chain"
+    severity: high
+
+  - id: hipaa:LV5
+    text: "No PHI in browser storage (localStorage, sessionStorage, IndexedDB) or long-lived caches; hold it in memory and fetch on demand"
+    lensHint: "security"
+    severity: medium
+
+  - id: hipaa:LV6
+    text: "No PHI in LLM prompts, embeddings, or agent context unless the model provider is approved for PHI under a BAA and the data sent is minimized"
+    lensHint: "security,agent-config"
+    severity: high
+
+  # ── Vendor boundary ───────────────────────────────────────────────────────
+  - id: hipaa:VB1
+    text: "Third-party services that receive PHI (hosting, database, email, SMS, observability, support, AI providers) are documented as BAA-covered; anything else is blocked-by-default in code (no PHI forwarded)"
+    lensHint: "security,architecture"
+    severity: high

@@ -9,7 +9,7 @@ No lens ships on vibes. This skill measures a lens against **labeled ground trut
 
 ## Inputs
 
-- `<lens>` — one of `security | correctness | architecture | docs-drift`.
+- `<lens>` — one of `security | correctness | architecture | docs-drift | agent-config` (or any lens with a `fixtures/<lens>/` folder).
 - `[ref]` — optional git ref (commit/tag/branch) to backtest against a known historical state.
 
 ## Mode 1 — Golden fixtures (per-lens precision/recall gate)

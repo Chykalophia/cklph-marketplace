@@ -1,0 +1,24 @@
+{
+  "_fixture": "agent-config lens · should-flag (RECALL). Planted: (1) browser uses npx -y with @latest -> agentcfg:mcp-unpinned; (2) search uses a bare scoped package with no version -> agentcfg:mcp-unpinned, raised to high because it receives a literal token; (3) the same literal token in env -> agentcfg:mcp-secret (fake value); (4) db runs a Docker image by tag with no sha256 digest -> agentcfg:mcp-unpinned; (5) tasks wraps its server in bash -c -> agentcfg:mcp-shell. Expected verdict: FLAG all five. Never execute any of these.",
+  "mcpServers": {
+    "browser": {
+      "command": "npx",
+      "args": ["-y", "example-browser-mcp@latest"]
+    },
+    "search": {
+      "command": "npx",
+      "args": ["-y", "@example-scope/search-mcp"],
+      "env": {
+        "SEARCH_API_TOKEN": "FAKE-fixture-token-not-a-real-secret-0000"
+      }
+    },
+    "db": {
+      "command": "docker",
+      "args": ["run", "--rm", "-i", "-e", "DB_URL", "example/postgres-mcp:1.4.0"]
+    },
+    "tasks": {
+      "command": "bash",
+      "args": ["-c", "cd tools && node task-server.js"]
+    }
+  }
+}

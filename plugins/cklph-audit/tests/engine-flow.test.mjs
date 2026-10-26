@@ -200,5 +200,39 @@ const v1def = (dIn.deferred || []).find(f => f.id === 'V1');
 if (v1def && !/sibling/i.test(v1def.note || '')) console.log('  · V1 deferred without pedigree note (minor)');
 else if (v1def) console.log('  ✓ deferred variant sibling V1 keeps its "sibling of a confirmed critical" pedigree');
 
+// ── SCENARIO C: agent-config lens — exactly ONE job over the AI-tooling globs, never crossed with units ─
+console.log('\n=== SCENARIO C: agent-config single job ===');
+synthInput = null; logs.length = 0;
+const A1 = { id: 'A1', title: '.mcp.json runs an MCP server via npx -y pkg@latest (mutable selector)', severity: 'medium', file: '.mcp.json', line: 5, rule: 'agentcfg:mcp-unpinned', rationale: 'mutable', snippet: '"example-mcp@latest"', normalizedSnippet: 'example-mcp@latest', suggestedFix: 'pin reviewed version', source: 'reasoning' };
+const seenLabels = [];
+const seenPrompts = {};
+const agentC = async (prompt, opts = {}) => {
+  const label = opts.label || '';
+  seenLabels.push(label); seenPrompts[label] = prompt;
+  if (label === 'recon:agent-config') return { domain: 'agent-config', denominators: [{ pattern: 'mcp configs', description: 'repo MCP config files', command: "rg --files --hidden -g '**/.mcp.json'", count: 1 }], seeds: [{ file: '.mcp.json', line: 5, note: '@latest selector' }], safeControls: [] };
+  if (label === 'review:agent-config:agent-config') return { findings: [A1], ruleChecks: [], coverage: { seedsVerified: 1, seedsGiven: 1, toolCandidatesJudged: 0 } };
+  if (label.startsWith('verify:') && /npx -y pkg@latest/.test(prompt)) return { refuted: false, reason: 'selector is @latest', reachabilityTrace: '.mcp.json:5 args contains example-mcp@latest', confidence: 0.9 };
+  return agent(prompt, opts);
+};
+const argsC = JSON.parse(JSON.stringify(args));
+argsC.lenses = ['security', 'agent-config'];
+argsC.config.lenses = ['security', 'agent-config'];
+await runFn({ agent: agentC, parallel, pipeline, phase, log, args: argsC, budget });
+const acReviews = seenLabels.filter(l => l.startsWith('review:') && l.endsWith(':agent-config'));
+// C1: exactly one agent-config review job, keyed 'agent-config' (not crossed with the api-surface unit)
+if (acReviews.length !== 1 || acReviews[0] !== 'review:agent-config:agent-config') { problems++; console.log(`  ✗ expected exactly one review:agent-config:agent-config job, got ${JSON.stringify(acReviews)}`); }
+else console.log('  ✓ exactly one agent-config review job (not crossed with units)');
+// C2: the job is scoped to the AI-tooling globs and the recon prompt carries the static-only boundary
+const acPrompt = seenPrompts['review:agent-config:agent-config'] || '';
+if (!acPrompt.includes('**/.mcp.json') || !acPrompt.includes('**/hooks/hooks.json')) { problems++; console.log('  ✗ agent-config job not scoped to the AI-tooling globs'); }
+else console.log('  ✓ agent-config job scoped to the AI-tooling globs');
+if (!/never execute/i.test(seenPrompts['recon:agent-config'] || '')) { problems++; console.log('  ✗ recon:agent-config prompt lacks the static-only boundary'); }
+else console.log('  ✓ recon:agent-config prompt carries the static-only boundary');
+// C3: the security lens still crosses with the unit, and the agent-config finding reaches the report
+if (!seenLabels.includes('review:api-surface:security')) { problems++; console.log('  ✗ security lens no longer runs per unit'); }
+const freshC = (synthInput?.findings || []).map(f => f.id);
+if (!freshC.includes('A1')) { problems++; console.log(`  ✗ confirmed agent-config finding A1 missing from synthesizer input (fresh: ${JSON.stringify(freshC)})`); }
+else console.log('  ✓ confirmed agent-config finding reaches the report');
+
 console.log(problems === 0 ? '\n✓ ALL SCENARIOS PASSED' : `\n✗ ${problems} conflict(s) found across scenarios`);
 process.exit(problems === 0 ? 0 : 1);

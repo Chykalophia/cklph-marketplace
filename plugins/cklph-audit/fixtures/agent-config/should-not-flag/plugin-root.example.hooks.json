@@ -1,0 +1,11 @@
+{
+  "_fixture": "agent-config lens · should-not-flag (PRECISION). Look-alikes: every hook command resolves through ${CLAUDE_PLUGIN_ROOT} (portable, inside the reviewed tree); the script name mentions 'fetch' but the hook downloads nothing; /usr/bin/env is a system binary, not a user-specific path. Expected verdict: NO finding.",
+  "hooks": {
+    "PreToolUse": [
+      { "matcher": "Bash", "hooks": [{ "type": "command", "command": "${CLAUDE_PLUGIN_ROOT}/hooks/security-check.sh" }] }
+    ],
+    "PostToolUse": [
+      { "matcher": "WebFetch", "hooks": [{ "type": "command", "command": "/usr/bin/env bash ${CLAUDE_PLUGIN_ROOT}/hooks/log-fetch-url.sh" }] }
+    ]
+  }
+}
