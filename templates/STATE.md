@@ -1,7 +1,7 @@
 # STATE.md — working state
 
 > Per-repo scratchpad for continuity between sessions. Update before `/compact` or session end
-> so the next session (or surface) resumes cleanly. This is short-lived state, not long-term memory.
+> so the next session (or surface) resumes cleanly. Mostly short-lived state, not long-term memory; the one exception is "Removed on purpose" below.
 
 ## Active work
 -

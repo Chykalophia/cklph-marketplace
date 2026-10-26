@@ -163,7 +163,7 @@ is_root_target() {
     case "$t" in */\*) t="${t%/\*}"; [ -z "$t" ] && return 0 ;; esac
     while [ "${#t}" -gt 1 ] && [ "${t%/}" != "$t" ]; do t="${t%/}"; done
     case "$t" in
-        /|"~"|.|..|'$HOME'|'${HOME}'|'$PWD'|'${PWD}'|'$CLAUDE_PROJECT_DIR'|'${CLAUDE_PROJECT_DIR}'|'$(pwd)'|'`pwd`'|'$(git rev-parse --show-toplevel)') return 0 ;;
+        /|"~"|.|..|'.*'|'.[!.]*'|'..?*'|'./.*'|'$HOME'|'${HOME}'|'$PWD'|'${PWD}'|'$CLAUDE_PROJECT_DIR'|'${CLAUDE_PROJECT_DIR}'|'$(pwd)'|'`pwd`'|'$(git rev-parse --show-toplevel)') return 0 ;;
     esac
     case "$t" in /*) ;; *) return 1 ;; esac
     [ -n "${HOME:-}" ] && [ "$t" = "${HOME%/}" ] && return 0
@@ -191,9 +191,36 @@ check_segment() {   # $1 = one simple command (words joined by \037), $2 = recur
     while [ "$i" -lt "$n" ]; do
         a="${w[$i]}"
         case "$a" in
-            sudo|doas|command|exec|time|nohup|nice|env|npx|bunx)
+            sudo|doas|command|exec|time|timeout|nohup|nice|env|npx|bunx)
+                # Options that take a separate value, per wrapper, so `sudo -u root rm -rf /` reaches
+                # rm instead of treating "root" as the command.
+                local valopts
+                case "$a" in
+                    sudo) valopts='^-(u|g|p|C|D|h|r|t|U|T)$|^--(user|group|prompt|close-from|chdir|host|role|type|other-user|command-timeout)$' ;;
+                    doas) valopts='^-(u|C)$' ;;
+                    env) valopts='^-(u|C|S)$|^--(unset|chdir|split-string)$' ;;
+                    nice) valopts='^-n$|^--adjustment$' ;;
+                    time) valopts='^-(f|o)$|^--(format|output)$' ;;
+                    exec) valopts='^-a$' ;;
+                    timeout) valopts='^-(s|k)$|^--(signal|kill-after)$' ;;
+                    npx|bunx) valopts='^-(p|c)$|^--(package|call)$' ;;
+                    *) valopts='^$' ;;
+                esac
                 i=$((i + 1))
-                while [ "$i" -lt "$n" ] && [[ ${w[$i]} == -* ]]; do i=$((i + 1)); done
+                while [ "$i" -lt "$n" ] && [[ ${w[$i]} == -* ]]; do
+                    # npx -c / --call and env -S carry a whole command line: check it, in the
+                    # separate form and the attached ones (-S'…', --split-string=…, --call=…).
+                    if [[ $a =~ ^(npx|bunx|env)$ ]]; then
+                        case "${w[$i]}" in
+                            -c|--call|-S|--split-string) check_string "${w[$((i + 1))]:-}" $((depth + 1)) ;;
+                            --call=*|--split-string=*) check_string "${w[$i]#*=}" $((depth + 1)) ;;
+                            -S?*) [ "$a" = env ] && check_string "${w[$i]#-S}" $((depth + 1)) ;;
+                        esac
+                    fi
+                    if [[ ${w[$i]} =~ $valopts ]]; then i=$((i + 2)); else i=$((i + 1)); fi
+                done
+                # timeout's first positional is the duration, not the command.
+                [ "$a" = timeout ] && i=$((i + 1))
                 continue ;;
         esac
         if [[ $a =~ ^[A-Za-z_][A-Za-z0-9_]*= ]]; then i=$((i + 1)); continue; fi
@@ -283,7 +310,7 @@ check_segment() {   # $1 = one simple command (words joined by \037), $2 = recur
             done ;;
         chmod)
             for ((j = i + 1; j < n; j++)); do
-                [[ ${w[$j]} =~ ^(0?777|a\+rwx|ugo\+rwx)$ ]] && block "chmod 777 makes it world-writable" \
+                [[ ${w[$j]} =~ ^(0*777|a\+rwx|ugo\+rwx)$ ]] && block "chmod 777 makes it world-writable" \
                     "chmod 755 for directories or 644 for files, or grant the one user or group that needs it (chown, chmod g+w)."
             done ;;
         npm|pnpm|yarn|bun)
@@ -307,8 +334,11 @@ check_segment() {   # $1 = one simple command (words joined by \037), $2 = recur
                 "plain supabase db reset resets the LOCAL stack only. For a remote, write a migration and supabase db push, or use a Supabase branch."
             ;;
         wp)
-            if [ "${w[$((i + 1))]:-}" = "db" ] && [[ ${w[$((i + 2))]:-} =~ ^(drop|reset)$ ]]; then
-                block "wp db ${w[$((i + 2))]} deletes the WordPress database" \
+            # Skip WP-CLI global flags (--allow-root, --path=…, --url=…) and @alias targets.
+            WPI=$((i + 1))
+            while [ "$WPI" -lt "$n" ] && [[ ${w[$WPI]} == --* || ${w[$WPI]} == @* ]]; do WPI=$((WPI + 1)); done
+            if [ "${w[$WPI]:-}" = "db" ] && [[ ${w[$((WPI + 1))]:-} =~ ^(drop|reset)$ ]]; then
+                block "wp db ${w[$((WPI + 1))]} deletes the WordPress database" \
                     "wp db export backup.sql first, and do it on staging, not the live site."
             fi ;;
     esac
@@ -317,13 +347,16 @@ check_segment() {   # $1 = one simple command (words joined by \037), $2 = recur
     local sql=0
     case "$cmd" in
         psql|mysql|mariadb|sqlite3) sql=1 ;;
-        wp) [ "${w[$((i + 1))]:-}" = "db" ] && [ "${w[$((i + 2))]:-}" = "query" ] && sql=1 ;;
+        wp) [ "${w[${WPI:-$((i + 1))}]:-}" = "db" ] && [ "${w[$((${WPI:-$((i + 1))} + 1))]:-}" = "query" ] && sql=1 ;;
         docker|podman|kubectl)
             for ((j = i + 1; j < n; j++)); do [[ ${w[$j]} =~ ^(psql|mysql|mariadb|sqlite3)$ ]] && sql=1; done ;;
     esac
     if [ "$sql" = 1 ]; then
+        # Two views: the raw command (heredoc bodies live only there) and this segment's words after
+        # the tokenizer removed quoting (shell concatenation like 'DR'"OP TABLE x" lives only there).
+        local words="${w[*]}" sqlre='(^|[^a-z_])(drop[[:space:]]+(table|database|schema)|truncate)([^a-z_]|$)'
         shopt -s nocasematch
-        if [[ $CMD =~ (^|[^a-z_])(drop[[:space:]]+(table|database|schema)|truncate)([^a-z_]|$) ]]; then
+        if [[ $CMD =~ $sqlre ]] || [[ $words =~ $sqlre ]]; then
             shopt -u nocasematch
             block "DROP/TRUNCATE through a SQL client destroys data" \
                 "write it as a reviewed migration, take a backup first (pg_dump / wp db export), or run it against a local database (supabase start, then supabase db reset)."
@@ -334,7 +367,8 @@ check_segment() {   # $1 = one simple command (words joined by \037), $2 = recur
 }
 
 check_string() {   # $1 = command text, $2 = recursion depth
-    [ "${2:-0}" -gt 3 ] && return 0
+    [ "${2:-0}" -gt 3 ] && block "command nested more than 3 levels deep (bash -c inside eval inside …), too deep to check" \
+        "run the inner command directly so it can be checked." 
     local segs line
     segs=$(printf '%s\n' "$1" | awk "$TOKENIZER")
     while IFS= read -r line; do

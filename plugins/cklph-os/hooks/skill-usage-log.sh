@@ -19,17 +19,26 @@
     INPUT=$(cat)
     LOG_DIR="${CKLPH_USAGE_DIR:-$HOME/.claude/cklph-usage}"
 
-    field() { [[ $INPUT =~ \"$1\":\"([^\"]*)\" ]] && printf '%s' "${BASH_REMATCH[1]}"; }
+    # A JSON string value, still JSON-escaped: \" and \\ stay as they are, so the value can go
+    # straight back into the JSON line below without re-escaping (that would double backslashes).
+    field() {
+        local re="\"$1\":[[:space:]]*\"((\\\\.|[^\"\\\\])*)\""
+        [[ $INPUT =~ $re ]] && printf '%s' "${BASH_REMATCH[1]}"
+    }
 
     SKILL=""; VIA=""
     case "$(field hook_event_name)" in
         PostToolUse)
             [ "$(field tool_name)" = "Skill" ] && { SKILL=$(field skill); VIA=tool; } ;;
         UserPromptSubmit)
-            [[ $INPUT =~ \"prompt\":\"/([A-Za-z0-9_.:-]+) ]] && { SKILL="${BASH_REMATCH[1]}"; VIA=slash; } ;;
+            # The token must end at a space, a JSON escape (\n) or the closing quote, so a prompt
+            # that starts with a path (/Users/me/shot.png …) is not logged as a skill "Users".
+            [[ $INPUT =~ \"prompt\":\"/([A-Za-z0-9_.:-]+)([[:space:]\\\"]) ]] && { SKILL="${BASH_REMATCH[1]}"; VIA=slash; } ;;
     esac
 
     if [ -n "$SKILL" ]; then
+        # Values come from field() still JSON-escaped, so they are written as-is. The basename cut
+        # is safe on escaped text: "/" never starts an escape, so what follows the last one is whole.
         CWD=$(field cwd)
         mkdir -p "$LOG_DIR"
         printf '{"ts":"%s","skill":"%s","via":"%s","repo":"%s","session":"%s"}\n' \

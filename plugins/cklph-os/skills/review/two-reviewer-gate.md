@@ -23,7 +23,7 @@ Every criterion has an objective pass/fail condition. Vague rubric, vague review
 | Complete | Every spec requirement / acceptance criterion addressed | Missing section, skipped edge case |
 | Safe | No secrets, PII, client names in public output; input validated; authz checked | Leaked key, a client named in a public repo, IDOR |
 | Consistent | No contradictions inside the work | Section A says X, section B says not-X |
-| Fits the audience | Client or public reader can act on it without us in the room | Internal jargon, private paths, TODOs |
+| Fits the audience | No internal jargon or unexplained acronyms, no private paths or internal links, no TODO/FIXME, every next step names who does it | Internal jargon, unexplained acronyms, private paths, internal links, TODOs, next steps with no owner |
 
 Add the deliverable's own rules (the spec's acceptance criteria, brand voice, the repo's
 `AGENTS.md`). Same rubric for both reviewers.
@@ -51,7 +51,8 @@ Rubric: <the table>
 
 For each criterion: PASS, or FAIL with the exact problem and where it is.
 Then: Critical issues (must fix) and Suggestions (optional).
-End with VERDICT: PASS or VERDICT: FAIL.
+End with the agent's own marker, last and outside any code block: `## REVIEW CLEAN` (pass) or
+`## ISSUES FOUND` (fail) for cklph-reviewer; `## RED-TEAM CLEAR` or `## RED-TEAM FINDINGS` for red-team.
 ```
 
 ## Limits

@@ -58,9 +58,10 @@ if (selectedId) archive(selectedId); // but the click handler cleared selectedId
   let snapshot; setItems(prev => { snapshot = prev; return prev.filter(x => x.id !== id) });
   if (snapshot) rollbackLater(snapshot); // undefined if React deferred the updater
   ```
-  React runs an updater eagerly only when that component has no other update queued. One earlier
-  `setState` in the same handler and the updater runs later, so the code after it sees `undefined`:
-  the rollback or counter update silently never happens. Compute from current state *before*
+  Updater functions are queued and run during rendering (possibly more than once, under Strict
+  Mode), so code after `setState` can never rely on a value the updater sets. It may appear to work
+  when React happens to run it eagerly, then break as soon as another update is queued: the rollback
+  or counter update silently never happens. Keep updaters pure; compute from current state *before*
   calling `setState`, or keep the snapshot in a ref.
 - A guard on `isPending` / `isLoading` that is still true from the previous render.
 - A feature flag or role check that defaults to false before data loads.

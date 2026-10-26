@@ -38,8 +38,10 @@ Keep it to one screen:
 1. The three tables from the script, trimmed to the rows that matter.
 2. **At most 3 recommendations**, each one of: *rewrite the trigger* (it should fire and doesn't),
    *merge into <neighbor>*, *disable the plugin*, or *delete*. Name the skill and the reason.
-3. Two-strike rule: a skill on the prune list at two consecutive weekly reviews with no trigger
-   rewrite in between gets **delete** as the recommendation.
+3. Two-strike rule, only once the log covers 60 days: a skill on the prune list at two consecutive
+   weekly reviews with no trigger rewrite in between gets **delete** as the recommendation. A skill
+   installed or updated less than 60 days ago is never on the list; the script reports it as new
+   instead.
 
 Peter decides. Never delete, disable, or uninstall anything from this skill; recommend only.
 

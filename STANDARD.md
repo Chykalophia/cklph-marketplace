@@ -201,13 +201,15 @@ each gate, and keeps it by being used.
 | **3. Wire** | Reachable *without Peter remembering it exists*: (a) a row in `start-here`'s routing table, **and** (b) a call from at least one phase skill (`flow`, `spec`, `plan`, `build`, `verify`, `review`, `ship`, `triage`, `weekly-review`), **or** a hook. Skills in other plugins wire through that plugin's own entry skill. |
 | **4. Prove** | A **trigger test** (3 prompts that should fire it, 2 near misses that shouldn't) passes in a fresh CLI session (`authoring/trigger-tests.md`), **and** one real run on a real repo, saved under `docs/proof/<skill>/<date>.md`. A proof that touches a private project is saved privately and summarized publicly. |
 | **5. Measure** | It shows up in the usage log (`~/.claude/cklph-usage/skills.jsonl`, written by `hooks/skill-usage-log.sh`). It is reviewed in the weekly review's `stocktake` step. |
-| **6. Prune** | Not invoked in **60 days** → on the prune list at the next weekly review. Peter chooses: rewrite the trigger, merge it into a neighbor, or delete it. Two prune-list appearances in a row with no rewrite → delete. |
+| **6. Prune** | Not invoked in **60 days** → on the prune list at the next weekly review. Peter chooses: rewrite the trigger, merge it into a neighbor, or delete it. Two prune-list appearances in a row with no rewrite → delete is recommended; Peter decides. Both rules apply only once the log covers 60 days, and never to a skill installed or updated less than 60 days ago. |
 
 **Definition of a useful skill:** it fires on its own when it should, stays quiet when it shouldn't,
 and changes the output in a way Peter would notice if it were missing.
 
 **Usage log.** A `PostToolUse` hook on the `Skill` tool logs model-invoked skills; a
-`UserPromptSubmit` hook logs typed `/plugin:skill` commands, which do not go through the Skill
-tool. Each line holds a timestamp, the skill name, how it was invoked, the repo directory name and
-the session id; never full paths or prompt text. Nothing leaves the machine. Hooks are CLI-only,
-so Desktop and web use is invisible to the log; weigh that before pruning a skill used mostly there.
+`UserPromptSubmit` hook logs the leading `/command` token of typed slash commands (which do not go
+through the Skill tool), including built-ins such as `/clear`, which `stocktake` excludes from its
+per-skill counts and lists separately. Each line holds a timestamp, the skill name, how it was
+invoked, the repo directory name and the session id; never full paths or prompt text. Nothing
+leaves the machine. Hooks are CLI-only, so Desktop and web use is invisible to the log; weigh that
+before pruning a skill used mostly there.

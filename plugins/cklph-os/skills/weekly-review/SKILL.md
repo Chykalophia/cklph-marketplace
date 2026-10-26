@@ -25,8 +25,9 @@ Scan `~/.claude/projects/<project-hash>/memory/feedback_*.md`. **Delete** entrie
 ## Skill hygiene (5 min)
 Invoke `stocktake`. It reads the local usage log and reports most-used skills, skills with zero
 invocations in 60 days, and duplicates competing to fire, with at most 3 recommendations. Peter
-picks: rewrite the trigger, merge into a neighbor, disable, or delete. A skill on the prune list two
-reviews running with no trigger rewrite in between gets deleted. This step is what makes the Measure
+picks: rewrite the trigger, merge into a neighbor, disable, or delete. Once the log covers 60 days, a
+skill on the prune list two reviews running with no trigger rewrite in between gets deletion
+recommended; Peter decides. This step is what makes the Measure
 and Prune stages of the skill lifecycle (STANDARD.md §10) actually happen; don't skip it.
 
 ## Anti-pattern

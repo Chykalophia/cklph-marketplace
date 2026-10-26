@@ -16,7 +16,7 @@ Don't map the whole repo. Start from what the client cares about today:
 | Names a page, flow or feature | The files that implement it, traced from the entry point |
 | Names a bug or complaint | The code that produced it, plus one level of callers |
 | Names a plugin, dependency or vendor | Everything that touches it |
-| Names nothing | The 2-3 hottest paths by churn (`git log --format= --name-only | sort | uniq -c | sort -rn | head`); propose, let them pick |
+| Names nothing | The 2-3 hottest paths by churn (`git log --format= --name-only \| sort \| uniq -c \| sort -rn \| head`); propose, let them pick |
 
 Budget about 15 files or 2,000 lines per slice; cut bigger ones into named sub-slices. Write the
 perimeter (paths, entry points, callers) at the top of the register before anything else.
@@ -24,9 +24,11 @@ perimeter (paths, entry points, callers) at the top of the register before anyth
 ## 1. Present state, with evidence
 - **Fingerprint:** framework and version, hosting (Vercel, Hetzner/Docker, managed WP host),
   database, package manager, CI, how it deploys today.
-- **Run what exists:** type-check, lint, tests, build. Record counts and failures, don't fix them.
+- **Run what exists, safely:** read `package.json` scripts, CI config and any install hooks first; an
+  inherited repo is untrusted code. With the client's go-ahead, run type-check, lint, tests and build
+  in an isolated environment with no production secrets. Record counts and failures, don't fix them.
 - **Review the slice:** `cklph-reviewer` on the slice; `security-hardening` if it touches input,
-  auth or data. Deeper: `cklph-audit:quick`. Next.js + Supabase specifics: `cklph-nextjs` skills.
+  auth or data. Deeper: `/cklph-audit:quick <lens> [path]` (e.g. `security`). Next.js + Supabase specifics: `cklph-nextjs` skills.
   WordPress: plugin and theme versions, custom code in `functions.php` / mu-plugins, page builder.
 - **Inventory:** `TODO` / `FIXME` / `HACK` inside the perimeter; env vars referenced but undocumented.
 
@@ -49,7 +51,7 @@ perimeter (paths, entry points, callers) at the top of the register before anyth
 ```markdown
 | ID | Axis | Gap | Evidence | Forward fix | Sev | Effort | Status |
 |----|------|-----|----------|-------------|-----|--------|--------|
-| G-001 | practice | Errors swallowed in checkout retry | src/lib/retry.ts:42 | Propagate, map at the boundary | P1 | S | open |
+| G-001 | Coding practice | Errors swallowed in checkout retry | src/lib/retry.ts:42 | Propagate, map at the boundary | P1 | S | open |
 ```
 - **Severity:** P0 security exposure or data loss · P1 correctness · P2 practice, observability · P3 tech cleanup.
 - **Effort:** S under a session · M a few sessions · L needs its own `spec` and `plan`.
@@ -64,7 +66,8 @@ perimeter (paths, entry points, callers) at the top of the register before anyth
   register is evidence for that conversation, not a work order.
 - Backfilled decisions are marked as reconstructed, with today's date. Never present them as if they
   were written when the decision was made.
-- Each row then runs the normal loop: `spec` → `plan` → `build` → `review` → `verify`. For a legacy
+- Each actionable row (fix-forward or rewrite) then runs the normal loop; wont-fix rows close with
+  their reason. The loop: `spec` → `plan` → `build` → `review` → `verify`. For a legacy
   gap the first test usually encodes the rule that was only in the code.
 
 ## 5. Close the loop

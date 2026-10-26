@@ -26,8 +26,22 @@ BUDGET="${TRIGGER_BUDGET_USD:-0.50}"
 WORK=$(mktemp -d)
 trap 'rm -rf "$WORK"' EXIT
 
+# Validate before spending anything: a "- " line that is not "- fire: " / "- miss: " is a typo
+# (e.g. "- fire:prompt", "- Fire: …") that would otherwise be skipped silently.
+bad=0
+while IFS= read -r line || [ -n "$line" ]; do
+    case "$line" in
+        "- fire: "*|"- miss: "*) ;;
+        "- "*) bad=$((bad + 1)); echo "malformed test line: $line" >&2 ;;
+    esac
+done < "$TESTS"
+if [ "$bad" -gt 0 ]; then
+    echo "$bad malformed line(s) in $TESTS (use '- fire: <prompt>' or '- miss: <prompt>')" >&2
+    exit 2
+fi
+
 pass=0; fail=0; n=0
-while IFS= read -r line; do
+while IFS= read -r line || [ -n "$line" ]; do
     case "$line" in
         "- fire: "*) want=fire; prompt="${line#- fire: }" ;;
         "- miss: "*) want=miss; prompt="${line#- miss: }" ;;
@@ -39,15 +53,29 @@ while IFS= read -r line; do
         --plugin-dir "$PLUGIN_DIR" --setting-sources project --no-session-persistence \
         --model "$MODEL" --max-budget-usd "$BUDGET" --allowedTools Skill \
         --output-format stream-json --verbose > "$out" 2>/dev/null)
+    rc=$?
     # A Skill tool_use carries {"name":"Skill","input":{"skill":"<plugin:skill>"...}}.
-    if grep -q "\"skill\":\"$SKILL\"" "$out"; then got=fire; else got=miss; fi
+    # A session that errored (auth, budget, crash) never calls the Skill tool either: it must count
+    # as an ERROR, never as a miss, or every near-miss case would pass on a broken run. An errored
+    # session still ends with a result line, e.g. {"type":"result","subtype":"error_max_budget_usd",
+    # "is_error":true,…}, so only "subtype":"success" without "is_error":true counts as a clean run.
+    result=$(grep '"type":"result"' "$out" | tail -1)
+    got=error
+    if [ "$rc" -ne 0 ] || [ -z "$result" ] || [[ $result == *'"is_error":true'* ]] \
+        || [[ $result != *'"subtype":"success"'* ]]; then got=error
+    elif grep -qF "\"skill\":\"$SKILL\"" "$out"; then got=fire
+    else got=miss; fi
     if [ "$got" = "$want" ]; then
         pass=$((pass + 1)); verdict=PASS
     else
         fail=$((fail + 1)); verdict=FAIL
     fi
-    printf '%s  want=%-4s got=%-4s  %s\n' "$verdict" "$want" "$got" "$prompt"
+    printf '%s  want=%-4s got=%-5s  %s\n' "$verdict" "$want" "$got" "$prompt"
 done < "$TESTS"
 
+if [ "$n" -eq 0 ]; then
+    echo "no test cases in $TESTS (lines must start with '- fire: ' or '- miss: ')" >&2
+    exit 2
+fi
 echo "--- $SKILL: $pass/$n passed (model=$MODEL)"
 [ "$fail" -eq 0 ]

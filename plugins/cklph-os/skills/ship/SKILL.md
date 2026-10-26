@@ -6,10 +6,10 @@ description: The SHIP phase of the cklph-os flow — open a PR (or merge) with a
 # ship — land it
 
 1. Confirm `verify` ended `## VERIFIED`, with its evidence check passed. **A `## GAPS FOUND`, or a
-   "done" with no command output behind it, blocks the ship**: go back to `build`, not forward.
+   "done" with no evidence from this session behind it (command output, or behavior observed in the browser), blocks the ship**: go back to `build`, not forward.
 2. **Two-reviewer gate** for client-facing deliverables, security-sensitive diffs, and anything
    published publicly (including this marketplace): both reviewers pass before the push
-   (`review/two-reviewer-gate.md`). After 2 failed fix rounds, stop and escalate to Peter.
+   (`../review/two-reviewer-gate.md`). After 2 failed fix rounds, stop and escalate to Peter.
 3. Push the **feature branch** (never `dev`/`main`).
 4. Open a PR with: a concise **summary (the why)**, a **test plan**, and the spec's
    **acceptance-criteria checklist**. Generate release notes if relevant.
