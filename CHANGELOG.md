@@ -3,6 +3,11 @@
 All notable changes to cklph-os are documented here.
 Format: [Keep a Changelog](https://keepachangelog.com); versioning follows [SemVer](https://semver.org).
 
+## [Unreleased] — 2026-10-26
+
+### Removed
+- Removed cklph-architect and cklph-eos from the public marketplace.
+
 ## [Unreleased] — 2026-06-09
 
 ### Added — new plugin

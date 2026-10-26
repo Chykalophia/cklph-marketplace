@@ -2,7 +2,7 @@
 
 # 🧩 cklph-marketplace
 
-### Peter's personal **Claude Code marketplace** — four composable plugins for dev workflow, framework opinions, consulting practice, and business operations.
+### Peter's personal **Claude Code marketplace** — composable plugins for dev workflow, framework opinions, WordPress/design pipelines, auditing, and CRO.
 
 [![Tests](https://github.com/Chykalophia/cklph-marketplace/actions/workflows/test.yml/badge.svg)](https://github.com/Chykalophia/cklph-marketplace/actions/workflows/test.yml)
 [![License: MIT](https://img.shields.io/badge/license-MIT-blue.svg)](./LICENSE)
@@ -15,20 +15,18 @@
 ---
 
 > [!NOTE]
-> **TL;DR** — One repo, one marketplace (`cklph`), **four plugins** that layer on each other:
-> a dev-workflow spine, opinionated Next.js + Supabase patterns, a value-based consulting practice,
-> and a business operating cadence. Install only what you need.
+> **TL;DR** — One repo, one marketplace (`cklph`), plugins that layer on each other:
+> a dev-workflow spine, opinionated Next.js + Supabase patterns, and more listed in
+> `.claude-plugin/marketplace.json`. Install only what you need.
 
 ---
 
-## 🧩 The four plugins
+## 🧩 The core plugins
 
 | Plugin | What it does | When you want it |
 | --- | --- | --- |
 | **`cklph-os`** | Dev-workflow spine — phase loop (`refine → survey → spec → plan → build → review → verify → ship`), three adversarial agents (`cklph-implementer` / `cklph-reviewer` / `red-team`), daily-rhythm primitives (`triage` · `decide` · `daily-frame` · `weekly-review`), self-improvement loop (`learn`), and quality-gate hooks. | **Always.** This is the core. |
 | **`cklph-nextjs`** | Opinionated Next.js + Supabase patterns layered on top of the official `vercel:*` skills — layered `lib/` architecture, mutation security checklist, data-layer abstraction rules, 12 review pitfalls, full stack coverage. | If you work in Next.js + Supabase repos. |
-| **`cklph-architect`** | Value-based consulting practice — `discover` · `scope` · `propose` · `price` · `position` · `engagement-shape`. Codifies the discipline in original prose; no Weiss / Stark / Enns IP republished. | If you consult and want options-not-estimates rather than single-quote vendor mode. |
-| **`cklph-eos`** | Business operating cadence — quarterly priorities, weekly sync, scorecard, issues resolution, people-fit, accountability mapping. Generic terms throughout; no branded EOS IP republished. | If you have (or are adding) a team and need operating rhythm. |
 
 ---
 
@@ -45,8 +43,6 @@
 ```bash
 /plugin install cklph-os@cklph            # the dev spine — always
 /plugin install cklph-nextjs@cklph        # only if you work in Next.js + Supabase
-/plugin install cklph-architect@cklph     # only if you consult
-/plugin install cklph-eos@cklph           # only if you operate a team
 ```
 
 Restart your CLI after install so the skills load.
@@ -108,7 +104,7 @@ Eight composable phases — run one standalone, or chain them with the orchestra
 
 ```text
 cklph-marketplace/
-├── .claude-plugin/marketplace.json   # registers the 4 plugins
+├── .claude-plugin/marketplace.json   # registers every plugin
 ├── plugins/
 │   ├── cklph-os/                     # dev workflow spine
 │   │   ├── .claude-plugin/plugin.json
@@ -117,8 +113,7 @@ cklph-marketplace/
 │   │   ├── commands/                 # /cklph-os:flow + per-phase commands
 │   │   └── hooks/                    # pre-commit-gate · nextjs-quality-check · security-check
 │   ├── cklph-nextjs/                 # Next.js + Supabase house style (17 skills)
-│   ├── cklph-architect/              # consulting practice (6 skills)
-│   └── cklph-eos/                    # business operating cadence (6 skills)
+│   └── …                             # one directory per plugin in marketplace.json
 ├── templates/                        # AGENTS.md · CLAUDE.md · STATE.md starters
 ├── test/                             # bats tests for the hooks
 ├── STANDARD.md                       # the spec everything follows
