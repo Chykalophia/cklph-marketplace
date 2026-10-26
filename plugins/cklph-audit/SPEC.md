@@ -290,14 +290,14 @@ No lens ships on vibes — each is measured against ground truth two ways before
 **1. Golden fixtures (per-lens precision/recall gate).** `fixtures/<lens>/should-flag/` holds planted issues the lens MUST catch (**recall**); `should-not-flag/` holds clean look-alikes it MUST NOT flag (**precision**) — e.g. for DRY, two genuinely-similar-but-not-duplicate functions. The `backtest` harness runs the lens over the fixtures and computes recall + precision. A lens is **gated**: not enabled until it clears a threshold (suggested **recall ≥ 0.8, precision ≥ 0.7 after verify**). Fixtures live with the plugin and grow every time a real false-positive/negative is found — so the gate ratchets up over time. *This is how you "ensure DRY is being matched": you measure it against labeled cases, not trust.*
 
 **2. Backtest against a known commit (`/cklph-audit:backtest <lens> <ref>`).** Real ground truth from git history:
-- `security` → pre-CASA-remediation MailPrism must re-surface the CASA headline findings (users-table self-escalation, QStash dev bypass, cron fail-open, GDPR ciphertext export).
+- `security` → a known pre-remediation commit of a production app must re-surface that remediation's headline findings.
 - `architecture` → run on the commit *before* a known de-dup refactor; it should flag what the refactor removed.
 - `correctness` → run on the commit a known bugfix later patched; it should flag the bug.
 
 **v1 acceptance:**
-- **Functional:** `init` → `run security,correctness,architecture` on MailPrism produces a triaged `AUDIT-<date>.md` with file:line + waves; `baseline` suppresses on the next run.
-- **Quality gate:** every shipped lens clears its fixture precision/recall threshold, AND the `security` backtest re-surfaces the CASA findings at **< ~20% false-positive after verify**. A lens that can't clear the gate gets its tool/prompt/verifier fixed before it's enabled — it doesn't ship degraded.
-- **Cost:** a full 3-lens run on MailPrism stays under a configured budget; `:quick` is a fraction of it.
+- **Functional:** `init` → `run security,correctness,architecture` on a reference production repo produces a triaged `AUDIT-<date>.md` with file:line + waves; `baseline` suppresses on the next run.
+- **Quality gate:** every shipped lens clears its fixture precision/recall threshold, AND the `security` backtest re-surfaces the known remediation's headline findings at **< ~20% false-positive after verify**. A lens that can't clear the gate gets its tool/prompt/verifier fixed before it's enabled — it doesn't ship degraded.
+- **Cost:** a full 3-lens run on a reference production repo stays under a configured budget; `:quick` is a fraction of it.
 
 ## 11. Decisions (resolved 2026-06-10)
 

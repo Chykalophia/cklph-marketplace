@@ -3,7 +3,7 @@
 **Prepared for:** Peter Krzyzek (CTO, Chykalophia)
 **Date:** June 8, 2026
 **Status:** v1 engine **built and verified** (June 9, 2026) — availability, SEO integrity, tracking tag-firing, visual regression + the confirmation engine all working; self-test passes (no false alarm on dynamic content, 7/7 seeded regressions caught with evidence). Runnable source in `cklph-regression-watch/`. Journeys + scheduling pending the staging URL. Codename "Regression Watch" is a placeholder.
-**Companion:** [Skills landscape report](computer:///Users/peterkrzyzek/Documents/Claude/Projects/Team%20Task%20%26%20Project%20Management/claude-skills-landscape-2026-06.md) (Part 6 = the gap this fills; Part 3 = the anti-slop rubric this is built on).
+**Companion:** Skills landscape report (internal; Part 6 = the gap this fills; Part 3 = the anti-slop rubric this is built on).
 
 ---
 
@@ -284,9 +284,8 @@ We prove Regression Watch works before trusting it — by injecting known regres
 
 ## Sources
 
-- [Skills landscape report (Part 6 gap, Part 3 rubric)](computer:///Users/peterkrzyzek/Documents/Claude/Projects/Team%20Task%20%26%20Project%20Management/claude-skills-landscape-2026-06.md)
+- Skills landscape report (internal; Part 6 gap, Part 3 rubric)
 - Proven executor pattern: [lackeyjb/playwright-skill](https://github.com/lackeyjb/playwright-skill)
 - Anti-slop principles: [Anthropic skill authoring best practices](https://platform.claude.com/docs/en/agents-and-tools/agent-skills/best-practices) · [obra/superpowers verification-before-completion](https://github.com/obra/superpowers/blob/main/skills/verification-before-completion/SKILL.md)
 - Scored-catalog model: [thatrebeccarae Google Ads CHECKS.md](https://github.com/thatrebeccarae/claude-marketing/blob/main/skills/google-ads/CHECKS.md)
 - Runtime verification: Playwright + Chromium v148 installed and exercised in the Regression Watch sandbox on June 8, 2026 (navigation 200, network interception, full-page screenshot all confirmed).
-- Alert channel: [computer://task-hygiene ping channel memory](computer:///Users/peterkrzyzek/Library/Application%20Support/Claude/local-agent-mode-sessions/2be3fd38-5f98-4dfc-9d8c-6c42ae021cd0/cbcdc6af-ec29-450c-92a5-5598a0b95f2c/spaces/0852a31c-5836-4c1d-aa2f-acd3a29cd1a5/memory/task-hygiene-ping-channel.md)

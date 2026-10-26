@@ -255,7 +255,7 @@ A `## Remediation waves` section: ordered groups of findings designed to be hand
 
 ### Wave 1 — Close privilege-escalation paths
 **Findings:** C-1, C-2, H-4
-**Rationale:** these share the users-table RLS surface; fix together before any tier work.
+**Rationale:** these share the same row-level-security surface; fix together before any tier work.
 **Handoff:** `/cklph-os:flow "Wave 1: ..."`
 
 ### Wave 2 — Silent-failure hardening

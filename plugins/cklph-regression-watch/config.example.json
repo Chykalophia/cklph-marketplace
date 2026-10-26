@@ -23,7 +23,7 @@
       "start": "/contact",
       "steps": [
         { "fill": "#name", "value": "Regression Watch Test" },
-        { "fill": "#email", "value": "qa+cklph-regression-watch@chykalophia.com" },
+        { "fill": "#email", "value": "qa@example.com" },
         { "fill": "#message", "value": "Automated staging regression check — please ignore." },
         { "click": "button[type=submit]" },
         { "expect": "text=Thanks" }

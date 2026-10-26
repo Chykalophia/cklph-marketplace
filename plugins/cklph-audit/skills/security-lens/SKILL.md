@@ -11,7 +11,7 @@ You are the **judgment layer** of a three-layer pipeline. Do not hunt by reading
 2. **You (reviewer LLM) → judgment.** Decide which candidates are real, why, where (`file:line`), and how to fix. Add anything the tool structurally can't catch (authz logic, money/state intent), labeled `source: "reasoning"`.
 3. **Verifier → precision.** A separate `audit-verifier` then tries to **refute** every finding you emit (default-to-refuted). Recall comes from the tool, never from the verifier — so be thorough at step 1.
 
-This lens is **gated by the fixture precision/recall test** (`fixtures/security/should-flag` for recall, `should-not-flag` for precision; suggested recall ≥ 0.8, precision ≥ 0.7 after verify) and a git backtest (pre-CASA MailPrism must re-surface the CASA headline findings). It does not ship degraded.
+This lens is **gated by the fixture precision/recall test** (`fixtures/security/should-flag` for recall, `should-not-flag` for precision; suggested recall ≥ 0.8, precision ≥ 0.7 after verify) and a git backtest (a known pre-remediation commit of a production app must re-surface that remediation's headline findings). It does not ship degraded.
 
 ## TOOL
 

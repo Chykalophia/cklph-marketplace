@@ -3,6 +3,12 @@
 All notable changes to `cklph-regression-watch` are documented here.
 Format: [Keep a Changelog](https://keepachangelog.com); versioning follows [SemVer](https://semver.org).
 
+## [0.1.1] — 2026-10-26
+
+### Changed
+- Removed local-machine `computer://` links from `docs/SPEC.md`; the example config uses
+  `qa@example.com` instead of an internal address. No behavior change.
+
 ## [0.1.0] — 2026-06-09
 
 ### Added — initial release

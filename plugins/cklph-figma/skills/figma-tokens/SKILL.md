@@ -13,8 +13,8 @@ Pull the design's **tokens** once, map them, and reference the map everywhere. T
 `get_variable_defs` on a representative node returns the bound variables:
 
 ```jsonc
-{ "Colors/Brand/FinCore/Purple": "#b41a83",
-  "Colors/Brand/FinCore/Blue": "#00205c",
+{ "Colors/Brand/Primary": "#5b21b6",
+  "Colors/Brand/Secondary": "#1e3a8a",
   "Font/Family/Headlines": "IBM Plex Serif",
   "Font/Size/Heading/H3": "44", "Font/Line Height/Heading/H3": "48",
   "Font/Size/Paragraph/P3": "16", "Font/Line Height/Paragraph/P3": "22",

@@ -16,7 +16,7 @@ generate anything; write it through the slash-safe path; always regenerate CSS a
   { "id": "abc1234", "elType": "container", "settings": { "flex_direction": "column" },
     "elements": [
       { "id": "def5678", "elType": "widget", "widgetType": "heading",
-        "settings": { "title": "Hi", "title_color": "#00205c" }, "elements": [] }
+        "settings": { "title": "Hi", "title_color": "#1e3a8a" }, "elements": [] }
     ]
   }
 ]

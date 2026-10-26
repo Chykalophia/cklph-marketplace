@@ -37,7 +37,7 @@ Fixtures grow every time a real false-positive or false-negative is found in the
 
 Real ground truth from git history. Check out (or read at) `[ref]`, run the lens, and compare to that commit's known findings:
 
-- **security** → pre-CASA-remediation MailPrism must re-surface the CASA headline findings (users-table self-escalation, QStash dev bypass, cron fail-open, GDPR ciphertext export) at **< ~20% false-positive after verify**.
+- **security** → a known pre-remediation commit of a production app must re-surface that remediation's headline findings at **< ~20% false-positive after verify**.
 - **architecture** → run on the commit *before* a known de-dup refactor; it should flag what the refactor later removed.
 - **correctness** → run on the commit a known bugfix later patched; it should flag the bug.
 
