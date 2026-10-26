@@ -3,6 +3,18 @@
 All notable changes to `cklph-nextjs` are documented here.
 Format: [Keep a Changelog](https://keepachangelog.com); versioning follows [SemVer](https://semver.org).
 
+## [0.2.2] — 2026-10-26
+
+### Added
+- **`postgres`** — composite index column order (equality first, then range), keyset pagination
+  over deep `offset`, `for update skip locked` job claims, catalog queries for unindexed foreign
+  keys and slow statements.
+- **`supabase-migrations`** — wrap `auth.uid()` as `(select auth.uid())` in RLS policies on large
+  tables (evaluated once per query, not per row); index the policy's filter column.
+- **`ui-quality`** — pointer to `vercel:react-best-practices` for React/Next.js performance (no
+  rules ported; that skill already carries them).
+- Adapted from: ECC (MIT) `skills/postgres-patterns`, commit 25278e7 (notices in `skills/postgres/NOTICE.md`, `skills/supabase-migrations/NOTICE.md`).
+
 ## [0.2.1] — 2026-05-31
 
 ### Fixed

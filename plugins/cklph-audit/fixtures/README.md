@@ -8,7 +8,7 @@ is trusted (SPEC §10). These fixtures are that ground truth, run by
 
 ```
 fixtures/
-└── <lens>/                         # security | correctness | architecture | docs-drift | omission
+└── <lens>/                         # security | correctness | architecture | docs-drift | omission | agent-config | …
     ├── should-flag/                # planted issues the lens MUST catch   → RECALL
     └── should-not-flag/            # clean look-alikes it MUST NOT flag   → PRECISION
 ```
@@ -50,6 +50,11 @@ build/test globs. Comment each fixture with **what** is planted (or why it's cle
 are written relative to `fixtures/docs-drift/` (the parent of both subfolders): the backtest
 runs `docsdrift.sh` with that folder as its repo-root, so tokens resolve (or drift) against it,
 not against the plugin repo.
+
+`agent-config` fixtures keep a real config's shape but never its real name: `*.example.mcp.json`,
+`*.example.settings.json`, `*.example.hooks.json`, `*.example.md`, so no tool loads them as live
+config. JSON can't hold comments, so the label sits in a top-level `_fixture` key. Never execute a
+fixture's commands; the lens is static.
 
 `omission` (the opt-in negative-space lens, v3) uses the same `.example.*` convention. Its corpus
 is newer and still growing, so `fixtures/omission/` may lag the shipped lens — a docs/fixtures

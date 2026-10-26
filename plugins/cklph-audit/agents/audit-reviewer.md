@@ -12,7 +12,7 @@ You are dispatched in **two** phases, same discipline both times:
 2. **Variant hunt** (the Variant phase) — you receive ONE **CONFIRMED bug pattern** (a prior finding: title, file, line, rule, severity, snippet, rootCause, invariant) and hunt its **SIBLINGS** across the repo — the same mistake made elsewhere (Project Zero variant analysis). Run `${CLAUDE_PLUGIN_ROOT}/tools/variant-sweep.sh <root> <pattern-or-file>` for recall, then judge each candidate against the ACTUAL code (cap at the siblings limit you're handed). Return candidate findings in the SAME REVIEW_SCHEMA — each with a file:line anchor, quoted code, rule id, normalizedSnippet, rootCause, and invariant. These candidates re-enter the same adversarial verify gate, so hold the same anchor-or-nothing bar; never pad siblings you can't ground in real code.
 
 ## What you receive
-`{ unit, lens }` and config. The unit gives you globs to scope to; the lens names which concern to audit (security / correctness / architecture / docs-drift). Your prompt may also carry:
+`{ unit, lens }` and config. The unit gives you globs to scope to; the lens names which concern to audit (security / correctness / architecture / docs-drift / agent-config / …). Your prompt may also carry:
 - **RULEBOOK** — the repo's own rules relevant to your lens, pre-parsed (`{ id, source, text, lensHint }`). You owe a ruleCheck for EVERY one.
 - **SEEDS** — recon-cited leads scoped to your unit (`{ file, line, snippet, note, suspectedRule }`). Hints, NOT findings.
 - **SAFE-CONTROL candidates** — patterns recon believed verified-good (`{ file, line, snippet, note, rule }`). Confirm at file:line or reject — you owe a `safeControlCheck` for EVERY one; only reviewer-confirmed candidates ship as positive controls.
@@ -30,6 +30,7 @@ You are dispatched in **two** phases, same discipline both times:
    - **supply-chain** → `supplychain.sh` (semgrep CI rules, pull_request_target grep, dep-confusion, SLSA checks).
    - **compliance** → no tool (mapping exercise; load the framework rulebook from `skills/compliance-lens/rulebooks/`).
    - **concurrency / state-machine / economic** → no tool (pure reasoning; anchor every finding to `file:line`).
+   - **agent-config** → no tool; run the read-only `rg` enumerations in `skills/agent-config-lens/recon.md` for recall. STATIC ONLY: never execute a discovered MCP server, hook, or package runner.
    - **architecture** → `dry.sh`, `deadcode.sh`, `layering.sh`; **correctness** → `await.sh`; **docs-drift** → `docsdrift.sh`; **omission** → `omissions.sh`.
    The tool enumerates candidates so you don't hunt by reading. Then reason over candidates instead of grepping blindly. The tool is recall; you are judgment + explanation.
 3. **Re-open EVERY seed before trusting it.** Seeds are recon hints, not findings — citations drift. Read the cited file:line yourself; promote what reproduces, drop what doesn't (dropped seeds still count in `seedsGiven`). Same discipline for safe-control candidates: confirm the guard at its file:line or reject it — either way, record the verdict in `safeControlChecks`.

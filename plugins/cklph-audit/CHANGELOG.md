@@ -3,6 +3,27 @@
 All notable changes to `cklph-audit` are documented here. This project adheres to
 [Semantic Versioning](https://semver.org/).
 
+## 1.2.0 — 2026-10-26
+
+### Added
+- **`agent-config` lens (opt-in)** — static review of the repo's AI tooling layer: MCP configs
+  (mutable `@latest`/dist-tag/bare/range selectors, Docker images without a digest, remote URLs,
+  literal secrets, shell-wrapped servers), `.claude` settings (`bypassPermissions`, `Bash(*)`, no
+  deny list, MCP auto-trust), hooks (curl-to-bash, absolute paths, tool-input injection, fail-open
+  gates), instruction docs/skills/agent definitions (prompt-injection-shaped and auto-run content,
+  secrets), and agent runtimes that turn untrusted content into tool actions. Never executes a
+  discovered MCP server, hook, or package runner. Runs as exactly one job over the AI-tooling globs
+  (`agentConfig.globs` overrides), like `docs-drift`. Rule ids `agentcfg:<kind>`. Skill
+  `skills/agent-config-lens/` (+ `checklist.md`, `mcp-selectors.md`, `recon.md`, `trigger-tests.md`),
+  fixtures `fixtures/agent-config/should-flag` (5) and `should-not-flag` (5), engine test scenario C
+  (one job, glob-scoped, static-only recon prompt, finding reaches the report).
+- **HIPAA rulebook (opt-in)** — `skills/compliance-lens/rulebooks/hipaa.yaml`: code-reviewable
+  technical safeguards (PHI classification, row-level access, minimum necessary, tamper-evident
+  audit trail, encryption, leak vectors, BAA vendor boundary). Select with
+  `compliance: { frameworks: [hipaa] }`. `compliance-lens` gains a PHI leak-vector section and
+  `agentcfg:*` mapping rows; the compliance schema accepts `framework: hipaa`.
+- Adapted from: ECC (MIT) `skills/mcp-dependency-review`, `skills/security-scan`, `skills/agent-security-hardening` (agent-config lens), `skills/healthcare-phi-compliance`, `skills/hipaa-compliance` (HIPAA rulebook), commit 25278e7. Notices in `skills/agent-config-lens/NOTICE.md` and `skills/compliance-lens/rulebooks/NOTICE-hipaa.md`.
+
 ## 1.1.1 — 2026-10-26
 
 ### Changed
