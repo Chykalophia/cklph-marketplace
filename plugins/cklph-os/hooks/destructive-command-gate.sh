@@ -191,7 +191,7 @@ check_segment() {   # $1 = one simple command (words joined by \037), $2 = recur
     while [ "$i" -lt "$n" ]; do
         a="${w[$i]}"
         case "$a" in
-            sudo|doas|command|exec|time|nohup|nice|env|npx|bunx)
+            sudo|doas|command|exec|time|timeout|nohup|nice|env|npx|bunx)
                 # Options that take a separate value, per wrapper, so `sudo -u root rm -rf /` reaches
                 # rm instead of treating "root" as the command.
                 local valopts
@@ -202,6 +202,7 @@ check_segment() {   # $1 = one simple command (words joined by \037), $2 = recur
                     nice) valopts='^-n$|^--adjustment$' ;;
                     time) valopts='^-(f|o)$|^--(format|output)$' ;;
                     exec) valopts='^-a$' ;;
+                    timeout) valopts='^-(s|k)$|^--(signal|kill-after)$' ;;
                     npx|bunx) valopts='^-(p|c)$|^--(package|call)$' ;;
                     *) valopts='^$' ;;
                 esac
@@ -213,6 +214,8 @@ check_segment() {   # $1 = one simple command (words joined by \037), $2 = recur
                     fi
                     if [[ ${w[$i]} =~ $valopts ]]; then i=$((i + 2)); else i=$((i + 1)); fi
                 done
+                # timeout's first positional is the duration, not the command.
+                [ "$a" = timeout ] && i=$((i + 1))
                 continue ;;
         esac
         if [[ $a =~ ^[A-Za-z_][A-Za-z0-9_]*= ]]; then i=$((i + 1)); continue; fi
@@ -326,8 +329,11 @@ check_segment() {   # $1 = one simple command (words joined by \037), $2 = recur
                 "plain supabase db reset resets the LOCAL stack only. For a remote, write a migration and supabase db push, or use a Supabase branch."
             ;;
         wp)
-            if [ "${w[$((i + 1))]:-}" = "db" ] && [[ ${w[$((i + 2))]:-} =~ ^(drop|reset)$ ]]; then
-                block "wp db ${w[$((i + 2))]} deletes the WordPress database" \
+            # Skip WP-CLI global flags (--allow-root, --path=…, --url=…) and @alias targets.
+            WPI=$((i + 1))
+            while [ "$WPI" -lt "$n" ] && [[ ${w[$WPI]} == --* || ${w[$WPI]} == @* ]]; do WPI=$((WPI + 1)); done
+            if [ "${w[$WPI]:-}" = "db" ] && [[ ${w[$((WPI + 1))]:-} =~ ^(drop|reset)$ ]]; then
+                block "wp db ${w[$((WPI + 1))]} deletes the WordPress database" \
                     "wp db export backup.sql first, and do it on staging, not the live site."
             fi ;;
     esac
@@ -336,7 +342,7 @@ check_segment() {   # $1 = one simple command (words joined by \037), $2 = recur
     local sql=0
     case "$cmd" in
         psql|mysql|mariadb|sqlite3) sql=1 ;;
-        wp) [ "${w[$((i + 1))]:-}" = "db" ] && [ "${w[$((i + 2))]:-}" = "query" ] && sql=1 ;;
+        wp) [ "${w[${WPI:-$((i + 1))}]:-}" = "db" ] && [ "${w[$((${WPI:-$((i + 1))} + 1))]:-}" = "query" ] && sql=1 ;;
         docker|podman|kubectl)
             for ((j = i + 1; j < n; j++)); do [[ ${w[$j]} =~ ^(psql|mysql|mariadb|sqlite3)$ ]] && sql=1; done ;;
     esac

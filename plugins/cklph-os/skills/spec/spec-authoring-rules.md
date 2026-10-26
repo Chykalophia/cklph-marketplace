@@ -31,7 +31,8 @@ AC-003  Export downloads the filtered rows
 - When    they click "Export CSV"
 - Then    a file downloads with columns [id, name, created_at] and only the filtered rows
 - Must not  include rows from another account, or internal columns
-- Verify  integration test `export.test.ts` + one manual download check
+- Verify  `npm test -- export.test.ts` (integration test) passes
+- Verify  one manual download check in the browser
 ```
 - **Must not** is the part specs skip: the side effect that would make a passing "Then" a bug
   (data from another tenant, a duplicate charge, an email to real users). Write it whenever one exists.

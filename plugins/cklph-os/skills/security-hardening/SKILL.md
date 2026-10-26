@@ -16,7 +16,9 @@ description: Security review checklist. Pull in during review or before shipping
 Report findings by severity with `file:line` + fix (feeds the reviewer's security axis).
 
 ## Destructive commands (enforced on the CLI, a rule everywhere)
-On the CLI, `hooks/destructive-command-gate.sh` blocks these Bash commands before they run. On
+On the CLI, `hooks/destructive-command-gate.sh` blocks these Bash commands before they run. It needs
+`jq` or `python3` to read the tool payload; with neither installed it fails open with a warning, so
+there the rule is advisory like everywhere else. On
 Desktop, web and Cowork no hook runs, so the rule is yours to apply: **don't run them without the
 user's explicit OK for that exact command**, and offer the safer form first.
 

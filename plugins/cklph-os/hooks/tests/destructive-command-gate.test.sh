@@ -52,6 +52,13 @@ block 'chmod -R 0777 dir'
 block "psql -c 'DR'\"OP TABLE users\""
 block "psql -c TRUN'CATE' users"
 block "bash -c \"bash -c 'bash -c \\\"bash -c \\\\\\\"echo hi\\\\\\\"\\\"'\""
+block 'wp --allow-root db reset --yes'
+block 'wp @production db drop --yes'
+block "wp --path=/var/www db query 'DROP TABLE wp_posts'"
+block 'timeout 60 git reset --hard'
+block 'timeout -s KILL 5m rm -rf /'
+allow 'wp --allow-root db export backup.sql'
+allow 'timeout 60 npm test'
 allow 'rm -rf .cache'
 allow 'rm -rf ./.next'
 allow 'sudo -u www-data ls /var/www'

@@ -35,6 +35,11 @@ Format: [Keep a Changelog](https://keepachangelog.com); versioning follows [SemV
   worktree, not via `git stash`; brownfield runs an inherited repo's scripts only after inspection,
   with approval, isolated; `click-path-audit` no longer presents eager updaters as reliable and uses
   the v5 `invalidateQueries({ queryKey })` form; `spec` Must-not gate aligned with its rule.
+- **`destructive-command-gate.sh`** (CodeRabbit review of #24): skips WP-CLI global flags and
+  `@alias` targets, so `wp --allow-root db reset` and `wp @prod db drop` are blocked; treats `timeout`
+  as a wrapper (its duration is not the command). 118/118 cases pass.
+- `security-hardening` states the gate needs `jq` or `python3` and fails open without both.
+- `click-path-audit` also triggers on a `useEffect` that copies fetched data into local state.
 - Docs: the two-strike prune rule applies only to a 60-day log and recommends, never deletes;
   `start-here` gains rows for `spec`, `plan`, `build`, `review` and `ship`; STANDARD §10 states the
   slash-command log records built-ins too.

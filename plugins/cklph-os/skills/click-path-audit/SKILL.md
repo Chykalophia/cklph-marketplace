@@ -1,6 +1,6 @@
 ---
 name: click-path-audit
-description: Trace every state write behind a button or control. Use when the UI does the wrong thing (or nothing) yet every function it calls works on its own, or before merging a diff that changes a Zustand store, a TanStack Query mutation or cache key, or a shared React context.
+description: Trace every state write behind a button or control. Use when the UI does the wrong thing (or nothing) yet every function it calls works alone, or before merging changes to a Zustand store, a TanStack Query mutation or key, a shared context, or a useEffect that copies fetched data into local state.
 ---
 
 # click-path-audit — does the final state match the label?
