@@ -3,6 +3,46 @@
 All notable changes to `cklph-audit` are documented here. This project adheres to
 [Semantic Versioning](https://semver.org/).
 
+## 1.2.1 — 2026-10-26
+
+### Fixed
+- **agent-config scope** — the default glob `**/hooks/**` matched app code such as
+  `src/hooks/useAuth.ts`; replaced with `**/.claude/hooks/**` and `**/plugins/*/hooks/**`
+  (`**/hooks/hooks.json` kept). The job now honors `args.path` (globs are prefixed with it, as
+  recon and unit inference scope to it). Recon seeds for the agent-config job are passed through
+  unfiltered, so seeds in app code (agent runtime call sites, surface 5) and in scripts a hook runs
+  are no longer dropped by the config globs. Engine test scenario C asserts all three.
+- **agent-config lens** — `agentcfg:mcp-review` defaulted to severity `info`, which the finding
+  schema rejects; now `low` with confidence `needs-owner-input`. The `*.example.*` / `fixtures/**`
+  exemption in `SKILL.md` would have suppressed every backtest target; it now covers fixtures in
+  ordinary audits only and says fixtures are the targets in a backtest. The should-not-flag
+  `pinned-mcp` fixture no longer gives its remote server credentials in `headers` (which
+  `agentcfg:mcp-remote` flags). The secret-scan `rg` in `recon.md` prints location only
+  (`-o -r '[REDACTED]'`), never the matched secret.
+- **HIPAA rulebook** — administrative safeguards, physical safeguards, risk analysis and BAA
+  paperwork were promised as `not-checked` but had no controls, so they vanished from the matrix.
+  Added owner-evidence controls `hipaa:ADM1`, `hipaa:ADM2`, `hipaa:PHY1`, `hipaa:BA1` (default
+  `not-checked`). `hipaa:VB1` reworded so code and docs can only show "no PHI forwarded to vendors
+  not on the list", never BAA coverage `met`.
+- **Report contract** — `audit-synthesizer`, `audit-report-format` and the README now ask for one
+  compliance sub-section per selected framework (SOC 2, CASA, HIPAA). `compliance-lens` and the
+  report-format example use the schema status `met`, not `verified-safe`.
+- **audit-reviewer** — the agent-config recon and compliance rulebook paths are prefixed with
+  `${CLAUDE_PLUGIN_ROOT}/`.
+- **tools/dry.sh** — dropped the unpinned `npx jscpd` fallback that fetched from the registry at
+  audit time; uses `npx --no-install jscpd` only, like the sibling tools, and skips with a message
+  when jscpd is not installed locally.
+- **tools/exploit-runner.sh** (opt-in `dast.exploitVerify`) — no longer runs the generated PoC
+  with `--network=host`. It runs in a throwaway user-defined bridge network and reaches the target
+  through `host.docker.internal` (host-gateway); a localhost target URL is rewritten to it. The
+  bridge does not firewall egress; that limit is documented in the script. The target URL is passed
+  as `-e TARGET_URL` instead of being interpolated into the shell string. The container runs `sh`
+  (the curl image has no bash) and always prints the exit code, so a passing PoC is recorded as 0.
+- Docs nits: `quick.md` notes agent-config and docs-drift are not sampled by `topN`; the example
+  config says the `agentConfig.globs` override replaces the defaults; the 2026-10-26 proof doc
+  escapes `|` inside its findings table and corrects the instruction-docs denominator to 107 (its
+  command now excludes the lens's own files, as the doc's exclusions state).
+
 ## 1.2.0 — 2026-10-26
 
 ### Added

@@ -16,14 +16,14 @@ You are the **judgment layer** that maps findings from all other lenses to forma
 
 - **SOC 2** (Trust Services Criteria): CC1-CC9 (Common Criteria), A1 (Availability), C1 (Confidentiality), P1 (Processing Integrity).
 - **CASA** (Cloud Application Security Assessment, Google Play): data classification, security requirements per tier, vulnerability management, penetration testing, data storage/destruction.
-- **HIPAA** (opt-in, `compliance: { frameworks: [hipaa] }`): the code-reviewable technical safeguards in `rulebooks/hipaa.yaml` (PHI classification, row-level access, tamper-evident audit trail, leak vectors, vendor/BAA boundary). Administrative and physical safeguards, risk analysis, and BAA paperwork are owner evidence, so they stay `not-checked`. Attribution in `rulebooks/NOTICE-hipaa.md`.
+- **HIPAA** (opt-in, `compliance: { frameworks: [hipaa] }`): the code-reviewable technical safeguards in `rulebooks/hipaa.yaml` (PHI classification, row-level access, tamper-evident audit trail, leak vectors, vendor/BAA boundary). Administrative and physical safeguards, risk analysis, and BAA paperwork are owner evidence: they are listed as `hipaa:ADM1`, `hipaa:ADM2`, `hipaa:PHY1` and `hipaa:BA1` so the matrix names them, and they stay `not-checked` (code or docs never mark them `met`). Attribution in `rulebooks/NOTICE-hipaa.md`.
 
 ## Checklist (the mapping layer)
 
 For each control in the rulebook:
 
 1. **Is there a finding that violates this control?** → `violation` (link the finding ID). Example: SOC 2 CC6.1 (logical access controls) → if the security lens found a missing authz check, that's a violation.
-2. **Is there evidence the control is met?** → `verified-safe` (cite the guard/pattern). Example: SOC 2 CC6.1 → if IaC lens verified RLS policies are in place, that's evidence the control is met.
+2. **Is there evidence the control is met?** → `met` (cite the guard/pattern). Example: SOC 2 CC6.1 → if IaC lens verified RLS policies are in place, that's evidence the control is met.
 3. **Is this control not applicable?** → `not-applicable` (one-line reason). Example: SOC 2 A1 (availability) → if the app has no uptime SLA requirements, not-applicable.
 4. **No evidence either way?** → `not-checked` (honest — this is a GAP that needs manual review). This is the most important output — it tells the owner exactly which compliance controls have no automated evidence.
 

@@ -3,6 +3,17 @@
 All notable changes to `cklph-nextjs` are documented here.
 Format: [Keep a Changelog](https://keepachangelog.com); versioning follows [SemVer](https://semver.org).
 
+## [0.2.3] — 2026-10-26
+
+### Fixed
+- **`postgres`** — the "foreign keys with no index" query matched `a.attnum = any(i.indkey)`, so a
+  trailing composite or `INCLUDE` column counted as covering the FK (false negative). It now
+  requires the column to lead the index (`i.indkey[0] = a.attnum`) and says it covers
+  single-column FKs.
+- **`supabase-migrations`** — the RLS template now uses `(select auth.uid())`, matching the rule
+  below it. The initPlan claim is limited to uncorrelated helpers; a helper that takes a row column
+  still runs per row.
+
 ## [0.2.2] — 2026-10-26
 
 ### Added

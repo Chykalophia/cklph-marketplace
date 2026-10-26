@@ -34,12 +34,14 @@ Mixing transaction mode + prepared statements silently breaks. `prepared stateme
 ## Find the problems the catalog already knows
 
 ```sql
--- foreign keys with no index on the referencing column
+-- foreign keys with no index LEADING on the referencing column.
+-- Covers single-column FKs: an index only serves the FK if the column is its first key, so a
+-- trailing composite or INCLUDE column does not count. Composite FKs need a manual check.
 select c.conrelid::regclass as tbl, a.attname as col
 from pg_constraint c
 join pg_attribute a on a.attrelid = c.conrelid and a.attnum = any(c.conkey)
 where c.contype = 'f'
-  and not exists (select 1 from pg_index i where i.indrelid = c.conrelid and a.attnum = any(i.indkey));
+  and not exists (select 1 from pg_index i where i.indrelid = c.conrelid and i.indkey[0] = a.attnum);
 
 -- slowest statements (pg_stat_statements is on by default in Supabase)
 select query, mean_exec_time, calls from pg_stat_statements order by mean_exec_time desc limit 20;

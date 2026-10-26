@@ -96,7 +96,7 @@ Rules for the matrix:
 
 ## 3b. Compliance matrix (when the compliance lens ran)
 
-A `## Compliance matrix` section after the Coverage matrix and before the Coverage narrative — **one row per control per framework** (SOC 2 / CASA). Statuses are `met` | `violation` | `not-applicable` | `not-checked`. This is the audit's bridge to a formal attestation.
+A `## Compliance matrix` section after the Coverage matrix and before the Coverage narrative — **one row per control per framework**, with one sub-section per selected framework (SOC 2, CASA, HIPAA). Statuses are `met` | `violation` | `not-applicable` | `not-checked`. This is the audit's bridge to a formal attestation.
 
 ```markdown
 ## Compliance matrix
@@ -106,7 +106,7 @@ A `## Compliance matrix` section after the Coverage matrix and before the Covera
 | Control | Description (short) | Status | Finding IDs / evidence / reason |
 | --- | --- | --- | --- |
 | CC6.1 | Logical access controls | violation | C-1, H-2 |
-| CC6.7 | Restrict access to assets | verified-safe | RLS policies on all tables (`db/migrations/003_rls.sql:12`) |
+| CC6.7 | Restrict access to assets | met | RLS policies on all tables (`db/migrations/003_rls.sql:12`) |
 | CC7.1 | Detect vulnerabilities | violation | SCA: 3 known CVEs in deps (H-5, H-6, M-3) |
 | C1.2 | Protect confidential info | not-checked | no encryption-at-rest verification performed |
 
@@ -121,7 +121,7 @@ A `## Compliance matrix` section after the Coverage matrix and before the Covera
 
 Rules for the compliance matrix:
 - `violation` rows link the finding IDs from other lenses. `met` rows cite the evidence (the guard/pattern/scan that proved the control). `not-applicable` rows give the one-line reason. `not-checked` rows are **gaps** — controls with no automated evidence; the owner must provide manual evidence for attestation.
-- A `not-checked` compliance control is the most actionable output for a team pursuing SOC 2 / CASA — it tells them exactly what they still need to prove.
+- A `not-checked` compliance control is the most actionable output for a team pursuing SOC 2 / CASA / HIPAA — it tells them exactly what they still need to prove.
 - Omit the section entirely if the compliance lens did not run.
 
 ## 4. Coverage narrative

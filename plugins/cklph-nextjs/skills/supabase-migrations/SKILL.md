@@ -25,21 +25,21 @@ If `db push` fails on remote, **don't edit the committed migration** — write a
 alter table public.<name> enable row level security;
 
 create policy "users read own"  on public.<name>
-  for select using ( auth.uid() = user_id );
+  for select using ( (select auth.uid()) = user_id );
 
 create policy "users insert own" on public.<name>
-  for insert with check ( auth.uid() = user_id );
+  for insert with check ( (select auth.uid()) = user_id );
 
 create policy "users update own" on public.<name>
-  for update using ( auth.uid() = user_id ) with check ( auth.uid() = user_id );
+  for update using ( (select auth.uid()) = user_id ) with check ( (select auth.uid()) = user_id );
 
 create policy "users delete own" on public.<name>
-  for delete using ( auth.uid() = user_id );
+  for delete using ( (select auth.uid()) = user_id );
 ```
 
 UPDATE needs both `USING` (which rows you can target) and `WITH CHECK` (what the new row looks like) — skipping `WITH CHECK` lets a user reassign `user_id`.
 
-On large tables write `(select auth.uid()) = user_id` instead of `auth.uid() = user_id`: wrapped in a subselect, Postgres evaluates it once per query (an initPlan) instead of once per row. Same rule for `auth.jwt()` and any stable helper function in a policy. Index the column the policy filters on (`user_id`, `organization_id`).
+Write `(select auth.uid()) = user_id`, not bare `auth.uid() = user_id`: an uncorrelated subselect (one that reads no column of the row) runs once per query as an initPlan instead of once per row. Same for `auth.jwt()` and any stable helper called without row arguments. A helper that takes a column of the row, such as `is_member(organization_id)`, is correlated and still runs per row, so the wrapper does not help it. Index the column the policy filters on (`user_id`, `organization_id`).
 
 ## Indexes — separate migration, named consistently
 

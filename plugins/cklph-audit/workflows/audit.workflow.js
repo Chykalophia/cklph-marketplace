@@ -79,11 +79,17 @@ const mode = args?.mode ?? 'full'
 const rulesFromList = config.rulesFrom ?? ['CLAUDE.md', 'AGENTS.md']
 // agent-config lens: the repo's AI-tooling layer (MCP configs, Claude/agent settings, hooks,
 // instruction docs, skills, agent definitions). One job over these globs, never crossed with units.
-const agentConfigGlobs = config.agentConfig?.globs ?? [
+// Hook globs are anchored to agent tooling (.claude/hooks, plugin hooks) — a bare '**/hooks/**'
+// would sweep app code such as src/hooks/useAuth.ts into this lens.
+const agentConfigGlobsBase = config.agentConfig?.globs ?? [
   '**/.mcp.json', '**/mcp.json', '**/.claude/**', '**/.cursor/**', '**/.vscode/mcp.json',
-  '**/hooks/hooks.json', '**/hooks/**', '**/.claude-plugin/*.json',
+  '**/hooks/hooks.json', '**/.claude/hooks/**', '**/plugins/*/hooks/**', '**/.claude-plugin/*.json',
   '**/CLAUDE.md', '**/AGENTS.md', '**/skills/**/SKILL.md', '**/agents/*.md',
 ]
+// honor args.path the way recon/unit inference do: scope the AI-tooling globs under it
+const agentConfigGlobs = args?.path
+  ? agentConfigGlobsBase.map(g => `${args.path.replace(/\/$/, '')}/${g}`)
+  : agentConfigGlobsBase
 
 // vulnIntel: auto-detect MCP tools (cve-mcp, vuln-intel-ext) when available.
 // 'auto' (default) = use them if present, fall back to local tools if not.
@@ -767,8 +773,12 @@ const reviewed = await pipeline(
     const recon = reconByLens[job.lens]
     // normalize recon paths (./foo → foo) so glob matching doesn't drop seeds on a prefix
     const inUnit = s => { const nf = s?.file?.replace(/^\.\//, ''); return nf && globMatch(nf, job.unit.globs) }
-    const seeds = (recon?.seeds ?? []).filter(inUnit)
-    const safeControls = (recon?.safeControls ?? []).filter(inUnit)
+    // agent-config recon is already scoped to the AI-tooling layer, and it deliberately cites
+    // files OUTSIDE the config globs (LLM/agent runtime call sites in app code, scripts a hook
+    // runs). Filtering by the config globs would drop exactly those — pass them through.
+    const keep = job.lens === 'agent-config' ? () => true : inUnit
+    const seeds = (recon?.seeds ?? []).filter(keep)
+    const safeControls = (recon?.safeControls ?? []).filter(keep)
     // T2.1: when the Map ran, hand this unit its invariants + the boundaries whose `where`
     // glob-matches it. Security findings SHOULD cite the boundary; each invariant is checked.
     const unitInvariants = mapRan ? model.invariants.filter(i => i.unit === job.unit.key) : []

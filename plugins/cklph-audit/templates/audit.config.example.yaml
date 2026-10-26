@@ -75,7 +75,8 @@ feedRefresh:                     # vulnerability feed freshness
 compliance:                      # compliance cross-mapping
   frameworks: [soc2, casa]       # SOC 2 Trust Services Criteria + CASA; add hipaa for PHI apps (opt-in)
 # agentConfig:                   # agent-config lens: override the AI-tooling globs it reviews
-#   globs: ['**/.mcp.json', '**/.claude/**', '**/hooks/**', '**/CLAUDE.md', '**/AGENTS.md']
+#   # REPLACES the built-in default list (not merged), so list every glob you still want
+#   globs: ['**/.mcp.json', '**/.claude/**', '**/hooks/hooks.json', '**/plugins/*/hooks/**', '**/CLAUDE.md', '**/AGENTS.md']
 ensemble:                        # diverse-model panels for crown-jewel units (T3.4)
   enabled: false                 # expensive — gate to highest-risk units only
   models: []                     # e.g. ["claude-sonnet", "gpt-4o", "gemini-2.5-flash"]

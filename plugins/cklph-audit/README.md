@@ -194,7 +194,7 @@ Config-compatible: a v3 `audit.config.yaml` runs unchanged — every new key def
 
 ## What you get out
 
-- **`AUDIT-<date>.md`** — a coverage summary (examined X/N per denominator, commands verbatim), the rule-closure coverage matrix, an optional compliance matrix (SOC 2 + CASA), findings bucketed Critical/High/Medium/Low (each with `file:line`, confidence, remediation bucket, why it's real and how the verifier confirmed it, a concrete fix, and — when DAST/patch ran — exploit PoC evidence and patch diffs), a positive-controls (INFO) section of checked-and-clean patterns, and a self-review appendix documenting the "check itself" loop.
+- **`AUDIT-<date>.md`** — a coverage summary (examined X/N per denominator, commands verbatim), the rule-closure coverage matrix, an optional compliance matrix (one sub-section per selected framework: SOC 2, CASA, HIPAA), findings bucketed Critical/High/Medium/Low (each with `file:line`, confidence, remediation bucket, why it's real and how the verifier confirmed it, a concrete fix, and — when DAST/patch ran — exploit PoC evidence and patch diffs), a positive-controls (INFO) section of checked-and-clean patterns, and a self-review appendix documenting the "check itself" loop.
 - **A remediation-wave plan** — grouped, ordered fixes (quick wins first within a severity band) ready to hand to `/cklph-os:flow` or `cklph-implementer` waves; `owner-decision` items in their own subsection — they're questions, not work.
 - **An updated baseline** (when you run `:baseline`) so the next run is delta-only.
 

@@ -29,8 +29,8 @@ rg -n --hidden -g '*.md' -P '[\x{200B}-\x{200F}\x{202A}-\x{202E}\x{2060}-\x{2064
 rg -n --hidden -g '*.md' -e '<!--' -e 'without asking' -e 'without confirmation' -e 'curl[^|]*\|\s*(ba)?sh'
 rg -n --hidden -g '**/agents/*.md' -e '^tools:'
 
-# Secrets anywhere in the layer (report redacted)
-rg -n --hidden -g '**/*mcp*.json' -g '**/settings*.json' -g '*.md' -e 'sk-[A-Za-z0-9]{16,}' -e 'ghp_[A-Za-z0-9]{20,}' -e 'xox[bp]-' -e 'AKIA[0-9A-Z]{16}' -e 'BEGIN [A-Z ]*PRIVATE KEY'
+# Secrets anywhere in the layer: location only. -o -r prints file:line:[REDACTED], never the match
+rg -n -o -r '[REDACTED]' --hidden -g '**/*mcp*.json' -g '**/settings*.json' -g '*.md' -e 'sk-[A-Za-z0-9]{16,}' -e 'ghp_[A-Za-z0-9]{20,}' -e 'xox[bp]-' -e 'AKIA[0-9A-Z]{16}' -e 'BEGIN [A-Z ]*PRIVATE KEY'
 
 # Agent runtimes (LLM / MCP SDK call sites that may act on untrusted content)
 rg -l -t ts -t js -t py -e '@anthropic-ai/sdk' -e '@modelcontextprotocol/sdk' -e "from ['\"]ai['\"]" -e '\bopenai\b' -e 'anthropic'

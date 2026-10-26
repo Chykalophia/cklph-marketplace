@@ -209,7 +209,7 @@ const seenPrompts = {};
 const agentC = async (prompt, opts = {}) => {
   const label = opts.label || '';
   seenLabels.push(label); seenPrompts[label] = prompt;
-  if (label === 'recon:agent-config') return { domain: 'agent-config', denominators: [{ pattern: 'mcp configs', description: 'repo MCP config files', command: "rg --files --hidden -g '**/.mcp.json'", count: 1 }], seeds: [{ file: '.mcp.json', line: 5, note: '@latest selector' }], safeControls: [] };
+  if (label === 'recon:agent-config') return { domain: 'agent-config', denominators: [{ pattern: 'mcp configs', description: 'repo MCP config files', command: "rg --files --hidden -g '**/.mcp.json'", count: 1 }], seeds: [{ file: '.mcp.json', line: 5, note: '@latest selector' }, { file: 'lib/llm/agent-runtime.ts', line: 14, note: 'LLM call site feeds fetched email into a tool-using agent' }], safeControls: [] };
   if (label === 'review:agent-config:agent-config') return { findings: [A1], ruleChecks: [], coverage: { seedsVerified: 1, seedsGiven: 1, toolCandidatesJudged: 0 } };
   if (label.startsWith('verify:') && /npx -y pkg@latest/.test(prompt)) return { refuted: false, reason: 'selector is @latest', reachabilityTrace: '.mcp.json:5 args contains example-mcp@latest', confidence: 0.9 };
   return agent(prompt, opts);
@@ -233,6 +233,27 @@ if (!seenLabels.includes('review:api-surface:security')) { problems++; console.l
 const freshC = (synthInput?.findings || []).map(f => f.id);
 if (!freshC.includes('A1')) { problems++; console.log(`  ✗ confirmed agent-config finding A1 missing from synthesizer input (fresh: ${JSON.stringify(freshC)})`); }
 else console.log('  ✓ confirmed agent-config finding reaches the report');
+// C4: app code under a generic hooks/ dir (React hooks) is NOT in the agent-config scope, while
+// real agent hook dirs are. Uses the engine's own globMatch over the globs the job was handed.
+const globMatch = new Function(src.match(/function globMatch[\s\S]*?\n}\n/)[0] + '; return globMatch')();
+const jobGlobs = (p) => { const m = p.match(/globs: (\[[^\]]*\])/); try { return m ? JSON.parse(m[1]) : []; } catch { return []; } };
+const acGlobs = jobGlobs(acPrompt);
+if (!acGlobs.length) { problems++; console.log('  ✗ could not read the agent-config job globs from its prompt'); }
+else if (globMatch('src/hooks/x.ts', acGlobs)) { problems++; console.log('  ✗ src/hooks/x.ts (app code) is inside the agent-config scope'); }
+else if (!globMatch('.claude/hooks/pre.sh', acGlobs) || !globMatch('plugins/p/hooks/run.sh', acGlobs) || !globMatch('hooks/hooks.json', acGlobs)) { problems++; console.log('  ✗ agent hook paths fell out of the agent-config scope'); }
+else console.log('  ✓ src/hooks/x.ts is out of agent-config scope; .claude/hooks, plugin hooks, hooks.json are in');
+// C5: recon seeds outside the config globs (LLM runtime call sites) still reach the agent-config reviewer
+if (!acPrompt.includes('lib/llm/agent-runtime.ts')) { problems++; console.log('  ✗ agent-config recon seed in app code was filtered out of the review prompt'); }
+else console.log('  ✓ agent-config recon seeds pass through unfiltered (runtime call site kept)');
+// C6: args.path scopes the agent-config job's globs (as recon and unit inference do)
+seenLabels.length = 0; for (const k of Object.keys(seenPrompts)) delete seenPrompts[k];
+const argsC2 = JSON.parse(JSON.stringify(argsC));
+argsC2.path = 'packages/app/';
+await runFn({ agent: agentC, parallel, pipeline, phase, log, args: argsC2, budget });
+const acGlobs2 = jobGlobs(seenPrompts['review:agent-config:agent-config'] || '');
+if (!acGlobs2.length || !acGlobs2.every(g => g.startsWith('packages/app/') && !g.startsWith('packages/app//'))) { problems++; console.log(`  ✗ args.path not applied to agent-config globs: ${JSON.stringify(acGlobs2)}`); }
+else if (globMatch('other/.mcp.json', acGlobs2) || !globMatch('packages/app/.mcp.json', acGlobs2)) { problems++; console.log('  ✗ args.path-scoped agent-config globs match the wrong files'); }
+else console.log('  ✓ args.path prefixes the agent-config globs (packages/app/.mcp.json in, other/.mcp.json out)');
 
 console.log(problems === 0 ? '\n✓ ALL SCENARIOS PASSED' : `\n✗ ${problems} conflict(s) found across scenarios`);
 process.exit(problems === 0 ? 0 : 1);
