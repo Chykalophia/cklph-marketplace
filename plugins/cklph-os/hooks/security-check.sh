@@ -21,40 +21,28 @@ echo "Security Check: $FILE_PATH"
 
 WARNINGS=0
 
-# Check for hardcoded secrets (simplified patterns to avoid quoting issues)
-# Pattern 1: API keys
-if grep -iE 'api[_-]?key\s*[:=]\s*["\x27][A-Za-z0-9]{20,}' "$FILE_PATH" 2>/dev/null; then
-    echo "Warning: Possible hardcoded API key detected" >&2
-    ((WARNINGS++))
-fi
-
-# Pattern 2: Passwords
-if grep -iE 'password\s*[:=]\s*["\x27][^\x27"]{8,}' "$FILE_PATH" 2>/dev/null; then
-    echo "Warning: Possible hardcoded password detected" >&2
-    ((WARNINGS++))
-fi
-
-# Pattern 3: Secret/Token patterns
-if grep -iE '(secret|token)\s*[:=]\s*["\x27][A-Za-z0-9_-]{16,}' "$FILE_PATH" 2>/dev/null; then
-    echo "Warning: Possible hardcoded secret/token detected" >&2
-    ((WARNINGS++))
-fi
-
-# Pattern 4: AWS keys
-if grep -E 'AKIA[0-9A-Z]{16}' "$FILE_PATH" 2>/dev/null; then
-    echo "Warning: Possible AWS Access Key detected" >&2
-    ((WARNINGS++))
-fi
-
-# Pattern 5: Private keys
-if grep -q 'BEGIN.*PRIVATE KEY' "$FILE_PATH" 2>/dev/null; then
-    echo "Warning: Private key detected in file" >&2
-    ((WARNINGS++))
-fi
+# Check for hardcoded secrets. Patterns use $'…' quoting so a real single quote can sit in the
+# bracket class: before 0.11.1 they used ["\x27], which neither BSD nor GNU grep reads as a quote,
+# so single-quoted secrets slipped through. [[:space:]] instead of \s for portability.
+# Report LINE NUMBERS only: echoing the matched line would copy the secret into the transcript.
+check() {  # check <ERE> <label>
+    local lines
+    lines=$(grep -niE "$1" "$FILE_PATH" 2>/dev/null | cut -d: -f1 | tr '\n' ' ')
+    if [[ -n "$lines" ]]; then
+        echo "Warning: Possible hardcoded $2 detected (line ${lines% })" >&2
+        ((WARNINGS++))
+    fi
+}
+SP='[[:space:]]*'
+check $'api[_-]?key'"$SP[:=]$SP"$'["\'][A-Za-z0-9]{20,}' "API key"
+check $'password'"$SP[:=]$SP"$'["\'][^"\']{8,}' "password"
+check $'(secret|token)'"$SP[:=]$SP"$'["\'][A-Za-z0-9_-]{16,}' "secret/token"
+check 'AKIA[0-9A-Z]{16}' "AWS access key (AKIA...)"
+check 'BEGIN.*PRIVATE KEY' "private key"
 
 # Run gitleaks if available (advisory — findings are reported but non-blocking)
 if command -v gitleaks >/dev/null 2>&1; then
-    GITLEAKS_OUTPUT=$(gitleaks detect --source="$FILE_PATH" --no-git --no-banner 2>&1) || {
+    GITLEAKS_OUTPUT=$(gitleaks detect --source="$FILE_PATH" --no-git --no-banner --redact 2>&1) || {
         echo "Warning: gitleaks found potential secrets:" >&2
         echo "$GITLEAKS_OUTPUT" >&2
         ((WARNINGS++))

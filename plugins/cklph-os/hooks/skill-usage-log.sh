@@ -26,14 +26,21 @@
         PostToolUse)
             [ "$(field tool_name)" = "Skill" ] && { SKILL=$(field skill); VIA=tool; } ;;
         UserPromptSubmit)
-            [[ $INPUT =~ \"prompt\":\"/([A-Za-z0-9_.:-]+) ]] && { SKILL="${BASH_REMATCH[1]}"; VIA=slash; } ;;
+            # The token must end at a space, a JSON escape (\n) or the closing quote, so a prompt
+            # that starts with a path (/Users/me/shot.png …) is not logged as a skill "Users".
+            [[ $INPUT =~ \"prompt\":\"/([A-Za-z0-9_.:-]+)([[:space:]\\\"]) ]] && { SKILL="${BASH_REMATCH[1]}"; VIA=slash; } ;;
     esac
+
+    # JSON-escape a value: backslash first, then double quote. Control characters can't occur here
+    # (field() stops at the first quote and JSON escapes them in the payload).
+    esc() { local v="${1//\\/\\\\}"; printf '%s' "${v//\"/\\\"}"; }
 
     if [ -n "$SKILL" ]; then
         CWD=$(field cwd)
         mkdir -p "$LOG_DIR"
         printf '{"ts":"%s","skill":"%s","via":"%s","repo":"%s","session":"%s"}\n' \
-            "$(date -u +%Y-%m-%dT%H:%M:%SZ)" "$SKILL" "$VIA" "${CWD##*/}" "$(field session_id)" \
+            "$(date -u +%Y-%m-%dT%H:%M:%SZ)" "$(esc "$SKILL")" "$VIA" "$(esc "${CWD##*/}")" \
+            "$(esc "$(field session_id)")" \
             >> "$LOG_DIR/skills.jsonl"
     fi
 } 2>/dev/null || true

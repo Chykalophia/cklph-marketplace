@@ -3,6 +3,31 @@
 All notable changes to cklph-os are documented here.
 Format: [Keep a Changelog](https://keepachangelog.com); versioning follows [SemVer](https://semver.org).
 
+## [0.11.1] — 2026-10-26
+
+### Fixed
+- **`pre-commit-gate.sh` was skipped for `cd repo && git commit` and `git -C repo commit`.** The
+  matcher now finds `git commit` after any separator, behind `VAR=value` prefixes, an absolute git
+  path and git's global options, and the checks run inside the repo being committed (`-C <dir>`, a
+  leading `cd <dir> &&`, else the payload's `cwd`), not the session's directory.
+- **`security-check.sh` missed single-quoted secrets.** `["\x27]` is not a quote class to BSD or
+  GNU grep; patterns now use a real `'` via `$'…'` and `[[:space:]]`. Warnings report line numbers
+  instead of echoing the secret, and gitleaks runs with `--redact`.
+- **`test/hooks.bats` assertions were toothless on macOS.** Under bash 3.2 a false `[[ … ]]` doesn't
+  trip `set -e`, so output checks always passed locally. All output assertions now go through
+  `has`/`hasnt` helpers that `return 1`. New tests cover both bugs above; they fail on 0.11.0.
+- **`run-trigger-tests.sh` counted a crashed session as a miss**, so every near-miss case passed on
+  a broken run. Errors now report `got=error` and fail; an empty or misformatted tests file exits 2.
+- **`stocktake`**: skills installed or updated less than 60 days ago are reported as "not judged
+  yet" instead of joining the prune list; a failing `claude plugin list` now warns.
+- **`skill-usage-log.sh`**: JSON-escapes logged values (a `"` in a directory name produced an
+  invalid line), and no longer logs a phantom skill when a prompt starts with a file path.
+- **`browser-debug`** recommended `@anthropic/chrome-devtools-mcp@latest`, which doesn't exist on
+  npm. It now pins the real package, `chrome-devtools-mcp@1.12.0`.
+- Docs: the two-strike prune rule applies only to a 60-day log and recommends, never deletes;
+  `start-here` gains rows for `spec`, `plan`, `build`, `review` and `ship`; STANDARD §10 states the
+  slash-command log records built-ins too.
+
 ## [0.11.0] — 2026-10-26
 
 ### Added — ECC ports, phase 1

@@ -15,11 +15,13 @@ Add to `.mcp.json` (project) or your Desktop config:
   "mcpServers": {
     "chrome-devtools": {
       "command": "npx",
-      "args": ["@anthropic/chrome-devtools-mcp@latest"]
+      "args": ["-y", "chrome-devtools-mcp@1.12.0"]
     }
   }
 }
 ```
+The package is `chrome-devtools-mcp`, published by the ChromeDevTools team. It is pinned on purpose:
+the server drives a real browser, so review the release notes before bumping the version.
 
 ## Tools — pick by symptom
 | Tool | When |

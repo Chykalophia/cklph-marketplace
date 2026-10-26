@@ -23,10 +23,35 @@ fi
 INPUT=$(cat 2>/dev/null || true)
 COMMAND=$(printf '%s' "$INPUT" | jq -r '.tool_input.command // empty' 2>/dev/null)
 
-# Only intercept git commit commands. Match "git commit" whether invoked bare or via an
-# absolute path (no hardcoded install location).
-if ! printf '%s' "$COMMAND" | grep -qE '(^|/)git[[:space:]]+commit'; then
+# Only intercept git commit commands. "git commit" counts when it starts the command or follows a
+# separator (; && || | ( newline), optionally behind VAR=value prefixes, an absolute path to git,
+# and git's global options (-C <dir>, -c <k=v>, --git-dir=…). Before 0.11.1 only a bare leading
+# "git commit" matched, so `cd repo && git commit` and `git -C repo commit` skipped the whole gate.
+GIT_OPTS='([[:space:]]+(-[Cc][[:space:]]+[^[:space:];&|]+|--[a-z-]+(=[^[:space:];&|]+)?))*'
+COMMIT_RE="(^|[;&|(])[[:space:]]*([A-Za-z_][A-Za-z0-9_]*=[^[:space:]]*[[:space:]]+)*([^[:space:];&|]*/)?git${GIT_OPTS}[[:space:]]+commit([[:space:]]|$)"
+if ! printf '%s\n' "$COMMAND" | grep -qE "$COMMIT_RE"; then
     exit 0
+fi
+
+# Run the checks in the repo being committed, not the session's directory: honor `git -C <dir>`
+# and a leading `cd <dir> &&`. A relative dir resolves against the payload's cwd.
+BASE_DIR=$(printf '%s' "$INPUT" | jq -r '.cwd // empty' 2>/dev/null)
+[ -n "$BASE_DIR" ] && [ -d "$BASE_DIR" ] && cd "$BASE_DIR"
+TARGET_DIR=""
+if [[ $COMMAND =~ git[[:space:]]+-C[[:space:]]+(\"[^\"]+\"|\'[^\']+\'|[^[:space:]\;\&\|]+) ]]; then
+    TARGET_DIR="${BASH_REMATCH[1]}"
+elif [[ $COMMAND =~ ^[[:space:]]*cd[[:space:]]+(\"[^\"]+\"|\'[^\']+\'|[^[:space:]\;\&\|]+)[[:space:]]*(\&\&|\;) ]]; then
+    TARGET_DIR="${BASH_REMATCH[1]}"
+fi
+if [ -n "$TARGET_DIR" ]; then
+    TARGET_DIR="${TARGET_DIR%\"}"; TARGET_DIR="${TARGET_DIR#\"}"
+    TARGET_DIR="${TARGET_DIR%\'}"; TARGET_DIR="${TARGET_DIR#\'}"
+    TARGET_DIR="${TARGET_DIR/#\~/$HOME}"
+    if [ -d "$TARGET_DIR" ]; then
+        cd "$TARGET_DIR" || exit 0
+    else
+        echo "pre-commit-gate: can't resolve commit dir '$TARGET_DIR'; checking $(pwd)" >&2
+    fi
 fi
 
 # Skip merge commits — CI is the right gate for release merges (dev -> staging -> main),

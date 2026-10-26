@@ -26,6 +26,7 @@ SEEDED_COLLISIONS = [
 ]
 
 COMMANDS = set()  # qualified names that are commands/*.md rather than skills/*/SKILL.md
+AGE = {}  # qualified name -> days since that skill file landed on disk (install or update)
 
 STOP = set("""a an and are as at be before by can do does for from has have if in into is it its
 of on or so that the their them then this to use used uses using when where which while who will
@@ -61,9 +62,11 @@ def inventory():
     """{qualified_name: description} for every enabled plugin skill/command and user skill."""
     skills = {}
     try:
-        out = subprocess.run(["claude", "plugin", "list", "--json"], capture_output=True,
-                             text=True, timeout=60).stdout
-        plugins = json.loads(out or "[]")
+        res = subprocess.run(["claude", "plugin", "list", "--json"], capture_output=True,
+                             text=True, timeout=60)
+        if res.returncode != 0:
+            raise ValueError(f"exit {res.returncode}")
+        plugins = json.loads(res.stdout or "[]")
     except (OSError, ValueError, subprocess.SubprocessError):
         plugins = []
         print("warning: `claude plugin list --json` failed; plugin skills not inventoried",
@@ -75,13 +78,25 @@ def inventory():
         root = Path(p.get("installPath", ""))
         for md in sorted(root.glob("skills/*/SKILL.md")):
             skills[f"{name}:{md.parent.name}"] = frontmatter_description(md)
+            AGE[f"{name}:{md.parent.name}"] = file_age_days(md)
         for md in sorted(root.glob("commands/*.md")):
             if f"{name}:{md.stem}" not in skills:
                 skills[f"{name}:{md.stem}"] = frontmatter_description(md)
                 COMMANDS.add(f"{name}:{md.stem}")
+                AGE[f"{name}:{md.stem}"] = file_age_days(md)
     for md in sorted((HOME / ".claude/skills").glob("*/SKILL.md")):
-        skills.setdefault(md.parent.name, frontmatter_description(md))
+        if md.parent.name not in skills:
+            skills[md.parent.name] = frontmatter_description(md)
+            AGE[md.parent.name] = file_age_days(md)
     return skills
+
+
+def file_age_days(path):
+    try:
+        mtime = datetime.fromtimestamp(path.stat().st_mtime, timezone.utc)
+        return (datetime.now(timezone.utc) - mtime).days
+    except OSError:
+        return 10 ** 6
 
 
 def read_log(path):
@@ -140,9 +155,16 @@ def main():
         print("| _(no logged invocations yet)_ | | | |")
 
     # --- Prune list ----------------------------------------------------------------------
-    zero = sorted(s for s in skills if counts.get(s, [0, 0, 0])[2] == 0)
+    # A skill whose file landed less than prune_days ago hasn't had its window yet: it is reported
+    # as new, never pruned, however old the log itself is.
+    unused = [s for s in skills if counts.get(s, [0, 0, 0])[2] == 0]
+    new = sorted(s for s in unused if AGE.get(s, 10 ** 6) < args.prune_days)
+    zero = sorted(s for s in unused if s not in new)
     provisional = span < args.prune_days
     print(f"\n## Zero invocations in {args.prune_days} days: {len(zero)} of {len(skills)}\n")
+    if new:
+        print(f"Not judged yet: {len(new)} skill(s) installed or updated less than "
+              f"{args.prune_days} days ago.\n")
     if provisional:
         print(f"**Provisional:** the log only covers {span} day(s). A skill joins the prune list "
               f"only once the log covers {args.prune_days} days.\n")

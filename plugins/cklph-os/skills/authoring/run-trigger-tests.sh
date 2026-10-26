@@ -39,15 +39,24 @@ while IFS= read -r line; do
         --plugin-dir "$PLUGIN_DIR" --setting-sources project --no-session-persistence \
         --model "$MODEL" --max-budget-usd "$BUDGET" --allowedTools Skill \
         --output-format stream-json --verbose > "$out" 2>/dev/null)
+    rc=$?
     # A Skill tool_use carries {"name":"Skill","input":{"skill":"<plugin:skill>"...}}.
-    if grep -q "\"skill\":\"$SKILL\"" "$out"; then got=fire; else got=miss; fi
+    # A session that errored (auth, budget, crash) never calls the Skill tool either: it must count
+    # as an ERROR, never as a miss, or every near-miss case would pass on a broken run.
+    if [ "$rc" -ne 0 ] || ! grep -q '"type":"result"' "$out"; then got=error
+    elif grep -qF "\"skill\":\"$SKILL\"" "$out"; then got=fire
+    else got=miss; fi
     if [ "$got" = "$want" ]; then
         pass=$((pass + 1)); verdict=PASS
     else
         fail=$((fail + 1)); verdict=FAIL
     fi
-    printf '%s  want=%-4s got=%-4s  %s\n' "$verdict" "$want" "$got" "$prompt"
+    printf '%s  want=%-4s got=%-5s  %s\n' "$verdict" "$want" "$got" "$prompt"
 done < "$TESTS"
 
+if [ "$n" -eq 0 ]; then
+    echo "no test cases in $TESTS (lines must start with '- fire: ' or '- miss: ')" >&2
+    exit 2
+fi
 echo "--- $SKILL: $pass/$n passed (model=$MODEL)"
 [ "$fail" -eq 0 ]

@@ -36,12 +36,17 @@ cklph-os is a **spine, not a walled garden** — compose with whatever specialis
 rather than reinventing what they already encode.
 
 ## Routing table
-Situation → skill. Every cklph-os skill has a row here (STANDARD.md §10, Wire). Phase skills
+Situation → skill. Every cklph-os skill except this one has a row here (STANDARD.md §10, Wire). Phase skills
 (`refine` → `survey` → `spec` → `plan` → `build` → `review` → `verify` → `ship`) are run by `flow`.
 
 | Situation | Skill |
 |---|---|
 | Build something end to end | `flow` |
+| Turn a goal into requirements and acceptance criteria | `spec` |
+| Break an approved spec into tasks | `plan` |
+| Implement an approved plan | `build` |
+| Review a diff before merging | `review` |
+| Open the PR once verified | `ship` |
 | A vague idea needs sharpening before a spec | `refine` |
 | New feature scope with gaps across users, devices, edges | `survey` |
 | New or inherited client codebase or site | `survey` (brownfield mode → gap register) |
