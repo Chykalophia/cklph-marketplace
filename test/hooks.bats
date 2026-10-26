@@ -216,3 +216,15 @@ print("ok")' "$TMP/usage/skills.jsonl"
   run bash "$HOOKS/tests/destructive-command-gate.test.sh"
   [ "$status" -eq 0 ]
 }
+
+@test "reply-shape-context: prints the rules without frontmatter; CKLPH_REPLY_SHAPE=off disables it" {
+  run env CLAUDE_PLUGIN_ROOT="$HOOKS/.." bash "$HOOKS/reply-shape-context.sh"
+  [ "$status" -eq 0 ]
+  has "First line = the answer"
+  hasnt "description:"
+  hasnt "name: reply-shape"
+  [[ "${lines[0]}" != "---" ]] || return 1
+  run env CKLPH_REPLY_SHAPE=off CLAUDE_PLUGIN_ROOT="$HOOKS/.." bash "$HOOKS/reply-shape-context.sh"
+  [ "$status" -eq 0 ]
+  [ -z "$output" ]
+}

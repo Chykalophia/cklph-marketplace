@@ -3,6 +3,22 @@
 All notable changes to cklph-os are documented here.
 Format: [Keep a Changelog](https://keepachangelog.com); versioning follows [SemVer](https://semver.org).
 
+## [0.12.0] — 2026-10-26
+
+### Added
+- **`reply-shape` skill**: a reply contract. Answer or next action first, state restated each turn,
+  numbered steps, real-unit time estimates, visible wins, side issues once at the end, a pre-send
+  first/last-line check. Scoped to replies *to the user*; never reshapes emails or docs written for
+  others. Adapted from `ayghri/i-have-adhd` (MIT, `NOTICE.md`) rather than installing it, so no
+  third-party hooks run.
+- **`hooks/reply-shape-context.sh`**: SessionStart hook (`startup|resume|clear|compact|fork`) that prints
+  the skill body into context, so the contract is always on in the CLI and survives `/compact`.
+  Read-only, no network, fails open. **Opt out with `CKLPH_REPLY_SHAPE=off`**, since this plugin is
+  public and the hook shapes every installer's sessions.
+
+### Changed
+- `start-here` gains a routing row and a "Reply shape" section, including the Desktop/Cowork fallback.
+
 ## [0.11.1] — 2026-10-26
 
 ### Fixed
