@@ -77,6 +77,7 @@ esac
 # Fast path: nothing that any rule could match.
 shopt -s nocasematch
 if ! [[ $CMD =~ (rm|git|docker|podman|chmod|publish|supabase|wp|no-verify|drop|truncate|eval|-c) ]]; then
+    shopt -u nocasematch
     exit 0
 fi
 shopt -u nocasematch

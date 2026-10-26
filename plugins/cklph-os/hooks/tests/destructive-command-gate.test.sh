@@ -131,9 +131,9 @@ allow 'CKLPH_ALLOW_DESTRUCTIVE=1 rm -rf ./build/*'
 echo "== parser fallbacks and fail-open"
 # Restricted PATH: everything the gate needs except the JSON parser under test.
 BIN=$(mktemp -d)
+BIN2=$(mktemp -d)
 trap 'rm -rf "$BIN" "$BIN2"' EXIT
 for t in cat awk git; do ln -s "$(command -v $t)" "$BIN/$t"; done
-BIN2=$(mktemp -d)
 for t in cat awk git; do ln -s "$(command -v $t)" "$BIN2/$t"; done
 if command -v python3 >/dev/null 2>&1; then
     ln -s "$(command -v python3)" "$BIN/python3"
