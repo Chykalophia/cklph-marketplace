@@ -84,6 +84,8 @@ Eight composable phases — run one standalone, or chain them with the orchestra
 - **`pre-commit-gate`** — TypeScript + ESLint + Semgrep on every `git commit`. Skips merge commits and bulk stages (>500 files). Lints `SKILL.md` descriptions for the YAML colon-space trap. Configurable warning budget via `CKLPH_ESLINT_MAX_WARNINGS`.
 - **`nextjs-quality-check`** — App Router patterns and `'use client'` discipline on Next.js file edits.
 - **`security-check`** — advisory secret scanning on every edit (gitleaks + bandit if installed).
+- **`destructive-command-gate`** — blocks `git reset --hard`, force-push, `rm -rf` on roots, DROP/TRUNCATE via a SQL client, `npm publish` and similar, naming a safer alternative. Prefix one command with `CKLPH_ALLOW_DESTRUCTIVE=1` to let it through.
+- **`skill-usage-log`** — logs skill invocations locally to `~/.claude/cklph-usage/skills.jsonl` for `stocktake`. Nothing leaves the machine.
 
 ---
 
@@ -111,7 +113,7 @@ cklph-marketplace/
 │   │   ├── skills/                   # start-here + flow + phases + support + daily-rhythm + learn
 │   │   ├── agents/                   # cklph-implementer · cklph-reviewer · red-team
 │   │   ├── commands/                 # /cklph-os:flow + per-phase commands
-│   │   └── hooks/                    # pre-commit-gate · nextjs-quality-check · security-check
+│   │   └── hooks/                    # pre-commit-gate · nextjs-quality-check · security-check · destructive-command-gate · skill-usage-log
 │   ├── cklph-nextjs/                 # Next.js + Supabase house style (17 skills)
 │   └── …                             # one directory per plugin in marketplace.json
 ├── templates/                        # AGENTS.md · CLAUDE.md · STATE.md starters

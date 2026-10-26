@@ -45,7 +45,7 @@ AC-003  Export downloads the filtered rows
 
 ## Spec quality gate (pass before planning)
 - [ ] Every requirement has a measurable acceptance criterion **and** an executable verification.
-- [ ] Every AC with a dangerous side effect has a **Must not**.
+- [ ] Every AC with a side effect that would make a passing Then a bug has a **Must not**.
 - [ ] Business rules are marked as confirmed by the user or listed as assumptions, never inferred from code.
 - [ ] Decision logic is a matrix, not prose.
 - [ ] Out-of-scope is explicit per task.

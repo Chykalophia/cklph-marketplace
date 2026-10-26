@@ -23,7 +23,7 @@ STORE useNotesStore
   selectNote(id|null) → sets {selectedId, body}  RESETS {editorOpen:false, pendingTitle:null}  ← owns neither
 QUERY ['notes', filter]
   useArchive.onMutate   → cancelQueries? NO   setQueryData(['notes', filter]) removes row
-  useArchive.onSettled  → invalidateQueries(['notes'])  (refetch can land before the server write)
+  useArchive.onSettled  → invalidateQueries({ queryKey: ['notes'] })  (refetch can land before the server write)
 ```
 Map **effects that re-assert state** too (auto-select the first row, reset on selection change,
 mirror a query into `useState`): they are writers, and the highest-yield ones. The dangerous rows are

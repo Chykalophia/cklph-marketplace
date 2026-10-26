@@ -24,6 +24,17 @@ Format: [Keep a Changelog](https://keepachangelog.com); versioning follows [SemV
   invalid line), and no longer logs a phantom skill when a prompt starts with a file path.
 - **`browser-debug`** recommended `@anthropic/chrome-devtools-mcp@latest`, which doesn't exist on
   npm. It now pins the real package, `chrome-devtools-mcp@1.12.0`.
+- **`destructive-command-gate.sh`** (cubic review of #24): blocks `rm -rf .*` and other dot-globs
+  (they delete `.git`); parses wrapper option values so `sudo -u root rm -rf /`, `env -u HOME …` and
+  `nice -n 10 git reset --hard` reach the real command; checks `npx -c` / `env -S` command strings;
+  `chmod 00777`; SQL checked on de-quoted words too (`psql -c 'DR'"OP TABLE x"`); nesting deeper
+  than 3 levels now blocks instead of allowing. 21 new cases; 111/111 pass.
+- Skill docs (cubic review of #24): two-reviewer gate ends with the agents' real markers and an
+  objective "fits the audience" check; `ship` accepts observed browser behavior as evidence and links
+  `../review/two-reviewer-gate.md`; "pre-existing failure" is proven at the base revision in a clean
+  worktree, not via `git stash`; brownfield runs an inherited repo's scripts only after inspection,
+  with approval, isolated; `click-path-audit` no longer presents eager updaters as reliable and uses
+  the v5 `invalidateQueries({ queryKey })` form; `spec` Must-not gate aligned with its rule.
 - Docs: the two-strike prune rule applies only to a 60-day log and recommends, never deletes;
   `start-here` gains rows for `spec`, `plan`, `build`, `review` and `ship`; STANDARD §10 states the
   slash-command log records built-ins too.

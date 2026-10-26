@@ -37,6 +37,28 @@ allow() { expect 0 "allow: $1" "$1"; }
 echo "== dangerous (must block, exit 2)"
 block 'rm -rf /'
 block 'rm -rf ~'
+# cubic review of #24: dot-globs, wrapper option values, chmod zeros, quote concatenation, nesting
+block 'rm -rf .*'
+block 'rm -rf ./.*'
+block "rm -rf '.[!.]*'"
+block 'sudo -u root rm -rf /'
+block 'sudo --user=root -n rm -rf /'
+block 'env -u HOME rm -rf /'
+block 'nice -n 10 git reset --hard'
+block 'time -o /tmp/t git push -f origin main'
+block "npx -c 'git reset --hard'"
+block 'chmod 00777 file'
+block 'chmod -R 0777 dir'
+block "psql -c 'DR'\"OP TABLE users\""
+block "psql -c TRUN'CATE' users"
+block "bash -c \"bash -c 'bash -c \\\"bash -c \\\\\\\"echo hi\\\\\\\"\\\"'\""
+allow 'rm -rf .cache'
+allow 'rm -rf ./.next'
+allow 'sudo -u www-data ls /var/www'
+allow 'nice -n 10 npm test'
+allow 'chmod 0755 script.sh'
+allow "psql -c 'select 1'"
+allow "bash -c 'echo hi'"
 block 'rm -rf ~/'
 block 'sudo rm -rf "$HOME"'
 block 'rm -fr /*'
