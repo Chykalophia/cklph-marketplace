@@ -27,8 +27,9 @@ against its siblings, not that it happened to win against whatever else is insta
 
 The runner reads the stream-json output for a Skill tool call naming the skill, prints PASS/FAIL per
 prompt and exits non-zero on any failure. A session that errors (auth, budget, crash) is reported as
-`got=error` and fails, never as a quiet miss; rerun it by hand to see why. An empty or misformatted
-tests file exits 2. `TRIGGER_MODEL` (default `sonnet`) and
+`got=error` and fails, never as a quiet miss; rerun it by hand to see why. A tests file with no
+cases, or with any `- ` line that is not exactly `- fire: ` or `- miss: `, exits 2 before running
+anything; headings and other lines are ignored. `TRIGGER_MODEL` (default `sonnet`) and
 `TRIGGER_BUDGET_USD` (default `0.50` per prompt) override the defaults. Expect about a minute and a
 few cents per prompt.
 

@@ -26,6 +26,7 @@ SEEDED_COLLISIONS = [
 ]
 
 COMMANDS = set()  # qualified names that are commands/*.md rather than skills/*/SKILL.md
+INVENTORY_GAPS = []  # why the inventory is incomplete, shown in the report itself
 AGE = {}  # qualified name -> days since that skill file landed on disk (install or update)
 
 STOP = set("""a an and are as at be before by can do does for from has have if in into is it its
@@ -65,12 +66,14 @@ def inventory():
         res = subprocess.run(["claude", "plugin", "list", "--json"], capture_output=True,
                              text=True, timeout=60)
         if res.returncode != 0:
-            raise ValueError(f"exit {res.returncode}")
+            detail = (res.stderr or res.stdout or "").strip().splitlines()
+            raise ValueError(f"exit {res.returncode}" + (f": {detail[0][:200]}" if detail else ""))
         plugins = json.loads(res.stdout or "[]")
-    except (OSError, ValueError, subprocess.SubprocessError):
+    except (OSError, ValueError, subprocess.SubprocessError) as err:
         plugins = []
-        print("warning: `claude plugin list --json` failed; plugin skills not inventoried",
-              file=sys.stderr)
+        reason = f"`claude plugin list --json` failed ({err}); plugin skills not inventoried"
+        INVENTORY_GAPS.append(reason)
+        print(f"warning: {reason}", file=sys.stderr)
     for p in plugins:
         if not p.get("enabled"):
             continue
@@ -148,6 +151,9 @@ def main():
     print(f"# Skill stocktake — {now:%Y-%m-%d}\n")
     print(f"Log: {len(events)} invocations over {span} day(s). "
           f"Inventory: {len(skills)} enabled skills/commands.\n")
+    for gap in INVENTORY_GAPS:
+        print(f"**Inventory incomplete:** {gap}. Counts, the prune list and collisions below "
+              f"cover only what was found.\n")
     print(f"## Most used\n\n| Skill | 7d | 30d | {windows[2]}d |\n|---|---|---|---|")
     for name, c in sorted(known.items(), key=lambda kv: (-kv[1][2], kv[0]))[:args.top]:
         print(f"| `{name}` | {c[0]} | {c[1]} | {c[2]} |")
@@ -170,20 +176,21 @@ def main():
               f"only once the log covers {args.prune_days} days.\n")
     def owner(s):
         return s.split(":")[0] if ":" in s else "(user skills)"
-    total, unused = {}, {}
+    total, by_plugin = {}, {}
     for s in skills:
         total[owner(s)] = total.get(owner(s), 0) + 1
     for s in zero:
-        unused.setdefault(owner(s), []).append(s.split(":")[-1])
+        by_plugin.setdefault(owner(s), []).append(s.split(":")[-1])
     # A plugin with no used skill at all is a "disable the plugin?" question, not N prune rows.
     # Name individual skills only where the plugin is partly used: those are the real candidates.
-    dead = sorted((p for p in unused if len(unused[p]) == total[p]), key=lambda p: -total[p])
-    partial = sorted((p for p in unused if len(unused[p]) < total[p]), key=lambda p: -len(unused[p]))
+    dead = sorted((p for p in by_plugin if len(by_plugin[p]) == total[p]), key=lambda p: -total[p])
+    partial = sorted((p for p in by_plugin if len(by_plugin[p]) < total[p]),
+                     key=lambda p: -len(by_plugin[p]))
     print("| Plugin | Unused / total | Unused skills |\n|---|---|---|")
     for p in partial:
-        print(f"| {p} | {len(unused[p])} / {total[p]} | {', '.join(unused[p])} |")
+        print(f"| {p} | {len(by_plugin[p])} / {total[p]} | {', '.join(by_plugin[p])} |")
     for p in dead:
-        detail = ", ".join(unused[p]) if args.full else "whole plugin unused (`--full` lists names)"
+        detail = ", ".join(by_plugin[p]) if args.full else "whole plugin unused (`--full` lists names)"
         print(f"| {p} | {total[p]} / {total[p]} | {detail} |")
 
     # --- Collisions ----------------------------------------------------------------------

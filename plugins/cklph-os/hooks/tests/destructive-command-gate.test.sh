@@ -44,6 +44,12 @@ block "rm -rf '.[!.]*'"
 block 'sudo -u root rm -rf /'
 block 'sudo --user=root -n rm -rf /'
 block 'env -u HOME rm -rf /'
+block "env -S'rm -rf /'"
+block "env --split-string='rm -rf /'"
+block "env -S 'git reset --hard'"
+block "npx --call='git reset --hard'"
+allow "env -S'npm test'"
+allow "env --split-string='ls -la'"
 block 'nice -n 10 git reset --hard'
 block 'time -o /tmp/t git push -f origin main'
 block "npx -c 'git reset --hard'"

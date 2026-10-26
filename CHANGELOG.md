@@ -8,36 +8,46 @@ Format: [Keep a Changelog](https://keepachangelog.com); versioning follows [SemV
 ### Fixed
 - **`pre-commit-gate.sh` was skipped for `cd repo && git commit` and `git -C repo commit`.** The
   matcher now finds `git commit` after any separator, behind `VAR=value` prefixes, an absolute git
-  path and git's global options, and the checks run inside the repo being committed (`-C <dir>`, a
-  leading `cd <dir> &&`, else the payload's `cwd`), not the session's directory.
+  path and git's global options, quoted values included (`-C "dir with spaces"`, `-c k="a b"`,
+  `--git-dir /p`). The checks run inside the repo being committed: the payload's `cwd`, then each
+  `cd <dir>` before the commit, then `-C` (so `cd a && git -C b commit` checks `a/b`); `~`, `$HOME`
+  and `${HOME}` are expanded. When the dir can't be worked out (`$VAR`, `$(…)`, `--git-dir`, a cd
+  next to a subshell, a missing dir) the gate blocks and asks for a plain `cd <repo> && git commit`
+  instead of checking the session's repo.
 - **`security-check.sh` missed single-quoted secrets.** `["\x27]` is not a quote class to BSD or
   GNU grep; patterns now use a real `'` via `$'…'` and `[[:space:]]`. Warnings report line numbers
-  instead of echoing the secret, and gitleaks runs with `--redact`.
+  instead of echoing the secret, bandit reports line and test id only, and gitleaks runs with
+  `--redact`. `grep -a` keeps line numbers for files with a NUL byte; only the API key, password and
+  secret/token checks are case-insensitive, so "a private key" in prose is no longer a hit.
 - **`test/hooks.bats` assertions were toothless on macOS.** Under bash 3.2 a false `[[ … ]]` doesn't
   trip `set -e`, so output checks always passed locally. All output assertions now go through
   `has`/`hasnt` helpers that `return 1`. New tests cover both bugs above; they fail on 0.11.0.
 - **`run-trigger-tests.sh` counted a crashed session as a miss**, so every near-miss case passed on
-  a broken run. Errors now report `got=error` and fail; an empty or misformatted tests file exits 2.
+  a broken run. A missing result line, `"is_error":true` or a non-`success` subtype now reports
+  `got=error` and fails. A tests file with no cases, or any `- ` line that isn't `- fire: ` /
+  `- miss: `, exits 2 before running anything.
 - **`stocktake`**: skills installed or updated less than 60 days ago are reported as "not judged
-  yet" instead of joining the prune list; a failing `claude plugin list` now warns.
-- **`skill-usage-log.sh`**: JSON-escapes logged values (a `"` in a directory name produced an
-  invalid line), and no longer logs a phantom skill when a prompt starts with a file path.
+  yet" instead of joining the prune list; a failing `claude plugin list` puts an "Inventory
+  incomplete" note with the reason in the report itself.
+- **`skill-usage-log.sh`**: a `\"` in a payload value cut the field short and wrote an invalid line.
+  Fields are now read as whole JSON strings and written back still escaped. It no longer logs a
+  phantom skill when a prompt starts with a file path.
 - **`browser-debug`** recommended `@anthropic/chrome-devtools-mcp@latest`, which doesn't exist on
   npm. It now pins the real package, `chrome-devtools-mcp@1.12.0`.
-- **`destructive-command-gate.sh`** (cubic review of #24): blocks `rm -rf .*` and other dot-globs
-  (they delete `.git`); parses wrapper option values so `sudo -u root rm -rf /`, `env -u HOME …` and
-  `nice -n 10 git reset --hard` reach the real command; checks `npx -c` / `env -S` command strings;
+- **`destructive-command-gate.sh`** (reviews of #24 and #31): blocks `rm -rf .*` and other
+  dot-globs (they delete `.git`); parses wrapper option values so `sudo -u root rm -rf /`,
+  `env -u HOME …` and `nice -n 10 git reset --hard` reach the real command; checks `npx -c` /
+  `env -S` command strings, attached forms too (`env -S'…'`, `--split-string=…`, `npx --call=…`);
   `chmod 00777`; SQL checked on de-quoted words too (`psql -c 'DR'"OP TABLE x"`); nesting deeper
-  than 3 levels now blocks instead of allowing. 21 new cases; 111/111 pass.
+  than 3 levels now blocks instead of allowing; skips WP-CLI global flags and `@alias` targets, so
+  `wp --allow-root db reset` and `wp @prod db drop` are blocked; treats `timeout` as a wrapper (its
+  duration is not the command). 124/124 cases pass.
 - Skill docs (cubic review of #24): two-reviewer gate ends with the agents' real markers and an
   objective "fits the audience" check; `ship` accepts observed browser behavior as evidence and links
   `../review/two-reviewer-gate.md`; "pre-existing failure" is proven at the base revision in a clean
   worktree, not via `git stash`; brownfield runs an inherited repo's scripts only after inspection,
   with approval, isolated; `click-path-audit` no longer presents eager updaters as reliable and uses
   the v5 `invalidateQueries({ queryKey })` form; `spec` Must-not gate aligned with its rule.
-- **`destructive-command-gate.sh`** (CodeRabbit review of #24): skips WP-CLI global flags and
-  `@alias` targets, so `wp --allow-root db reset` and `wp @prod db drop` are blocked; treats `timeout`
-  as a wrapper (its duration is not the command). 118/118 cases pass.
 - `security-hardening` states the gate needs `jq` or `python3` and fails open without both.
 - `click-path-audit` also triggers on a `useEffect` that copies fetched data into local state.
 - Docs: the two-strike prune rule applies only to a 60-day log and recommends, never deletes;

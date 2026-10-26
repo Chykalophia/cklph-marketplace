@@ -40,7 +40,8 @@ Keep it to one screen:
    *merge into <neighbor>*, *disable the plugin*, or *delete*. Name the skill and the reason.
 3. Two-strike rule, only once the log covers 60 days: a skill on the prune list at two consecutive
    weekly reviews with no trigger rewrite in between gets **delete** as the recommendation. A skill
-   installed less than 60 days ago is never on the list; the script reports it as new instead.
+   installed or updated less than 60 days ago is never on the list; the script reports it as new
+   instead.
 
 Peter decides. Never delete, disable, or uninstall anything from this skill; recommend only.
 

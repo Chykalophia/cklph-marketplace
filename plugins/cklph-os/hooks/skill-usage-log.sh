@@ -19,7 +19,12 @@
     INPUT=$(cat)
     LOG_DIR="${CKLPH_USAGE_DIR:-$HOME/.claude/cklph-usage}"
 
-    field() { [[ $INPUT =~ \"$1\":\"([^\"]*)\" ]] && printf '%s' "${BASH_REMATCH[1]}"; }
+    # A JSON string value, still JSON-escaped: \" and \\ stay as they are, so the value can go
+    # straight back into the JSON line below without re-escaping (that would double backslashes).
+    field() {
+        local re="\"$1\":[[:space:]]*\"((\\\\.|[^\"\\\\])*)\""
+        [[ $INPUT =~ $re ]] && printf '%s' "${BASH_REMATCH[1]}"
+    }
 
     SKILL=""; VIA=""
     case "$(field hook_event_name)" in
@@ -31,16 +36,13 @@
             [[ $INPUT =~ \"prompt\":\"/([A-Za-z0-9_.:-]+)([[:space:]\\\"]) ]] && { SKILL="${BASH_REMATCH[1]}"; VIA=slash; } ;;
     esac
 
-    # JSON-escape a value: backslash first, then double quote. Control characters can't occur here
-    # (field() stops at the first quote and JSON escapes them in the payload).
-    esc() { local v="${1//\\/\\\\}"; printf '%s' "${v//\"/\\\"}"; }
-
     if [ -n "$SKILL" ]; then
+        # Values come from field() still JSON-escaped, so they are written as-is. The basename cut
+        # is safe on escaped text: "/" never starts an escape, so what follows the last one is whole.
         CWD=$(field cwd)
         mkdir -p "$LOG_DIR"
         printf '{"ts":"%s","skill":"%s","via":"%s","repo":"%s","session":"%s"}\n' \
-            "$(date -u +%Y-%m-%dT%H:%M:%SZ)" "$(esc "$SKILL")" "$VIA" "$(esc "${CWD##*/}")" \
-            "$(esc "$(field session_id)")" \
+            "$(date -u +%Y-%m-%dT%H:%M:%SZ)" "$SKILL" "$VIA" "${CWD##*/}" "$(field session_id)" \
             >> "$LOG_DIR/skills.jsonl"
     fi
 } 2>/dev/null || true

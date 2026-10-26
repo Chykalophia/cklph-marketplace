@@ -25,20 +25,24 @@ WARNINGS=0
 # bracket class: before 0.11.1 they used ["\x27], which neither BSD nor GNU grep reads as a quote,
 # so single-quoted secrets slipped through. [[:space:]] instead of \s for portability.
 # Report LINE NUMBERS only: echoing the matched line would copy the secret into the transcript.
-check() {  # check <ERE> <label>
-    local lines
-    lines=$(grep -niE "$1" "$FILE_PATH" 2>/dev/null | cut -d: -f1 | tr '\n' ' ')
+# -a: without it grep prints "Binary file matches" for a file with a NUL byte, and the line number
+# is lost. Case-insensitive only where the key name varies in case (API_KEY, Password); AKIA and
+# the PEM header are uppercase by spec, so "a private key" in prose is not a hit.
+check() {  # check <i|-> <ERE> <label>
+    local lines flags=-naE
+    [ "$1" = i ] && flags=-naiE
+    lines=$(grep "$flags" "$2" "$FILE_PATH" 2>/dev/null | cut -d: -f1 | tr '\n' ' ')
     if [[ -n "$lines" ]]; then
-        echo "Warning: Possible hardcoded $2 detected (line ${lines% })" >&2
+        echo "Warning: Possible hardcoded $3 detected (line ${lines% })" >&2
         ((WARNINGS++))
     fi
 }
 SP='[[:space:]]*'
-check $'api[_-]?key'"$SP[:=]$SP"$'["\'][A-Za-z0-9]{20,}' "API key"
-check $'password'"$SP[:=]$SP"$'["\'][^"\']{8,}' "password"
-check $'(secret|token)'"$SP[:=]$SP"$'["\'][A-Za-z0-9_-]{16,}' "secret/token"
-check 'AKIA[0-9A-Z]{16}' "AWS access key (AKIA...)"
-check 'BEGIN.*PRIVATE KEY' "private key"
+check i $'api[_-]?key'"$SP[:=]$SP"$'["\'][A-Za-z0-9]{20,}' "API key"
+check i $'password'"$SP[:=]$SP"$'["\'][^"\']{8,}' "password"
+check i $'(secret|token)'"$SP[:=]$SP"$'["\'][A-Za-z0-9_-]{16,}' "secret/token"
+check - 'AKIA[0-9A-Z]{16}' "AWS access key (AKIA...)"
+check - 'BEGIN.*PRIVATE KEY' "private key"
 
 # Run gitleaks if available (advisory — findings are reported but non-blocking)
 if command -v gitleaks >/dev/null 2>&1; then
@@ -49,9 +53,10 @@ if command -v gitleaks >/dev/null 2>&1; then
     }
 fi
 
-# Python-specific: run bandit if available
+# Python-specific: run bandit if available. Line and test id only: bandit's default report quotes
+# the offending code (B105 prints the hardcoded password itself).
 if [[ "$FILE_PATH" =~ \.py$ ]] && command -v bandit >/dev/null 2>&1; then
-    BANDIT_OUTPUT=$(bandit -q "$FILE_PATH" 2>&1) || {
+    BANDIT_OUTPUT=$(bandit -q -f custom --msg-template 'line {line}: {test_id} ({severity})' "$FILE_PATH" 2>&1) || {
         echo "Warning: bandit found security issues:" >&2
         echo "$BANDIT_OUTPUT" >&2
         ((WARNINGS++))
