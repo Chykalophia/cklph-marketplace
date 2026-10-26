@@ -122,3 +122,13 @@ gate() {  # gate <command>   (payload cwd = $TMP/elsewhere)
   run bash "$HOOKS/tests/destructive-command-gate.test.sh"
   [ "$status" -eq 0 ]
 }
+
+@test "reply-shape-context: prints the rules without frontmatter; CKLPH_REPLY_SHAPE=off disables it" {
+  run env CLAUDE_PLUGIN_ROOT="$HOOKS/.." bash "$HOOKS/reply-shape-context.sh"
+  [ "$status" -eq 0 ]
+  has "First line = the answer"
+  hasnt "description:"
+  run env CKLPH_REPLY_SHAPE=off CLAUDE_PLUGIN_ROOT="$HOOKS/.." bash "$HOOKS/reply-shape-context.sh"
+  [ "$status" -eq 0 ]
+  [ -z "$output" ]
+}
