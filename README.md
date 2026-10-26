@@ -25,7 +25,7 @@
 
 | Plugin | What it does | When you want it |
 | --- | --- | --- |
-| **`cklph-os`** | Dev-workflow spine — phase loop (`refine → survey → spec → plan → build → review → verify → ship`), three adversarial agents (`cklph-implementer` / `cklph-reviewer` / `red-team`), daily-rhythm primitives (`triage` · `decide` · `daily-frame` · `weekly-review`), self-improvement loop (`learn`), and quality-gate hooks. | **Always.** This is the core. |
+| **`cklph-os`** | Dev-workflow spine — phase loop (`refine → survey → spec → plan → build → review → verify → ship`), three adversarial agents (`cklph-implementer` / `cklph-reviewer` / `red-team`), daily-rhythm primitives (`triage` · `decide` · `daily-frame` · `weekly-review`), self-improvement loop (`learn`), skill hygiene (`stocktake` + a local usage log), and quality-gate hooks. | **Always.** This is the core. |
 | **`cklph-nextjs`** | Opinionated Next.js + Supabase patterns layered on top of the official `vercel:*` skills — layered `lib/` architecture, mutation security checklist, data-layer abstraction rules, 12 review pitfalls, full stack coverage. | If you work in Next.js + Supabase repos. |
 
 ---

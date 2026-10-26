@@ -18,6 +18,7 @@ scan, pre-commit gate). On surfaces without hooks (Desktop / Cowork / web), appl
 - Type-check and lint before considering work done.
 - No hardcoded secrets.
 - No absolute paths in configs/hooks — use `$CLAUDE_PROJECT_DIR` or `${CLAUDE_PLUGIN_ROOT}`.
+- Skill usage is logged locally for the weekly review; nothing leaves the machine.
 
 ## Do not
 - <project-specific anti-patterns>

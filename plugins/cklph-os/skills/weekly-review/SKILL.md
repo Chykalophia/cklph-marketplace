@@ -22,6 +22,13 @@ The one outcome that makes next week a win. Same discipline as `daily-frame` —
 ## Prune stale memory (60 seconds)
 Scan `~/.claude/projects/<project-hash>/memory/feedback_*.md`. **Delete** entries where the code / system / pattern they referenced is gone. **Update** entries where the rule holds but the example moved. **Promote** project-specific entries to `GLOBAL.md` if they're now cross-project. See `learn` for the full prune flow. Active beats `MEMORY.md` silently truncating at line 200.
 
+## Skill hygiene (5 min)
+Invoke `stocktake`. It reads the local usage log and reports most-used skills, skills with zero
+invocations in 60 days, and duplicates competing to fire, with at most 3 recommendations. Peter
+picks: rewrite the trigger, merge into a neighbor, disable, or delete. A skill on the prune list two
+reviews running with no trigger rewrite in between gets deleted. This step is what makes the Measure
+and Prune stages of the skill lifecycle (STANDARD.md §10) actually happen; don't skip it.
+
 ## Anti-pattern
 30-item retros. Exhaustive lists feel productive and change nothing. **Discipline is selectivity** — what you leave out is the work.
 
