@@ -9,13 +9,20 @@ All notable changes to `cklph-audit` are documented here. This project adheres t
 - **agent-config scope** — the default glob `**/hooks/**` matched app code such as
   `src/hooks/useAuth.ts`; replaced with `**/.claude/hooks/**` and `**/plugins/*/hooks/**`
   (`**/hooks/hooks.json` kept). The job now honors `args.path` (globs are prefixed with it, as
-  recon and unit inference scope to it). Recon seeds for the agent-config job are passed through
-  unfiltered, so seeds in app code (agent runtime call sites, surface 5) and in scripts a hook runs
-  are no longer dropped by the config globs. Engine test scenario C asserts all three.
+  recon and unit inference scope to it). `args.path` is normalized first: a leading `./` and a
+  trailing `/` are stripped, and `.`, `./` and `''` mean the whole repo, so no `./…` glob is
+  produced. When `args.path` is a plugin directory itself (`…/plugins/<name>`), `<path>/hooks/**`
+  is added so that plugin's own hooks stay in scope (a non-plugin scope such as `src` does not
+  get it, so `src/hooks/useAuth.ts` stays out). Recon seeds and safeControls for the agent-config
+  job are not filtered by the config globs, so seeds in app code (agent runtime call sites,
+  surface 5) and in scripts a hook runs are kept, but they are still filtered by `args.path`, so
+  out-of-scope files never reach the reviewer. Engine test scenario C asserts all of these.
 - **agent-config lens** — `agentcfg:mcp-review` defaulted to severity `info`, which the finding
   schema rejects; now `low` with confidence `needs-owner-input`. The `*.example.*` / `fixtures/**`
   exemption in `SKILL.md` would have suppressed every backtest target; it now covers fixtures in
-  ordinary audits only and says fixtures are the targets in a backtest. The should-not-flag
+  ordinary audits only and says fixtures are the targets in a backtest. It is scoped to this
+  plugin's own `plugins/cklph-audit/fixtures/**`, so another repo's `fixtures/` dir is still
+  reviewed. The should-not-flag
   `pinned-mcp` fixture no longer gives its remote server credentials in `headers` (which
   `agentcfg:mcp-remote` flags). The secret-scan `rg` in `recon.md` prints location only
   (`-o -r '[REDACTED]'`), never the matched secret.
@@ -31,15 +38,23 @@ All notable changes to `cklph-audit` are documented here. This project adheres t
   `${CLAUDE_PLUGIN_ROOT}/`.
 - **tools/dry.sh** — dropped the unpinned `npx jscpd` fallback that fetched from the registry at
   audit time; uses `npx --no-install jscpd` only, like the sibling tools, and skips with a message
-  when jscpd is not installed locally.
+  when jscpd is not installed locally. "Not installed" (`npx --no-install jscpd --version` fails)
+  and "installed but failed on this target" now get different messages.
 - **tools/exploit-runner.sh** (opt-in `dast.exploitVerify`) — no longer runs the generated PoC
   with `--network=host`. It runs in a throwaway user-defined bridge network and reaches the target
-  through `host.docker.internal` (host-gateway); a localhost target URL is rewritten to it. The
+  through `host.docker.internal` (host-gateway); a localhost target URL is rewritten to it. Limit:
+  on Linux, `host-gateway` is the docker bridge address, so a target bound only to the host's
+  loopback (`127.0.0.1`) is unreachable from the container; bind it to `0.0.0.0` or the bridge
+  address, or run it in a container on the same network. Docker Desktop (macOS/Windows) forwards
+  `host.docker.internal` to the host's loopback, so it works there. The
   bridge does not firewall egress; that limit is documented in the script. The target URL is passed
   as `-e TARGET_URL` instead of being interpolated into the shell string. The container runs `sh`
   (the curl image has no bash) and always prints the exit code, so a passing PoC is recorded as 0.
+  The exit-code marker is printed on its own line, so a PoC whose output has no trailing newline
+  no longer loses its last line (which held the success marker) to the marker filter.
 - Docs nits: `quick.md` notes agent-config and docs-drift are not sampled by `topN`; the example
-  config says the `agentConfig.globs` override replaces the defaults; the 2026-10-26 proof doc
+  config says the `agentConfig.globs` override replaces the defaults and lists the full default
+  glob list, so copying it loses no coverage; the 2026-10-26 proof doc
   escapes `|` inside its findings table and corrects the instruction-docs denominator to 107 (its
   command now excludes the lens's own files, as the doc's exclusions state).
 

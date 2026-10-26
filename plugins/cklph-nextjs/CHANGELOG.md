@@ -8,8 +8,10 @@ Format: [Keep a Changelog](https://keepachangelog.com); versioning follows [SemV
 ### Fixed
 - **`postgres`** — the "foreign keys with no index" query matched `a.attnum = any(i.indkey)`, so a
   trailing composite or `INCLUDE` column counted as covering the FK (false negative). It now
-  requires the column to lead the index (`i.indkey[0] = a.attnum`) and says it covers
-  single-column FKs.
+  requires the column to lead the index (`i.indkey[0] = a.attnum`), ignores partial indexes
+  (`i.indpred is null`), and is restricted to single-column FKs (`array_length(c.conkey, 1) = 1`)
+  so a composite FK `(a, b)` indexed on `(a, b)` no longer reports `b`. Composite FKs need a
+  manual check.
 - **`supabase-migrations`** — the RLS template now uses `(select auth.uid())`, matching the rule
   below it. The initPlan claim is limited to uncorrelated helpers; a helper that takes a row column
   still runs per row.

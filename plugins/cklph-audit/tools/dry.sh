@@ -12,7 +12,9 @@ fi
 OUT="$(mktemp -d)/jscpd"
 # --no-install only, like await.sh / deadcode.sh / layering.sh: never fetch an unpinned jscpd
 # from the registry at audit time. Not installed locally → skip with a message.
-if npx --no-install jscpd --silent --reporters json --output "$OUT" "$TARGET" >/dev/null 2>&1; then
+if ! npx --no-install jscpd --version >/dev/null 2>&1; then
+  echo "tool not installed: jscpd — skipping clone detection. Install a pinned version locally ('npm i -D jscpd@<version>') to enable it. Fallback: PMD-CPD." >&2
+elif npx --no-install jscpd --silent --reporters json --output "$OUT" "$TARGET" >/dev/null 2>&1; then
   REPORT="$OUT/jscpd-report.json"
   if [ -f "$REPORT" ] && command -v node >/dev/null 2>&1; then
     node -e '
@@ -28,6 +30,6 @@ if npx --no-install jscpd --silent --reporters json --output "$OUT" "$TARGET" >/
       }' "$REPORT"
   fi
 else
-  echo "tool not installed: jscpd — skipping clone detection. Install a pinned version locally ('npm i -D jscpd@<version>') to enable it. Fallback: PMD-CPD." >&2
+  echo "tool failed: jscpd is installed but exited non-zero on $TARGET — no clone candidates emitted. Re-run 'npx --no-install jscpd $TARGET' to see the error. Fallback: PMD-CPD." >&2
 fi
 exit 0

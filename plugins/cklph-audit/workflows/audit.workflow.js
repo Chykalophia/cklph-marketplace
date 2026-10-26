@@ -86,10 +86,22 @@ const agentConfigGlobsBase = config.agentConfig?.globs ?? [
   '**/hooks/hooks.json', '**/.claude/hooks/**', '**/plugins/*/hooks/**', '**/.claude-plugin/*.json',
   '**/CLAUDE.md', '**/AGENTS.md', '**/skills/**/SKILL.md', '**/agents/*.md',
 ]
-// honor args.path the way recon/unit inference do: scope the AI-tooling globs under it
-const agentConfigGlobs = args?.path
-  ? agentConfigGlobsBase.map(g => `${args.path.replace(/\/$/, '')}/${g}`)
+// honor args.path the way recon/unit inference do: scope the AI-tooling globs under it.
+// Normalize first: strip leading './' and trailing '/'; '.', './' and '' mean the whole repo.
+const scopePath = (() => {
+  const p = String(args?.path ?? '').trim().replace(/^(\.\/)+/, '').replace(/\/+$/, '')
+  return p === '.' ? '' : p
+})()
+// Scoped to a plugin dir itself (…/plugins/<name>): '**/plugins/*/hooks/**' needs a plugins/
+// segment UNDER the scope, so the plugin's own hooks/ would drop out. Add it back — only for a
+// plugin-shaped scope, so scoping to e.g. 'src' never sweeps src/hooks/useAuth.ts in.
+const agentConfigGlobs = scopePath
+  ? [
+      ...agentConfigGlobsBase.map(g => `${scopePath}/${g}`),
+      ...(!config.agentConfig?.globs && /(^|\/)plugins\/[^/]+$/.test(scopePath) ? [`${scopePath}/hooks/**`] : []),
+    ]
   : agentConfigGlobsBase
+const inScope = f => !scopePath || f === scopePath || f.startsWith(scopePath + '/')
 
 // vulnIntel: auto-detect MCP tools (cve-mcp, vuln-intel-ext) when available.
 // 'auto' (default) = use them if present, fall back to local tools if not.
@@ -775,8 +787,11 @@ const reviewed = await pipeline(
     const inUnit = s => { const nf = s?.file?.replace(/^\.\//, ''); return nf && globMatch(nf, job.unit.globs) }
     // agent-config recon is already scoped to the AI-tooling layer, and it deliberately cites
     // files OUTSIDE the config globs (LLM/agent runtime call sites in app code, scripts a hook
-    // runs). Filtering by the config globs would drop exactly those — pass them through.
-    const keep = job.lens === 'agent-config' ? () => true : inUnit
+    // runs). Filtering by the config globs would drop exactly those — keep them, but still
+    // honor args.path so out-of-scope files never reach the reviewer.
+    const keep = job.lens === 'agent-config'
+      ? s => { const nf = s?.file?.replace(/^\.\//, ''); return !!nf && inScope(nf) }
+      : inUnit
     const seeds = (recon?.seeds ?? []).filter(keep)
     const safeControls = (recon?.safeControls ?? []).filter(keep)
     // T2.1: when the Map ran, hand this unit its invariants + the boundaries whose `where`
