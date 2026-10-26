@@ -2,7 +2,8 @@
 # Opt-in: select with `compliance: { frameworks: [hipaa] }` (alone or alongside soc2/casa).
 # Scope: what code review can evidence — PHI classification, access control, audit trails,
 # leak vectors, and vendor data boundaries. It does NOT attest administrative or physical
-# safeguards, risk analysis, or BAA paperwork; those stay `not-checked` (owner evidence).
+# safeguards, risk analysis, or BAA paperwork; those are listed below as owner-evidence controls
+# (ADM1, ADM2, PHY1, BA1) so they appear in the matrix as `not-checked` instead of vanishing.
 # Adapted from ECC healthcare-phi-compliance + hipaa-compliance (MIT); see NOTICE-hipaa.md.
 
 version: 1
@@ -102,6 +103,29 @@ controls:
 
   # ── Vendor boundary ───────────────────────────────────────────────────────
   - id: hipaa:VB1
-    text: "Third-party services that receive PHI (hosting, database, email, SMS, observability, support, AI providers) are documented as BAA-covered; anything else is blocked-by-default in code (no PHI forwarded)"
+    text: "No PHI is forwarded to a third-party service (hosting, database, email, SMS, observability, support, AI providers) that is not on the repo's documented PHI-vendor list; anything else is blocked-by-default in code. Code and docs can show this boundary only; whether each listed vendor is actually BAA-covered is BA1 (owner evidence)"
     lensHint: "security,architecture"
+    severity: high
+
+  # ── Owner evidence (not code-reviewable) ──────────────────────────────────
+  # These exist so the matrix names the gap. Default status is `not-checked`; code or docs
+  # cannot mark them `met`. Only the owner's own evidence (outside this audit) closes them.
+  - id: hipaa:ADM1
+    text: "Risk analysis (164.308(a)(1)(ii)(A)): a current, documented assessment of risks to PHI confidentiality, integrity, and availability. Owner evidence; defaults to not-checked"
+    lensHint: "compliance"
+    severity: high
+
+  - id: hipaa:ADM2
+    text: "Administrative safeguards (164.308): security officer, workforce training and sanctions, access authorization and termination procedures, incident response, contingency plan. Owner evidence; defaults to not-checked"
+    lensHint: "compliance"
+    severity: high
+
+  - id: hipaa:PHY1
+    text: "Physical safeguards (164.310): facility access, workstation use and security, device and media disposal and re-use. Owner evidence; defaults to not-checked"
+    lensHint: "compliance"
+    severity: medium
+
+  - id: hipaa:BA1
+    text: "Business associate agreements (164.308(b), 164.314(a)): a signed BAA exists with every vendor that receives PHI. Owner evidence; defaults to not-checked"
+    lensHint: "compliance"
     severity: high

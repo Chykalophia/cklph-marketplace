@@ -28,7 +28,7 @@ Rule ids are `agentcfg:<kind>` (table in @checklist.md).
 
 ## Severity: context first
 
-A mutable selector is a **reproducibility and review signal, not a breach claim**. Default `medium`; raise to `high` when that server also receives credentials or can write/execute; `low` for a version range. A pinned selector proves only the direct reference, not the transitive tree or the server's behavior. Settings that disable the permission gate, hooks that pipe remote code into a shell, and injection-shaped instructions in an auto-loaded doc start at `high`. Fixture, example, and test files (`*.example.*`, `fixtures/**`) are labeled ground truth, not findings.
+A mutable selector is a **reproducibility and review signal, not a breach claim**. Default `medium`; raise to `high` when that server also receives credentials or can write/execute; `low` for a version range. A pinned selector proves only the direct reference, not the transitive tree or the server's behavior. Settings that disable the permission gate, hooks that pipe remote code into a shell, and injection-shaped instructions in an auto-loaded doc start at `high`. In an ordinary audit, the cklph-audit plugin's own labeled fixtures (`plugins/cklph-audit/fixtures/**`) are ground truth, not findings; any other repo's `fixtures/` directory is reviewed like the rest of its config. In a backtest the fixture files are the targets: flag them exactly as you would real config.
 
 ## Compose with sibling lenses and skills
 

@@ -1,5 +1,5 @@
 {
-  "_fixture": "agent-config lens · should-not-flag (PRECISION). Look-alikes: npx -y is present but every package is an exact version; the Docker image is pinned by a full sha256 digest (a tag alongside it is fine); the Python server is an exact == pin; credentials come from ${VAR} references, not literals; the remote server is https to a vendor endpoint with the token from an env reference. Expected verdict: NO finding (at most an INFO note that SAFE covers the direct selector only).",
+  "_fixture": "agent-config lens · should-not-flag (PRECISION). Look-alikes: npx -y is present but every package is an exact version; the Docker image is pinned by a full sha256 digest (a tag alongside it is fine); the Python server is an exact == pin; credentials come from ${VAR} references, not literals; the remote server is https to a vendor endpoint and is granted no credentials (no headers). Expected verdict: NO finding (the report may note that a pinned selector covers the direct reference only).",
   "mcpServers": {
     "browser": {
       "command": "npx",
@@ -20,8 +20,7 @@
     },
     "docs": {
       "type": "http",
-      "url": "https://mcp.example.com/mcp",
-      "headers": { "Authorization": "Bearer ${DOCS_MCP_TOKEN}" }
+      "url": "https://mcp.example.com/mcp"
     }
   }
 }

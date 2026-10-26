@@ -28,9 +28,9 @@ You are dispatched in **two** phases, same discipline both times:
    - **container** → `container.sh` (Trivy image/Grype/dive/hadolint: image vulns, secrets in layers, root/privileged).
    - **k8s** → `k8s.sh` (Kubescape/kube-bench/kube-hunter: RBAC, pod security, network policies).
    - **supply-chain** → `supplychain.sh` (semgrep CI rules, pull_request_target grep, dep-confusion, SLSA checks).
-   - **compliance** → no tool (mapping exercise; load the framework rulebook from `skills/compliance-lens/rulebooks/`).
+   - **compliance** → no tool (mapping exercise; load the framework rulebook from `${CLAUDE_PLUGIN_ROOT}/skills/compliance-lens/rulebooks/`).
    - **concurrency / state-machine / economic** → no tool (pure reasoning; anchor every finding to `file:line`).
-   - **agent-config** → no tool; run the read-only `rg` enumerations in `skills/agent-config-lens/recon.md` for recall. STATIC ONLY: never execute a discovered MCP server, hook, or package runner.
+   - **agent-config** → no tool; run the read-only `rg` enumerations in `${CLAUDE_PLUGIN_ROOT}/skills/agent-config-lens/recon.md` for recall. STATIC ONLY: never execute a discovered MCP server, hook, or package runner.
    - **architecture** → `dry.sh`, `deadcode.sh`, `layering.sh`; **correctness** → `await.sh`; **docs-drift** → `docsdrift.sh`; **omission** → `omissions.sh`.
    The tool enumerates candidates so you don't hunt by reading. Then reason over candidates instead of grepping blindly. The tool is recall; you are judgment + explanation.
 3. **Re-open EVERY seed before trusting it.** Seeds are recon hints, not findings — citations drift. Read the cited file:line yourself; promote what reproduces, drop what doesn't (dropped seeds still count in `seedsGiven`). Same discipline for safe-control candidates: confirm the guard at its file:line or reject it — either way, record the verdict in `safeControlChecks`.
