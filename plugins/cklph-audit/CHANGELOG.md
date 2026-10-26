@@ -3,6 +3,14 @@
 All notable changes to `cklph-audit` are documented here. This project adheres to
 [Semantic Versioning](https://semver.org/).
 
+## 1.1.1 — 2026-10-26
+
+### Changed
+- Public-repo scrub: the security backtest ground truth, v1 acceptance criteria, report-format
+  example, README and 0.1.0 entry now describe the reference audit generically (a known
+  pre-remediation commit of a production app) instead of naming the product, the audit
+  artifact, or its specific findings. Behavior and acceptance thresholds unchanged.
+
 ## 1.1.0 — 2026-07-23
 
 ### MCP vulnerability intelligence integration

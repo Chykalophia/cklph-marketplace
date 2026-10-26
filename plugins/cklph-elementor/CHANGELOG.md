@@ -3,6 +3,11 @@
 All notable changes to `cklph-elementor` are documented here.
 Format: [Keep a Changelog](https://keepachangelog.com); versioning follows [SemVer](https://semver.org).
 
+## [0.1.1] — 2026-10-26
+
+### Changed
+- `elementor-data` example uses a neutral color value. No behavior change.
+
 ## [0.1.0] — 2026-06-09
 
 ### Added

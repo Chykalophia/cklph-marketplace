@@ -3,6 +3,11 @@
 All notable changes to `cklph-figma` are documented here.
 Format: [Keep a Changelog](https://keepachangelog.com); versioning follows [SemVer](https://semver.org).
 
+## [0.1.1] — 2026-10-26
+
+### Changed
+- `figma-tokens` example uses neutral brand token names and colors. No behavior change.
+
 ## [0.1.0] — 2026-06-09
 
 ### Added
