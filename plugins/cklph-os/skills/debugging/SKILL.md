@@ -15,4 +15,8 @@ description: Systematic root-cause debugging. Use when a build or test fails, be
 5. **Guard** — the failing test from step 2 now passes; remove the debug logs. If you skipped the
    test-first move, add the regression test now and confirm it fails pre-fix, passes post-fix.
 
+**UI does the wrong thing, but every function works?** Stop bisecting functions. Run
+`click-path-audit`: trace each handler's writes in order and look for a later call (a store action's
+side-effect reset, a refetch, a rollback, an effect) that undoes an earlier one.
+
 Feeds the `verify` → gap → `build` loop. End with `## ROOT CAUSE: <one line>` or `## STILL UNKNOWN`.

@@ -148,7 +148,11 @@ STATE.md                   # working state
 
 ### Memory
 - `~/.claude/memory/GLOBAL.md` — cross-project facts, preferences, repo relationships, shared infra.
-- `STATE.md` per repo — current work, decisions, blockers. Update before `/compact` or session end.
+- `STATE.md` per repo — current work, decisions, blockers, and a **"Removed on purpose"** list
+  (deleted files and abandoned approaches, with the reason and replacement) so no session recreates
+  them. Update before `/compact` or session end.
+- **One owner per fact:** rules in `AGENTS.md`, current state in `STATE.md`, history in git, the
+  CHANGELOG or an ADR. Other files link to the owner; they don't copy it.
 
 ---
 

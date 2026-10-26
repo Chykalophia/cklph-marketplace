@@ -10,6 +10,13 @@ Pick the **intensity** for the change under review:
 - **red-team** — dispatch the **`red-team`** agent instead. Use for high-stakes changes: security /
   auth / money / data integrity / irreversible actions, or before a public release. `flow`
   auto-escalates to this at hard gates.
+- **two-reviewer gate** — two fresh reviewers, the same written rubric, **both** must pass, at most
+  2 fix rounds, then escalate to Peter. **Only** for client-facing deliverables, security-sensitive
+  diffs, and anything published publicly (this marketplace included). Procedure: `@two-reviewer-gate.md`.
+
+**Shared client state in the diff?** If it touches a store action, a TanStack Query mutation or
+query key, a context provider, or an effect that syncs state, also run `click-path-audit` on the
+touchpoints that reach it.
 
 The reviewer runs in a **fresh context**, **reads the tests first**, and reviews on **three axes —
 standards, spec, and omissions (what wasn't asked) — reported separately**, by severity with

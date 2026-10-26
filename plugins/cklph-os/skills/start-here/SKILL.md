@@ -44,7 +44,9 @@ Situation → skill. Every cklph-os skill has a row here (STANDARD.md §10, Wire
 | Build something end to end | `flow` |
 | A vague idea needs sharpening before a spec | `refine` |
 | New feature scope with gaps across users, devices, edges | `survey` |
+| New or inherited client codebase or site | `survey` (brownfield mode → gap register) |
 | Bug, failing test, unexpected behavior | `debugging` |
+| UI does the wrong thing but every function works | `click-path-audit` |
 | UI bug or console error in a running app | `browser-debug` |
 | Contract or API surface shared by parallel work | `api-design` |
 | Module structure, coupling, abstraction choices | `design` |
@@ -53,6 +55,10 @@ Situation → skill. Every cklph-os skill has a row here (STANDARD.md §10, Wire
 | Change touches input, auth, secrets, I/O | `security-hardening` |
 | Works but reads harder than it should | `simplify` |
 | Stuck on a choice | `decide` |
+| Ambiguous go/no-go with real stakes | `decide` (one-way door → council) |
+| Client deliverable, security diff, or public release before ship | `review` (two-reviewer gate) |
+| About to say "done" | `verify` (evidence check) |
+| About to run a destructive command | `security-hardening` (destructive commands) |
 | A pile of open items | `triage` |
 | Start or end of day | `daily-frame` |
 | End of week; which skills earn their place | `weekly-review` → `stocktake` |

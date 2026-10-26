@@ -11,5 +11,11 @@ description: The VERIFY phase of the cklph-os flow — prove it works. Run build
 3. Anything failing → emit a **structured gap list** (`@gaps-format.md`): diagnose the **root cause**
    (reproduce it first), route each `fix_task` back to `build` as a gaps-only wave, then re-verify.
 
+4. **Evidence check on the claim itself.** Every "done", "fixed" or "works" in your report points at
+   output from *this* session. "Should work now", "I believe this fixes", "likely resolved" with no
+   output beside them fail this check: run the command or downgrade the claim. Full list and what
+   counts as evidence: `@rationalization-patterns.md`.
+
 Do **not** claim done on "looks right" — there must be evidence (passing output, observed behavior).
-For UI, exercise the feature, don't just type-check. End with `## VERIFIED` or `## GAPS FOUND`. Hands off to `ship` only when verified.
+For UI, exercise the feature, don't just type-check. End with `## VERIFIED` or `## GAPS FOUND`. Hands off to `ship` only when verified; `ship` blocks on
+`## GAPS FOUND`.
