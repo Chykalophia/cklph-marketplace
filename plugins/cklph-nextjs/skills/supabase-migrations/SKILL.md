@@ -25,19 +25,21 @@ If `db push` fails on remote, **don't edit the committed migration** — write a
 alter table public.<name> enable row level security;
 
 create policy "users read own"  on public.<name>
-  for select using ( auth.uid() = user_id );
+  for select using ( (select auth.uid()) = user_id );
 
 create policy "users insert own" on public.<name>
-  for insert with check ( auth.uid() = user_id );
+  for insert with check ( (select auth.uid()) = user_id );
 
 create policy "users update own" on public.<name>
-  for update using ( auth.uid() = user_id ) with check ( auth.uid() = user_id );
+  for update using ( (select auth.uid()) = user_id ) with check ( (select auth.uid()) = user_id );
 
 create policy "users delete own" on public.<name>
-  for delete using ( auth.uid() = user_id );
+  for delete using ( (select auth.uid()) = user_id );
 ```
 
 UPDATE needs both `USING` (which rows you can target) and `WITH CHECK` (what the new row looks like) — skipping `WITH CHECK` lets a user reassign `user_id`.
+
+Write `(select auth.uid()) = user_id`, not bare `auth.uid() = user_id`: an uncorrelated subselect (one that reads no column of the row) runs once per query as an initPlan instead of once per row. Same for `auth.jwt()` and any stable helper called without row arguments. A helper that takes a column of the row, such as `is_member(organization_id)`, is correlated and still runs per row, so the wrapper does not help it. Index the column the policy filters on (`user_id`, `organization_id`).
 
 ## Indexes — separate migration, named consistently
 
@@ -59,6 +61,7 @@ The Supabase MCP is **read-only** here. Use it for `execute_sql` (SELECTs only),
 - Using MCP for DDL — no migration file, drifts across environments.
 - User-data table without RLS enabled.
 - UPDATE policy with `USING` but no `WITH CHECK` — lets users reassign `user_id`.
+- Bare `auth.uid()` in a policy on a big table — re-evaluated per row; wrap it as `(select auth.uid())`.
 - Foreign key without an index — every join does a sequential scan.
 - Missing `UNIQUE` on app-unique columns (slug, email-per-workspace) — RLS won't save you from duplicates.
 

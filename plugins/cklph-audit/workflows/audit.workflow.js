@@ -19,8 +19,8 @@
 //   4. REVIEW    — one audit-reviewer per (unit × lens); tool-first recall,
 //                  re-verifies its seeds, answers a ruleCheck for EVERY rule
 //                  handed, names root-cause + violated invariant, reports honest
-//                  coverage. docs-drift + compliance are NOT crossed with units:
-//                  exactly ONE job each, run post-reconcile.
+//                  coverage. docs-drift, agent-config + compliance are NOT crossed
+//                  with units: exactly ONE job each (compliance runs post-reconcile).
 //   5. VERIFY    — audit-verifier refutes each finding from COMMENT-STRIPPED code
 //                  (default-refuted). Evidence, not vote tally, arbits (T1.3):
 //                  low/medium promote on majority, critical/high require a
@@ -77,6 +77,31 @@ const config = args?.config ?? {}
 const baseline = new Set((args?.baseline?.fingerprints) ?? [])
 const mode = args?.mode ?? 'full'
 const rulesFromList = config.rulesFrom ?? ['CLAUDE.md', 'AGENTS.md']
+// agent-config lens: the repo's AI-tooling layer (MCP configs, Claude/agent settings, hooks,
+// instruction docs, skills, agent definitions). One job over these globs, never crossed with units.
+// Hook globs are anchored to agent tooling (.claude/hooks, plugin hooks) — a bare '**/hooks/**'
+// would sweep app code such as src/hooks/useAuth.ts into this lens.
+const agentConfigGlobsBase = config.agentConfig?.globs ?? [
+  '**/.mcp.json', '**/mcp.json', '**/.claude/**', '**/.cursor/**', '**/.vscode/mcp.json',
+  '**/hooks/hooks.json', '**/.claude/hooks/**', '**/plugins/*/hooks/**', '**/.claude-plugin/*.json',
+  '**/CLAUDE.md', '**/AGENTS.md', '**/skills/**/SKILL.md', '**/agents/*.md',
+]
+// honor args.path the way recon/unit inference do: scope the AI-tooling globs under it.
+// Normalize first: strip leading './' and trailing '/'; '.', './' and '' mean the whole repo.
+const scopePath = (() => {
+  const p = String(args?.path ?? '').trim().replace(/^(\.\/)+/, '').replace(/\/+$/, '')
+  return p === '.' ? '' : p
+})()
+// Scoped to a plugin dir itself (…/plugins/<name>): '**/plugins/*/hooks/**' needs a plugins/
+// segment UNDER the scope, so the plugin's own hooks/ would drop out. Add it back — only for a
+// plugin-shaped scope, so scoping to e.g. 'src' never sweeps src/hooks/useAuth.ts in.
+const agentConfigGlobs = scopePath
+  ? [
+      ...agentConfigGlobsBase.map(g => `${scopePath}/${g}`),
+      ...(!config.agentConfig?.globs && /(^|\/)plugins\/[^/]+$/.test(scopePath) ? [`${scopePath}/hooks/**`] : []),
+    ]
+  : agentConfigGlobsBase
+const inScope = f => !scopePath || f === scopePath || f.startsWith(scopePath + '/')
 
 // vulnIntel: auto-detect MCP tools (cve-mcp, vuln-intel-ext) when available.
 // 'auto' (default) = use them if present, fall back to local tools if not.
@@ -123,7 +148,7 @@ const RULEBOOK_SCHEMA = {
           id: { type: 'string' },                // stable slug, e.g. "agents-md:rule-3"
           source: { type: 'string' },            // file:line
           text: { type: 'string' },              // verbatim or tight paraphrase
-          lensHint: { type: 'string', enum: ['security', 'correctness', 'architecture', 'docs-drift', 'sca', 'iac', 'container', 'k8s', 'supply-chain', 'compliance', 'concurrency', 'state-machine', 'economic', 'omission', 'any'] },
+          lensHint: { type: 'string', enum: ['security', 'correctness', 'architecture', 'docs-drift', 'sca', 'iac', 'container', 'k8s', 'supply-chain', 'compliance', 'concurrency', 'state-machine', 'economic', 'omission', 'agent-config', 'any'] },
         },
       },
     },
@@ -433,7 +458,7 @@ const COMPLIANCE_SCHEMA = {                        // compliance-lens output (si
         type: 'object',
         required: ['framework', 'control', 'status'],
         properties: {
-          framework: { type: 'string', enum: ['soc2', 'casa'] },
+          framework: { type: 'string', enum: ['soc2', 'casa', 'hipaa'] },
           control: { type: 'string' },             // e.g. "soc2:CC6.1"
           status: { type: 'string', enum: ['met', 'violation', 'not-applicable', 'not-checked'] },
           findingIds: { type: 'array', items: { type: 'string' } },
@@ -616,7 +641,7 @@ const discovered = await parallel([
     `Extract this repo's RULEBOOK: parse ${JSON.stringify(rulesFromList)} into discrete rules ` +
     `(skip files that don't exist). Each rule: stable slug id (e.g. "agents-md:rule-3"), source ` +
     `file:line, text (verbatim or tight paraphrase), lensHint ` +
-    `(security|correctness|architecture|docs-drift|any). Split compound rules; skip prose that ` +
+    `(security|correctness|architecture|docs-drift|agent-config|any). Split compound rules; skip prose that ` +
     `isn't a rule. Read-only.`,
     { agentType: 'cklph-audit:audit-recon', label: 'discover:rulebook', schema: RULEBOOK_SCHEMA, ...tier('rulebook') },
   ),
@@ -628,7 +653,9 @@ const discovered = await parallel([
     `patterns: file:line + what they protect). Honor ignore globs: ${JSON.stringify(config.ignore ?? [])}. Read-only.` +
     (lens === 'docs-drift'
       ? ` The rulebook docs to recon are: ${JSON.stringify(rulesFromList)} — enumerate THEIR references (paths, scripts, packages), not the whole repo.`
-      : ''),
+      : lens === 'agent-config'
+        ? ` Recon the AI-tooling layer only: ${JSON.stringify(agentConfigGlobs)} plus LLM/agent runtime call sites. STATIC ONLY — read config as text, never execute a discovered MCP server, hook, or package runner, never resolve a package over the network.`
+        : ''),
     { agentType: 'cklph-audit:audit-recon', label: `recon:${lens}`, phase: 'Recon', schema: RECON_SCHEMA, ...tier('recon') },
   )) : []),
 ])
@@ -685,10 +712,11 @@ if (mode === 'quick') {
   if (dropped.length) log(`quick mode: auditing top ${topN} by risk; SKIPPED (not audited): ${dropped.join(', ')}`)
 }
 
-// work-list = every (unit × lens) pair. docs-drift + compliance are NOT crossed with units —
-// docs-drift is exactly ONE job over the rulesFrom docs (M5); compliance is a post-reconcile
-// mapping job that runs AFTER all other findings are confirmed (it maps them to SOC 2/CASA).
-const SPECIAL_LENS = new Set(['docs-drift', 'compliance'])
+// work-list = every (unit × lens) pair. docs-drift, agent-config + compliance are NOT crossed
+// with units — docs-drift is exactly ONE job over the rulesFrom docs (M5); agent-config is exactly
+// ONE job over the AI-tooling globs; compliance is a post-reconcile mapping job that runs AFTER all
+// other findings are confirmed (it maps them to SOC 2/CASA/HIPAA).
+const SPECIAL_LENS = new Set(['docs-drift', 'agent-config', 'compliance'])
 const unitLenses = lenses.filter(l => !SPECIAL_LENS.has(l))
 if (units.length === 0 && unitLenses.length > 0) {
   log(`WARNING: no units — ${unitLenses.join(', ')} lens(es) have nothing to review; ` +
@@ -698,9 +726,12 @@ const jobs = units.flatMap(u => unitLenses.map(lens => ({ unit: u, lens })))
 if (lenses.includes('docs-drift')) {
   jobs.push({ unit: { key: 'docs', title: 'Repo rulebook docs', globs: rulesFromList, confidence: 1 }, lens: 'docs-drift' })
 }
+if (lenses.includes('agent-config')) {
+  jobs.push({ unit: { key: 'agent-config', title: 'AI tooling layer (MCP, settings, hooks, instructions)', globs: agentConfigGlobs, confidence: 1 }, lens: 'agent-config' })
+}
 const hasCompliance = lenses.includes('compliance')
 log(`${units.length} unit(s) [${unitSource}${lowConfidence.length ? `, ${lowConfidence.length} low-confidence flagged: ${lowConfidence.join(', ')}` : ''}] × ${unitLenses.length} lens(es)` +
-    `${lenses.includes('docs-drift') ? ' + 1 docs-drift job' : ''}${hasCompliance ? ' + 1 compliance mapping job (post-reconcile)' : ''}`)
+    `${lenses.includes('docs-drift') ? ' + 1 docs-drift job' : ''}${lenses.includes('agent-config') ? ' + 1 agent-config job' : ''}${hasCompliance ? ' + 1 compliance mapping job (post-reconcile)' : ''}`)
 
 // ════════════════════════════════════════════════════════════════════════════
 // 3. MAP — threat model: trust boundaries, data-flows, invariants, crown jewels (T2.1)
@@ -754,8 +785,15 @@ const reviewed = await pipeline(
     const recon = reconByLens[job.lens]
     // normalize recon paths (./foo → foo) so glob matching doesn't drop seeds on a prefix
     const inUnit = s => { const nf = s?.file?.replace(/^\.\//, ''); return nf && globMatch(nf, job.unit.globs) }
-    const seeds = (recon?.seeds ?? []).filter(inUnit)
-    const safeControls = (recon?.safeControls ?? []).filter(inUnit)
+    // agent-config recon is already scoped to the AI-tooling layer, and it deliberately cites
+    // files OUTSIDE the config globs (LLM/agent runtime call sites in app code, scripts a hook
+    // runs). Filtering by the config globs would drop exactly those — keep them, but still
+    // honor args.path so out-of-scope files never reach the reviewer.
+    const keep = job.lens === 'agent-config'
+      ? s => { const nf = s?.file?.replace(/^\.\//, ''); return !!nf && inScope(nf) }
+      : inUnit
+    const seeds = (recon?.seeds ?? []).filter(keep)
+    const safeControls = (recon?.safeControls ?? []).filter(keep)
     // T2.1: when the Map ran, hand this unit its invariants + the boundaries whose `where`
     // glob-matches it. Security findings SHOULD cite the boundary; each invariant is checked.
     const unitInvariants = mapRan ? model.invariants.filter(i => i.unit === job.unit.key) : []

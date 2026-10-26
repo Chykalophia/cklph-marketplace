@@ -3,6 +3,82 @@
 All notable changes to `cklph-audit` are documented here. This project adheres to
 [Semantic Versioning](https://semver.org/).
 
+## 1.2.1 — 2026-10-26
+
+### Fixed
+- **agent-config scope** — the default glob `**/hooks/**` matched app code such as
+  `src/hooks/useAuth.ts`; replaced with `**/.claude/hooks/**` and `**/plugins/*/hooks/**`
+  (`**/hooks/hooks.json` kept). The job now honors `args.path` (globs are prefixed with it, as
+  recon and unit inference scope to it). `args.path` is normalized first: a leading `./` and a
+  trailing `/` are stripped, and `.`, `./` and `''` mean the whole repo, so no `./…` glob is
+  produced. When `args.path` is a plugin directory itself (`…/plugins/<name>`), `<path>/hooks/**`
+  is added so that plugin's own hooks stay in scope (a non-plugin scope such as `src` does not
+  get it, so `src/hooks/useAuth.ts` stays out). Recon seeds and safeControls for the agent-config
+  job are not filtered by the config globs, so seeds in app code (agent runtime call sites,
+  surface 5) and in scripts a hook runs are kept, but they are still filtered by `args.path`, so
+  out-of-scope files never reach the reviewer. Engine test scenario C asserts all of these.
+- **agent-config lens** — `agentcfg:mcp-review` defaulted to severity `info`, which the finding
+  schema rejects; now `low` with confidence `needs-owner-input`. The `*.example.*` / `fixtures/**`
+  exemption in `SKILL.md` would have suppressed every backtest target; it now covers fixtures in
+  ordinary audits only and says fixtures are the targets in a backtest. It is scoped to this
+  plugin's own `plugins/cklph-audit/fixtures/**`, so another repo's `fixtures/` dir is still
+  reviewed. The should-not-flag
+  `pinned-mcp` fixture no longer gives its remote server credentials in `headers` (which
+  `agentcfg:mcp-remote` flags). The secret-scan `rg` in `recon.md` prints location only
+  (`-o -r '[REDACTED]'`), never the matched secret.
+- **HIPAA rulebook** — administrative safeguards, physical safeguards, risk analysis and BAA
+  paperwork were promised as `not-checked` but had no controls, so they vanished from the matrix.
+  Added owner-evidence controls `hipaa:ADM1`, `hipaa:ADM2`, `hipaa:PHY1`, `hipaa:BA1` (default
+  `not-checked`). `hipaa:VB1` reworded so code and docs can only show "no PHI forwarded to vendors
+  not on the list", never BAA coverage `met`.
+- **Report contract** — `audit-synthesizer`, `audit-report-format` and the README now ask for one
+  compliance sub-section per selected framework (SOC 2, CASA, HIPAA). `compliance-lens` and the
+  report-format example use the schema status `met`, not `verified-safe`.
+- **audit-reviewer** — the agent-config recon and compliance rulebook paths are prefixed with
+  `${CLAUDE_PLUGIN_ROOT}/`.
+- **tools/dry.sh** — dropped the unpinned `npx jscpd` fallback that fetched from the registry at
+  audit time; uses `npx --no-install jscpd` only, like the sibling tools, and skips with a message
+  when jscpd is not installed locally. "Not installed" (`npx --no-install jscpd --version` fails)
+  and "installed but failed on this target" now get different messages.
+- **tools/exploit-runner.sh** (opt-in `dast.exploitVerify`) — no longer runs the generated PoC
+  with `--network=host`. It runs in a throwaway user-defined bridge network and reaches the target
+  through `host.docker.internal` (host-gateway); a localhost target URL is rewritten to it. Limit:
+  on Linux, `host-gateway` is the docker bridge address, so a target bound only to the host's
+  loopback (`127.0.0.1`) is unreachable from the container; bind it to `0.0.0.0` or the bridge
+  address, or run it in a container on the same network. Docker Desktop (macOS/Windows) forwards
+  `host.docker.internal` to the host's loopback, so it works there. The
+  bridge does not firewall egress; that limit is documented in the script. The target URL is passed
+  as `-e TARGET_URL` instead of being interpolated into the shell string. The container runs `sh`
+  (the curl image has no bash) and always prints the exit code, so a passing PoC is recorded as 0.
+  The exit-code marker is printed on its own line, so a PoC whose output has no trailing newline
+  no longer loses its last line (which held the success marker) to the marker filter.
+- Docs nits: `quick.md` notes agent-config and docs-drift are not sampled by `topN`; the example
+  config says the `agentConfig.globs` override replaces the defaults and lists the full default
+  glob list, so copying it loses no coverage; the 2026-10-26 proof doc
+  escapes `|` inside its findings table and corrects the instruction-docs denominator to 107 (its
+  command now excludes the lens's own files, as the doc's exclusions state).
+
+## 1.2.0 — 2026-10-26
+
+### Added
+- **`agent-config` lens (opt-in)** — static review of the repo's AI tooling layer: MCP configs
+  (mutable `@latest`/dist-tag/bare/range selectors, Docker images without a digest, remote URLs,
+  literal secrets, shell-wrapped servers), `.claude` settings (`bypassPermissions`, `Bash(*)`, no
+  deny list, MCP auto-trust), hooks (curl-to-bash, absolute paths, tool-input injection, fail-open
+  gates), instruction docs/skills/agent definitions (prompt-injection-shaped and auto-run content,
+  secrets), and agent runtimes that turn untrusted content into tool actions. Never executes a
+  discovered MCP server, hook, or package runner. Runs as exactly one job over the AI-tooling globs
+  (`agentConfig.globs` overrides), like `docs-drift`. Rule ids `agentcfg:<kind>`. Skill
+  `skills/agent-config-lens/` (+ `checklist.md`, `mcp-selectors.md`, `recon.md`, `trigger-tests.md`),
+  fixtures `fixtures/agent-config/should-flag` (5) and `should-not-flag` (5), engine test scenario C
+  (one job, glob-scoped, static-only recon prompt, finding reaches the report).
+- **HIPAA rulebook (opt-in)** — `skills/compliance-lens/rulebooks/hipaa.yaml`: code-reviewable
+  technical safeguards (PHI classification, row-level access, minimum necessary, tamper-evident
+  audit trail, encryption, leak vectors, BAA vendor boundary). Select with
+  `compliance: { frameworks: [hipaa] }`. `compliance-lens` gains a PHI leak-vector section and
+  `agentcfg:*` mapping rows; the compliance schema accepts `framework: hipaa`.
+- Adapted from: ECC (MIT) `skills/mcp-dependency-review`, `skills/security-scan`, `skills/agent-security-hardening` (agent-config lens), `skills/healthcare-phi-compliance`, `skills/hipaa-compliance` (HIPAA rulebook), commit 25278e7. Notices in `skills/agent-config-lens/NOTICE.md` and `skills/compliance-lens/rulebooks/NOTICE-hipaa.md`.
+
 ## 1.1.1 — 2026-10-26
 
 ### Changed

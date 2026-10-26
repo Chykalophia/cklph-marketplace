@@ -17,7 +17,7 @@ Said with no command output beside them, each of these is a finding against your
 | "I believe this fixes", "this likely resolves" | a hypothesis presented as a result | test the hypothesis, then report the result |
 | "looks good", "looks right" | code was read, not executed | run it; for UI, exercise it in the browser |
 | "tests should pass" | the suite was not run | run the suite; paste the summary line |
-| "this is a pre-existing issue" | a failure you are stepping around | prove it fails at the actual base revision (a clean worktree: `git worktree add ../base <base-sha>`, rerun there), or fix it |
+| "this is a pre-existing issue" | a failure you are stepping around | prove it fails at the actual base revision (a clean worktree: `git worktree add ../base <base-sha>`; it has no `node_modules` or build output, so install and build there first; rerun; then `git worktree remove ../base`), or fix it |
 | "skipping tests / lint / type-check for now" | a gate turned off to get to green | run it; if it can't run, that is a `## GAPS FOUND` item |
 | "tests are failing but I'll fix them" | done claimed with red tests | not done; route the failure back to `build` |
 | "leaving the failing test", "won't fix the broken build" | a known failure shipped | fix it, or ask the user to accept it explicitly |

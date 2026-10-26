@@ -200,5 +200,90 @@ const v1def = (dIn.deferred || []).find(f => f.id === 'V1');
 if (v1def && !/sibling/i.test(v1def.note || '')) console.log('  · V1 deferred without pedigree note (minor)');
 else if (v1def) console.log('  ✓ deferred variant sibling V1 keeps its "sibling of a confirmed critical" pedigree');
 
+// ── SCENARIO C: agent-config lens — exactly ONE job over the AI-tooling globs, never crossed with units ─
+console.log('\n=== SCENARIO C: agent-config single job ===');
+synthInput = null; logs.length = 0;
+const A1 = { id: 'A1', title: '.mcp.json runs an MCP server via npx -y pkg@latest (mutable selector)', severity: 'medium', file: '.mcp.json', line: 5, rule: 'agentcfg:mcp-unpinned', rationale: 'mutable', snippet: '"example-mcp@latest"', normalizedSnippet: 'example-mcp@latest', suggestedFix: 'pin reviewed version', source: 'reasoning' };
+const seenLabels = [];
+const seenPrompts = {};
+const agentC = async (prompt, opts = {}) => {
+  const label = opts.label || '';
+  seenLabels.push(label); seenPrompts[label] = prompt;
+  if (label === 'recon:agent-config') return { domain: 'agent-config', denominators: [{ pattern: 'mcp configs', description: 'repo MCP config files', command: "rg --files --hidden -g '**/.mcp.json'", count: 1 }], seeds: [{ file: '.mcp.json', line: 5, note: '@latest selector' }, { file: 'lib/llm/agent-runtime.ts', line: 14, note: 'LLM call site feeds fetched email into a tool-using agent' }, { file: './packages/app/lib/llm/in-scope-call.ts', line: 3, note: 'scoped LLM call site' }, { file: 'other/lib/llm/out-of-scope-call.ts', line: 3, note: 'LLM call site outside args.path' }], safeControls: [{ file: 'other/.mcp.json', line: 2, note: 'pinned server, outside args.path' }] };
+  if (label === 'review:agent-config:agent-config') return { findings: [A1], ruleChecks: [], coverage: { seedsVerified: 1, seedsGiven: 1, toolCandidatesJudged: 0 } };
+  if (label.startsWith('verify:') && /npx -y pkg@latest/.test(prompt)) return { refuted: false, reason: 'selector is @latest', reachabilityTrace: '.mcp.json:5 args contains example-mcp@latest', confidence: 0.9 };
+  return agent(prompt, opts);
+};
+const argsC = JSON.parse(JSON.stringify(args));
+argsC.lenses = ['security', 'agent-config'];
+argsC.config.lenses = ['security', 'agent-config'];
+await runFn({ agent: agentC, parallel, pipeline, phase, log, args: argsC, budget });
+const acReviews = seenLabels.filter(l => l.startsWith('review:') && l.endsWith(':agent-config'));
+// C1: exactly one agent-config review job, keyed 'agent-config' (not crossed with the api-surface unit)
+if (acReviews.length !== 1 || acReviews[0] !== 'review:agent-config:agent-config') { problems++; console.log(`  ✗ expected exactly one review:agent-config:agent-config job, got ${JSON.stringify(acReviews)}`); }
+else console.log('  ✓ exactly one agent-config review job (not crossed with units)');
+// C2: the job is scoped to the AI-tooling globs and the recon prompt carries the static-only boundary
+const acPrompt = seenPrompts['review:agent-config:agent-config'] || '';
+if (!acPrompt.includes('**/.mcp.json') || !acPrompt.includes('**/hooks/hooks.json')) { problems++; console.log('  ✗ agent-config job not scoped to the AI-tooling globs'); }
+else console.log('  ✓ agent-config job scoped to the AI-tooling globs');
+if (!/never execute/i.test(seenPrompts['recon:agent-config'] || '')) { problems++; console.log('  ✗ recon:agent-config prompt lacks the static-only boundary'); }
+else console.log('  ✓ recon:agent-config prompt carries the static-only boundary');
+// C3: the security lens still crosses with the unit, and the agent-config finding reaches the report
+if (!seenLabels.includes('review:api-surface:security')) { problems++; console.log('  ✗ security lens no longer runs per unit'); }
+const freshC = (synthInput?.findings || []).map(f => f.id);
+if (!freshC.includes('A1')) { problems++; console.log(`  ✗ confirmed agent-config finding A1 missing from synthesizer input (fresh: ${JSON.stringify(freshC)})`); }
+else console.log('  ✓ confirmed agent-config finding reaches the report');
+// C4: app code under a generic hooks/ dir (React hooks) is NOT in the agent-config scope, while
+// real agent hook dirs are. Uses the engine's own globMatch over the globs the job was handed.
+const globMatch = new Function(src.match(/function globMatch[\s\S]*?\n}\n/)[0] + '; return globMatch')();
+const jobGlobs = (p) => { const m = p.match(/globs: (\[[^\]]*\])/); try { return m ? JSON.parse(m[1]) : []; } catch { return []; } };
+const acGlobs = jobGlobs(acPrompt);
+if (!acGlobs.length) { problems++; console.log('  ✗ could not read the agent-config job globs from its prompt'); }
+else if (globMatch('src/hooks/x.ts', acGlobs)) { problems++; console.log('  ✗ src/hooks/x.ts (app code) is inside the agent-config scope'); }
+else if (!globMatch('.claude/hooks/pre.sh', acGlobs) || !globMatch('plugins/p/hooks/run.sh', acGlobs) || !globMatch('hooks/hooks.json', acGlobs)) { problems++; console.log('  ✗ agent hook paths fell out of the agent-config scope'); }
+else console.log('  ✓ src/hooks/x.ts is out of agent-config scope; .claude/hooks, plugin hooks, hooks.json are in');
+// C5: recon seeds outside the config globs (LLM runtime call sites) still reach the agent-config reviewer
+if (!acPrompt.includes('lib/llm/agent-runtime.ts')) { problems++; console.log('  ✗ agent-config recon seed in app code was filtered out of the review prompt'); }
+else console.log('  ✓ agent-config recon seeds pass through unfiltered (runtime call site kept)');
+// C6: args.path scopes the agent-config job's globs (as recon and unit inference do)
+seenLabels.length = 0; for (const k of Object.keys(seenPrompts)) delete seenPrompts[k];
+const argsC2 = JSON.parse(JSON.stringify(argsC));
+argsC2.path = 'packages/app/';
+await runFn({ agent: agentC, parallel, pipeline, phase, log, args: argsC2, budget });
+const acGlobs2 = jobGlobs(seenPrompts['review:agent-config:agent-config'] || '');
+if (!acGlobs2.length || !acGlobs2.every(g => g.startsWith('packages/app/') && !g.startsWith('packages/app//'))) { problems++; console.log(`  ✗ args.path not applied to agent-config globs: ${JSON.stringify(acGlobs2)}`); }
+else if (globMatch('other/.mcp.json', acGlobs2) || !globMatch('packages/app/.mcp.json', acGlobs2)) { problems++; console.log('  ✗ args.path-scoped agent-config globs match the wrong files'); }
+else console.log('  ✓ args.path prefixes the agent-config globs (packages/app/.mcp.json in, other/.mcp.json out)');
+// C7-C9 re-run scenario C with a given args.path and return the agent-config job's prompt
+const runScopedC = async (path) => {
+  seenLabels.length = 0; for (const k of Object.keys(seenPrompts)) delete seenPrompts[k];
+  const a = JSON.parse(JSON.stringify(argsC)); a.path = path;
+  await runFn({ agent: agentC, parallel, pipeline, phase, log, args: a, budget });
+  return seenPrompts['review:agent-config:agent-config'] || '';
+};
+// C7: args.path scoped to a plugin dir keeps that plugin's own hooks/ in scope; a non-plugin
+// scope (src) still does not sweep app hooks in
+const g7 = jobGlobs(await runScopedC('plugins/p'));
+if (!globMatch('plugins/p/hooks/run.sh', g7)) { problems++; console.log(`  ✗ args.path=plugins/p drops the plugin's own hooks/run.sh: ${JSON.stringify(g7)}`); }
+else console.log('  ✓ args.path=plugins/p keeps plugins/p/hooks/run.sh in scope');
+const g7b = jobGlobs(await runScopedC('src'));
+if (globMatch('src/hooks/useAuth.ts', g7b)) { problems++; console.log('  ✗ args.path=src sweeps src/hooks/useAuth.ts (app code) into agent-config'); }
+else console.log('  ✓ args.path=src keeps src/hooks/useAuth.ts out of scope');
+// C8: '.', './', '' mean unscoped; './sub' is normalized to 'sub/…' (no './' prefixed globs)
+for (const p of ['.', './', '']) {
+  const g = jobGlobs(await runScopedC(p));
+  if (!g.length || g.some(x => x.startsWith('./') || x.startsWith('/')) || !globMatch('.mcp.json', g) || !globMatch('packages/app/.mcp.json', g)) { problems++; console.log(`  ✗ args.path=${JSON.stringify(p)} not treated as unscoped: ${JSON.stringify(g.slice(0, 3))}`); }
+  else console.log(`  ✓ args.path=${JSON.stringify(p)} treated as unscoped`);
+}
+const g8 = jobGlobs(await runScopedC('./packages/app'));
+if (!g8.length || !g8.every(x => x.startsWith('packages/app/')) || !globMatch('packages/app/.mcp.json', g8)) { problems++; console.log(`  ✗ args.path=./packages/app not normalized: ${JSON.stringify(g8.slice(0, 3))}`); }
+else console.log('  ✓ args.path=./packages/app normalized to packages/app/… globs');
+// C9: with args.path set, agent-config seeds/safeControls outside it never reach the reviewer,
+// while an LLM call site inside it (but outside the config globs) still does
+const p9 = await runScopedC('packages/app');
+if (p9.includes('other/lib/llm/out-of-scope-call.ts') || p9.includes('other/.mcp.json') || p9.includes('lib/llm/agent-runtime.ts"')) { problems++; console.log('  ✗ out-of-scope agent-config seed/safeControl reached the reviewer despite args.path'); }
+else if (!p9.includes('packages/app/lib/llm/in-scope-call.ts')) { problems++; console.log('  ✗ in-scope LLM call site (outside config globs) was dropped under args.path'); }
+else console.log('  ✓ args.path filters agent-config seeds/safeControls; in-scope runtime call site kept');
+
 console.log(problems === 0 ? '\n✓ ALL SCENARIOS PASSED' : `\n✗ ${problems} conflict(s) found across scenarios`);
 process.exit(problems === 0 ? 0 : 1);

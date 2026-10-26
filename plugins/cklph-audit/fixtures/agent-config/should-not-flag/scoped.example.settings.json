@@ -1,0 +1,9 @@
+{
+  "_fixture": "agent-config lens · should-not-flag (PRECISION). Look-alike: an allow list that contains Bash entries, but every one is prefix-scoped to a specific read-only or test command; default mode keeps the permission gate; a deny list covers secret paths; MCP servers are approved by name, not auto-trusted. Expected verdict: NO finding.",
+  "permissions": {
+    "defaultMode": "default",
+    "allow": ["Bash(npm test:*)", "Bash(git status:*)", "Bash(git diff:*)", "Read(src/**)"],
+    "deny": ["Read(.env*)", "Read(**/*.pem)", "Bash(curl:*)"]
+  },
+  "enabledMcpjsonServers": ["docs"]
+}

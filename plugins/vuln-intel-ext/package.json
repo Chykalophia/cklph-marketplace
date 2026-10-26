@@ -1,6 +1,6 @@
 {
   "name": "vuln-intel-ext",
-  "version": "1.0.1",
+  "version": "1.0.2",
   "private": true,
   "description": "Sidecar MCP server extending cve-mcp with diff_since, dependency snapshots, feed status, and WordPress vulnerability lookup",
   "type": "module",
@@ -10,9 +10,9 @@
     "dev": "tsc && node dist/index.js"
   },
   "dependencies": {
-    "@modelcontextprotocol/sdk": "^1.12.1",
+    "@modelcontextprotocol/sdk": "^1.32.0",
     "better-sqlite3": "^12.2.0",
-    "zod": "^3.25.76"
+    "zod": "^4.6.7"
   },
   "devDependencies": {
     "@types/better-sqlite3": "^7.6.13",

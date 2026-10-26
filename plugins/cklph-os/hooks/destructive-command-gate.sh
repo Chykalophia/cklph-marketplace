@@ -208,9 +208,14 @@ check_segment() {   # $1 = one simple command (words joined by \037), $2 = recur
                 esac
                 i=$((i + 1))
                 while [ "$i" -lt "$n" ] && [[ ${w[$i]} == -* ]]; do
-                    # npx -c / --call and env -S carry a whole command line: check it.
-                    if [[ ${w[$i]} =~ ^(-c|--call|-S|--split-string)$ ]] && [[ $a =~ ^(npx|bunx|env)$ ]]; then
-                        check_string "${w[$((i + 1))]:-}" $((depth + 1))
+                    # npx -c / --call and env -S carry a whole command line: check it, in the
+                    # separate form and the attached ones (-S'…', --split-string=…, --call=…).
+                    if [[ $a =~ ^(npx|bunx|env)$ ]]; then
+                        case "${w[$i]}" in
+                            -c|--call|-S|--split-string) check_string "${w[$((i + 1))]:-}" $((depth + 1)) ;;
+                            --call=*|--split-string=*) check_string "${w[$i]#*=}" $((depth + 1)) ;;
+                            -S?*) [ "$a" = env ] && check_string "${w[$i]#-S}" $((depth + 1)) ;;
+                        esac
                     fi
                     if [[ ${w[$i]} =~ $valopts ]]; then i=$((i + 2)); else i=$((i + 1)); fi
                 done

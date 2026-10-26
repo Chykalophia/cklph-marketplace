@@ -1,0 +1,26 @@
+{
+  "_fixture": "agent-config lens · should-not-flag (PRECISION). Look-alikes: npx -y is present but every package is an exact version; the Docker image is pinned by a full sha256 digest (a tag alongside it is fine); the Python server is an exact == pin; credentials come from ${VAR} references, not literals; the remote server is https to a vendor endpoint and is granted no credentials (no headers). Expected verdict: NO finding (the report may note that a pinned selector covers the direct reference only).",
+  "mcpServers": {
+    "browser": {
+      "command": "npx",
+      "args": ["-y", "example-browser-mcp@2.3.1"]
+    },
+    "search": {
+      "command": "npx",
+      "args": ["-y", "--package", "@example-scope/search-mcp@0.9.4", "search-mcp"],
+      "env": { "SEARCH_API_TOKEN": "${SEARCH_API_TOKEN}" }
+    },
+    "db": {
+      "command": "docker",
+      "args": ["run", "--rm", "-i", "example/postgres-mcp:1.4.0@sha256:3f1d2c9a8b7e6d5c4b3a29180f7e6d5c4b3a29180f7e6d5c4b3a29180f7e6d5c"]
+    },
+    "notes": {
+      "command": "uvx",
+      "args": ["--from", "example-notes-mcp==1.2.3", "notes-mcp"]
+    },
+    "docs": {
+      "type": "http",
+      "url": "https://mcp.example.com/mcp"
+    }
+  }
+}

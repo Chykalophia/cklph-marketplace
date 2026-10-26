@@ -25,34 +25,86 @@ COMMAND=$(printf '%s' "$INPUT" | jq -r '.tool_input.command // empty' 2>/dev/nul
 
 # Only intercept git commit commands. "git commit" counts when it starts the command or follows a
 # separator (; && || | ( newline), optionally behind VAR=value prefixes, an absolute path to git,
-# and git's global options (-C <dir>, -c <k=v>, --git-dir=…). Before 0.11.1 only a bare leading
-# "git commit" matched, so `cd repo && git commit` and `git -C repo commit` skipped the whole gate.
-GIT_OPTS='([[:space:]]+(-[Cc][[:space:]]+[^[:space:];&|]+|--[a-z-]+(=[^[:space:];&|]+)?))*'
-COMMIT_RE="(^|[;&|(])[[:space:]]*([A-Za-z_][A-Za-z0-9_]*=[^[:space:]]*[[:space:]]+)*([^[:space:];&|]*/)?git${GIT_OPTS}[[:space:]]+commit([[:space:]]|$)"
-if ! printf '%s\n' "$COMMAND" | grep -qE "$COMMIT_RE"; then
-    exit 0
-fi
+# and git's global options (-C <dir>, -c <k=v>, --git-dir <dir>, --no-pager, …), whose values may
+# be quoted ("dir with spaces", k="a b"). Before 0.11.1 only a bare leading "git commit" matched,
+# so `cd repo && git commit` and `git -C repo commit` skipped the whole gate.
+#
+# Limits (a matcher, not a shell parser): a "(" or ";" inside a quoted argument still counts as a
+# separator, so `printf '(git commit -m x'` runs the gate needlessly (false run, never a bypass;
+# stripping quoted text first would hide `bash -c '…; git commit'`). Backslash-escaped quotes,
+# pushd, and commits hidden in scripts or variables ($CMD) are not seen.
+VAL='(\$\([^)]*\)|`[^`]*`|"[^"]*"|'\''[^'\'']*'\''|\\.|[^[:space:];&|"'\''\\])+'   # one shell word
+GIT_OPTS="([[:space:]]+(-[Cc][[:space:]]+$VAL|--(git-dir|work-tree|namespace|exec-path|super-prefix|config-env)[[:space:]]+$VAL|--[a-z-]+(=$VAL)?|-[pP]))*"
+COMMIT_RE="(^|[;&|(])[[:space:]]*([A-Za-z_][A-Za-z0-9_]*=($VAL)?[[:space:]]+)*([^[:space:];&|]*/)?git${GIT_OPTS}[[:space:]]+commit([[:space:]]|\$)"
+ONE_LINE="${COMMAND//$'\n'/;}"   # newline separates commands too
+[[ $ONE_LINE =~ $COMMIT_RE ]] || exit 0
+INVOCATION="${BASH_REMATCH[0]}"
 
-# Run the checks in the repo being committed, not the session's directory: honor `git -C <dir>`
-# and a leading `cd <dir> &&`. A relative dir resolves against the payload's cwd.
-BASE_DIR=$(printf '%s' "$INPUT" | jq -r '.cwd // empty' 2>/dev/null)
-[ -n "$BASE_DIR" ] && [ -d "$BASE_DIR" ] && cd "$BASE_DIR"
-TARGET_DIR=""
-if [[ $COMMAND =~ git[[:space:]]+-C[[:space:]]+(\"[^\"]+\"|\'[^\']+\'|[^[:space:]\;\&\|]+) ]]; then
-    TARGET_DIR="${BASH_REMATCH[1]}"
-elif [[ $COMMAND =~ ^[[:space:]]*cd[[:space:]]+(\"[^\"]+\"|\'[^\']+\'|[^[:space:]\;\&\|]+)[[:space:]]*(\&\&|\;) ]]; then
-    TARGET_DIR="${BASH_REMATCH[1]}"
-fi
-if [ -n "$TARGET_DIR" ]; then
-    TARGET_DIR="${TARGET_DIR%\"}"; TARGET_DIR="${TARGET_DIR#\"}"
-    TARGET_DIR="${TARGET_DIR%\'}"; TARGET_DIR="${TARGET_DIR#\'}"
-    TARGET_DIR="${TARGET_DIR/#\~/$HOME}"
-    if [ -d "$TARGET_DIR" ]; then
-        cd "$TARGET_DIR" || exit 0
-    else
-        echo "pre-commit-gate: can't resolve commit dir '$TARGET_DIR'; checking $(pwd)" >&2
+# Run the checks in the repo being committed, not the session's directory. Start from the payload's
+# cwd, apply every `cd <dir>` before the commit, then git's -C options (cumulative, like git).
+# Fail CLOSED: if the dir can't be worked out without running the shell ($VAR, $(…), cd -, a cd
+# inside a subshell, --git-dir/--work-tree), block and ask for a plain `cd <repo> && git commit`,
+# rather than quietly checking the session's repo and letting the commit through.
+unresolved() {
+    echo "pre-commit-gate: BLOCKED: can't tell which repo this commits to ($1); cd into it first, then git commit" >&2
+    exit 2
+}
+# One shell word as typed -> path in $WP. Handles quotes, a leading ~, $HOME and ${HOME}.
+word_path() {
+    local s="$1" out="" seg
+    WP=""
+    if [[ $s == "~" || $s == "~/"* ]]; then out="$HOME"; s="${s:1}"; fi
+    while [ -n "$s" ]; do
+        if [[ $s =~ ^\'([^\']*)\'(.*)$ ]]; then out="$out${BASH_REMATCH[1]}"; s="${BASH_REMATCH[2]}"; continue; fi
+        if [[ $s =~ ^\"([^\"]*)\"(.*)$ ]] || [[ $s =~ ^([^\"\']+)(.*)$ ]]; then
+            seg="${BASH_REMATCH[1]}"; s="${BASH_REMATCH[2]}"
+        else
+            return 1
+        fi
+        seg="${seg//\$\{HOME\}/$HOME}"
+        while [[ $seg =~ ^(.*)\$HOME([^A-Za-z0-9_].*)?$ ]]; do seg="${BASH_REMATCH[1]}$HOME${BASH_REMATCH[2]}"; done
+        [[ $seg == *[\$\`\\]* ]] && return 1
+        out="$out$seg"
+    done
+    WP="$out"
+}
+DIR=$(printf '%s' "$INPUT" | jq -r '.cwd // empty' 2>/dev/null)
+[ -n "$DIR" ] && [ -d "$DIR" ] || DIR="$PWD"
+apply_dir() {
+    word_path "$1" || unresolved "'$1' needs the shell to expand it"
+    case "$WP" in /*) DIR="$WP" ;; *) DIR="$DIR/$WP" ;; esac
+}
+# cd's before the commit, in order.
+PRE="${ONE_LINE%%"$INVOCATION"*}"
+REST="$PRE"; SAW_CD=0
+CD_RE='(^|[;&|(])[[:space:]]*cd(([[:space:]]+[^;&|()]*)?)([;&|()]|$)'
+while [[ $REST =~ $CD_RE ]]; do
+    m="${BASH_REMATCH[0]}"; arg="${BASH_REMATCH[2]}"; SAW_CD=1
+    REST="${REST#*"$m"}"
+    if [[ $arg =~ ^[[:space:]]*$ ]]; then DIR="$HOME"
+    elif [[ $arg =~ ^[[:space:]]+($VAL)[[:space:]]*$ ]] && [ "${BASH_REMATCH[1]}" != "-" ]; then apply_dir "${BASH_REMATCH[1]}"
+    else unresolved "a cd target it can't read without running the shell"
     fi
-fi
+done
+[ "$SAW_CD" = 1 ] && [[ $PRE == *")"* ]] && unresolved "a cd next to a subshell"
+# git's global options on the commit itself.
+OPTS_RE="git(${GIT_OPTS})[[:space:]]+commit([[:space:]]|\$)"
+[[ $INVOCATION =~ $OPTS_RE ]]
+OPTS="${BASH_REMATCH[1]}"
+while [[ $OPTS =~ [^[:space:]] ]]; do
+    if [[ $OPTS =~ ^[[:space:]]+-C[[:space:]]+($VAL) ]]; then
+        m="${BASH_REMATCH[0]}"; apply_dir "${BASH_REMATCH[1]}"
+    elif [[ $OPTS =~ ^[[:space:]]+--(git-dir|work-tree)[[:space:]=] ]]; then
+        unresolved "--git-dir/--work-tree"
+    elif [[ $OPTS =~ ^[[:space:]]+(-c|--(namespace|exec-path|super-prefix|config-env))[[:space:]]+($VAL) ]] \
+        || [[ $OPTS =~ ^[[:space:]]+(--[a-z-]+(=($VAL))?|-[pP]) ]]; then
+        m="${BASH_REMATCH[0]}"
+    else
+        break
+    fi
+    OPTS="${OPTS:${#m}}"
+done
+cd "$DIR" 2>/dev/null || unresolved "'$DIR' is not a directory"
 
 # Skip merge commits — CI is the right gate for release merges (dev -> staging -> main),
 # not this hook. MERGE_HEAD exists during an in-progress merge and is cleared on commit.
