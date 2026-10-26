@@ -181,3 +181,29 @@ STATE.md                   # working state
 - **P3** AGENTS.md + CLAUDE.md `@import` across repos; slim global CLAUDE.md. ◐ core repos done; others pending.
 - **P4** Memory layer: `GLOBAL.md` + `STATE.md`; capture working preferences. ✅ GLOBAL.md seeded + `@import`ed from global CLAUDE.md.
 - **P5** Expand skills/agents/commands; cross-surface validation (CLI ✅, others pending); add tests. ◐ ongoing.
+
+---
+
+## 10. Skill lifecycle
+
+Every skill, whether we write it or port it, moves through six stages. A skill that never fires is
+dead weight that makes *other* skills fire less reliably, so a skill earns its place by passing
+each gate, and keeps it by being used.
+
+| Stage | Gate (must be true to advance) |
+|---|---|
+| **1. Intake** | One sentence naming the *gap*: what goes wrong today without it. If we can't name a gap, don't build or port it. Check for duplicates in the installed-skills list and in claude.ai skills. |
+| **2. Port / Write** | Follows §5 format. The `description` is a trigger ("Use when…, before…"), under ~300 chars, and doesn't overlap any existing skill's trigger. Ported text carries a `NOTICE.md` with the source, commit and license, plus an `Adapted from:` line in the plugin CHANGELOG. |
+| **3. Wire** | Reachable *without Peter remembering it exists*: (a) a row in `start-here`'s routing table, **and** (b) a call from at least one phase skill (`flow`, `spec`, `plan`, `build`, `verify`, `review`, `ship`, `triage`, `weekly-review`), **or** a hook. Skills in other plugins wire through that plugin's own entry skill. |
+| **4. Prove** | A **trigger test** (3 prompts that should fire it, 2 near misses that shouldn't) passes in a fresh CLI session (`authoring/trigger-tests.md`), **and** one real run on a real repo, saved under `docs/proof/<skill>/<date>.md`. A proof that touches a private project is saved privately and summarized publicly. |
+| **5. Measure** | It shows up in the usage log (`~/.claude/cklph-usage/skills.jsonl`, written by `hooks/skill-usage-log.sh`). It is reviewed in the weekly review's `stocktake` step. |
+| **6. Prune** | Not invoked in **60 days** → on the prune list at the next weekly review. Peter chooses: rewrite the trigger, merge it into a neighbor, or delete it. Two prune-list appearances in a row with no rewrite → delete. |
+
+**Definition of a useful skill:** it fires on its own when it should, stays quiet when it shouldn't,
+and changes the output in a way Peter would notice if it were missing.
+
+**Usage log.** A `PostToolUse` hook on the `Skill` tool logs model-invoked skills; a
+`UserPromptSubmit` hook logs typed `/plugin:skill` commands, which do not go through the Skill
+tool. Each line holds a timestamp, the skill name, how it was invoked, the repo directory name and
+the session id; never full paths or prompt text. Nothing leaves the machine. Hooks are CLI-only,
+so Desktop and web use is invisible to the log; weigh that before pruning a skill used mostly there.

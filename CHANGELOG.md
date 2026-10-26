@@ -3,6 +3,29 @@
 All notable changes to cklph-os are documented here.
 Format: [Keep a Changelog](https://keepachangelog.com); versioning follows [SemVer](https://semver.org).
 
+## [0.10.0] — 2026-10-26
+
+### Added — skill lifecycle and adoption loop
+- **STANDARD.md §10 "Skill lifecycle"**: Intake → Port/Write → Wire → Prove → Measure → Prune, with a
+  gate per stage and a definition of a useful skill. Applies to every skill, written or ported.
+- **`skill-usage-log.sh` hook** (PostToolUse on `Skill`, plus UserPromptSubmit for typed
+  `/plugin:skill` commands, which bypass the Skill tool). Appends one line per invocation to
+  `~/.claude/cklph-usage/skills.jsonl`: timestamp, skill, via, repo directory name, session id. No
+  paths or prompt text; never blocks; pure bash, ~15 ms.
+- **`stocktake` skill** + stdlib `stocktake.py`: usage per skill over 7/30/60 days, a per-plugin prune
+  list (provisional until the log covers 60 days), and trigger collisions (seeded known duplicates,
+  same-named skills across plugins, description overlap). At most 3 recommendations.
+- **`authoring/trigger-tests.md` + `run-trigger-tests.sh`**: the Stage 4 trigger test. Each prompt
+  runs in a fresh `claude -p` session with only the plugin under test loaded.
+- **`start-here` routing table**: one row per cklph-os skill, the Wire stage's first requirement.
+
+### Changed
+- `weekly-review` gains a fixed "Skill hygiene (5 min)" step that runs `stocktake`.
+- `authoring` links the lifecycle and the trigger-test method, and adds both to its final checklist.
+- `templates/AGENTS.md` states that skill usage is logged locally.
+
+Adapted from: ECC `skills/skill-stocktake` + `skills/skill-comply` (MIT), commit 25278e7 → `stocktake`.
+
 ## [Unreleased] — 2026-10-26
 
 ### Removed

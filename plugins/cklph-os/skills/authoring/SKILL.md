@@ -46,6 +46,15 @@ Create when: a non-obvious technique reused across projects; agents reliably fai
    ("Don't keep it 'for reference' — delete it") and re-test until bulletproof.
 
 ## 4. Register & verify
+Every skill moves through the lifecycle in STANDARD.md §10 (Intake → Port/Write → Wire → Prove →
+Measure → Prune). Authoring covers the first four:
+- **Intake:** name the gap in one sentence and check for an existing skill that already covers it.
+- **Wire:** add a row to `start-here`'s routing table **and** call it from a phase skill or a hook.
+  A skill Peter has to remember is a skill that won't fire.
+- **Prove:** write `skills/<name>/trigger-tests.md` and run it; see @trigger-tests.md. Then do one
+  real run on a real repo and save it under `docs/proof/<skill>/<date>.md`.
+
+Then:
 - Directory name matches `name:` exactly.
 - cklph-os auto-discovers from `skills/`; no index edit needed.
 - Validate: `claude plugin validate <plugin-dir>`; ensure no broken `@ref` links.
@@ -54,6 +63,8 @@ Create when: a non-obvious technique reused across projects; agents reliably fai
   - [ ] Body ≤ ~120 lines (longer → push into `references/`).
   - [ ] One concrete example; imperative voice.
   - [ ] Failing baseline existed, now passes with the skill present.
+  - [ ] Routing row in `start-here` + a call from a phase skill or hook.
+  - [ ] `trigger-tests.md` passes (3 fire, 2 near misses); output pasted in the PR.
 
 ## Anti-patterns
 - **Narrative** ("In session 2025-03-…") — too specific, not reusable.
