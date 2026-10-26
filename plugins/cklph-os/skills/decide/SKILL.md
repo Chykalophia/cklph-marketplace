@@ -19,3 +19,16 @@ Is this **one-way** (irreversible — hire/fire, public ship, burn a bridge) or 
 5. **Reversal signal** — *"I'll undo or re-evaluate if X by Y."* If you can't name X and Y, the pick is hope, not a decision.
 
 Be a sharp thinking partner — push back if "options" is really "the thing I already wanted, dressed up."
+
+## Council (one-way doors with real stakes)
+After the top filter says **one-way**, escalate to a four-voice council when **either** is true:
+the options are genuinely close after step 3, **or** being wrong is expensive and hard to undo
+(a go/no-go on a public launch, a client commitment, a data migration, a rewrite, a hire).
+
+Four voices: **Architect** (you), **Skeptic**, **Pragmatist**, **Critic**. The three outside voices
+run as **fresh subagents that see only the extracted question and the minimum context, never the
+conversation**. That is the anti-anchoring rule; without it the council is you, four times.
+The council's verdict feeds steps 4 and 5 above: it does not replace the reversal signal.
+Procedure, prompt and output shape: `@council.md`.
+
+Never convene it for a two-way door, for code review (`review`), or for planning (`plan`).

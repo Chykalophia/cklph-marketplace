@@ -14,3 +14,28 @@ description: Security review checklist. Pull in during review or before shipping
 - **Deps & headers** — no known-vuln dependencies; security headers where relevant.
 
 Report findings by severity with `file:line` + fix (feeds the reviewer's security axis).
+
+## Destructive commands (enforced on the CLI, a rule everywhere)
+On the CLI, `hooks/destructive-command-gate.sh` blocks these Bash commands before they run. On
+Desktop, web and Cowork no hook runs, so the rule is yours to apply: **don't run them without the
+user's explicit OK for that exact command**, and offer the safer form first.
+
+| Don't | Do instead |
+|---|---|
+| `rm -rf` on `/`, `~`, `.`, `*` or the repo root | name the exact directory (`rm -rf ./dist`) |
+| `git push --force` / `-f` / `+branch` | `git fetch`, then `git push --force-with-lease` |
+| `git reset --hard` | `git stash push -m "..."` first, or `git reset --keep` |
+| `git checkout .` / `git restore .` | `git restore <path>`, or stash |
+| `git clean -f` (any forced clean) | `git clean -n` dry run, then delete named paths |
+| `--no-verify`, `git commit -n` | fix what the hook reports; if the hook is broken, say so |
+| `DROP TABLE` / `DROP DATABASE` / `TRUNCATE` via a SQL client; `wp db reset` | a reviewed migration, a backup first, or a local database |
+| `docker system prune` / `docker volume prune` | remove the specific image or container; volumes hold data |
+| `chmod 777` | `755` / `644`, or grant the one user or group |
+| `npm publish` (or pnpm/yarn/bun) | `--dry-run` or `npm pack`, then hand the real publish to the user |
+| `supabase db reset --linked` / `--db-url` / `--project-ref` | plain `supabase db reset` (local), or a migration + `supabase db push` |
+
+**Escape hatch:** when the user has said yes to that exact command, prefix it with
+`CKLPH_ALLOW_DESTRUCTIVE=1 ` (for example `CKLPH_ALLOW_DESTRUCTIVE=1 git push --force origin feat/x`).
+It covers that one command, shows in the transcript, and exporting the variable does nothing. Never
+add the prefix on your own judgment. The gate is a guard rail, not a sandbox: scripts, aliases, SQL
+files and `$(...)` get past it (the hook header lists what it misses), so the rule still applies to them.

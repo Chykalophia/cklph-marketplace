@@ -3,6 +3,63 @@
 All notable changes to cklph-os are documented here.
 Format: [Keep a Changelog](https://keepachangelog.com); versioning follows [SemVer](https://semver.org).
 
+## [0.11.0] — 2026-10-26
+
+### Added — ECC ports, phase 1
+- **`destructive-command-gate.sh` hook** (PreToolUse on `Bash`). Blocks, with a safer alternative in
+  the message: recursive `rm` of `/`, `~`, `.`, `*` or the repo root; `git push --force`/`-f`/`+ref`
+  (`--force-with-lease` passes); `git reset --hard`; `git checkout .` / `git restore .`; forced
+  `git clean` without `-n`; `--no-verify` and `git commit -n`; `DROP TABLE`/`DATABASE`/`SCHEMA` and
+  `TRUNCATE` through a SQL client; `wp db drop|reset`; `docker system|volume prune`; `chmod 777`;
+  `npm|pnpm|yarn|bun publish` without `--dry-run`; `supabase db reset` with `--linked`, `--db-url` or
+  `--project-ref`. Quote-aware tokenizer, so text in `echo`, `grep` or a commit message passes. JSON via
+  jq, else python3, else fail open with a warning. ~26 ms per call, bash 3.2 compatible. Escape hatch:
+  the literal prefix `CKLPH_ALLOW_DESTRUCTIVE=1 ` on that one command; an exported variable does
+  nothing. 90-case test suite (`hooks/tests/`), wired into `test/hooks.bats`.
+- **`click-path-audit` skill.** Map every store action's sets and out-of-scope resets, then trace each
+  touchpoint's writes in order: does a later call undo an earlier one? Six patterns written for
+  Zustand, TanStack Query (optimistic updates, `cancelQueries`, rollback, key mismatch) and React state.
+- **`decide` → Council** (`decide/council.md`). Architect, Skeptic, Pragmatist, Critic, for one-way
+  doors with real stakes only. The three outside voices are fresh subagents that see the extracted
+  question and minimum context, never the conversation.
+- **`review` → two-reviewer gate** (`review/two-reviewer-gate.md`). Two fresh reviewers, one written
+  rubric, both must pass, at most 2 fix rounds, then escalate to Peter. Only for client-facing
+  deliverables, security-sensitive diffs and anything published publicly.
+- **`verify` → evidence check** (`verify/rationalization-patterns.md`). "Should work now", "I believe
+  this fixes", "likely resolved" with no output from this session fail verify.
+- **`survey` → brownfield mode** (`survey/brownfield.md`). For an inherited client site or repo: slice,
+  audit with evidence, work backward through git, four-axis gap register (thinking, coding practice,
+  missing features, technology).
+
+### Changed
+- `debugging` names `click-path-audit` as the move when the UI is wrong but every function works.
+- `review` runs `click-path-audit` on diffs that touch shared client state, and gains the gate mode.
+- `ship` blocks on `## GAPS FOUND` or an unevidenced "done", and runs the two-reviewer gate for the
+  three categories above.
+- `security-hardening` and `templates/AGENTS.md` carry the destructive-command rule as prose (hooks
+  are CLI-only).
+- `spec-authoring-rules.md`: numbered acceptance criteria with a **Must not** clause; business rules
+  are confirmed or listed as assumptions, never inferred from code; unmet criteria are marked
+  `[revised]`, not dropped.
+- `templates/STATE.md` gains a "Removed on purpose" list; STANDARD.md §5 states one owner per fact.
+- `survey` description now also triggers on an inherited client site or codebase.
+- `start-here` routing table: rows for `click-path-audit`, brownfield `survey`, the council, the
+  two-reviewer gate, the verify evidence check and destructive commands.
+
+### Deferred
+- delivery-gate's optional **Stop hook** was not built. The rationalization check lives in `verify`
+  as prose; revisit a Stop hook (disabled by default) only if unevidenced "done" claims keep slipping
+  through.
+
+Adapted from: ECC `skills/council` (MIT), commit 25278e7 → `decide/council.md`.
+Adapted from: ECC `skills/click-path-audit` (MIT), commit 25278e7 → `click-path-audit`.
+Adapted from: ECC `skills/safety-guard` (MIT), commit 25278e7 → `hooks/destructive-command-gate.sh` + `security-hardening`.
+Adapted from: ECC `skills/delivery-gate` (MIT), commit 25278e7 → `verify/rationalization-patterns.md`.
+Adapted from: ECC `skills/santa-method` (MIT), commit 25278e7 → `review/two-reviewer-gate.md`.
+Adapted from: ECC `skills/brownfield-retrospective` (MIT), commit 25278e7 → `survey/brownfield.md`.
+Adapted from: ECC `skills/intent-driven-development` (MIT), commit 25278e7 → `spec/spec-authoring-rules.md` (three techniques only).
+Adapted from: ECC `skills/living-docs-governance` (MIT), commit 25278e7 → `templates/STATE.md` "Removed on purpose" only.
+
 ## [0.10.0] — 2026-10-26
 
 ### Added — skill lifecycle and adoption loop

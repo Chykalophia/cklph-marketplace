@@ -14,3 +14,11 @@
 
 ## Next steps
 -
+
+## Removed on purpose
+Deleted files, abandoned approaches, dropped dependencies, so no session recreates them.
+Keep a row until bringing it back is no longer a realistic risk.
+
+| What | Why removed | Replaced by | Bring back only if |
+|---|---|---|---|
+| | | | |
