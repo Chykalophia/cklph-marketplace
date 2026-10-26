@@ -1,6 +1,6 @@
 ---
 name: survey
-description: Gap-filling design partner. Use when scoping a new feature or project after refine but before spec, when you need to drill what's missing across users, devices, states, edge cases, alternatives, cascading impacts, and SaaS defaults.
+description: Gap-filling design partner. Use when scoping a new feature after refine but before spec (users, devices, states, edge cases, alternatives, SaaS defaults), or when you inherit a client site or codebase and need a gap register before changing anything.
 ---
 
 # survey — drill the gaps before specing
@@ -38,6 +38,15 @@ confusion template).
   future "why not X?" question).
 
 End with `## SURVEY COMPLETE` (ready for `spec`) or `## SURVEY OPEN` (decisions still needed).
+
+## Brownfield mode — inherited a client site or repo
+When the code already exists (a new client's repo, a WordPress site someone else built, our own
+project after a long gap), drill the **existing** code before the next feature lands on it. Pick a
+slice, audit it with evidence (no fixes yet), work backward through git history, and produce a
+**four-axis gap register**: **Thinking** (decided but never written down), **Coding practice**,
+**Missing features** (what a day-one build would have had), **Technology** (outdated, duplicated,
+fighting the project). Every row carries an evidence pointer, a severity and a forward fix.
+Procedure and register format: `@brownfield.md`.
 
 ## Anti-patterns
 - **Not a substitute for `refine`** — if the direction is still fuzzy, send the user back there first.

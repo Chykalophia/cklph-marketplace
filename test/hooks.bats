@@ -48,3 +48,13 @@ teardown() {
   run bash "$HOOKS/pre-commit-gate.sh" <<< "{\"tool_input\":{\"command\":\"ls -la\"}}"
   [ "$status" -eq 0 ]
 }
+
+@test "destructive-command-gate: blocks git reset --hard (exit 2)" {
+  run bash "$HOOKS/destructive-command-gate.sh" <<< '{"tool_name":"Bash","tool_input":{"command":"git reset --hard"}}'
+  [ "$status" -eq 2 ]
+}
+
+@test "destructive-command-gate: full case suite passes" {
+  run bash "$HOOKS/tests/destructive-command-gate.test.sh"
+  [ "$status" -eq 0 ]
+}

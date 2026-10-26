@@ -19,6 +19,12 @@ scan, pre-commit gate). On surfaces without hooks (Desktop / Cowork / web), appl
 - No hardcoded secrets.
 - No absolute paths in configs/hooks — use `$CLAUDE_PROJECT_DIR` or `${CLAUDE_PLUGIN_ROOT}`.
 - Skill usage is logged locally for the weekly review; nothing leaves the machine.
+- No destructive commands without the user's OK for that exact command: `rm -rf` on `/`, `~`, `.` or
+  the repo root; `git push --force` (use `--force-with-lease`); `git reset --hard`, `git checkout .`,
+  `git clean -f` (stash or `git clean -n` first); `--no-verify`; `DROP TABLE` / `DROP DATABASE` /
+  `TRUNCATE`; `docker system prune`; `chmod 777`; `npm publish` (use `--dry-run`); `supabase db reset`
+  against a remote project. On the CLI a hook blocks these; the user-approved bypass is the
+  `CKLPH_ALLOW_DESTRUCTIVE=1 ` prefix on that one command.
 
 ## Do not
 - <project-specific anti-patterns>

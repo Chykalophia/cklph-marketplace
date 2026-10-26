@@ -1,0 +1,82 @@
+# click-path-audit — the six patterns, in our stack
+
+Each pattern: the shape, then where it hides in React + Zustand + TanStack Query.
+
+## 1. Sequential undo
+A later call resets what an earlier call set.
+```ts
+onClick={() => {
+  useNotes.getState().setEditorOpen(true);   // editorOpen = true
+  useNotes.getState().selectNote(null);     // action body also does editorOpen: false
+}}
+```
+- **Zustand:** an action that "cleans up" with a broad `set({...})` literal, resetting fields that
+  another action owns. Grep each action for keys it does not mention in its name.
+- **React state:** `setForm(initial)` called after `setForm(f => ({...f, x}))` in the same handler.
+- **Fix:** the resetting action stops owning that field, or the handler calls the setter **last**.
+  Better: one action that does the whole transition (`openEditor()`), so order can't be wrong.
+
+## 2. Async race
+Two async results write the same state; the last to resolve wins, not the last to start.
+- **TanStack Query optimistic update without `cancelQueries`:** `onMutate` writes the cache, an
+  in-flight refetch lands a moment later with pre-mutation server data and overwrites it. The item
+  "flips back." Always `await queryClient.cancelQueries({ queryKey })` before `setQueryData`.
+- **`invalidateQueries` in `onSuccess` vs `onSettled`:** refetch triggered before a related write
+  (or a second mutation) commits returns stale rows.
+- **Rollback clobbers a newer write:** `onError` restores the snapshot from `onMutate`, wiping a
+  second mutation that succeeded in between. Roll back only the item you changed, not the whole list.
+- **Rapid double click:** two mutations, two optimistic writes, one rollback. Disable while
+  `isPending`, or make the mutation idempotent.
+- **Search-as-you-type:** responses arrive out of order. Key the query by the input so stale
+  responses land in a different cache entry.
+
+## 3. Stale closure
+A callback reads a value captured at render time.
+```ts
+const onSave = useCallback(() => save({ ...draft, tags }), [draft]); // `tags` missing → stale
+```
+- `setCount(count + 1)` twice in one handler increments once. Use `setCount(c => c + 1)`.
+- Zustand: reading `const x = useStore(s => s.x)` in a callback that runs after an `await`; read
+  `useStore.getState().x` at the moment you need it.
+- Event listeners and intervals registered once in an effect with an empty dependency list.
+
+## 4. Missing transition
+The label promises a state change the handler never makes.
+- "Save" validates and closes the dialog, but the mutation call was lost in a refactor.
+- "Delete" removes the row from the cache, but no request is sent (or it targets a removed route).
+- "Mark all done" updates the list query but not the open-count query on another key.
+- **Query key mismatch:** `setQueryData(['notes', id])` while the list renders from
+  `['notes', { project }]`. The write succeeds into a cache entry nobody reads.
+
+## 5. Conditional dead path
+The real work sits behind a condition that is always false at that point.
+```ts
+if (selectedId) archive(selectedId); // but the click handler cleared selectedId one line earlier
+```
+- **A value captured inside a state updater, read right after `setState`:**
+  ```ts
+  let snapshot; setItems(prev => { snapshot = prev; return prev.filter(x => x.id !== id) });
+  if (snapshot) rollbackLater(snapshot); // undefined if React deferred the updater
+  ```
+  React runs an updater eagerly only when that component has no other update queued. One earlier
+  `setState` in the same handler and the updater runs later, so the code after it sees `undefined`:
+  the rollback or counter update silently never happens. Compute from current state *before*
+  calling `setState`, or keep the snapshot in a ref.
+- A guard on `isPending` / `isLoading` that is still true from the previous render.
+- A feature flag or role check that defaults to false before data loads.
+
+## 6. Effect interference
+An effect watches the state the handler just changed and changes it back.
+- `useEffect(() => setDraft(serverData), [serverData])` re-syncs over the user's edit on every
+  background refetch (`refetchOnWindowFocus`).
+- An effect that "closes the panel when the selection changes" fires after a handler that opens the
+  panel and changes the selection.
+- **Zustand `persist` rehydration** overwrites state set during the first render.
+- **Fix:** derive instead of syncing (render from server data unless the user has edited), or key
+  the component so it remounts on the right identity change.
+
+## Severity
+- **Critical** — data loss, wrong record changed, money or permissions affected.
+- **High** — the control does nothing or the opposite, on a main flow.
+- **Medium** — wrong state on a slow network, double click, or a secondary flow; self-heals on reload.
+- **Low** — flicker or a transient wrong count that corrects itself.
