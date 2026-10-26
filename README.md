@@ -84,7 +84,7 @@ Eight composable phases — run one standalone, or chain them with the orchestra
 - **`pre-commit-gate`** — TypeScript + ESLint + Semgrep on every `git commit`. Skips merge commits and bulk stages (>500 files). Lints `SKILL.md` descriptions for the YAML colon-space trap. Configurable warning budget via `CKLPH_ESLINT_MAX_WARNINGS`.
 - **`nextjs-quality-check`** — App Router patterns and `'use client'` discipline on Next.js file edits.
 - **`security-check`** — advisory secret scanning on every edit (gitleaks + bandit if installed).
-- **`destructive-command-gate`** — blocks `git reset --hard`, force-push, `rm -rf` on roots, DROP/TRUNCATE via a SQL client, `npm publish` and similar, naming a safer alternative. Prefix one command with `CKLPH_ALLOW_DESTRUCTIVE=1` to let it through.
+- **`destructive-command-gate`** — blocks Bash calls that destroy work or data (`rm -rf` on a root, force push, `git reset --hard`, DROP/TRUNCATE through a SQL client, `docker system prune` and more) and names the safer form. User-approved bypass: the `CKLPH_ALLOW_DESTRUCTIVE=1 ` prefix, which exempts the whole Bash call.
 - **`skill-usage-log`** — logs skill invocations locally to `~/.claude/cklph-usage/skills.jsonl` for `stocktake`. Nothing leaves the machine.
 
 ---

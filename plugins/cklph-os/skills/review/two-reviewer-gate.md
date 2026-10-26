@@ -21,7 +21,7 @@ Every criterion has an objective pass/fail condition. Vague rubric, vague review
 |---|---|---|
 | Correct | Claims, numbers and code behavior check out against source or a run | Invented stat, wrong version, nonexistent API, logic bug |
 | Complete | Every spec requirement / acceptance criterion addressed | Missing section, skipped edge case |
-| Safe | No secrets, PII, client names in public output; input validated; authz checked | Leaked key, a client named in a public repo, IDOR |
+| Safe | No secrets, PII, client names in public output. Where the work has an input or access surface: input validated, authz checked (otherwise N/A, said so) | Leaked key, a client named in a public repo, IDOR |
 | Consistent | No contradictions inside the work | Section A says X, section B says not-X |
 | Fits the audience | No internal jargon or unexplained acronyms, no private paths or internal links, no TODO/FIXME, every next step names who does it | Internal jargon, unexplained acronyms, private paths, internal links, TODOs, next steps with no owner |
 

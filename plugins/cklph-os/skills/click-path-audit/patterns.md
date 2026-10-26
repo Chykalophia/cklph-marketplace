@@ -21,8 +21,11 @@ Two async results write the same state; the last to resolve wins, not the last t
 - **TanStack Query optimistic update without `cancelQueries`:** `onMutate` writes the cache, an
   in-flight refetch lands a moment later with pre-mutation server data and overwrites it. The item
   "flips back." Always `await queryClient.cancelQueries({ queryKey })` before `setQueryData`.
-- **`invalidateQueries` in `onSuccess` vs `onSettled`:** refetch triggered before a related write
-  (or a second mutation) commits returns stale rows.
+- **Invalidate before the data is visible:** `onSuccess` and `onSettled` both run after the
+  mutation's promise resolves, so swapping one for the other fixes nothing. The race is elsewhere:
+  a second mutation still in flight, or a server that resolves the request before the write is
+  readable (a queue, a replica, an eventually consistent store). The refetch then returns stale rows.
+  Invalidate after the last related mutation settles, or write the server's response into the cache.
 - **Rollback clobbers a newer write:** `onError` restores the snapshot from `onMutate`, wiping a
   second mutation that succeeded in between. Roll back only the item you changed, not the whole list.
 - **Rapid double click:** two mutations, two optimistic writes, one rollback. Disable while

@@ -23,7 +23,7 @@ STORE useNotesStore
   selectNote(id|null) → sets {selectedId, body}  RESETS {editorOpen:false, pendingTitle:null}  ← owns neither
 QUERY ['notes', filter]
   useArchive.onMutate   → cancelQueries? NO   setQueryData(['notes', filter]) removes row
-  useArchive.onSettled  → invalidateQueries({ queryKey: ['notes'] })  (refetch can land before the server write)
+  useArchive.onSettled  → invalidateQueries({ queryKey: ['notes'] })  (stale if the server resolves before the write is readable)
 ```
 Map **effects that re-assert state** too (auto-select the first row, reset on selection change,
 mirror a query into `useState`): they are writers, and the highest-yield ones. The dangerous rows are
@@ -48,7 +48,7 @@ order that changes the answer? The six patterns, with our stack's versions, are 
 ```
 CLICK-PATH-001  [Critical|High|Medium|Low]
   Touchpoint   "<label>" in <file:line>
-  Pattern      <Sequential undo | Async race | Stale closure | Missing transition | Dead path | Effect interference>
+  Pattern      <Sequential undo | Async race | Stale closure | Missing transition | Conditional dead path | Effect interference>
   Trace        1. <call> → sets {…}   2. <call> → RESETS {…}  ← conflict
   Expected     <what the label promises>
   Actual       <what happens>

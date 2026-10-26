@@ -24,9 +24,15 @@ perimeter (paths, entry points, callers) at the top of the register before anyth
 ## 1. Present state, with evidence
 - **Fingerprint:** framework and version, hosting (Vercel, Hetzner/Docker, managed WP host),
   database, package manager, CI, how it deploys today.
-- **Run what exists, safely:** read `package.json` scripts, CI config and any install hooks first; an
-  inherited repo is untrusted code. With the client's go-ahead, run type-check, lint, tests and build
-  in an isolated environment with no production secrets. Record counts and failures, don't fix them.
+- **Run what exists, carefully.** An inherited repo's scripts are untrusted code. Read them first
+  (`package.json` scripts and install hooks, `composer.json`, Makefile, CI config). Install with
+  lifecycle scripts off (`npm ci --ignore-scripts`, `pnpm install --ignore-scripts`; Yarn 1 `--ignore-scripts`, Yarn 2+
+  `--mode=skip-build`). A package that needs its install script (Prisma generating its client, for
+  one) then fails: a finding about the install, not a gap in the code. `pre`/`post` scripts still run with `npm test`,
+  so read them too, and run type-check, lint, tests and build with
+  no secrets in the environment, in a container where you can. Anything that phones home, touches a
+  real database or needs production credentials: stop and get the go-ahead. Record counts and
+  failures, don't fix them.
 - **Review the slice:** `cklph-reviewer` on the slice; `security-hardening` if it touches input,
   auth or data. Deeper: `/cklph-audit:quick <lens> [path]` (e.g. `security`). Next.js + Supabase specifics: `cklph-nextjs` skills.
   WordPress: plugin and theme versions, custom code in `functions.php` / mu-plugins, page builder.
@@ -66,9 +72,11 @@ perimeter (paths, entry points, callers) at the top of the register before anyth
   register is evidence for that conversation, not a work order.
 - Backfilled decisions are marked as reconstructed, with today's date. Never present them as if they
   were written when the decision was made.
-- Each actionable row (fix-forward or rewrite) then runs the normal loop; wont-fix rows close with
-  their reason. The loop: `spec` → `plan` → `build` → `review` → `verify`. For a legacy
-  gap the first test usually encodes the rule that was only in the code.
+- Each actionable row (fix-forward or rewrite) then runs the normal loop: `spec` → `plan` → `build` → `review` → `verify`. For a legacy
+  gap the first test usually encodes the rule that was only in the code. Wont-fix rows skip the
+  loop: they close with their reason.
+- The survey itself ends here: `## SURVEY COMPLETE` once every row is triaged and the go-ahead is
+  in, `## SURVEY OPEN` while any triage call or go-ahead is pending.
 
 ## 5. Close the loop
 When every row is done or wont-fix, rerun step 1 on the same perimeter and diff it against the

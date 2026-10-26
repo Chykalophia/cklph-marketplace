@@ -19,12 +19,16 @@ scan, pre-commit gate). On surfaces without hooks (Desktop / Cowork / web), appl
 - No hardcoded secrets.
 - No absolute paths in configs/hooks — use `$CLAUDE_PROJECT_DIR` or `${CLAUDE_PLUGIN_ROOT}`.
 - Skill usage is logged locally for the weekly review; nothing leaves the machine.
-- No destructive commands without the user's OK for that exact command: `rm -rf` on `/`, `~`, `.` or
-  the repo root; `git push --force` (use `--force-with-lease`); `git reset --hard`, `git checkout .`,
-  `git clean -f` (stash or `git clean -n` first); `--no-verify`; `DROP TABLE` / `DROP DATABASE` /
-  `TRUNCATE`; `docker system prune`; `chmod 777`; `npm publish` (use `--dry-run`); `supabase db reset`
-  against a remote project. On the CLI a hook blocks these; the user-approved bypass is the
-  `CKLPH_ALLOW_DESTRUCTIVE=1 ` prefix on that one command.
+- No destructive commands without the user's OK for that exact command: `rm -rf` on `/`, `~`, `.`,
+  `*`, `.*` or the repo root; `git push --force` / `-f` / `+branch` (use `--force-with-lease`) and
+  `git push --mirror` / `--prune`; `git reset --hard`, `git checkout .`, `git restore .`, `git clean -f` (stash or
+  `git clean -n` first); `git … --no-verify` and `git commit -n`; `DROP TABLE` / `DROP DATABASE` /
+  `DROP SCHEMA` / `TRUNCATE` via a SQL client; `wp db drop` / `wp db reset`; `docker system prune` /
+  `docker volume prune` (podman too); `chmod 777` or anything world-writable (`666`, `a+rwx`, `o+w`); `npm` / `pnpm` / `yarn` / `bun publish` (use
+  `--dry-run`); `supabase db reset` against a remote project. On the CLI a hook blocks these; the
+  user-approved bypass is the `CKLPH_ALLOW_DESTRUCTIVE=1 ` prefix, which exempts the whole Bash
+  call, so never chain anything onto it. The hook also checks through `sudo`/`env`/`timeout` and
+  `bash -c`/`eval` strings. This mirrors the cklph-os gate; keep them in step.
 
 ## Do not
 - <project-specific anti-patterns>
