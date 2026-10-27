@@ -158,11 +158,11 @@ crown jewels; if none (the Map phase did not run), narrate per lens from the cov
 
 ## Held-untraced
 
-> Majority-held by the verifier panel, but no independent reachability trace was produced. Not confirmed, not cleared — **needs owner review**. (Omit this section when `HELD_UNTRACED` is empty.)
+> Critical/high findings the verifier panel could neither confirm nor cleanly refute. Not confirmed, not cleared — **needs owner review**. (Omit this section when `HELD_UNTRACED` is empty.)
 
 ### U-1: <title>
 - **Where:** `<file>:<line>` · **severity (claimed):** <high|critical> · **rule:** `<…>`
-- **Why held:** majority couldn't refute; no voter produced an input→sink / invariant-violation trace.
+- **Why held:** <heldReason: majority-held-no-trace | refuted-without-guard | no-quorum, in words>.
 - **To resolve:** produce the reachability trace (promote) or the missing guard (refute).
 
 ### Deferred — unverified (verifier budget exhausted)

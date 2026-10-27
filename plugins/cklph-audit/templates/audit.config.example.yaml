@@ -67,10 +67,10 @@ patch:                           # patch generation + validation — opt-in, aut
   maxIterations: 3               # max patch-and-test rounds per finding
 selfReview:                      # adversarial self-review of the report (the "check itself" loop)
   enabled: true                  # default true in full mode, false in quick
-  maxRounds: 2                   # cap on re-scan rounds (gaps → re-scan → re-review)
-feedRefresh:                     # vulnerability feed freshness
+  maxRounds: 1                   # one review pass runs (no re-scan exists yet, so more rounds would re-read the same report); 0 disables
+feedRefresh:                     # vulnerability feed freshness — NOT yet read by the engine; run /cklph-audit:refresh-feeds yourself
   maxAgeHours: 24                # warn if CVE DB is older than this
-  autoRefresh: true              # auto-run refresh at audit start if stale
+  autoRefresh: true              # not implemented: nothing refreshes feeds at audit start
   sources: [nvd, ghsa, osv]      # CVE feeds to check
 compliance:                      # compliance cross-mapping
   frameworks: [soc2, casa]       # SOC 2 Trust Services Criteria + CASA; add hipaa for PHI apps (opt-in)
@@ -80,12 +80,12 @@ compliance:                      # compliance cross-mapping
 #   globs: ['**/.mcp.json', '**/mcp.json', '**/.claude/**', '**/.cursor/**', '**/.vscode/mcp.json',
 #           '**/hooks/hooks.json', '**/.claude/hooks/**', '**/plugins/*/hooks/**', '**/.claude-plugin/*.json',
 #           '**/CLAUDE.md', '**/AGENTS.md', '**/skills/**/SKILL.md', '**/agents/*.md']
-ensemble:                        # diverse-model panels for crown-jewel units (T3.4)
+ensemble:                        # diverse-model panels for crown-jewel units (T3.4) — NOT yet read by the engine (config stub)
   enabled: false                 # expensive — gate to highest-risk units only
   models: []                     # e.g. ["claude-sonnet", "gpt-4o", "gemini-2.5-flash"]
   riskGate: 0.8                  # only units with riskScore ≥ this get ensemble panels
 vulnIntel:                       # MCP vulnerability intelligence integration
-  enabled: auto                  # auto (default — use cve-mcp/vuln-intel-ext if available, fall back to local tools) | true | false
+  enabled: auto                  # auto (default) or true — use cve-mcp/vuln-intel-ext if available, fall back to local tools | false — skip MCP
   # When enabled, the SCA lens will attempt to use MCP tools for enrichment:
   #   - vuln-intel-ext: diff_since (delta CVEs since last scan), save_dependency_snapshot, feed_status, wp_scan
   #   - cve-mcp: cve_enrich (EPSS/KEV/exploit-availability), cve_prioritize (risk ranking), osv_query, exploit_search

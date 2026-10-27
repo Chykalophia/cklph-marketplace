@@ -13,7 +13,7 @@ fi
 ESLINT_JSON="$(npx --no-install eslint --format json "$TARGET" 2>/dev/null)"
 if [ -n "$ESLINT_JSON" ] && command -v node >/dev/null 2>&1; then
   node -e '
-    let data = []; try { data = JSON.parse(require("fs").readFileSync(0,"utf8")); } catch {}
+    let data = []; try { data = JSON.parse(require("fs").readFileSync(0,"utf8")); } catch (e) { process.stderr.write("await.sh: eslint output is not valid JSON (" + e.message + ") — eslint findings NOT collected.\n"); }
     for (const f of data) for (const m of (f.messages || [])) {
       if (/no-floating-promises|no-misused-promises|require-await/.test(m.ruleId || "")) {
         process.stdout.write(JSON.stringify({
@@ -28,7 +28,12 @@ else
 fi
 
 # tsc is the exact backstop; surface that it ran (compile errors often hide await bugs).
-if ! npx --no-install tsc --noEmit >/dev/null 2>&1; then
-  echo "note: 'tsc --noEmit' reported errors — run it directly; type errors frequently mask missing awaits." >&2
+# tsc checks a whole project, so run it from the nearest tsconfig.json at or above the target.
+PROJ="$(cd "$TARGET" 2>/dev/null && pwd)" || PROJ=""
+while [ -n "$PROJ" ] && [ ! -f "$PROJ/tsconfig.json" ] && [ "$PROJ" != "/" ]; do PROJ="$(dirname "$PROJ")"; done
+if [ -z "$PROJ" ] || [ ! -f "$PROJ/tsconfig.json" ]; then
+  echo "note: no tsconfig.json at or above $TARGET — 'tsc --noEmit' not run." >&2
+elif ! (cd "$PROJ" && npx --no-install tsc --noEmit >/dev/null 2>&1); then
+  echo "note: 'tsc --noEmit' (in $PROJ) reported errors — run it directly; type errors frequently mask missing awaits." >&2
 fi
 exit 0

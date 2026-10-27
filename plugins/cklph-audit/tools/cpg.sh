@@ -4,18 +4,26 @@
 # Falls back to a grep-based call-graph approximation. Emits JSON lines. Exits 0 ALWAYS.
 # Usage: cpg.sh <root> <query-type> <target>
 #   <query-type>: callers|reachable|sinks
-#   <target>: function name or file:line (for callers) / sink pattern (for reachable/sinks)
+#   <target>: function name (callers) / sink call name (reachable) / sink regex (sinks)
 # Output schema per line: { tool, query, file, line, snippet, rationale }
+# Joern: the queries go through a `joern-query` binary on PATH, which the Joern distribution does
+# NOT ship (its CLI is `joern --script`). Without one, every query uses the grep fallback.
+# The Joern branch is UNVERIFIED here (no Joern install in this repo's tests).
 set -uo pipefail
-ROOT="${1:-.}"
+ARG="${1:-.}"
 QUERY="${2:-callers}"
 TARGET="${3:-}"
-cd "$ROOT" 2>/dev/null || true
+# Resolve the root ONCE to an absolute path, so a relative root is not re-resolved after cd.
+if ! ROOT="$(cd "$ARG" 2>/dev/null && pwd)"; then
+  echo "cpg.sh: root not found: $ARG — nothing queried." >&2
+  exit 0
+fi
+cd "$ROOT" || exit 0
 
 if [ -z "$TARGET" ]; then printf '[]\n'; exit 0; fi
 
 # ── Joern (if installed and a CPG exists or can be built) ────────────────────
-if command -v joern >/dev/null 2>&1; then
+if command -v joern-parse >/dev/null 2>&1 && command -v joern-query >/dev/null 2>&1; then
   CPG_DIR="${JOERN_CPG_DIR:-$ROOT/.cpg}"
   if [ ! -d "$CPG_DIR" ]; then
     joern-parse "$ROOT" --output-dir "$CPG_DIR" >/dev/null 2>&1 || true
@@ -25,23 +33,26 @@ if command -v joern >/dev/null 2>&1; then
       callers)
         joern-query --cpg "$CPG_DIR" "cpg.call.name(\"$TARGET\").method.l" --json 2>/dev/null \
           | node -e 'let raw="";process.stdin.on("data",d=>raw+=d);process.stdin.on("end",()=>{
-            let arr=[];try{arr=JSON.parse(raw);}catch{}
+            let arr;try{arr=JSON.parse(raw);}catch(e){process.stderr.write("cpg.sh: joern output is not valid JSON ("+e.message+") — no callers collected.\n");return;}
             for(const r of arr) process.stdout.write(JSON.stringify({
               tool:"joern",query:"callers",file:r.filename||"",line:r.lineNumber||0,
               snippet:r.name||"",rationale:"Caller of "+process.argv[1]
             })+"\n");})' "$TARGET" || true
+        exit 0
         ;;
       reachable)
-        joern-query --cpg "$CPG_DIR" "def source = cpg.call.name(\"$TARGET\"); sink.reachableByFlows(source).p" --json 2>/dev/null \
+        # flows from any method parameter (attacker-input approximation) into calls named <target>
+        joern-query --cpg "$CPG_DIR" "def sink = cpg.call.name(\"$TARGET\"); def source = cpg.method.parameter; sink.reachableByFlows(source).p" --json 2>/dev/null \
           | node -e 'let raw="";process.stdin.on("data",d=>raw+=d);process.stdin.on("end",()=>{
-            let arr=[];try{arr=JSON.parse(raw);}catch{}
+            let arr;try{arr=JSON.parse(raw);}catch(e){process.stderr.write("cpg.sh: joern output is not valid JSON ("+e.message+") — no flows collected.\n");return;}
             for(const r of arr) process.stdout.write(JSON.stringify({
               tool:"joern",query:"reachable",file:r.filename||"",line:r.lineNumber||0,
-              snippet:r.code||"",rationale:"Reachable from "+process.argv[1]
+              snippet:r.code||"",rationale:"Parameter-to-sink flow into "+process.argv[1]
             })+"\n");})' "$TARGET" || true
+        exit 0
         ;;
     esac
-    exit 0
+    # any other query type (sinks) falls through to the grep fallback below
   fi
 fi
 
@@ -76,6 +87,12 @@ case "$QUERY" in
           })+"\n");' "$f" "$LN" "$TXT" "$TARGET" || true
         done
       done
+    ;;
+  reachable)
+    echo "cpg.sh: 'reachable' needs Joern (joern-parse + joern-query on PATH); there is no grep fallback for data-flow — nothing was queried, so no output does NOT mean unreachable. Use 'callers' and trace by hand." >&2
+    ;;
+  *)
+    echo "cpg.sh: unknown query type '$QUERY' (want callers|reachable|sinks) — nothing queried." >&2
     ;;
 esac
 

@@ -8,13 +8,19 @@ set -uo pipefail
 # ── Trivy DB age ─────────────────────────────────────────────────────────────
 if command -v trivy >/dev/null 2>&1; then
   CUR_VER=$(trivy --version 2>/dev/null | head -1 | grep -oE '[0-9]+\.[0-9]+\.[0-9]+' || echo "unknown")
-  # trivy stores its DB in ~/.cache/trivy/db or $XDG_CACHE_HOME/trivy/db
-  DB_DIR="${TRIVY_CACHE_DIR:-${HOME}/.cache/trivy/db}"
+  # trivy's cache: $TRIVY_CACHE_DIR, else the OS user cache dir (~/Library/Caches on macOS,
+  # $XDG_CACHE_HOME or ~/.cache elsewhere); the DB metadata sits in <cache>/db.
+  DB_DIR=""
+  for d in "${TRIVY_CACHE_DIR:-}" "${XDG_CACHE_HOME:-}/trivy" "$HOME/Library/Caches/trivy" "$HOME/.cache/trivy"; do
+    case "$d" in ""|/trivy) continue ;; esac
+    if [ -f "$d/db/metadata.json" ]; then DB_DIR="$d/db"; break; fi
+  done
   DB_AGE="unknown"
-  if [ -f "$DB_DIR/metadata.json" ]; then
+  if [ -n "$DB_DIR" ]; then
     DB_AGE=$(node -e '
       let m={}; try{m=JSON.parse(require("fs").readFileSync(process.argv[1],"utf8"));}catch{}
-      const upd = m.NextUpdate || m.UpdatedAt || m.DownloadedAt || 0;
+      // age = time since this DB was fetched/built; NextUpdate is a FUTURE time, never an age
+      const upd = m.DownloadedAt || m.UpdatedAt || 0;
       if (upd) { const age=Math.round((Date.now()-new Date(upd).getTime())/3600000); process.stdout.write(String(age)); }
       else process.stdout.write("unknown");
     ' "$DB_DIR/metadata.json" 2>/dev/null || echo "unknown")
@@ -28,10 +34,14 @@ fi
 
 # ── Grype DB age ─────────────────────────────────────────────────────────────
 if command -v grype >/dev/null 2>&1; then
-  CUR_VER=$(grype version 2>/dev/null | grep -E '^version' | awk '{print $NF}' || echo "unknown")
+  CUR_VER=$(grype version 2>/dev/null | grep -iE '^version' | awk '{print $NF}' || echo "unknown")
   DB_AGE="unknown"
-  DB_DIR="${HOME}/.cache/grype/db"
-  if [ -d "$DB_DIR" ]; then
+  DB_DIR=""
+  for d in "${GRYPE_DB_CACHE_DIR:-}" "${XDG_CACHE_HOME:-}/grype/db" "$HOME/Library/Caches/grype/db" "$HOME/.cache/grype/db"; do
+    case "$d" in ""|/grype/db) continue ;; esac
+    if [ -d "$d" ]; then DB_DIR="$d"; break; fi
+  done
+  if [ -n "$DB_DIR" ]; then
     DB_AGE=$(node -e '
       const fs=require("fs"), path=require("path");
       let newest=0;

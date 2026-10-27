@@ -7,17 +7,27 @@
 #                 if absent, tries docker-compose up then falls back to localhost:3000.
 # Output schema per line: { tool, rule, severity, url, method, param, evidence }
 set -uo pipefail
-TARGET="${1:-.}"
+ARG="${1:-.}"
 URL="${2:-}"
-cd "$TARGET" 2>/dev/null || true
+# Resolve the target ONCE to an absolute path, so a relative root is not re-resolved after cd.
+if ! TARGET="$(cd "$ARG" 2>/dev/null && pwd)"; then
+  echo "dast.sh: target not found: $ARG — nothing booted or scanned." >&2
+  exit 0
+fi
+cd "$TARGET" || exit 0
 
 COMPOSE_UP=false
+COMPOSE_FILE=""
+DEV_PID=""
+for f in compose.yaml compose.yml docker-compose.yaml docker-compose.yml; do
+  if [ -f "$TARGET/$f" ]; then COMPOSE_FILE="$TARGET/$f"; break; fi
+done
 
 # ── Boot the target (unless a URL was provided) ──────────────────────────────
 if [ -z "$URL" ]; then
-  if [ -f "$TARGET/docker-compose.yml" ] || [ -f "$TARGET/docker-compose.yaml" ]; then
-    docker compose -f "$TARGET/docker-compose.yml" up -d --quiet-pull >/dev/null 2>&1 || \
-      docker-compose -f "$TARGET/docker-compose.yml" up -d >/dev/null 2>&1 || true
+  if [ -n "$COMPOSE_FILE" ]; then
+    docker compose -f "$COMPOSE_FILE" up -d --quiet-pull >/dev/null 2>&1 || \
+      docker-compose -f "$COMPOSE_FILE" up -d >/dev/null 2>&1 || true
     COMPOSE_UP=true
     # wait for healthcheck (max 60s)
     for i in $(seq 1 60); do
@@ -27,8 +37,12 @@ if [ -z "$URL" ]; then
     done
     URL="${URL:-http://localhost:3000}"
   elif [ -f "$TARGET/package.json" ]; then
-    # try to start a dev server in the background
-    (cd "$TARGET" && npm run dev >/dev/null 2>&1 &) 2>/dev/null || true
+    # Start a dev server in the background, in its own process group (set -m), so teardown can
+    # stop npm AND the server it spawns with one group kill.
+    set -m
+    npm run dev >/dev/null 2>&1 &
+    DEV_PID=$!
+    set +m
     sleep 10
     URL="http://localhost:3000"
   else
@@ -134,15 +148,19 @@ fi
 
 # ── ffuf (content discovery — optional, quick) ───────────────────────────────
 if command -v ffuf >/dev/null 2>&1; then
-  # minimal common-paths discovery
-  ffuf -u "$URL/FUZZ" -w /dev/stdin -mc 200,301,401,403 -s 2>/dev/null <<'PATHS' | \
+  # minimal common-paths discovery. -json prints one JSON object per hit (plain -s prints bare
+  # words, which the parser cannot read). The evidence uses url + status, not input.FUZZ, which
+  # ffuf's -json stream may base64-encode.
+  ffuf -u "$URL/FUZZ" -w /dev/stdin -mc 200,301,401,403 -json 2>/dev/null <<'PATHS' | \
     node -e 'let raw="";process.stdin.on("data",d=>raw+=d);process.stdin.on("end",()=>{
-      for(const line of raw.trim().split("\n")){
-        if(!line)continue; let r={};try{r=JSON.parse(line);}catch{continue;}
+      let bad=0;
+      for(const line of raw.split("\n")){
+        if(!line.trim())continue; let r;try{r=JSON.parse(line);}catch{bad++;continue;}
         process.stdout.write(JSON.stringify({
           tool:"ffuf",rule:"content-discovery",severity:"low",
-          url:r.url||"",method:"GET",param:"",evidence:"Discovered: "+(r.input?.FUZZ||"")
-        })+"\n");}})' || true
+          url:r.url||"",method:"GET",param:"",evidence:"Discovered: "+(r.url||"")+(r.status?" (HTTP "+r.status+")":"")
+        })+"\n");}
+      if(bad) process.stderr.write("dast.sh: "+bad+" ffuf output line(s) were not JSON — those hits were NOT collected.\n");})' || true
 admin
 .git
 .env
@@ -158,7 +176,12 @@ fi
 
 # ── Teardown ─────────────────────────────────────────────────────────────────
 if [ "$COMPOSE_UP" = true ]; then
-  docker compose -f "$TARGET/docker-compose.yml" down --quiet >/dev/null 2>&1 || true
+  docker compose -f "$COMPOSE_FILE" down >/dev/null 2>&1 || \
+    docker-compose -f "$COMPOSE_FILE" down >/dev/null 2>&1 || true
+fi
+if [ -n "$DEV_PID" ]; then
+  # the dev server leads its own process group (set -m above): stop npm and its children
+  kill -TERM -- "-$DEV_PID" 2>/dev/null || kill -TERM "$DEV_PID" 2>/dev/null || true
 fi
 
 if ! command -v zap-cli >/dev/null 2>&1 && ! command -v nuclei >/dev/null 2>&1 && ! command -v docker >/dev/null 2>&1; then

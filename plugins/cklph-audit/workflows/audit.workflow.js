@@ -6,8 +6,9 @@
 //  or skip in quick mode and degrade gracefully):
 //   1. DISCOVER  — parallel: scout infers units (escalates to audit-unit-mapper
 //                  when low-confidence; explicit config wins) + rulebook
-//                  extraction (rulesFrom docs → discrete rules) + feed freshness
-//                  check (CVE DB age + tool versions).
+//                  extraction (rulesFrom docs → discrete rules). Vulnerability-feed
+//                  freshness is NOT checked by the engine: the user runs
+//                  /cklph-audit:refresh-feeds (feed-status.sh); RUN_META says so.
 //   2. RECON     — one audit-recon per lens, concurrent with Discover: cited
 //                  denominators (re-runnable command + count), seeds (hints,
 //                  not findings), safe-control candidates. Skipped in quick
@@ -44,10 +45,13 @@
 //                  summary + matrix + compliance matrix + narrative, DAST/exploit/
 //                  patch evidence, positive controls (INFO), waves. Compliance lens
 //                  runs here as a single post-reconcile mapping job.
-//  11. SELFREVIEW— adversarial self-review of the report (the "check itself" loop):
-//                  an audit-reviewer re-reads the report for gaps, missed areas,
-//                  under-explored crown jewels. Gaps trigger a re-scan (up to
-//                  selfReview.maxRounds). Default true in full; off in quick.
+//  11. SELFREVIEW— adversarial self-review of the written report: ONE audit-reviewer
+//                  pass re-reads it for gaps, missed areas, under-explored crown
+//                  jewels. The engine appends a "## Self-review" section (gaps, or
+//                  why it did not run) and sets phases.self_review in the front-
+//                  matter. Gaps are NOT re-scanned (no re-scan exists yet), so
+//                  they are reported as open coverage gaps. Default true in full;
+//                  off in quick.
 //
 // args = { lenses:string[], path?, mode:"full"|"quick", deepUnits?:bool,
 //          config:object, baseline:{fingerprints:string[]} }
@@ -104,9 +108,11 @@ const agentConfigGlobs = scopePath
 const inScope = f => !scopePath || f === scopePath || f.startsWith(scopePath + '/')
 
 // vulnIntel: auto-detect MCP tools (cve-mcp, vuln-intel-ext) when available.
-// 'auto' (default) = use them if present, fall back to local tools if not.
-// 'true' = require them (log a warning if absent). 'false' = skip MCP entirely.
-const vulnIntelMode = config.vulnIntel?.enabled ?? 'auto'
+// 'auto' (default) or true = the SCA reviewer uses them if present and falls back to local tools
+// if not (the engine cannot see the MCP tool list, so true does not make them mandatory).
+// false = skip MCP entirely. YAML `enabled: false` parses to the boolean false, so normalize to a
+// string first — comparing the raw value against 'false' never matched the boolean.
+const vulnIntelMode = String(config.vulnIntel?.enabled ?? 'auto').toLowerCase()
 const vulnIntelEnabled = vulnIntelMode !== 'false'
 
 // ── schemas (single source of truth; agents are forced to match these) ───────
@@ -587,7 +593,8 @@ function verifyFindings(findings, unitKey, lens, unitVoters, extraOpts = {}) {
       )))
       .then(votes => {
         const v = votes.filter(Boolean)
-        if (v.length === 0) log(`verify:${f.id ?? f.file}: all voters died — finding dropped unverified`)
+        const highSev = ['critical', 'high'].includes(f.severity)
+        if (v.length === 0) log(`verify:${f.id ?? f.file}: all voters died — ${highSev ? 'critical/high surfaced as held (no quorum) for owner review' : 'finding dropped unverified'}`)
         else if (v.length < unitVoters) log(`verify:${f.id ?? f.file} — ${v.length}/${unitVoters} voters returned`)  // E7: some voters died
         // T1.3/A1: the trace that promotes a critical/high must come from a VOTER that held it real —
         // NEVER the reviewer's own validationSteps (the accuser vouching for itself). A high-sev finding
@@ -602,12 +609,18 @@ function verifyFindings(findings, unitKey, lens, unitVoters, extraOpts = {}) {
         const refutedGuards = v.filter(x => x.refuted && x.counterEvidence).map(x => ({ counterEvidence: x.counterEvidence, reason: x.reason }))
         const cleanlyRefuted = !pass && refutedGuards.length > 0    // majority refuted AND a guard was cited → a real near-miss
         const voterTrace = v.find(x => !x.refuted && x.reachabilityTrace && x.reachabilityTrace.trim())
-        const isHighSev = ['critical', 'high'].includes(f.severity)
+        const isHighSev = highSev
         const confirmed = pass && (!isHighSev || !!voterTrace)
-        // every high-sev that isn't confirmed and wasn't cleanly refuted is surfaced — no high-sev silent drop
+        // every high-sev that isn't confirmed and wasn't cleanly refuted is surfaced — no high-sev silent drop.
+        // NOT all of these held the majority: heldReason says which case it is, so the report never
+        // calls a majority-REFUTED or no-quorum finding "majority-held".
         const heldUntraced = isHighSev && !confirmed && !cleanlyRefuted
+        const heldReason = !heldUntraced ? undefined
+          : !quorumMet ? 'no-quorum'                      // too few voters returned (incl. all died)
+          : pass ? 'majority-held-no-trace'               // held by the majority, no voter supplied a trace
+          : 'refuted-without-guard'                       // majority refuted, but no voter cited a guard
         if (voterTrace) f.reachabilityTrace = voterTrace.reachabilityTrace
-        return { ...f, unit: unitKey, lens, confirmed, heldUntraced, majorityHeld: pass, refutedGuards }
+        return { ...f, unit: unitKey, lens, confirmed, heldUntraced, ...(heldReason ? { heldReason } : {}), majorityHeld: pass, refutedGuards }
       })
   }))
 }
@@ -1026,7 +1039,9 @@ fresh = fresh.filter(f => (sevRank[f.severity] ?? 1) >= floorRank)
 if (preFloor - fresh.length) log(`severityFloor '${config.severityFloor ?? 'low'}': ${preFloor - fresh.length} finding(s) below floor dropped`)
 
 // ── harvest AFTER the Variant merge (E3) — nearMisses / heldUntraced / positive controls / coverage ──
-// heldUntraced (E2): majority-held critical/high with NO independent voter trace — surfaced, never dropped.
+// heldUntraced (E2): critical/high neither confirmed nor cleanly refuted — majority-held with NO
+// independent voter trace, majority-refuted with no guard cited, or no quorum (heldReason says
+// which) — surfaced, never dropped.
 const freshFps = new Set(fresh.map(fingerprint))
 const heldUntraced = dedupeByFingerprint(allVerified.filter(f => f.heldUntraced))
   .filter(f => !baseline.has(fingerprint(f)))
@@ -1145,7 +1160,7 @@ if (hasCompliance) {
   const complianceOut = await agent(
     `COMPLIANCE MAPPING: map the confirmed findings from all other lenses to formal security frameworks. ` +
     `Load the compliance-lens skill and the rulebooks from ` +
-    '`${CLAUDE_PLUGIN_ROOT}/skills/compliance-lens/rulebooks/' + `. For each control in each framework ` +
+    '`${CLAUDE_PLUGIN_ROOT}/skills/compliance-lens/rulebooks/<framework>.yaml`' + `. For each control in each framework ` +
     `(${frameworks.join(', ')}): map to findings (violation → link finding ID), cite evidence (met → ` +
     `the guard/pattern), explain non-applicability, or honestly mark not-checked. Return a compliance ` +
     `matrix with one entry per control per framework. No control silently absent.\n` +
@@ -1225,7 +1240,9 @@ if (!fresh.length && !heldUntraced.length && !deferred.length) {
     dast: { ran: dastRan, findings: dastFindings.length, exploits: exploitResults.length },
     patch: { ran: patchRan, patches: patchResults.length },
     compliance: { ran: hasCompliance, controls: complianceMatrix.length },
-    selfReview: { ran: false, gaps: 0 },
+    selfReview: { ran: false, gaps: 0, gapDetails: [], reScanned: false, notRunReason: 'clean run — no report to review' },
+    vulnIntel: { mode: vulnIntelMode, enabled: vulnIntelEnabled, lenses: lenses.includes('sca') ? ['sca'] : [] },
+    feedFreshnessChecked: false,
   }
 }
 const runMeta = {
@@ -1238,21 +1255,25 @@ const runMeta = {
   variantRan,                                    // E3: true ONLY if the phase actually processed ≥1 seed
   dastRan,                                       // v4: DAST phase ran (opt-in, off by default)
   patchRan,                                      // v4: Patch phase ran (opt-in, auto-on with DAST)
-  selfReviewRan: false,                          // v4: SelfReview phase ran (default true in full) — set below
-  heldUntracedCount: heldUntraced.length,        // E2: majority-held findings awaiting an independent trace
+  exploitRan: exploitResults.length > 0,         // v4: exploit verification produced PoC results
+  // SelfReview runs AFTER this report is written, so the synthesizer cannot know its outcome: the
+  // engine appends the "## Self-review" section and sets phases.self_review itself (see §11).
+  selfReview: 'appended-by-engine',
+  feedFreshnessChecked: false,                   // the engine never runs feed-status.sh — say so, don't invent ages
+  heldUntracedCount: heldUntraced.length,        // E2: critical/high neither confirmed nor cleanly refuted (see heldReason)
   deferredCount: deferred.length,                // A5b: findings the verifier budget couldn't afford
   verifierBudget: maxVerifierAgents,             // A5b: the cap; verifierSpawns is what was actually used
   verifierSpawns,
   crownJewels: model.crownJewels,
 }
-// E2: majority-held-but-untraced findings, surfaced for owner review (never silently dropped)
-const publicHeldUntraced = heldUntraced.map(f => ({ id: f.id, file: f.file, severity: f.severity, title: f.title, rule: f.rule }))
+// E2: held (inconclusive) critical/high findings, surfaced for owner review (never silently dropped)
+const publicHeldUntraced = heldUntraced.map(f => ({ id: f.id, file: f.file, severity: f.severity, title: f.title, rule: f.rule, heldReason: f.heldReason }))
 // A5b: deferred (unverified — budget-exhausted) findings, surfaced as candidates for a follow-up run
 const publicDeferred = deferred.map(f => ({ id: f.id, file: f.file, severity: f.severity, title: f.title, rule: f.rule, ...(f.deferredNote ? { note: f.deferredNote } : {}) }))
 // engine-internal fields stay out of the synthesizer's context (confirmed is always true here;
 // refutedGuards were already harvested into positive controls above)
 const publicFresh = fresh.map(({ refutedGuards, confirmed, ...rest }) => rest)
-const report = await agent(
+let report = await agent(
   `Write the audit report from these CONFIRMED, fresh findings. Load the audit-report-format skill for the ` +
   `AUDIT-<date>.md contract. Bucket by severity (critical/high/medium/low), each with file:line + why-it's-real ` +
   `(it survived adversarial verification) + a concrete fix + its confidence/bucket/context/validation fields. ` +
@@ -1268,9 +1289,12 @@ const report = await agent(
   `narrative (positive assurance from NEAR_MISSES + CROWN_JEWELS + COVERAGE_TOTALS: per area, what was probed, ` +
   `why clean areas held, and near-misses chased to ground), and a Positive controls (INFO) section (each: ` +
   `citation + what it protects + why it shipped). counts.info = positive-control count. When HELD_UNTRACED is ` +
-  `non-empty, render a distinct "Majority-held, awaiting an independent reachability trace (needs owner review)" ` +
-  `subsection listing each (file, severity, title, rule) — these held the majority vote but no VOTER supplied an ` +
-  `independent trace; surface them for owner review, do NOT drop them and do NOT treat them as confirmed. When ` +
+  `non-empty, render the "Held-untraced (needs owner review)" section listing each (file, severity, title, rule, ` +
+  `heldReason) — critical/high the panel could neither confirm nor cleanly refute. Render each one's heldReason ` +
+  `plainly: "majority-held-no-trace" = held by the majority but no VOTER supplied an independent trace; ` +
+  `"refuted-without-guard" = the majority refuted it but no voter cited a guard; "no-quorum" = too few voters ` +
+  `returned to decide. Never call a refuted-without-guard or no-quorum entry "majority-held". Surface them for ` +
+  `owner review, do NOT drop them and do NOT treat them as confirmed. When ` +
   `DEFERRED is non-empty, render a "Deferred — UNVERIFIED (verifier budget exhausted)" subsection listing each ` +
   `(file, severity, title, rule): the verifier budget (RUN_META.verifierBudget) ran out before these could be ` +
   `verified, so they are UNVERIFIED candidates that may include false positives — label them plainly and ` +
@@ -1280,9 +1304,13 @@ const report = await agent(
   `owner-decision items go in their own "Owner decisions" subsection (questions, not work). Findings with a ` +
   `"patched" status from PATCH_RESULTS get a "patch-ready" tag in the wave entry. Flag in an ` +
   `appendix: unit derivation, low-confidence units, quick-mode sampling, whether the Map + Variant + DAST + ` +
-  `Patch + SelfReview phases ran (and why not, if skipped), recon gaps, and ` +
+  `Patch phases ran (and why not, if skipped), recon gaps, and ` +
   `(RUN_META — state plainly which denominators/seeds/phases are ` +
-  `absent/partial and why).\n\n` +
+  `absent/partial and why). SelfReview runs AFTER you: do NOT write a Self-review section and do not guess ` +
+  `its result — write "self_review: false" in the front-matter phases block; the engine rewrites that line and ` +
+  `appends the "## Self-review" section itself. Feed freshness was NOT checked (RUN_META.feedFreshnessChecked ` +
+  `is false): say so in the appendix and recommend running /cklph-audit:refresh-feeds before the next ` +
+  `SCA/container audit; never state a database age.\n\n` +
   `FINDINGS:\n${JSON.stringify(publicFresh, null, 2)}\n\n` +
   `RULE_CLOSURE:\n${JSON.stringify(ruleClosure, null, 2)}\n\n` +
   `COVERAGE_TOTALS:\n${JSON.stringify(coverageTotals, null, 2)}\n\n` +
@@ -1300,51 +1328,80 @@ const report = await agent(
 )
 
 // ════════════════════════════════════════════════════════════════════════════
-// 11. SELF-REVIEW — adversarial self-review of the report (the "check itself" loop)
+// 11. SELF-REVIEW — one adversarial pass over the written report; the engine appends its result
 // ════════════════════════════════════════════════════════════════════════════
-const selfReviewEnabled = (config.selfReview?.enabled ?? true) && mode !== 'quick'
+// There is no re-scan: a gap found here is reported as an OPEN coverage gap, not resolved. A second
+// review of the same unchanged report adds nothing, so exactly one pass runs (selfReview.maxRounds
+// is accepted for compatibility but only 0 disables it).
+const selfReviewEnabled = (config.selfReview?.enabled ?? true) && mode !== 'quick' && (config.selfReview?.maxRounds ?? 1) > 0
 let selfReviewRan = false
 let selfReviewGaps = []
-if (selfReviewEnabled && report?.markdown) {
+let selfReviewAssessment = ''
+let selfReviewNotRun = !selfReviewEnabled
+  ? (mode === 'quick' ? 'quick mode skips it' : 'disabled by config (selfReview.enabled: false or maxRounds: 0)')
+  : ''
+if (!report?.markdown) {
+  // the synthesizer died: never let that read as a clean run (report: null is the clean-run signal)
+  log('audit-synthesizer died — returning an engine fallback report so the run is not mistaken for clean')
+  const lineOf = f => `- **${f.severity ?? '?'}** ${f.title ?? '(untitled)'} — \`${f.file ?? '?'}${f.line ? ':' + f.line : ''}\` (${f.rule ?? 'no rule'})`
+  report = {
+    markdown: `# Audit report — SYNTHESIS FAILED\n\n` +
+      `> The audit-synthesizer agent died, so this is the engine's raw fallback, not the AUDIT contract. ` +
+      `Re-run the audit to get the full report. Nothing below has been re-judged.\n\n` +
+      `## Confirmed findings (${fresh.length})\n\n${fresh.map(lineOf).join('\n') || '_none_'}\n\n` +
+      `## Held-untraced — needs owner review (${heldUntraced.length})\n\n${heldUntraced.map(f => lineOf(f) + (f.heldReason ? ` — ${f.heldReason}` : '')).join('\n') || '_none_'}\n\n` +
+      `## Deferred — UNVERIFIED (${deferred.length})\n\n${deferred.map(lineOf).join('\n') || '_none_'}\n`,
+    waves: [],
+    counts: ['critical', 'high', 'medium', 'low'].reduce((c, s) => ({ ...c, [s]: fresh.filter(f => f.severity === s).length }), { info: 0 }),
+    synthesisFailed: true,
+  }
+  if (selfReviewEnabled) selfReviewNotRun = 'the synthesizer died, so there was no report to review'
+} else if (selfReviewEnabled) {
   phase('SelfReview')
-  const maxRounds = config.selfReview?.maxRounds ?? 2
-  for (let round = 0; round < maxRounds; round++) {
-    const reviewOut = await agent(
-      `ADVERSARIAL SELF-REVIEW: you are reviewing an audit report for GAPS. Read the report below and ` +
-      `identify what's missing, under-explored, or inconsistent. Specifically check: ` +
-      `(1) did every unit × lens pair get coverage? (2) are crown jewels adequately explored? ` +
-      `(3) are there findings that should have been caught but weren't? (4) is the coverage narrative ` +
-      `honest — does any "clean" area lack a narrative? (5) are DAST/exploit/patch results (if any) ` +
-      `rendered? (6) is the compliance matrix complete (if compliance ran)? ` +
-      `(7) if the SCA lens ran, were MCP vulnerability intelligence tools (cve-mcp/vuln-intel-ext) ` +
-      `used for enrichment if available? If not, flag as a gap. ` +
-      `Return gaps as { area, whatWasMissed } pairs. If there are NO gaps, return an empty array.\n\n` +
-      `REPORT:\n${report.markdown}\n\n` +
-      `RUN_META:\n${JSON.stringify({ units: units.map(u => u.key), lenses, mode, mapRan, variantRan, dastRan, patchRan })}`,
-      { agentType: 'cklph-audit:audit-reviewer', label: `selfreview:round-${round + 1}`, phase: 'SelfReview', schema: SELF_REVIEW_SCHEMA, ...tier('reviewer') },
-    )
-    if (!reviewOut) {
-      log(`self-review round ${round + 1} died — stopping self-review (flagged in appendix)`)
-      break
-    }
+  const reviewOut = await agent(
+    `ADVERSARIAL SELF-REVIEW: you are reviewing an audit report for GAPS. Read the report below and ` +
+    `identify what's missing, under-explored, or inconsistent. Specifically check: ` +
+    `(1) did every unit × lens pair get coverage? (2) are crown jewels adequately explored? ` +
+    `(3) are there findings that should have been caught but weren't? (4) is the coverage narrative ` +
+    `honest — does any "clean" area lack a narrative? (5) are DAST/exploit/patch results (if any) ` +
+    `rendered? (6) is the compliance matrix complete (if compliance ran)? ` +
+    `(7) if the SCA lens ran, were MCP vulnerability intelligence tools (cve-mcp/vuln-intel-ext) ` +
+    `used for enrichment if available? If not, flag as a gap. ` +
+    `(The "## Self-review" section is added after you, so its absence is not a gap.) ` +
+    `Return gaps as { area, whatWasMissed } pairs. If there are NO gaps, return an empty array.\n\n` +
+    `REPORT:\n${report.markdown}\n\n` +
+    `RUN_META:\n${JSON.stringify({ units: units.map(u => u.key), lenses, mode, mapRan, variantRan, dastRan, patchRan })}`,
+    { agentType: 'cklph-audit:audit-reviewer', label: 'selfreview:round-1', phase: 'SelfReview', schema: SELF_REVIEW_SCHEMA, ...tier('reviewer') },
+  )
+  if (!reviewOut) {
+    log('self-review died — the report says no self-review was performed')
+    selfReviewNotRun = 'the self-review agent died'
+  } else {
     selfReviewRan = true
-    const gaps = reviewOut.gaps ?? []
-    if (gaps.length === 0) {
-      log(`self-review round ${round + 1}: no gaps found — report is comprehensive`)
-      break
-    }
-    selfReviewGaps = gaps
-    log(`self-review round ${round + 1}: ${gaps.length} gap(s) found — ${round + 1 < maxRounds ? 're-scanning' : 'surfacing remaining gaps in appendix'}`)
-    // TODO: in a future rev, gaps trigger a targeted re-scan of the missed areas.
-    // For now, gaps are surfaced in the report appendix for owner awareness.
-    if (round + 1 >= maxRounds) {
-      log(`self-review: max rounds (${maxRounds}) reached — ${gaps.length} remaining gap(s) surfaced in appendix`)
-    }
+    selfReviewGaps = reviewOut.gaps ?? []
+    selfReviewAssessment = reviewOut.overallAssessment ?? ''
+    log(selfReviewGaps.length
+      ? `self-review: ${selfReviewGaps.length} gap(s) found — appended to the report as open coverage gaps (no re-scan)`
+      : 'self-review: no gaps found')
   }
 }
 
-// update runMeta with selfReview result for the synthesizer (in case of re-runs)
-runMeta.selfReviewRan = selfReviewRan
+// The self-review outcome reaches the report in plain code: rewrite the front-matter flag the
+// synthesizer could not know, and append the section. Never on the clean-run path (report null).
+if (report?.markdown) {
+  report.markdown = report.markdown.replace(/^(\s*self_review:\s*)[^\s#]+/m, `$1${selfReviewRan}`)
+  const gapLines = selfReviewGaps.map(g => `- **${g.area ?? 'unspecified area'}** — ${g.whatWasMissed ?? ''}`).join('\n')
+  report.markdown = report.markdown.replace(/\s*$/, '\n\n') + '## Self-review\n\n' + (
+    !selfReviewRan
+      ? `No adversarial self-review of this report was performed: ${selfReviewNotRun}.\n`
+      : selfReviewGaps.length
+        ? `One adversarial self-review pass ran after this report was written. It found ${selfReviewGaps.length} gap(s). ` +
+          `They were **not re-scanned** (the engine has no re-scan step), so **coverage is incomplete in these areas**:\n\n${gapLines}\n` +
+          (selfReviewAssessment ? `\nReviewer's assessment: ${selfReviewAssessment}\n` : '')
+        : `One adversarial self-review pass ran after this report was written and found no gaps.` +
+          (selfReviewAssessment ? ` Reviewer's assessment: ${selfReviewAssessment}` : '') + '\n'
+  )
+}
 
 return {
   report,
@@ -1360,6 +1417,7 @@ return {
   dast: { ran: dastRan, findings: dastFindings.length, exploits: exploitResults.length },
   patch: { ran: patchRan, patches: patchResults.length },
   compliance: { ran: hasCompliance, controls: complianceMatrix.length },
-  selfReview: { ran: selfReviewRan, gaps: selfReviewGaps.length, gapDetails: selfReviewGaps },
+  selfReview: { ran: selfReviewRan, gaps: selfReviewGaps.length, gapDetails: selfReviewGaps, reScanned: false, ...(selfReviewRan ? {} : { notRunReason: selfReviewNotRun }) },
   vulnIntel: { mode: vulnIntelMode, enabled: vulnIntelEnabled, lenses: lenses.includes('sca') ? ['sca'] : [] },
+  feedFreshnessChecked: false,
 }

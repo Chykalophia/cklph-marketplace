@@ -158,6 +158,16 @@ if (!pcs.length) { problems++; console.log('  ✗ no positive controls harvested
 const r5 = (synthInput?.ruleClosure || []).find(r => r.id === 'agents-md:rule-5');
 if (r5?.status === 'violation') { problems++; console.log('  ✗ rule-5 still "violation" though its only cited finding (F3) was refuted — phantom violation'); }
 else console.log(`  ✓ rule-5 (all-evidence-refuted) degraded to '${r5?.status}'${r5?.note ? ' (' + r5.note.slice(0,40) + '…)' : ''}`);
+// C7: F2 held BY the majority with no trace carries that reason (not a generic "majority-held" label)
+const f2held = (synthInput?.heldUntraced || []).find(f => f.id === 'F2');
+if (f2held?.heldReason !== 'majority-held-no-trace') { problems++; console.log(`  ✗ F2 heldReason is ${JSON.stringify(f2held?.heldReason)}, want "majority-held-no-trace"`); }
+else console.log('  ✓ F2 held with heldReason "majority-held-no-trace"');
+// C8: the self-review stub died here — the written report must SAY no self-review ran (it used to
+// hard-code selfReviewRan:false into RUN_META and never mention the outcome in the markdown)
+if (!/## Self-review\n\nNo adversarial self-review of this report was performed: the self-review agent died/.test(result?.report?.markdown || '')) { problems++; console.log('  ✗ report markdown does not state that self-review did not run'); }
+else console.log('  ✓ report states no self-review was performed (agent died)');
+if (synthInput?.runMeta?.feedFreshnessChecked !== false || 'selfReviewRan' in (synthInput?.runMeta || {})) { problems++; console.log('  ✗ RUN_META should carry feedFreshnessChecked:false and no pre-baked selfReviewRan'); }
+else console.log('  ✓ RUN_META says feed freshness was not checked, and no longer pre-bakes selfReviewRan:false');
 console.log(problems === 0 ? '\n✓ scenario A (uncapped) — all cross-phase checks passed' : `\n✗ scenario A: ${problems} conflict(s) found`);
 
 // ── SCENARIO B: verifier fan-out cap (A5b) — a tiny budget must DEFER overflow, surfaced not dropped ─
@@ -284,6 +294,58 @@ const p9 = await runScopedC('packages/app');
 if (p9.includes('other/lib/llm/out-of-scope-call.ts') || p9.includes('other/.mcp.json') || p9.includes('lib/llm/agent-runtime.ts"')) { problems++; console.log('  ✗ out-of-scope agent-config seed/safeControl reached the reviewer despite args.path'); }
 else if (!p9.includes('packages/app/lib/llm/in-scope-call.ts')) { problems++; console.log('  ✗ in-scope LLM call site (outside config globs) was dropped under args.path'); }
 else console.log('  ✓ args.path filters agent-config seeds/safeControls; in-scope runtime call site kept');
+
+// ── SCENARIO D: report truthfulness — self-review outcome, held reasons, vulnIntel off, dead synthesizer ─
+console.log('\n=== SCENARIO D: report truthfulness ===');
+{
+  const calls = [];
+  const FM = '---\nphases:\n  map: true\n  self_review: false         # set by the engine\n---\n# report';
+  const mkAgent = (over) => async (prompt, opts = {}) => {
+    const label = opts.label || '';
+    calls.push(label);
+    if (over[label] !== undefined) return typeof over[label] === 'function' ? over[label](prompt) : over[label];
+    if (label === 'synthesize:report') { await agent(prompt, opts); return { markdown: FM, waves: [], counts: { critical: 2, high: 0, medium: 0, low: 1, info: 3 } }; }
+    return agent(prompt, opts);
+  };
+  // D1: gaps found → front-matter flag rewritten to true, gaps appended as OPEN (not re-scanned), ONE pass only
+  const argsD = JSON.parse(JSON.stringify(args));
+  argsD.config.selfReview = { enabled: true, maxRounds: 3 };
+  argsD.config.vulnIntel = { enabled: false };   // YAML boolean, not the string 'false'
+  const rD = await runFn({ agent: mkAgent({ 'selfreview:round-1': { gaps: [{ area: 'billing unit × security', whatWasMissed: 'webhook signature check never reviewed' }], overallAssessment: 'mostly complete' } }), parallel, pipeline, phase, log, args: argsD, budget });
+  const md = rD?.report?.markdown || '';
+  const srCalls = calls.filter(l => l.startsWith('selfreview:')).length;
+  if (!/^\s*self_review: true/m.test(md)) { problems++; console.log('  ✗ front-matter phases.self_review not rewritten to true after self-review ran'); }
+  else console.log('  ✓ front-matter phases.self_review rewritten to true by the engine');
+  if (!md.includes('webhook signature check never reviewed') || !/not re-scanned/.test(md) || !/coverage is incomplete in these areas/.test(md)) { problems++; console.log('  ✗ self-review gaps did not reach the report as open gaps'); }
+  else console.log('  ✓ self-review gaps appended to the report, labeled not re-scanned / coverage incomplete');
+  if (srCalls !== 1) { problems++; console.log(`  ✗ ${srCalls} self-review passes over an unchanged report (want exactly 1)`); }
+  else console.log('  ✓ exactly one self-review pass even with maxRounds: 3 (no re-scan exists)');
+  if (rD?.selfReview?.ran !== true || rD?.selfReview?.reScanned !== false || rD?.selfReview?.gaps !== 1) { problems++; console.log(`  ✗ result.selfReview wrong: ${JSON.stringify(rD?.selfReview)}`); }
+  // D2: vulnIntel.enabled: false (boolean) turns enrichment off
+  if (rD?.vulnIntel?.enabled !== false) { problems++; console.log(`  ✗ vulnIntel.enabled:false (boolean) still enabled: ${JSON.stringify(rD?.vulnIntel)}`); }
+  else console.log('  ✓ vulnIntel.enabled: false (YAML boolean) disables MCP enrichment');
+  // D3: a high refuted by the majority WITHOUT a guard, and a critical whose voters all die, are held
+  // with their real reasons — never labeled "majority-held"
+  synthInput = null;
+  const verifyOver = (prompt) => {
+    const m = prompt.match(/FINDING:\s*(\{[\s\S]*\})/); let f = {}; try { f = JSON.parse(m[1]); } catch {}
+    if ((f.title || '').includes('getSession')) return { refuted: true, reason: 'probably fine' };   // no counterEvidence
+    if ((f.title || '').includes('users route')) return null;                                       // voter died
+    return undefined;
+  };
+  const agentD3 = async (prompt, opts = {}) => {
+    if ((opts.label || '').startsWith('verify:')) { const v = verifyOver(prompt); if (v !== undefined) return v; }
+    return mkAgent({})(prompt, opts);
+  };
+  await runFn({ agent: agentD3, parallel, pipeline, phase, log, args: JSON.parse(JSON.stringify(args)), budget });
+  const reasons = Object.fromEntries((synthInput?.heldUntraced || []).map(f => [f.id, f.heldReason]));
+  if (reasons.F2 !== 'refuted-without-guard' || reasons.F1 !== 'no-quorum') { problems++; console.log(`  ✗ held reasons wrong: ${JSON.stringify(reasons)} (want F2 refuted-without-guard, F1 no-quorum)`); }
+  else console.log('  ✓ refuted-without-guard and no-quorum highs are held with their own reasons');
+  // D4: a dead synthesizer must not look like a clean run (report:null is the clean signal)
+  const rD4 = await runFn({ agent: mkAgent({ 'synthesize:report': null }), parallel, pipeline, phase, log, args: JSON.parse(JSON.stringify(args)), budget });
+  if (!rD4?.report || !/SYNTHESIS FAILED/.test(rD4.report.markdown || '')) { problems++; console.log('  ✗ dead synthesizer returned report:null — reads as a clean run'); }
+  else console.log('  ✓ dead synthesizer → engine fallback report, never report:null');
+}
 
 console.log(problems === 0 ? '\n✓ ALL SCENARIOS PASSED' : `\n✗ ${problems} conflict(s) found across scenarios`);
 process.exit(problems === 0 ? 0 : 1);

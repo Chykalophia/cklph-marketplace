@@ -4,11 +4,25 @@
 # for static Dockerfile linting if no image is built. Emits JSON lines. Exits 0 ALWAYS.
 # Usage: container.sh <root> [image-name]
 #   <image-name>: optional built image to scan; if absent, scans Dockerfiles statically
-# Output schema per line: { tool, rule, severity, image, layer, package, cve, rationale }
+# Output schema per line: { tool, rule, severity, image, layer, package, cve, rationale } (hadolint rows add file, line)
 set -uo pipefail
-TARGET="${1:-.}"
+ARG="${1:-.}"
 IMAGE="${2:-}"
-cd "$TARGET" 2>/dev/null || true
+# Resolve the target ONCE to an absolute path, so a relative root is not re-resolved after cd.
+if ! TARGET="$(cd "$ARG" 2>/dev/null && pwd)"; then
+  echo "container.sh: target not found: $ARG — nothing scanned." >&2
+  exit 0
+fi
+cd "$TARGET" || exit 0
+
+WORK="$(mktemp -d "${TMPDIR:-/tmp}/cklph-container.XXXXXX")" || { echo "container.sh: mktemp failed — nothing scanned." >&2; exit 0; }
+trap 'rm -rf "$WORK"' EXIT
+trap 'exit 130' INT
+trap 'exit 143' TERM
+
+no_output() {
+  echo "container.sh: $1 failed (exit $2, no output): $(head -c 300 "$3") — zero $1 findings means the scan did not run, not that the image is clean." >&2
+}
 
 # ── If an image is provided (or auto-detected from docker images) ────────────
 SCAN_IMAGE="$IMAGE"
@@ -20,11 +34,15 @@ fi
 if [ -n "$SCAN_IMAGE" ]; then
   # Trivy image scan
   if command -v trivy >/dev/null 2>&1; then
-    REPORT="$(mktemp).json"
-    trivy image --quiet --format json "$SCAN_IMAGE" > "$REPORT" 2>/dev/null || true
-    if [ -s "$REPORT" ] && command -v node >/dev/null 2>&1; then
+    REPORT="$WORK/trivy.json"
+    trivy image --quiet --format json "$SCAN_IMAGE" > "$REPORT" 2> "$WORK/trivy.err"
+    RC=$?
+    if [ ! -s "$REPORT" ]; then no_output "trivy image" "$RC" "$WORK/trivy.err"
+    elif command -v node >/dev/null 2>&1; then
       node -e '
-        let r = {}; try { r = JSON.parse(require("fs").readFileSync(process.argv[1],"utf8")); } catch {}
+        let r;
+        try { r = JSON.parse(require("fs").readFileSync(process.argv[1], "utf8")); }
+        catch (e) { process.stderr.write("container.sh: trivy image output is not valid JSON (" + e.message + ") — trivy findings NOT collected.\n"); process.exit(0); }
         for (const res of (r.Results || []))
           for (const v of (res.Vulnerabilities || []))
             process.stdout.write(JSON.stringify({
@@ -36,7 +54,7 @@ if [ -n "$SCAN_IMAGE" ]; then
             }) + "\n");' "$REPORT" "$SCAN_IMAGE"
       # also check for misconfigs (secrets, root user, etc.)
       node -e '
-        let r = {}; try { r = JSON.parse(require("fs").readFileSync(process.argv[1],"utf8")); } catch {}
+        let r = {}; try { r = JSON.parse(require("fs").readFileSync(process.argv[1], "utf8")); } catch (e) { process.exit(0); }  // already reported above
         for (const res of (r.Results || []))
           for (const m of (res.Misconfigurations || []))
             process.stdout.write(JSON.stringify({
@@ -46,16 +64,19 @@ if [ -n "$SCAN_IMAGE" ]; then
               rationale: m.Title || "Container misconfiguration"
             }) + "\n");' "$REPORT" "$SCAN_IMAGE"
     fi
-    rm -f "$REPORT" 2>/dev/null || true
   fi
 
   # Grype image scan
   if command -v grype >/dev/null 2>&1; then
-    REPORT="$(mktemp).json"
-    grype "$SCAN_IMAGE" -o json --quiet > "$REPORT" 2>/dev/null || true
-    if [ -s "$REPORT" ] && command -v node >/dev/null 2>&1; then
+    REPORT="$WORK/grype.json"
+    grype "$SCAN_IMAGE" -o json --quiet > "$REPORT" 2> "$WORK/grype.err"
+    RC=$?
+    if [ ! -s "$REPORT" ]; then no_output grype "$RC" "$WORK/grype.err"
+    elif command -v node >/dev/null 2>&1; then
       node -e '
-        let r = {}; try { r = JSON.parse(require("fs").readFileSync(process.argv[1],"utf8")); } catch {}
+        let r;
+        try { r = JSON.parse(require("fs").readFileSync(process.argv[1], "utf8")); }
+        catch (e) { process.stderr.write("container.sh: grype output is not valid JSON (" + e.message + ") — grype findings NOT collected.\n"); process.exit(0); }
         for (const m of (r.matches || []))
           process.stdout.write(JSON.stringify({
             tool: "grype-image", rule: m.vulnerability.id || "vuln",
@@ -65,14 +86,13 @@ if [ -n "$SCAN_IMAGE" ]; then
             rationale: "Image vuln match — judge reachability"
           }) + "\n");' "$REPORT" "$SCAN_IMAGE"
     fi
-    rm -f "$REPORT" 2>/dev/null || true
   fi
 
   # dive — layer inspection (secrets in layers, unnecessary files)
   if command -v dive >/dev/null 2>&1; then
     dive "$SCAN_IMAGE" --json 2>/dev/null | node -e '
       let raw=""; process.stdin.on("data",d=>raw+=d); process.stdin.on("end",()=>{
-        let r={}; try{r=JSON.parse(raw);}catch{}
+        let r={}; try{r=JSON.parse(raw);}catch(e){process.stderr.write("container.sh: dive output is not valid JSON ("+e.message+") — layer findings NOT collected.\n");}
         for (const layer of (r.layer||[]))
           for (const f of (layer.layers?.[0]?.filesThatDidNotChangeInAnyOtherLayer||[]))
             if (/secret|key|token|\.env|credential/i.test(f.name))
@@ -91,15 +111,20 @@ if command -v hadolint >/dev/null 2>&1; then
     [ -f "$F" ] || continue
     hadolint -f json "$F" 2>/dev/null | node -e '
       let raw=""; process.stdin.on("data",d=>raw+=d); process.stdin.on("end",()=>{
-        let arr=[]; try{arr=JSON.parse(raw);}catch{}
-        for (const f of arr)
+        let arr;
+        try { arr = JSON.parse(raw); }
+        catch (e) { process.stderr.write("container.sh: hadolint output for " + process.argv[1] + " is not valid JSON (" + e.message + ") — its findings NOT collected.\n"); return; }
+        // hadolint levels → the FINDINGS_SCHEMA words
+        const sev = { error: "medium", warning: "low", info: "low", style: "low" };
+        for (const f of (Array.isArray(arr) ? arr : []))
           process.stdout.write(JSON.stringify({
             tool: "hadolint", rule: f.code || "dockerfile-lint",
-            severity: (f.level||"medium").toLowerCase(),
+            severity: sev[String(f.level || "").toLowerCase()] || "low",
+            file: f.file || process.argv[1], line: f.line || 0,
             image: "", layer: "", package: "", cve: "",
             rationale: f.message || "Dockerfile lint finding"
           }) + "\n");
-      });' || true
+      });' "$F" || true
   done
 fi
 
