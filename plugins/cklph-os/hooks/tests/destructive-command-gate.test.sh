@@ -379,6 +379,9 @@ block 'docker exec db bash -xO extglob -c "git reset --hard"'
 block 'docker exec db bash --rcfile /dev/null -c "git reset --hard"'
 block 'docker exec db bash --init-file x -c "git reset --hard"'
 block 'docker exec db bash --norc -c "git reset --hard"'
+block "docker run --name bash -c 256 alpine bash -c 'git reset --hard'"
+block "docker run -c 256 --entrypoint sh alpine -c 'git reset --hard'"
+block "docker exec db sh -c 'echo ok' && docker exec db bash -c 'git reset --hard'"
 allow 'docker exec db bash -o pipefail script.sh -c x'
 allow 'docker exec db bash -x deploy.sh'
 block 'su -c -- "git reset --hard"'
@@ -495,11 +498,14 @@ else fail=$((fail + 1)); echo "FAIL  ${#BIG}-byte command took ${bms} ms (limit 
 # Shapes the first timing case missed: many SQL-client segments, many capitalised commands.
 # Linear code does 2000 in a few seconds; the quadratic versions took ~13-27 s.
 # execopt is ONE exec segment, `docker exec db bash -o bash -o …`: every shell word is also an
-# option value, which made the exec shell scan quadratic (47 s) in a 0.12.2 draft.
-for shape in sql upper execopt; do
-    BIG=""; [ "$shape" = execopt ] && BIG="docker exec db"
+# option value, which made the exec shell scan quadratic (47 s) in a 0.12.2 draft. execc and
+# entryc repeat a shell's -c 2000 times in one segment: a word-array copy per -c and a tokenizer
+# fork per harmless script took 41-51 s in another draft.
+for shape in sql upper execopt execc entryc; do
+    case "$shape" in execopt|execc) BIG="docker exec db" ;; entryc) BIG="docker run --entrypoint sh img" ;; *) BIG="" ;; esac
     for k in $(seq 1 2000); do
-        case "$shape" in sql) BIG="$BIG psql -c \"select $k\";" ;; upper) BIG="$BIG NODE_ENV=test Rscript run$k.R && GIT Status;" ;; execopt) BIG="$BIG bash -o" ;; esac
+        case "$shape" in sql) BIG="$BIG psql -c \"select $k\";" ;; upper) BIG="$BIG NODE_ENV=test Rscript run$k.R && GIT Status;" ;;
+            execopt) BIG="$BIG bash -o" ;; execc) BIG="$BIG bash -c x" ;; entryc) BIG="$BIG -c x" ;; esac
     done
     BIGP=$(payload "$BIG")
     bsecs=$( { time (printf '%s' "$BIGP" | "$BASH_BIN" "$GATE" >/dev/null 2>&1) ; } 2>&1 )

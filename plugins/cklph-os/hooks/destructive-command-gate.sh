@@ -118,8 +118,10 @@ esac
 # quadratic and took minutes on a 40 KB command.
 STRIPPED="$CMD"
 case "$CMD" in *[\"\'\\]*) STRIPPED=$(printf '%s' "$CMD" | tr -d '\042\047\134\012') ;; esac
+# FAST_RE is also check_string's early exit for nested command strings.
+FAST_RE='(rm|git|docker|podman|chmod|publish|supabase|wp|no-verify|drop|truncate|eval|-c|-S)'
 shopt -s nocasematch
-if ! [[ $STRIPPED =~ (rm|git|docker|podman|chmod|publish|supabase|wp|no-verify|drop|truncate|eval|-c|-S) ]]; then
+if ! [[ $STRIPPED =~ $FAST_RE ]]; then
     shopt -u nocasematch
     exit 0
 fi
@@ -269,22 +271,23 @@ same_path() {
     local x y; lc x "$1"; lc y "$2"; [ "$x" = "$y" ]
 }
 
-# script_after J WORDS...: sets SCRIPT to what a shell runs for `-c` at index J. Shells skip
-# options and `--` after -c (`bash -c -- '…'`, `bash -c -x '…'`), and -o/-O take a value
-# (`bash -c -o pipefail '…'`). Sets a variable rather than echoing: a $( ) fork per -c was slow.
+# script_after J: sets SCRIPT to what a shell runs for `-c` at index J of the caller's word array
+# `w` (bash scoping: the calling check_segment's local). Shells skip options and `--` after -c
+# (`bash -c -- '…'`, `bash -c -x '…'`), and -o/-O take a value (`bash -c -o pipefail '…'`).
+# Sets a variable rather than echoing (a $( ) fork per -c was slow) and reads `w` in place
+# rather than copying it: a copy per -c made `… -c x -c x …` quadratic.
 script_after() {
-    local cix=$1 j=$(( $1 + 1 )); shift
-    local -a ws=("$@")
+    local j=$(( $1 + 1 )) nw=${#w[@]}
     # Each o/O inside the -c cluster takes a value word first (bash -co pipefail '…').
-    local cw="${ws[$cix]}" oo
+    local cw="${w[$1]}" oo
     case "$cw" in -[!-]*) oo="${cw//[!oO]/}"; j=$((j + ${#oo})) ;; esac
     SCRIPT=""
-    while [ "$j" -lt "${#ws[@]}" ]; do
-        case "${ws[$j]}" in
-            --) SCRIPT="${ws[$((j + 1))]:-}"; return ;;
+    while [ "$j" -lt "$nw" ]; do
+        case "${w[$j]}" in
+            --) SCRIPT="${w[$((j + 1))]:-}"; return ;;
             [-+]o|[-+]O|[-+]*[oO]) j=$((j + 2)) ;;
             -*|+*) j=$((j + 1)) ;;
-            *) SCRIPT="${ws[$j]}"; return ;;
+            *) SCRIPT="${w[$j]}"; return ;;
         esac
     done
 }
@@ -431,13 +434,13 @@ check_segment() {   # $1 = one simple command (words joined by \037), $2 = recur
         su)
             for ((j = i + 1; j < n; j++)); do
                 case "${w[$j]}" in
-                    -c|-[A-Za-z]*c|--command|--session-command) script_after "$j" "${w[@]}"; check_string "$SCRIPT" $((depth + 1)); break ;;
+                    -c|-[A-Za-z]*c|--command|--session-command) script_after "$j"; check_string "$SCRIPT" $((depth + 1)); break ;;
                     --command=*|--session-command=*) check_string "${w[$j]#*=}" $((depth + 1)); break ;;
                 esac
             done ;;
         bash|sh|zsh|dash)
             for ((j = i + 1; j < n - 1; j++)); do
-                if [[ ${w[$j]} =~ $SHELL_C_RE ]]; then script_after "$j" "${w[@]}"; check_string "$SCRIPT" $((depth + 1)); break; fi
+                if [[ ${w[$j]} =~ $SHELL_C_RE ]]; then script_after "$j"; check_string "$SCRIPT" $((depth + 1)); break; fi
             done ;;
         eval)
             local rest=""
@@ -557,8 +560,9 @@ check_segment() {   # $1 = one simple command (words joined by \037), $2 = recur
                 case "${w[$j]}" in --entrypoint) ep="${w[$((j + 1))]:-}" ;; --entrypoint=*) ep="${w[$j]#*=}" ;; esac
             done
             if [[ ${ep##*/} =~ ^(bash|sh|zsh|dash)$ ]]; then
+                # Every -c, not just the first: docker's own -c (CPU shares) can come first.
                 for ((j = i + 1; j < n - 1; j++)); do
-                    if [[ ${w[$j]} =~ $SHELL_C_RE ]]; then script_after "$j" "${w[@]}"; check_string "$SCRIPT" $((depth + 1)); break; fi
+                    if [[ ${w[$j]} =~ $SHELL_C_RE ]]; then script_after "$j"; check_string "$SCRIPT" $((depth + 1)); fi
                 done
             fi
             # A shell inside exec runs its -c string: docker exec db sh -c "…", including after other
@@ -568,8 +572,10 @@ check_segment() {   # $1 = one simple command (words joined by \037), $2 = recur
             for ((j = i + 1; j < n - 1; j++)); do
                 [[ ${w[$j]##*/} =~ ^(bash|sh|zsh|dash)$ ]] || continue
                 for ((sk = j + 1; sk < n; sk++)); do
+                    # check_string exits on a block. Otherwise keep scanning: a container option
+                    # can look like a shell and its -c (docker run --name bash -c 256 img bash -c …).
                     if [[ ${w[$sk]} =~ $SHELL_C_RE ]]; then
-                        script_after "$sk" "${w[@]}"; check_string "$SCRIPT" $((depth + 1)); break 2
+                        script_after "$sk"; check_string "$SCRIPT" $((depth + 1)); break
                     fi
                     case "${w[$sk]}" in
                         --rcfile|--init-file) sk=$((sk + 1)) ;;
@@ -706,6 +712,14 @@ check_string() {   # $1 = command text, $2 = recursion depth
     [ "${2:-0}" -gt 3 ] && block "command nested more than 3 levels deep (bash -c / eval / env -S) cannot be checked" \
         "run the inner command directly, so it can be read."
     local segs line text="$1" SEGS SEGWORDS="" SEG_SQL=""
+    # Same early exit as the top level, without a fork: a string with no quote or backslash that
+    # matches no rule word needs no tokenizer (`… sh -c x` repeated 2000 times took 16 s).
+    case "$text" in
+        *[\"\'\\]*) ;;
+        *) shopt -s nocasematch
+           if ! [[ $text =~ $FAST_RE ]]; then shopt -u nocasematch; return 0; fi
+           shopt -u nocasematch ;;
+    esac
     # A newline inside quotes reaches here as \036; a nested shell needs it back to see its own
     # line continuations (bash -c 'g\<newline>it …').
     case "$text" in *$'\036'*) text=$(printf '%s' "$text" | tr '\036' '\n') ;; esac

@@ -25,15 +25,18 @@ perimeter (paths, entry points, callers) at the top of the register before anyth
 - **Fingerprint:** framework and version, hosting (Vercel, Hetzner/Docker, managed WP host),
   database, package manager, CI, how it deploys today.
 - **Run what exists, carefully.** An inherited repo's scripts are untrusted code. Read them first
-  (`package.json` scripts and install hooks, `composer.json`, Makefile, CI config). Install with
-  lifecycle scripts off (`npm ci --ignore-scripts`, `pnpm install --ignore-scripts`; Yarn 1
-  `--ignore-scripts`, Yarn 2+ `--mode=skip-build`; `composer install --no-plugins --no-scripts`). A
-  package that needs its install script (Prisma generating its client, for one) then fails: a
-  finding about the install, not a gap in the code. `pre`/`post` scripts still run with `npm test`,
-  so read them too. Run type-check, lint, tests and build **only in a disposable sandbox** (a
-  container with the repo copied in, no secrets in its environment, network off unless a step
-  needs it). Removing secrets alone is not isolation: the scripts can still read and change your
-  files. No sandbox available: record those checks as not run, and say why. Anything that phones
+  (`package.json` scripts and install hooks, `composer.json`, Makefile, CI config). Everything
+  below, installs included, runs **only in a disposable sandbox**: a container holding a sanitized
+  copy of the repo (no `.env*`, no credential or auth config files such as `.npmrc` tokens or
+  `auth.json`), no host directories or credential stores mounted, no secrets in its environment,
+  and network off except for the install step. Removing secrets alone is not isolation: the
+  scripts can still read and change whatever the process can reach. No sandbox available: record
+  these checks as not run, and say why. Install with lifecycle scripts off (`npm ci
+  --ignore-scripts`, `pnpm install --ignore-scripts`; Yarn 1 `--ignore-scripts`, Yarn 2+
+  `--mode=skip-build`; `composer install --no-plugins --no-scripts`). A package that needs its
+  install script (Prisma generating its client, for one) then fails: a finding about the install,
+  not a gap in the code. `pre`/`post` scripts still run with `npm test`, so read them too. Then
+  type-check, lint, tests and build. Anything that phones
   home, touches a real database or needs production credentials: stop and get the go-ahead.
   Record counts and failures, don't fix them.
 - **Review the slice:** `cklph-reviewer` on the slice; `security-hardening` if it touches input,

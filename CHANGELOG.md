@@ -14,14 +14,18 @@ Review follow-ups to 0.12.1 (PR #33's open review threads).
   `sh -euxo pipefail -c "…"`, `bash -xO extglob -c`, `bash --rcfile f -c`) now get the nested check.
   Each word is scanned once: a draft that rescanned from every shell-named option value took 47 s
   on `docker exec db bash -o bash -o …`; that shape is now a timing case (0.5 s).
-- Each new case failed on the 0.12.1 gate first. Suite: 384 → 398 cases.
+- A container option that looks like a shell (`docker run --name bash -c 256 img bash -c "…"`,
+  `docker run -c 256 --entrypoint sh img -c "…"`) no longer ends the scan before the real `-c`.
+- Nested command strings take the same fork-free early exit as the top level, and `script_after`
+  reads the word array in place: 2000 repeated `-c x` in one call drop from 41–51 s to about 1 s.
+- Each new case failed on the 0.12.1 gate first. Suite: 384 → 403 cases.
 - The suite's timing limits scale with `GATE_TIME_SCALE` (whole number, default 1) for slower runners.
 
 ### Changed — written rules and skills
 - `security-hardening` and the `AGENTS.md` template list `rm -r` as well as `rm -rf`, plus the
   `$HOME`, `..` and `/*` targets the gate already blocked; the mirror test checks for them. The
   template names each `… publish` command in full.
-- `survey` (brownfield): repo scripts run only in a disposable sandbox, otherwise those checks
+- `survey` (brownfield): installs and repo scripts run only in a disposable sandbox with a sanitized copy (no `.env*` or credential files, no host mounts), otherwise those checks
   are recorded as not run; adds `composer install --no-plugins --no-scripts`; the completion
   marker needs only the go-aheads the register actually requires.
 - `review` two-reviewer gate: input validation and authorization are separate checks, each with an
