@@ -25,7 +25,7 @@ the framework (Next.js ≠ pure React), and note any installed specialist skills
 and 1× in code; so front-load rigor here.)*
 
 **Verify the plan** before building — run `cklph-reviewer` in plan-check mode (checklist: `@plan-check.md`);
-re-plan on findings, **max 3 cycles**, stop if not converging.
+re-plan on findings. The loop limit and the stop-when-not-converging rule live in `@plan-check.md`.
 
 **Output:** a verified task-graph (ordered waves + a self-contained brief per task). Get the user's nod if
 scope is non-trivial. End with `## PLAN VERIFIED`. Hands off to `build`.

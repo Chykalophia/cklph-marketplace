@@ -16,23 +16,52 @@ teardown() {
 has()   { [[ "$output" == *"$1"* ]] || { echo "expected output to contain: $1" >&2; return 1; }; }
 hasnt() { [[ "$output" != *"$1"* ]] || { echo "expected output NOT to contain: $1" >&2; return 1; }; }
 
-@test "nextjs-quality-check: clean non-app TS file passes (exit 0)" {
-  printf 'export const x = 1;\n' > "$TMP/util.ts"
-  run bash "$HOOKS/nextjs-quality-check.sh" <<< "{\"tool_input\":{\"file_path\":\"$TMP/util.ts\"},\"tool_response\":{\"success\":true}}"
-  [ "$status" -eq 0 ]
+# Real PostToolUse payloads. Write and Edit results carry NO `success` field (PostToolUse only fires
+# after a successful call). Before 0.12.3 these tests faked "tool_response":{"success":true}, which
+# hid that the Next.js hook waited for that field and so never ran on a real edit.
+write_payload() {  # write_payload <file>
+  printf '{"session_id":"s","hook_event_name":"PostToolUse","tool_name":"Write","tool_input":{"file_path":"%s","content":"x"},"tool_response":{"type":"create","filePath":"%s","content":"x","structuredPatch":[],"originalFile":null}}' "$1" "$1"
+}
+edit_payload() {  # edit_payload <file>
+  printf '{"session_id":"s","hook_event_name":"PostToolUse","tool_name":"Edit","tool_input":{"file_path":"%s","old_string":"a","new_string":"b"},"tool_response":{"filePath":"%s","oldString":"a","newString":"b","originalFile":"a","structuredPatch":[],"userModified":false,"replaceAll":false}}' "$1" "$1"
 }
 
-@test "nextjs-quality-check: app page missing default export fails (exit 2)" {
+@test "nextjs-quality-check: clean non-app TS file passes (exit 0)" {
+  printf 'export const x = 1;\n' > "$TMP/util.ts"
+  run bash "$HOOKS/nextjs-quality-check.sh" <<< "$(write_payload "$TMP/util.ts")"
+  [ "$status" -eq 0 ]
+  has "Passed"
+}
+
+@test "nextjs-quality-check: runs on a real Write payload; page missing default export fails (exit 2)" {
   mkdir -p "$TMP/app"
   printf 'export const config = {};\n' > "$TMP/app/page.tsx"
-  run bash "$HOOKS/nextjs-quality-check.sh" <<< "{\"tool_input\":{\"file_path\":\"$TMP/app/page.tsx\"},\"tool_response\":{\"success\":true}}"
+  run bash "$HOOKS/nextjs-quality-check.sh" <<< "$(write_payload "$TMP/app/page.tsx")"
   [ "$status" -eq 2 ]
+  has "Page must have a default export"
+}
+
+@test "nextjs-quality-check: runs on a real Edit payload (exit 2)" {
+  mkdir -p "$TMP/app"
+  printf 'export default function Layout() { return null }\n' > "$TMP/app/layout.tsx"
+  run bash "$HOOKS/nextjs-quality-check.sh" <<< "$(edit_payload "$TMP/app/layout.tsx")"
+  [ "$status" -eq 2 ]
+  has "Layout must accept children"
+}
+
+@test "nextjs-quality-check: a path merely containing 'app/' is not App Router (exit 0)" {
+  mkdir -p "$TMP/webapp/src"
+  printf 'const [a] = useState(0);\n' > "$TMP/webapp/src/x.ts"
+  run bash "$HOOKS/nextjs-quality-check.sh" <<< "$(write_payload "$TMP/webapp/src/x.ts")"
+  [ "$status" -eq 0 ]
+  hasnt "use client"
 }
 
 @test "nextjs-quality-check: skips non-JS/TS files (exit 0)" {
   printf '# readme\n' > "$TMP/readme.md"
-  run bash "$HOOKS/nextjs-quality-check.sh" <<< "{\"tool_input\":{\"file_path\":\"$TMP/readme.md\"},\"tool_response\":{\"success\":true}}"
+  run bash "$HOOKS/nextjs-quality-check.sh" <<< "$(write_payload "$TMP/readme.md")"
   [ "$status" -eq 0 ]
+  hasnt "Next.js Quality Check"
 }
 
 @test "security-check: reads path from stdin and passes a clean file (exit 0)" {
@@ -47,6 +76,41 @@ hasnt() { [[ "$output" != *"$1"* ]] || { echo "expected output NOT to contain: $
   run bash "$HOOKS/security-check.sh" <<< "{\"tool_input\":{\"file_path\":\"$TMP/secret.ts\"}}"
   [ "$status" -eq 0 ]
   has "AKIA"
+}
+
+@test "security-check: a warning reaches Claude as PostToolUse additionalContext (exit 0)" {
+  command -v jq >/dev/null || skip "jq required"
+  printf 'const k = "AKIAIOSFODNN7EXAMPLE";\n' > "$TMP/secret.ts"
+  # Optional scanners (gitleaks, bandit) add to the count; keep them off PATH so it is exact.
+  mkdir -p "$TMP/bin"
+  for b in cat grep cut tr jq; do ln -s "$(command -v "$b")" "$TMP/bin/$b"; done
+  run env PATH="$TMP/bin" "$BASH" "$HOOKS/security-check.sh" <<< "$(write_payload "$TMP/secret.ts")"
+  [ "$status" -eq 0 ]
+  run jq -r 'select(.hookSpecificOutput.hookEventName == "PostToolUse") | .hookSpecificOutput.additionalContext' <<< "$output"
+  [ "$status" -eq 0 ]
+  has "AKIA...) detected (line 1)"
+  has "Found 1 security warning"
+  hasnt "AKIAIOSFODNN7EXAMPLE"
+}
+
+@test "security-check: without jq a warning goes to stderr with exit 2 (still shown to Claude)" {
+  mkdir -p "$TMP/bin"
+  for b in cat grep cut tr; do ln -s "$(command -v "$b")" "$TMP/bin/$b"; done
+  printf 'const k = "AKIAIOSFODNN7EXAMPLE";\n' > "$TMP/secret.ts"
+  run env PATH="$TMP/bin" "$BASH" "$HOOKS/security-check.sh" "$TMP/secret.ts" </dev/null
+  [ "$status" -eq 2 ]
+  has "AKIA...) detected (line 1)"
+}
+
+@test "security-check: without jq the path is read from the real stdin payload via python3 (exit 2)" {
+  command -v python3 >/dev/null || skip "python3 required"
+  mkdir -p "$TMP/bin"
+  for b in cat grep cut tr python3; do ln -s "$(command -v "$b")" "$TMP/bin/$b"; done
+  printf 'const k = "AKIAIOSFODNN7EXAMPLE";\n' > "$TMP/secret.ts"
+  run env PATH="$TMP/bin" "$BASH" "$HOOKS/security-check.sh" <<< "$(write_payload "$TMP/secret.ts")"
+  [ "$status" -eq 2 ]
+  has "Security Check: $TMP/secret.ts"
+  has "AKIA...) detected (line 1)"
 }
 
 @test "security-check: AKIA and private-key checks are case-sensitive" {
@@ -173,6 +237,31 @@ gate() {  # gate <command> [payload cwd, default $TMP/elsewhere]
   has "can't tell which repo"
 }
 
+@test "pre-commit-gate: a quoted description containing ': ' is valid YAML and passes (exit 0)" {
+  REPO="$TMP/repo"; mkdir -p "$REPO/skills/q" "$REPO/skills/s" "$TMP/elsewhere"
+  git -C "$REPO" init -q
+  printf -- '---\nname: q\ndescription: "Checks docs against reality: moved paths"\n---\n' > "$REPO/skills/q/SKILL.md"
+  printf -- "---\nname: s\ndescription: 'Use when: single-quoted'\n---\n" > "$REPO/skills/s/SKILL.md"
+  git -C "$REPO" add skills
+  gate "git -C $REPO commit -m x"
+  [ "$status" -eq 0 ]
+  has "PASS: Skill descriptions clean"
+}
+
+@test "pre-commit-gate: an unterminated quoted description containing ': ' still fails (exit 2)" {
+  REPO="$TMP/repo"; mkdir -p "$REPO/skills/u" "$TMP/elsewhere"
+  git -C "$REPO" init -q
+  printf -- '---\nname: u\ndescription: "Use when: the quote never closes\n---\n' > "$REPO/skills/u/SKILL.md"
+  git -C "$REPO" add skills
+  gate "git -C $REPO commit -m x"
+  [ "$status" -eq 2 ]
+  has "colon-space"
+  printf -- "---\nname: u\ndescription: 'Use when: closed' # note\n---\n" > "$REPO/skills/u/SKILL.md"
+  git -C "$REPO" add skills
+  gate "git -C $REPO commit -m x"
+  [ "$status" -eq 0 ]
+}
+
 @test "pre-commit-gate: a plain commit in a clean dir still passes (exit 0)" {
   mkdir -p "$TMP/elsewhere"
   gate "git commit -m x"
@@ -215,6 +304,30 @@ print("ok")' "$TMP/usage/skills.jsonl"
 @test "destructive-command-gate: full case suite passes" {
   run bash "$HOOKS/tests/destructive-command-gate.test.sh"
   [ "$status" -eq 0 ]
+}
+
+# A command named like a skill hides the skill's description, so each command must carry its skill's
+# trigger text verbatim and point at the skill file.
+@test "commands: each shares its skill's description and loads that skill's SKILL.md" {
+  command -v python3 >/dev/null || skip "python3 required"
+  run python3 -c '
+import pathlib, re, sys
+root = pathlib.Path(sys.argv[1])
+bad = []
+for cmd in sorted((root / "commands").glob("*.md")):
+    skill = root / "skills" / cmd.stem / "SKILL.md"
+    if not skill.exists():
+        bad.append(cmd.name + ": missing matching skill " + str(skill.relative_to(root)))
+        continue
+    d = lambda t: re.search(r"^description:[ ]*(.*)$", t, re.M).group(1)
+    text = cmd.read_text()
+    if d(text) != d(skill.read_text()):
+        bad.append(cmd.name + ": description differs from " + str(skill.relative_to(root)))
+    if "${CLAUDE_PLUGIN_ROOT}/skills/%s/SKILL.md" % cmd.stem not in text:
+        bad.append(cmd.name + ": does not load its SKILL.md")
+print("\n".join(bad) or "ok")' "$HOOKS/.."
+  [ "$status" -eq 0 ]
+  [ "$output" = "ok" ]
 }
 
 @test "reply-shape-context: prints the rules without frontmatter; CKLPH_REPLY_SHAPE=off disables it" {

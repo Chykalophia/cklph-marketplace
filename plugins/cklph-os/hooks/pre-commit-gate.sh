@@ -147,6 +147,10 @@ local_bin() {
     return 1
 }
 
+# One private report file per run (fixed /tmp names collided across concurrent sessions).
+GATE_LOG=$(mktemp "${TMPDIR:-/tmp}/cklph-gate.XXXXXX") || GATE_LOG=/dev/null
+trap '[ "$GATE_LOG" != /dev/null ] && rm -f "$GATE_LOG"' EXIT
+
 # Staged TS/TSX files (presence check). Reused by ESLint and Semgrep below.
 HAS_STAGED=$(git diff --cached --name-only --diff-filter=ACM -- '*.ts' '*.tsx' 2>/dev/null)
 
@@ -155,9 +159,9 @@ HAS_STAGED=$(git diff --cached --name-only --diff-filter=ACM -- '*.ts' '*.tsx' 2
 echo "--- TypeScript Check ---"
 TSC_BIN=$(local_bin tsc || true)
 if [ -f tsconfig.json ] && [ -n "$TSC_BIN" ]; then
-    if ! "$TSC_BIN" --noEmit > /tmp/tsc-gate.txt 2>&1; then
+    if ! "$TSC_BIN" --noEmit > "$GATE_LOG" 2>&1; then
         echo "FAIL: TypeScript errors found" >&2
-        tail -5 /tmp/tsc-gate.txt >&2
+        tail -5 "$GATE_LOG" >&2
         FAILURES=$((FAILURES + 1))
     else
         echo "PASS: TypeScript"
@@ -176,9 +180,9 @@ ESLINT_BIN=$(local_bin eslint || true)
 ESLINT_MAX_WARNINGS="${CKLPH_ESLINT_MAX_WARNINGS:-0}"
 if [ -n "$HAS_STAGED" ] && [ -n "$ESLINT_BIN" ]; then
     if ! git diff --cached -z --name-only --diff-filter=ACM -- '*.ts' '*.tsx' \
-        | xargs -0 "$ESLINT_BIN" --max-warnings="$ESLINT_MAX_WARNINGS" > /tmp/eslint-gate.txt 2>&1; then
+        | xargs -0 "$ESLINT_BIN" --max-warnings="$ESLINT_MAX_WARNINGS" > "$GATE_LOG" 2>&1; then
         echo "FAIL: ESLint errors found" >&2
-        tail -5 /tmp/eslint-gate.txt >&2
+        tail -5 "$GATE_LOG" >&2
         FAILURES=$((FAILURES + 1))
     else
         echo "PASS: ESLint"
@@ -193,9 +197,9 @@ fi
 echo "--- Semgrep Check ---"
 if command -v semgrep >/dev/null 2>&1 && [ -d .semgrep ] && [ -n "$HAS_STAGED" ]; then
     if ! git diff --cached -z --name-only --diff-filter=ACM -- '*.ts' '*.tsx' \
-        | xargs -0 semgrep scan --config .semgrep/ --severity ERROR --quiet --error > /tmp/semgrep-gate.txt 2>&1; then
+        | xargs -0 semgrep scan --config .semgrep/ --severity ERROR --quiet --error > "$GATE_LOG" 2>&1; then
         echo "FAIL: Semgrep ERROR-level findings" >&2
-        tail -10 /tmp/semgrep-gate.txt >&2
+        tail -10 "$GATE_LOG" >&2
         FAILURES=$((FAILURES + 1))
     else
         echo "PASS: Semgrep"
@@ -218,6 +222,13 @@ if [ -n "$STAGED_SKILLS" ]; then
         [ -z "$f" ] && continue
         # Pull the description value (line after `description:`), check for ": " (colon-space).
         desc_val=$(awk '/^description:/{sub(/^description:[ ]*/, ""); print; exit}' "$f")
+        # A quoted scalar may contain ": " (valid YAML); only a plain scalar re-parses as a key.
+        # Skip it only when the quote is closed on the same line (optionally followed by a
+        # comment): an unterminated quote is broken frontmatter and falls through to the check.
+        desc_val="${desc_val%"${desc_val##*[![:space:]]}"}"
+        case "$desc_val" in
+            \"*\"|\'*\'|\"*\"[[:space:]]#*|\'*\'[[:space:]]#*) continue ;;
+        esac
         if printf '%s' "$desc_val" | grep -q ': '; then
             echo "FAIL: $f has colon-space inside description value (breaks YAML loading)" >&2
             DESC_BAD=1

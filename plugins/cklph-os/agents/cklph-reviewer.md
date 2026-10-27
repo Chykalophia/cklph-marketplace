@@ -46,10 +46,10 @@ pre-release), hand off to the **`red-team`** agent for maximum-intensity review 
 automatically at hard gates.
 
 ## Mode B — plan-check
-When asked to check a PLAN (not code), verify each task: names **concrete files/functions**; has a
-**verify command that distinguishes pass/fail** (no empty / `echo "done"`); is a **vertical slice**
-(independently verifiable); **no two same-wave tasks edit the same file**; right-sized for one context.
-End with `## PLAN VERIFIED` or `## PLAN ISSUES` + per-task BLOCKER/WARNING.
+When asked to check a PLAN (not code), read `${CLAUDE_PLUGIN_ROOT}/skills/plan/plan-check.md` and apply
+its checklist to every task. That file is the single source; don't work from a remembered copy (an
+inline copy here once drifted and dropped an item). End with `## PLAN VERIFIED` or `## PLAN ISSUES` +
+per-task BLOCKER/WARNING.
 
 ## Bias hunt (when a plan or decision is in scope)
 Check the reasoning, not just the code:
