@@ -36,7 +36,7 @@
 | --- | --- | --- |
 | **`cklph-audit`** | Whole-repo security and correctness audit: scanner-backed lenses, adversarial verification of every finding, optional DAST (the app booted via Docker Compose, or its local dev server) with exploit checks in an isolated Docker sandbox, and a report with fix waves. | `cve-mcp` + `vuln-intel-ext` (optional enrichment) |
 | **`vuln-intel-ext`** | MCP sidecar: what new advisories hit my dependencies since the last scan, dependency snapshots, feed status, WordPress vulnerability lookup. Extends `cve-mcp`. | `cklph-audit` |
-| **`cklph-regression-watch`** | Baseline a live or staging site, re-check it, and report only confirmed regressions (availability, SEO, tracking, visual; user journeys are a staging pilot). | — |
+| **`cklph-regression-watch`** | Baseline a live or staging site, re-check it, and report only confirmed regressions (availability, SEO, tracking, visual; user journeys are scaffolded for a staging pilot). | — |
 
 **WordPress and design pipeline** (each works alone; together they take a Figma design to a verified Elementor page)
 
