@@ -41,7 +41,11 @@ rc_warn() {
 # and its findings would be reported as this repo's.
 SCAN_IMAGE="$IMAGE"
 if [ -z "$SCAN_IMAGE" ]; then
-  echo "container.sh: no image named — image scan skipped; Dockerfiles are linted statically. Pass the built image as the second argument to scan it." >&2
+  if command -v hadolint >/dev/null 2>&1; then
+    echo "container.sh: no image named — image scan skipped; Dockerfiles are linted statically (hadolint). Pass the built image as the second argument to scan it." >&2
+  else
+    echo "container.sh: no image named and hadolint not installed — NOTHING scanned (no image scan, no Dockerfile lint). Zero findings is not a clean result." >&2
+  fi
 fi
 
 if [ -n "$SCAN_IMAGE" ]; then

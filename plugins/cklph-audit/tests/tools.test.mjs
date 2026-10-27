@@ -469,7 +469,7 @@ console.log('container.sh image selection');
   const dockerLog = fs.existsSync(path.join(sb.root, 'docker.log')) ? fs.readFileSync(path.join(sb.root, 'docker.log'), 'utf8') : '';
   const trivyLog = fs.existsSync(path.join(sb.root, 'trivy.log')) ? fs.readFileSync(path.join(sb.root, 'trivy.log'), 'utf8') : '';
   ok(!/^images/m.test(dockerLog) && !/unrelated\/app/.test(trivyLog), 'no image argument → docker images is never consulted and no unrelated image is scanned');
-  ok(/no image named/.test(r.stderr), 'no image argument → stderr says the image scan was skipped');
+  ok(/no image named and hadolint not installed — NOTHING scanned/.test(r.stderr), 'no image and no hadolint → stderr says nothing was scanned, not that Dockerfiles were linted');
   sb.run('container.sh', ['app', 'mine:1']);
   const trivyLog2 = fs.existsSync(path.join(sb.root, 'trivy.log')) ? fs.readFileSync(path.join(sb.root, 'trivy.log'), 'utf8') : '';
   ok(/mine:1/.test(trivyLog2), 'an explicit image is still scanned');
