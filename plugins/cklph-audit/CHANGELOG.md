@@ -3,6 +3,22 @@
 All notable changes to `cklph-audit` are documented here. This project adheres to
 [Semantic Versioning](https://semver.org/).
 
+## 1.2.4 — 2026-10-27
+
+### Fixed
+- **`tools/container.sh` scanned an unrelated image.** With no image argument it took the first
+  entry of `docker images` (usually some other project's image) and reported its CVEs as this
+  repo's. It now scans an image only when one is named, and says on stderr that only the
+  Dockerfiles were linted otherwise. `container-lens` tells the reviewer how to find and pass the
+  repo's own image tag.
+- **The supply-chain backtest fixtures were invisible to the tool.** `supplychain.sh` reads
+  workflows under `.github/workflows/`, but both fixtures sat at the folder root, so the backtest
+  scored nothing. They now live at `fixtures/supply-chain/should-{flag,not-flag}/.github/workflows/`
+  (inert: GitHub only runs workflows from the repo-root `.github/`). The clean look-alike pins
+  `actions/checkout` to a commit SHA, so it no longer trips the mutable-tag rule; only the
+  repo-wide low "no SLSA provenance" advisory remains.
+- Tests: the container image selection (fails on 1.2.3) and the fixture locations.
+
 ## 1.2.3 — 2026-10-27
 
 ### Fixed

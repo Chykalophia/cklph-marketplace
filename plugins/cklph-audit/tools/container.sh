@@ -36,11 +36,16 @@ rc_warn() {
   [ "$2" -eq 0 ] || echo "container.sh: $1 exited $2 but wrote a report: $(head -c 300 "$3") — its findings may be incomplete; zero $1 findings does not mean clean." >&2
 }
 
-# ── If an image is provided (or auto-detected from docker images) ────────────
+# ── Image scan only for an image named by the caller ─────────────────────────
+# No guessing from `docker images`: the first local image is usually unrelated to the target repo,
+# and its findings would be reported as this repo's.
 SCAN_IMAGE="$IMAGE"
 if [ -z "$SCAN_IMAGE" ]; then
-  # try to auto-detect from docker images (local builds)
-  SCAN_IMAGE="$(docker images --format '{{.Repository}}:{{.Tag}}' 2>/dev/null | grep -iv '<none>' | head -1 || true)"
+  if command -v hadolint >/dev/null 2>&1; then
+    echo "container.sh: no image named — image scan skipped; Dockerfiles are linted statically (hadolint). Pass the built image as the second argument to scan it." >&2
+  else
+    echo "container.sh: no image named and hadolint not installed — NOTHING scanned (no image scan, no Dockerfile lint). Zero findings is not a clean result." >&2
+  fi
 fi
 
 if [ -n "$SCAN_IMAGE" ]; then
