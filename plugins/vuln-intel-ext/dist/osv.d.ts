@@ -19,8 +19,16 @@ export interface OsvBatchResult {
 }
 export declare function queryBatch(packages: PackageRef[]): Promise<OsvBatchResult[]>;
 export declare function querySingle(pkg: PackageRef): Promise<OsvVuln[]>;
-export declare function getVulnDetails(id: string): Promise<OsvVuln | null>;
-export declare function enrichVulns(vulns: OsvVuln[]): Promise<OsvVuln[]>;
+export declare function getVulnDetails(id: string): Promise<OsvVuln>;
+export interface EnrichResult {
+    details: Map<string, OsvVuln>;
+    failed: Array<{
+        id: string;
+        error: string;
+    }>;
+}
+export declare function enrichVulns(vulns: OsvVuln[]): Promise<EnrichResult>;
 export declare function deriveSeverityLabel(vuln: OsvVuln): string;
+export declare function cvss3BaseScore(vector: string): number | null;
 export declare function severityRank(label: string): number;
 export declare function worstSeverity(labels: string[]): string;

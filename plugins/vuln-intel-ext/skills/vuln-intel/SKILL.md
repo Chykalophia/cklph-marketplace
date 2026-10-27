@@ -40,13 +40,15 @@ Find vulnerabilities that are **NEW**, **MODIFIED**, or **WITHDRAWN** for your d
 **Input:**
 - `since` (required): ISO 8601 timestamp (e.g. `"2025-01-01T00:00:00Z"`).
 - `packages` (optional): Same format as `save_dependency_snapshot`. If omitted, uses the last saved snapshot.
-- `severity` (optional): Minimum severity filter — `"low"`, `"medium"`, `"high"`, or `"critical"`.
+- `severity` (optional): Minimum severity filter — `"low"`, `"medium"`, `"high"`, or `"critical"`. Advisories with no usable rating (`UNKNOWN`, e.g. CVSS v4 only) are always kept and counted in `summary.unknownSeverityCount`.
 
 **Output:**
 - `newVulnerabilities`: Advisories published AFTER the `since` timestamp.
 - `modifiedVulnerabilities`: Advisories that existed before but were updated (severity changed, new affected versions, etc.).
 - `withdrawnAdvisories`: Advisory IDs that were retracted after the `since` timestamp.
-- `summary`: Counts + `worstSeverity`.
+- `summary`: Counts + `worstSeverity` + `unknownSeverityCount`.
+
+**Errors:** if OSV fails for any package (HTTP error, timeout, bad response) or an advisory record cannot be fetched, the tool returns an error listing `failedPackages` or `failedAdvisories` and records no scan. Never read an error as "no new vulnerabilities".
 
 **Example:**
 ```
@@ -56,7 +58,7 @@ diff_since({
 })
 ```
 
-**How it works:** Queries OSV.dev batch API for all packages, enriches each result with full vulnerability records (summary, CVE aliases, severity), filters by `published`/`modified`/`withdrawn` dates vs your `since` timestamp. Results are saved to local SQLite for scan history.
+**How it works:** Queries OSV.dev batch API for all packages, enriches each result with full vulnerability records (summary, CVE aliases, severity), filters by the full records' `published`/`modified`/`withdrawn` dates vs your `since` timestamp (the batch API itself returns only id and modified date). Severity is the advisory database's own rating when present (GitHub's MODERATE = MEDIUM), else the CVSS v3 base score. Results are saved to local SQLite for scan history.
 
 ### 3. `feed_status`
 
@@ -77,12 +79,16 @@ Look up WordPress core, plugin, or theme vulnerabilities via the WPScan API.
 
 **Input:**
 - `type` (required): `"core"`, `"plugin"`, or `"theme"`.
-- `name` (required): E.g. `"wordpress"`, `"elementor"`, `"twentytwentyfour"`.
-- `version` (optional): E.g. `"6.4.2"`.
+- `name` (required): The plugin or theme slug, e.g. `"elementor"`, `"twentytwentyfour"`. Ignored for core (pass `"wordpress"`).
+- `version`: **Required for core**, the WordPress version, e.g. `"6.4.2"`. Optional for plugins and themes (results are not filtered by it; compare against each `fixedIn`).
+
+**Example (core):** `wp_scan({ type: "core", name: "wordpress", version: "6.4.2" })`
+
+**Errors:** a slug or version WPScan does not know (404), a missing core version, or an unexpected response is an error, never an empty (clean) list, and is not cached.
 
 **Requires:** `WPSCAN_TOKEN` environment variable. Get one at https://wpscan.com/api/. Without it, the tool returns an error pointing the user to get a token.
 
-**Caching:** Results are cached in SQLite for 24 hours.
+**Caching:** Successful results are cached in SQLite for 24 hours. Errors are never cached.
 
 ## Workflow
 
@@ -114,4 +120,4 @@ Look up WordPress core, plugin, or theme vulnerabilities via the WPScan API.
 SQLite database at `~/.vuln-intel-ext/snapshot.db` (override with `VULN_INTEL_DB_PATH` env var). Stores:
 - Dependency snapshots (named lists for reuse)
 - Scan history (timestamped results of each `diff_since` call)
-- WPScan cache (24-hour TTL)
+- WPScan cache (24-hour TTL, successful lookups only)

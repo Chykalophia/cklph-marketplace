@@ -1,37 +1,63 @@
 const OSV_BATCH_URL = "https://api.osv.dev/v1/querybatch";
 const OSV_QUERY_URL = "https://api.osv.dev/v1/query";
+const OSV_VULN_URL = "https://api.osv.dev/v1/vulns";
 const BATCH_SIZE = 1000;
+const BATCH_TIMEOUT_MS = 30000;
+const DETAIL_TIMEOUT_MS = 10000;
+const DETAIL_CONCURRENCY = 10;
+// OSV pages a query result (next_page_token) when a package has very many advisories.
+const MAX_PAGES = 20;
+async function postBatch(queries) {
+    const resp = await fetch(OSV_BATCH_URL, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ queries }),
+        signal: AbortSignal.timeout(BATCH_TIMEOUT_MS),
+    });
+    if (!resp.ok) {
+        throw new Error(`OSV API ${resp.status}: ${(await resp.text()).slice(0, 500)}`);
+    }
+    const body = (await resp.json());
+    if (!Array.isArray(body?.results) || body.results.length !== queries.length) {
+        throw new Error(`OSV API returned an unexpected response (expected ${queries.length} results, got ${Array.isArray(body?.results) ? body.results.length : "none"})`);
+    }
+    return body.results;
+}
 export async function queryBatch(packages) {
     const results = [];
     for (let i = 0; i < packages.length; i += BATCH_SIZE) {
         const chunk = packages.slice(i, i + BATCH_SIZE);
-        const queries = chunk.map((p) => ({
-            package: {
-                name: p.name,
-                ecosystem: p.ecosystem,
-            },
-            version: p.version,
-        }));
-        const resp = await fetch(OSV_BATCH_URL, {
-            method: "POST",
-            headers: { "Content-Type": "application/json" },
-            body: JSON.stringify({ queries }),
-        });
-        if (!resp.ok) {
-            const errText = await resp.text();
-            for (const p of chunk) {
-                results.push({ package: p, vulns: [], error: `OSV API ${resp.status}: ${errText}` });
+        const chunkResults = chunk.map((p) => ({ package: p, vulns: [] }));
+        let pending = chunk.map((_, idx) => ({ idx }));
+        try {
+            for (let page = 0; pending.length > 0; page++) {
+                if (page >= MAX_PAGES) {
+                    throw new Error(`OSV results still paginated after ${MAX_PAGES} pages; result is incomplete`);
+                }
+                const queries = pending.map(({ idx, token }) => ({
+                    package: { name: chunk[idx].name, ecosystem: chunk[idx].ecosystem },
+                    version: chunk[idx].version,
+                    ...(token ? { page_token: token } : {}),
+                }));
+                const pageResults = await postBatch(queries);
+                const next = [];
+                pageResults.forEach((r, j) => {
+                    const idx = pending[j].idx;
+                    chunkResults[idx].vulns.push(...(r?.vulns ?? []));
+                    if (r?.next_page_token)
+                        next.push({ idx, token: r.next_page_token });
+                });
+                pending = next;
             }
-            continue;
         }
-        const body = (await resp.json());
-        for (let j = 0; j < chunk.length; j++) {
-            const pkgResult = body.results?.[j];
-            results.push({
-                package: chunk[j],
-                vulns: pkgResult?.vulns ?? [],
-            });
+        catch (e) {
+            const message = e.message;
+            for (const r of chunkResults) {
+                r.vulns = [];
+                r.error = message;
+            }
         }
+        results.push(...chunkResults);
     }
     return results;
 }
@@ -43,80 +69,125 @@ export async function querySingle(pkg) {
             package: { name: pkg.name, ecosystem: pkg.ecosystem },
             version: pkg.version,
         }),
+        signal: AbortSignal.timeout(BATCH_TIMEOUT_MS),
     });
+    // A failed query is an error, never an empty (clean) result.
     if (!resp.ok)
-        return [];
+        throw new Error(`OSV API ${resp.status}: ${(await resp.text()).slice(0, 500)}`);
     const body = (await resp.json());
     return body.vulns ?? [];
 }
-const OSV_VULN_URL = "https://api.osv.dev/v1/vulns";
 export async function getVulnDetails(id) {
-    const resp = await fetch(`${OSV_VULN_URL}/${id}`, {
-        signal: AbortSignal.timeout(10000),
+    const resp = await fetch(`${OSV_VULN_URL}/${encodeURIComponent(id)}`, {
+        signal: AbortSignal.timeout(DETAIL_TIMEOUT_MS),
     });
     if (!resp.ok)
-        return null;
-    return (await resp.json());
+        throw new Error(`OSV API ${resp.status} for ${id}`);
+    const body = (await resp.json());
+    if (!body || body.id !== id)
+        throw new Error(`OSV API returned an unexpected record for ${id}`);
+    return body;
 }
+// querybatch returns only {id, modified}; the full record (published, withdrawn, severity,
+// aliases) comes from /v1/vulns/<id>. Failures are returned, not swallowed.
 export async function enrichVulns(vulns) {
     const ids = [...new Set(vulns.map((v) => v.id))];
-    if (ids.length === 0)
-        return vulns;
-    const details = await Promise.allSettled(ids.map((id) => getVulnDetails(id)));
-    const detailMap = new Map();
-    for (const result of details) {
-        if (result.status === "fulfilled" && result.value) {
-            detailMap.set(result.value.id, result.value);
-        }
-    }
-    return vulns.map((v) => detailMap.get(v.id) ?? v);
-}
-export function deriveSeverityLabel(vuln) {
-    const dbSeverity = vuln.database_specific?.severity;
-    if (dbSeverity) {
-        const upper = dbSeverity.toUpperCase();
-        if (["CRITICAL", "HIGH", "MEDIUM", "LOW"].includes(upper))
-            return upper;
-    }
-    if (vuln.severity && vuln.severity.length > 0) {
-        for (const s of vuln.severity) {
-            const scoreStr = s.score;
-            const match = scoreStr.match(/CVSS:3\.[01]\/[^\s]*AV:[^\s]*/);
-            if (match) {
-                return cvssToLabel(scoreStr);
+    const details = new Map();
+    const failed = [];
+    let next = 0;
+    async function worker() {
+        while (next < ids.length) {
+            const id = ids[next++];
+            try {
+                details.set(id, await getVulnDetails(id));
+            }
+            catch (e) {
+                failed.push({ id, error: e.message });
             }
         }
     }
+    await Promise.all(Array.from({ length: Math.min(DETAIL_CONCURRENCY, ids.length) }, () => worker()));
+    return { details, failed };
+}
+const DB_SEVERITY_LABELS = {
+    CRITICAL: "CRITICAL",
+    HIGH: "HIGH",
+    MODERATE: "MEDIUM", // GitHub advisories use MODERATE
+    MEDIUM: "MEDIUM",
+    LOW: "LOW",
+};
+// Returns UNKNOWN when there is no usable rating (no database label, no CVSS v3 vector, e.g.
+// CVSS v4 only). UNKNOWN means "not rated", not "low"; callers must not filter it out.
+export function deriveSeverityLabel(vuln) {
+    const dbSeverity = vuln.database_specific?.severity;
+    if (typeof dbSeverity === "string") {
+        const label = DB_SEVERITY_LABELS[dbSeverity.toUpperCase()];
+        if (label)
+            return label;
+    }
+    for (const s of vuln.severity ?? []) {
+        const score = cvss3BaseScore(s.score);
+        if (score !== null)
+            return cvssScoreToLabel(score);
+    }
     return "UNKNOWN";
 }
-function cvssToLabel(vector) {
-    const match = vector.match(/CVSS:3\.[01]\/AV:[A-Z]/);
-    if (!match)
-        return "UNKNOWN";
-    let score = 0;
-    if (vector.includes("C:H"))
-        score += 6;
-    else if (vector.includes("C:L"))
-        score += 2.2;
-    if (vector.includes("I:H"))
-        score += 2;
-    else if (vector.includes("I:L"))
-        score += 0.7;
-    if (vector.includes("A:H"))
-        score += 2;
-    else if (vector.includes("A:L"))
-        score += 0.7;
-    if (vector.includes("AV:N"))
-        score += 0.85;
-    if (vector.includes("PR:N"))
-        score += 0.85;
+// CVSS v3.0/v3.1 base score, per the FIRST specification (section 7 formulas).
+const CVSS3_WEIGHTS = {
+    AV: { N: 0.85, A: 0.62, L: 0.55, P: 0.2 },
+    AC: { L: 0.77, H: 0.44 },
+    UI: { N: 0.85, R: 0.62 },
+    CIA: { H: 0.56, L: 0.22, N: 0 },
+};
+function roundUp(value) {
+    const int = Math.round(value * 100000);
+    if (int % 10000 === 0)
+        return int / 100000;
+    return (Math.floor(int / 10000) + 1) / 10;
+}
+export function cvss3BaseScore(vector) {
+    if (!/^CVSS:3\.[01]\//.test(vector))
+        return null;
+    const m = {};
+    for (const part of vector.split("/").slice(1)) {
+        const [k, v] = part.split(":");
+        if (k && v)
+            m[k] = v;
+    }
+    const av = CVSS3_WEIGHTS.AV[m.AV];
+    const ac = CVSS3_WEIGHTS.AC[m.AC];
+    const ui = CVSS3_WEIGHTS.UI[m.UI];
+    const c = CVSS3_WEIGHTS.CIA[m.C];
+    const i = CVSS3_WEIGHTS.CIA[m.I];
+    const a = CVSS3_WEIGHTS.CIA[m.A];
+    const scope = m.S;
+    if ([av, ac, ui, c, i, a].some((x) => x === undefined) || (scope !== "U" && scope !== "C")) {
+        return null;
+    }
+    const changed = scope === "C";
+    const prWeights = changed ? { N: 0.85, L: 0.68, H: 0.5 } : { N: 0.85, L: 0.62, H: 0.27 };
+    const pr = prWeights[m.PR];
+    if (pr === undefined)
+        return null;
+    const iss = 1 - (1 - c) * (1 - i) * (1 - a);
+    const impact = changed ? 7.52 * (iss - 0.029) - 3.25 * Math.pow(iss - 0.02, 15) : 6.42 * iss;
+    if (impact <= 0)
+        return 0;
+    const exploitability = 8.22 * av * ac * pr * ui;
+    return changed
+        ? roundUp(Math.min(1.08 * (impact + exploitability), 10))
+        : roundUp(Math.min(impact + exploitability, 10));
+}
+function cvssScoreToLabel(score) {
     if (score >= 9)
         return "CRITICAL";
     if (score >= 7)
         return "HIGH";
     if (score >= 4)
         return "MEDIUM";
-    return "LOW";
+    if (score > 0)
+        return "LOW";
+    return "UNKNOWN";
 }
 const SEVERITY_ORDER = ["UNKNOWN", "LOW", "MEDIUM", "HIGH", "CRITICAL"];
 export function severityRank(label) {

@@ -1,13 +1,17 @@
 {
   "name": "vuln-intel-ext",
-  "version": "1.0.2",
+  "version": "1.0.3",
   "private": true,
   "description": "Sidecar MCP server extending cve-mcp with diff_since, dependency snapshots, feed status, and WordPress vulnerability lookup",
   "type": "module",
+  "engines": {
+    "node": "20.x || >=22"
+  },
   "scripts": {
     "build": "tsc",
     "start": "node dist/index.js",
-    "dev": "tsc && node dist/index.js"
+    "dev": "tsc && node dist/index.js",
+    "test": "tsc && node --test test/*.test.mjs"
   },
   "dependencies": {
     "@modelcontextprotocol/sdk": "^1.32.0",
