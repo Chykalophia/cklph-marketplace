@@ -18,14 +18,17 @@ Record them; every API decision is relative to these.
 The code on the server **is** the version. For exact control names, hook names, function signatures,
 markup, and CSS selectors, **read it** — no doc is more accurate:
 
+`cwp` = `${CLAUDE_PLUGIN_ROOT}/scripts/cwp` (or bare `cwp` once it is on PATH; see the README).
+
 ```bash
-cwp wp eval 'echo WP_PLUGIN_DIR;'      # -> /www/wp-content/plugins
+cwp eval 'echo WP_PLUGIN_DIR;'         # -> /www/wp-content/plugins
 cwp shell                              # then grep/sed the actual file:
 #   grep -nE "add_control\(|'name' =>" .../elementor-pro/modules/woocommerce/widgets/<widget>.php
 #   grep -rn "function the_thing"      .../<plugin>/includes/
 ```
 This is how you get `button_bg_color` (not `button_background_color`), the real `dropdown` enum, the
-exact filter name a plugin exposes. Do this for anything you'd otherwise guess.
+exact filter name a plugin exposes. Do this for anything you'd otherwise guess. This section is the
+one home for "read control names from the installed source"; other skills link here.
 
 ## 3. Pull version-pinned docs for usage/concepts
 For how an API is *meant* to be used (not just its signature), fetch current docs rather than recalling:
@@ -39,7 +42,7 @@ For how an API is *meant* to be used (not just its signature), fetch current doc
 ## 4. When in doubt, verify on the install
 If a function/hook may not exist in this version, probe it before relying on it:
 ```bash
-cwp wp eval 'var_dump(function_exists("acf_get_field_groups"), class_exists("WooCommerce"));'
+cwp eval 'var_dump(function_exists("acf_get_field_groups"), class_exists("WooCommerce"));'
 ```
 
 ## The rule

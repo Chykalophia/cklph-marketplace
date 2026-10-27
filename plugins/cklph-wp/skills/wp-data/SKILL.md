@@ -5,8 +5,9 @@ description: Read and write WordPress content with wp-cli — posts, pages, cust
 
 # wp-data — reading and writing WP with wp-cli
 
-Inspect first, mutate deliberately, verify the write. Everything goes through `cwp wp <args>` (raw
-wp-cli) plus `cwp meta-read` / `cwp meta-write` for meta. See `wp-connect` for the connection.
+Inspect first, mutate deliberately, verify the write. Everything goes through `cwp wp <args>` (wp-cli
+passthrough) plus `cwp meta-read` / `cwp meta-write` for meta. See `wp-connect` for the connection.
+`cwp` here is `${CLAUDE_PLUGIN_ROOT}/scripts/cwp` (bare `cwp` works once it is on PATH; see the README).
 
 ## Inspect
 
@@ -24,8 +25,9 @@ cwp wp option get siteurl
 # create a draft post/page/template, capture its ID with --porcelain
 ID=$(cwp wp post create --post_type=page --post_status=draft --post_title='My Page' --porcelain)
 
-# titles with spaces/parens break the gateway shell if unquoted — single-quote the value remotely:
-cwp wp post update 218 --post_status=publish --post_title='Single Product'
+# quote values locally as usual; cwp re-quotes every argument for the remote shell, so spaces,
+# parens and quotes arrive as one argument:
+cwp wp post update 218 --post_status=publish --post_title='Single Product (v2)'
 
 # simple meta:
 cwp wp post meta update 218 _wp_page_template default
@@ -64,7 +66,7 @@ WC_Comments::clear_transients(223);
 ```
 
 Delete the helper php from the webroot afterward (executable php under uploads is a small risk):
-`cwp wp eval 'unlink("/www/wp-content/uploads/seed.php");'`.
+`cwp eval 'unlink("/www/wp-content/uploads/seed.php");'`.
 
 ## Verify every write
 Read it back. For meta, compare the **parsed** value, not bytes (pretty-printing changes whitespace).

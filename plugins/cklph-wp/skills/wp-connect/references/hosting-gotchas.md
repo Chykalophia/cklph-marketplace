@@ -15,8 +15,9 @@ forced-command shell** in front of wp-cli. Each one cost real debugging time —
   `/tmp` on connection A is **gone** on connection B. Symptom: you `cat > /tmp/x` then a later
   `wp eval-file /tmp/x` says *File doesn't exist*.
 - The **webroot (`/www` on Flywheel) is shared storage** across backends. Write helper files there:
-  `/www/wp-content/uploads/…`. ControlMaster multiplexing also pins calls to one backend, which is why
-  consecutive `cwp` calls work — but don't rely on it across long gaps (the master expires).
+  `/www/wp-content/uploads/…`. By default every `cwp` call is its own SSH connection, so two
+  consecutive calls can land on different backends. With `CKLPH_WP_MUX=1` calls share one connection
+  (one backend) only until the master closes (90s idle, 600s hard cap), so don't rely on that either.
 - **Best:** avoid temp files entirely. Stream the payload over **stdin** into `wp eval` and read
   `php://stdin` server-side (what `cwp meta-write` does). No temp file, no sharing problem.
 

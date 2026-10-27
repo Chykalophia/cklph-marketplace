@@ -3,6 +3,29 @@
 All notable changes to `cklph-wp` are documented here.
 Format: [Keep a Changelog](https://keepachangelog.com); versioning follows [SemVer](https://semver.org).
 
+## [0.3.1] — 2026-10-27
+
+### Fixed
+- **Remote-shell quoting.** `cwp wp <args>` joined its arguments into one string that the remote shell
+  re-split, so `--post_title='Two Words'` set the title to "Two" and any `cwp wp eval '...(...)'` was a
+  shell syntax error. Each argument is now POSIX-single-quoted (`_q`, portable to any remote `sh`),
+  so arguments arrive exactly as typed locally. `cwp eval` uses the same quoting, so PHP containing a
+  single quote now works. Behavior change only for callers that relied on the remote shell
+  re-interpreting arguments (no documented example did).
+- **`meta-read` / `meta-write` / `put` injection.** The meta key and the remote path went into the
+  remote command unquoted (a key like `x;touch y` ran `touch` remotely). Keys must now match
+  `[A-Za-z0-9_.:-]+`; the `put` path is quoted.
+- **`.cklph-wp` file vs directory.** `site-profile` wrote `./.cklph-wp/site-profile.md`, which turns
+  `./.cklph-wp` into a directory, and then `cwp` silently loaded no config. The config stays the FILE
+  `./.cklph-wp`; per-site notes move to `./.cklph-wp.d/` (`site-profile.md`, `probe.php`). `cwp` warns
+  if it finds a `./.cklph-wp` directory.
+- Stale "always multiplexed" wording in the `cwp` header and help, README, `wp-connect` and
+  `hosting-gotchas` now matches the 0.3.0 default (fresh connection per command; `CKLPH_WP_MUX=1` for
+  bounded multiplexing).
+- Docs use `cwp eval '<php>'` and `${CLAUDE_PLUGIN_ROOT}/scripts/cwp`; the README says how to put
+  `cwp` on PATH for other plugins. `version-docs` section 2 is now the single home for "read control
+  names from the installed source". README heading no longer carries a stale version number.
+
 ## [0.3.0] — 2026-06-09
 
 ### Changed (security default)

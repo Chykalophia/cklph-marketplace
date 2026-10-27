@@ -1,7 +1,7 @@
 {
   "name": "cklph-wp",
   "description": "Drive WordPress from Claude Code via wp-cli over SSH — connection to managed hosts, posts/meta/options/media, and the hard-won hosting gotchas. Foundation for cklph-elementor and cklph-figma-to-wp.",
-  "version": "0.3.0",
+  "version": "0.3.1",
   "author": {
     "name": "Peter Krzyzek"
   }
