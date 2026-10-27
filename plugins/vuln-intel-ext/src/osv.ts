@@ -35,11 +35,46 @@ interface BatchQuery {
   page_token?: string;
 }
 
-interface BatchResponse {
-  results?: Array<{ vulns?: OsvVuln[]; next_page_token?: string }>;
+interface BatchResult {
+  vulns: OsvVuln[];
+  next_page_token?: string;
 }
 
-async function postBatch(queries: BatchQuery[]): Promise<NonNullable<BatchResponse["results"]>> {
+interface BatchResponse {
+  results?: unknown[];
+}
+
+function isPlainObject(v: unknown): v is Record<string, unknown> {
+  return typeof v === "object" && v !== null && !Array.isArray(v);
+}
+
+function isTimestamp(v: unknown): v is string {
+  return typeof v === "string" && !Number.isNaN(Date.parse(v));
+}
+
+// Parsing boundary for one querybatch / query result. Anything off-shape throws: an empty
+// `vulns` must only ever come from an explicit "no vulnerabilities" answer.
+function parseQueryResult(r: unknown): BatchResult {
+  if (!isPlainObject(r)) throw new Error("OSV API returned an unexpected result (not an object)");
+  const { vulns, next_page_token } = r;
+  if (vulns !== undefined && vulns !== null && !Array.isArray(vulns)) {
+    throw new Error("OSV API returned an unexpected result ('vulns' is not a list)");
+  }
+  for (const v of vulns ?? []) {
+    if (!isPlainObject(v) || typeof v.id !== "string" || v.id === "") {
+      throw new Error("OSV API returned an unexpected result (advisory without an id)");
+    }
+  }
+  if (next_page_token !== undefined && next_page_token !== null && typeof next_page_token !== "string") {
+    throw new Error("OSV API returned an unexpected result ('next_page_token' is not a string)");
+  }
+  return {
+    vulns: (vulns ?? []) as OsvVuln[],
+    ...(next_page_token ? { next_page_token } : {}),
+  };
+}
+
+async function postBatch(queries: BatchQuery[]): Promise<BatchResult[]> {
   const resp = await fetch(OSV_BATCH_URL, {
     method: "POST",
     headers: { "Content-Type": "application/json" },
@@ -57,7 +92,7 @@ async function postBatch(queries: BatchQuery[]): Promise<NonNullable<BatchRespon
       })`,
     );
   }
-  return body.results;
+  return body.results.map(parseQueryResult);
 }
 
 export async function queryBatch(
@@ -84,8 +119,8 @@ export async function queryBatch(
         const next: Array<{ idx: number; token?: string }> = [];
         pageResults.forEach((r, j) => {
           const idx = pending[j].idx;
-          chunkResults[idx].vulns.push(...(r?.vulns ?? []));
-          if (r?.next_page_token) next.push({ idx, token: r.next_page_token });
+          chunkResults[idx].vulns.push(...r.vulns);
+          if (r.next_page_token) next.push({ idx, token: r.next_page_token });
         });
         pending = next;
       }
@@ -116,8 +151,7 @@ export async function querySingle(pkg: PackageRef): Promise<OsvVuln[]> {
 
   // A failed query is an error, never an empty (clean) result.
   if (!resp.ok) throw new Error(`OSV API ${resp.status}: ${(await resp.text()).slice(0, 500)}`);
-  const body = (await resp.json()) as { vulns?: OsvVuln[] };
-  return body.vulns ?? [];
+  return parseQueryResult(await resp.json()).vulns;
 }
 
 export async function getVulnDetails(id: string): Promise<OsvVuln> {
@@ -125,9 +159,41 @@ export async function getVulnDetails(id: string): Promise<OsvVuln> {
     signal: AbortSignal.timeout(DETAIL_TIMEOUT_MS),
   });
   if (!resp.ok) throw new Error(`OSV API ${resp.status} for ${id}`);
-  const body = (await resp.json()) as OsvVuln;
-  if (!body || body.id !== id) throw new Error(`OSV API returned an unexpected record for ${id}`);
-  return body;
+  return parseVulnRecord(await resp.json(), id);
+}
+
+// Parsing boundary for a full /v1/vulns/<id> record. diff_since classifies an advisory from
+// these dates and ratings, so a record it cannot read is a failed fetch, never "no change".
+export function parseVulnRecord(body: unknown, id: string): OsvVuln {
+  const bad = (why: string) => new Error(`OSV API returned an unexpected record for ${id} (${why})`);
+  if (!isPlainObject(body)) throw bad("not an object");
+  if (body.id !== id) throw bad("id mismatch");
+  if (!isTimestamp(body.modified)) throw bad("missing or invalid 'modified'");
+  if (body.published !== undefined && body.published !== null && !isTimestamp(body.published)) {
+    throw bad("invalid 'published'");
+  }
+  if (body.withdrawn !== undefined && body.withdrawn !== null && !isTimestamp(body.withdrawn)) {
+    throw bad("invalid 'withdrawn'");
+  }
+  if (body.severity !== undefined && body.severity !== null) {
+    if (
+      !Array.isArray(body.severity) ||
+      !body.severity.every((s) => isPlainObject(s) && typeof s.type === "string" && typeof s.score === "string")
+    ) {
+      throw bad("invalid 'severity'");
+    }
+  }
+  if (body.database_specific !== undefined && body.database_specific !== null && !isPlainObject(body.database_specific)) {
+    throw bad("invalid 'database_specific'");
+  }
+  if (
+    body.aliases !== undefined &&
+    body.aliases !== null &&
+    !(Array.isArray(body.aliases) && body.aliases.every((a) => typeof a === "string"))
+  ) {
+    throw bad("invalid 'aliases'");
+  }
+  return body as unknown as OsvVuln;
 }
 
 export interface EnrichResult {
@@ -234,8 +300,9 @@ function cvssScoreToLabel(score: number): string {
   if (score >= 9) return "CRITICAL";
   if (score >= 7) return "HIGH";
   if (score >= 4) return "MEDIUM";
-  if (score > 0) return "LOW";
-  return "UNKNOWN";
+  // CVSS 0.0 ("None") is a real rating, so it gets the lowest label rather than UNKNOWN, which
+  // is reserved for a missing or unsupported rating.
+  return "LOW";
 }
 
 const SEVERITY_ORDER = ["UNKNOWN", "LOW", "MEDIUM", "HIGH", "CRITICAL"];

@@ -74,6 +74,28 @@ test("an unparsed body is an error and is not cached", async () => {
   assert.equal(calls.length, 2);
 });
 
+for (const [label, body] of [
+  ["a body keyed by a different slug", { "other-plugin": { vulnerabilities: [] } }],
+  ["an object-valued `vulnerabilities`", { "contact-form-7": { vulnerabilities: {} } }],
+  ["a null entry", { "contact-form-7": null }],
+  ["a non-object advisory", { "contact-form-7": { vulnerabilities: [null] } }],
+]) {
+  test(`${label} is an error and is not cached`, async () => {
+    const calls = mockFetch(() => json(200, body));
+    for (let n = 0; n < 2; n++) {
+      const res = await tools.wp_scan({ type: "plugin", name: "contact-form-7" });
+      assert.equal(res.isError, true, `reported as clean: ${res.content[0].text}`);
+    }
+    assert.equal(calls.length, 2, "second call was served from a cached result");
+  });
+}
+
+test("a core body keyed by a different WordPress version is an error", async () => {
+  mockFetch(() => json(200, { "5.6.2": { vulnerabilities: [] } }));
+  const res = await tools.wp_scan({ type: "core", name: "wordpress", version: "5.6.1" });
+  assert.equal(res.isError, true);
+});
+
 test("re-caching an unversioned lookup replaces the row instead of adding one", () => {
   db.setWPScanCache("plugin", "akismet", undefined, { format: 2, vulnerabilities: [] });
   db.setWPScanCache("plugin", "akismet", undefined, { format: 2, vulnerabilities: [vuln("New")] });

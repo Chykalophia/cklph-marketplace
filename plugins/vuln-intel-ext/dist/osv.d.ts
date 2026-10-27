@@ -20,6 +20,7 @@ export interface OsvBatchResult {
 export declare function queryBatch(packages: PackageRef[]): Promise<OsvBatchResult[]>;
 export declare function querySingle(pkg: PackageRef): Promise<OsvVuln[]>;
 export declare function getVulnDetails(id: string): Promise<OsvVuln>;
+export declare function parseVulnRecord(body: unknown, id: string): OsvVuln;
 export interface EnrichResult {
     details: Map<string, OsvVuln>;
     failed: Array<{

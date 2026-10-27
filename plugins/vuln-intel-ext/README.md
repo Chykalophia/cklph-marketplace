@@ -13,7 +13,7 @@ Sidecar MCP server extending [cve-mcp](https://github.com/badchars/cve-mcp) with
 
 ## Setup
 
-On first use, the wrapper script (`scripts/start.sh`) automatically runs `npm ci --omit=dev` (exactly the committed lockfile, runtime dependencies only) to fetch the native `better-sqlite3` dependency. This requires Node.js 20 or 22+ (the locked `better-sqlite3` supports 20.x and 22.x to 26.x) and a C compiler (present by default on macOS/Linux).
+On first use, the wrapper script (`scripts/start.sh`) automatically runs `npm ci --omit=dev` (exactly the committed lockfile, runtime dependencies only) to fetch the native `better-sqlite3` dependency. This requires Node.js `20.x || 22.x || 23.x || 24.x || 25.x || 26.x` (exactly the range the locked `better-sqlite3` declares; Node 21 and 27+ are not supported) and a C compiler (present by default on macOS/Linux).
 
 ### Environment Variables
 

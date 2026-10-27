@@ -30,6 +30,19 @@ test("cvss3BaseScore matches the specification's numbers", () => {
   assert.equal(osv.cvss3BaseScore("CVSS:3.1/AV:N/AC:H/PR:N/UI:N/S:U/C:N/I:N/A:L"), 3.7);
 });
 
+test("a CVSS 0.0 vector is a real (lowest) rating, not UNKNOWN", () => {
+  assert.equal(osv.cvss3BaseScore("CVSS:3.1/AV:N/AC:L/PR:N/UI:N/S:U/C:N/I:N/A:N"), 0);
+  assert.equal(cvss("CVSS:3.1/AV:N/AC:L/PR:N/UI:N/S:U/C:N/I:N/A:N"), "LOW");
+});
+
+test("package.json engines and README state exactly the locked better-sqlite3 engines range", () => {
+  const read = (p) => readFileSync(new URL(p, import.meta.url), "utf8");
+  const lockedRange = JSON.parse(read("../package-lock.json")).packages["node_modules/better-sqlite3"].engines.node;
+  const pkg = JSON.parse(read("../package.json"));
+  assert.equal(pkg.engines.node, lockedRange);
+  assert.ok(read("../README.md").includes(`\`${lockedRange}\``), "README does not state the engines range");
+});
+
 test("control: CVSS v4 only or no rating is UNKNOWN", () => {
   assert.equal(cvss("CVSS:4.0/AV:N/AC:L/AT:N/PR:N/UI:N/VC:H/VI:H/VA:H/SC:N/SI:N/SA:N"), "UNKNOWN");
   assert.equal(label({}), "UNKNOWN");

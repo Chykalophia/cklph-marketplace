@@ -48,6 +48,31 @@ export function cvssScore(cvss: WPScanVuln["cvss"]): number | null {
   return null;
 }
 
+function isPlainObject(v: unknown): v is Record<string, unknown> {
+  return typeof v === "object" && v !== null && !Array.isArray(v);
+}
+
+// Parsing boundary. v3 keys the body by slug (plugins/themes) or dotted version (core):
+// {"<key>": {..., "vulnerabilities": [ ... ]}}. Only that documented shape is accepted. A body
+// keyed by anything else (another slug or version) or whose `vulnerabilities` is not a list of
+// advisory objects throws, so it can never be returned or cached as a clean result.
+export function parseResponse(data: unknown, responseKey: string, what: string): WPScanVuln[] {
+  const bad = (why: string) => new Error(`WPScan returned an unexpected response for ${what} (${why})`);
+  if (!isPlainObject(data)) throw bad("body is not an object");
+  if (!Object.prototype.hasOwnProperty.call(data, responseKey)) {
+    const keys = Object.keys(data).slice(0, 5).map((k) => `'${k}'`).join(", ");
+    throw bad(`no entry for '${responseKey}'${keys ? `; got ${keys}` : ""}`);
+  }
+  const entry = data[responseKey];
+  if (!isPlainObject(entry)) throw bad(`entry for '${responseKey}' is not an object`);
+  const raw = entry.vulnerabilities;
+  if (!Array.isArray(raw)) throw bad(`no vulnerabilities list under '${responseKey}'`);
+  if (!raw.every((v) => isPlainObject(v) && typeof v.title === "string")) {
+    throw bad(`malformed advisory under '${responseKey}'`);
+  }
+  return raw as WPScanVuln[];
+}
+
 // Every failure (no token, 404, unexpected body) throws. None of them is "no vulnerabilities",
 // and none is cached.
 export async function lookup(
@@ -111,26 +136,7 @@ export async function lookup(
     throw new Error(`WPScan API returned ${resp.status}: ${(await resp.text()).slice(0, 500)}`);
   }
 
-  const data = (await resp.json()) as Record<string, unknown> | null;
-
-  // v3 keys the body by slug (plugins/themes) or dotted version (core):
-  // {"<key>": {..., "vulnerabilities": [ ... ]}}
-  let entry: unknown = data && typeof data === "object" ? data[responseKey] : undefined;
-  if (entry === undefined && data && typeof data === "object") {
-    const keys = Object.keys(data);
-    if (keys.length === 1) entry = data[keys[0]];
-  }
-  const rawVulns = (entry as { vulnerabilities?: unknown } | undefined)?.vulnerabilities;
-  let vulns: WPScanVuln[];
-  if (Array.isArray(rawVulns)) {
-    vulns = rawVulns as WPScanVuln[];
-  } else if (rawVulns && typeof rawVulns === "object") {
-    vulns = Object.values(rawVulns as Record<string, WPScanVuln>);
-  } else {
-    throw new Error(
-      `WPScan returned an unexpected response for ${type} '${type === "core" ? version : name}' (no vulnerabilities list under '${responseKey}')`,
-    );
-  }
+  const vulns = parseResponse(await resp.json(), responseKey, `${type} '${type === "core" ? version : name}'`);
 
   const toCache: CacheEntry = { format: CACHE_FORMAT, vulnerabilities: vulns };
   setWPScanCache(type, cacheName, version, toCache);

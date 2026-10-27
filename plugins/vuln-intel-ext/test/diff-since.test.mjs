@@ -172,3 +172,76 @@ test("unrated (UNKNOWN) advisories survive a severity filter; LOW ones are filte
   assert.deepEqual(out.newVulnerabilities.map((v) => [v.id, v.severity]), [["GHSA-unrated", "UNKNOWN"]]);
   assert.equal(out.summary.unknownSeverityCount, 1);
 });
+
+// One advisory hit; `rec` is what /v1/vulns/GHSA-m returns.
+function oneHit(rec) {
+  return osvRoute(
+    () => json(200, { results: [{ vulns: [{ id: "GHSA-m", modified: "2026-03-01T00:00:00Z" }] }] }),
+    { "GHSA-m": rec },
+  );
+}
+
+async function assertNoScan(route, failedKey) {
+  mockFetch(route);
+  const res = await tools.diff_since({ since: SINCE, packages: [PKG] });
+  assert.equal(res.isError, true, `reported as clean: ${res.content[0].text}`);
+  if (failedKey) assert.equal(parse(res)[failedKey].length, 1);
+  assert.equal(scanCount(), 0);
+}
+
+for (const [label, fields] of [
+  ["a malformed `published`", { published: "not-a-date", modified: "2026-03-01T00:00:00Z" }],
+  ["a malformed `modified`", { published: "2022-01-01T00:00:00Z", modified: "yesterday-ish" }],
+  ["a malformed `withdrawn`", { published: "2022-01-01T00:00:00Z", modified: "2026-03-01T00:00:00Z", withdrawn: "soon" }],
+  ["a record with no `modified`", { published: "2026-02-01T00:00:00Z" }],
+  ["a non-list `severity`", { published: "2026-02-01T00:00:00Z", modified: "2026-03-01T00:00:00Z", severity: { type: "CVSS_V3" } }],
+]) {
+  test(`${label} in the advisory record is an error, not a clean scan`, () =>
+    assertNoScan(oneHit(record("GHSA-m", fields)), "failedAdvisories"));
+}
+
+test("a full record with the wrong id is an error", () =>
+  assertNoScan(oneHit(record("GHSA-other", { published: "2026-02-01T00:00:00Z", modified: "2026-03-01T00:00:00Z" })), "failedAdvisories"));
+
+for (const [label, result] of [
+  ["a null per-package result", null],
+  ["a non-list `vulns`", { vulns: { id: "GHSA-m" } }],
+  ["an advisory without an id", { vulns: [{ modified: "2026-03-01T00:00:00Z" }] }],
+  ["a non-string next_page_token", { vulns: [], next_page_token: 7 }],
+]) {
+  test(`${label} in querybatch is an error, not a clean scan`, () =>
+    assertNoScan(() => json(200, { results: [result] }), "failedPackages"));
+}
+
+test("an invalid `since` saves neither a snapshot nor a scan", async () => {
+  const snaps = () => db.getDb().prepare("SELECT COUNT(*) AS n FROM dependency_snapshots").get().n;
+  const before = snaps();
+  mockFetch(() => assert.fail("no request expected"));
+  const res = await tools.diff_since({ since: "last tuesday", packages: [PKG] });
+  assert.equal(res.isError, true);
+  assert.equal(snaps(), before);
+  assert.equal(scanCount(), 0);
+});
+
+test("an unrated advisory withdrawn after `since` is counted in unknownSeverityCount", async () => {
+  mockFetch(
+    oneHit(
+      record("GHSA-m", {
+        published: "2025-01-01T00:00:00Z",
+        modified: "2026-04-01T00:00:00Z",
+        withdrawn: "2026-04-01T00:00:00Z",
+        database_specific: {},
+      }),
+    ),
+  );
+  const out = parse(await tools.diff_since({ since: SINCE, packages: [PKG] }));
+  assert.deepEqual(out.withdrawnAdvisories, ["GHSA-m"]);
+  assert.equal(out.summary.unknownSeverityCount, 1);
+});
+
+test("control: a well-formed record with null `published`/`withdrawn` is still accepted", async () => {
+  mockFetch(oneHit(record("GHSA-m", { published: null, modified: "2026-03-01T00:00:00Z" })));
+  const out = parse(await tools.diff_since({ since: SINCE, packages: [PKG] }));
+  assert.deepEqual(out.modifiedVulnerabilities.map((v) => v.id), ["GHSA-m"]);
+  assert.equal(scanCount(), 1);
+});

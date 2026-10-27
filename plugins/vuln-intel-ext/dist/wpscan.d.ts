@@ -14,4 +14,5 @@ export interface WPScanResult {
     cached_at?: string;
 }
 export declare function cvssScore(cvss: WPScanVuln["cvss"]): number | null;
+export declare function parseResponse(data: unknown, responseKey: string, what: string): WPScanVuln[];
 export declare function lookup(type: "core" | "plugin" | "theme", name: string, version?: string): Promise<WPScanResult>;

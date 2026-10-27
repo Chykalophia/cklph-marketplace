@@ -7,6 +7,34 @@ const DETAIL_TIMEOUT_MS = 10000;
 const DETAIL_CONCURRENCY = 10;
 // OSV pages a query result (next_page_token) when a package has very many advisories.
 const MAX_PAGES = 20;
+function isPlainObject(v) {
+    return typeof v === "object" && v !== null && !Array.isArray(v);
+}
+function isTimestamp(v) {
+    return typeof v === "string" && !Number.isNaN(Date.parse(v));
+}
+// Parsing boundary for one querybatch / query result. Anything off-shape throws: an empty
+// `vulns` must only ever come from an explicit "no vulnerabilities" answer.
+function parseQueryResult(r) {
+    if (!isPlainObject(r))
+        throw new Error("OSV API returned an unexpected result (not an object)");
+    const { vulns, next_page_token } = r;
+    if (vulns !== undefined && vulns !== null && !Array.isArray(vulns)) {
+        throw new Error("OSV API returned an unexpected result ('vulns' is not a list)");
+    }
+    for (const v of vulns ?? []) {
+        if (!isPlainObject(v) || typeof v.id !== "string" || v.id === "") {
+            throw new Error("OSV API returned an unexpected result (advisory without an id)");
+        }
+    }
+    if (next_page_token !== undefined && next_page_token !== null && typeof next_page_token !== "string") {
+        throw new Error("OSV API returned an unexpected result ('next_page_token' is not a string)");
+    }
+    return {
+        vulns: (vulns ?? []),
+        ...(next_page_token ? { next_page_token } : {}),
+    };
+}
 async function postBatch(queries) {
     const resp = await fetch(OSV_BATCH_URL, {
         method: "POST",
@@ -21,7 +49,7 @@ async function postBatch(queries) {
     if (!Array.isArray(body?.results) || body.results.length !== queries.length) {
         throw new Error(`OSV API returned an unexpected response (expected ${queries.length} results, got ${Array.isArray(body?.results) ? body.results.length : "none"})`);
     }
-    return body.results;
+    return body.results.map(parseQueryResult);
 }
 export async function queryBatch(packages) {
     const results = [];
@@ -43,8 +71,8 @@ export async function queryBatch(packages) {
                 const next = [];
                 pageResults.forEach((r, j) => {
                     const idx = pending[j].idx;
-                    chunkResults[idx].vulns.push(...(r?.vulns ?? []));
-                    if (r?.next_page_token)
+                    chunkResults[idx].vulns.push(...r.vulns);
+                    if (r.next_page_token)
                         next.push({ idx, token: r.next_page_token });
                 });
                 pending = next;
@@ -74,8 +102,7 @@ export async function querySingle(pkg) {
     // A failed query is an error, never an empty (clean) result.
     if (!resp.ok)
         throw new Error(`OSV API ${resp.status}: ${(await resp.text()).slice(0, 500)}`);
-    const body = (await resp.json());
-    return body.vulns ?? [];
+    return parseQueryResult(await resp.json()).vulns;
 }
 export async function getVulnDetails(id) {
     const resp = await fetch(`${OSV_VULN_URL}/${encodeURIComponent(id)}`, {
@@ -83,9 +110,38 @@ export async function getVulnDetails(id) {
     });
     if (!resp.ok)
         throw new Error(`OSV API ${resp.status} for ${id}`);
-    const body = (await resp.json());
-    if (!body || body.id !== id)
-        throw new Error(`OSV API returned an unexpected record for ${id}`);
+    return parseVulnRecord(await resp.json(), id);
+}
+// Parsing boundary for a full /v1/vulns/<id> record. diff_since classifies an advisory from
+// these dates and ratings, so a record it cannot read is a failed fetch, never "no change".
+export function parseVulnRecord(body, id) {
+    const bad = (why) => new Error(`OSV API returned an unexpected record for ${id} (${why})`);
+    if (!isPlainObject(body))
+        throw bad("not an object");
+    if (body.id !== id)
+        throw bad("id mismatch");
+    if (!isTimestamp(body.modified))
+        throw bad("missing or invalid 'modified'");
+    if (body.published !== undefined && body.published !== null && !isTimestamp(body.published)) {
+        throw bad("invalid 'published'");
+    }
+    if (body.withdrawn !== undefined && body.withdrawn !== null && !isTimestamp(body.withdrawn)) {
+        throw bad("invalid 'withdrawn'");
+    }
+    if (body.severity !== undefined && body.severity !== null) {
+        if (!Array.isArray(body.severity) ||
+            !body.severity.every((s) => isPlainObject(s) && typeof s.type === "string" && typeof s.score === "string")) {
+            throw bad("invalid 'severity'");
+        }
+    }
+    if (body.database_specific !== undefined && body.database_specific !== null && !isPlainObject(body.database_specific)) {
+        throw bad("invalid 'database_specific'");
+    }
+    if (body.aliases !== undefined &&
+        body.aliases !== null &&
+        !(Array.isArray(body.aliases) && body.aliases.every((a) => typeof a === "string"))) {
+        throw bad("invalid 'aliases'");
+    }
     return body;
 }
 // querybatch returns only {id, modified}; the full record (published, withdrawn, severity,
@@ -185,9 +241,9 @@ function cvssScoreToLabel(score) {
         return "HIGH";
     if (score >= 4)
         return "MEDIUM";
-    if (score > 0)
-        return "LOW";
-    return "UNKNOWN";
+    // CVSS 0.0 ("None") is a real rating, so it gets the lowest label rather than UNKNOWN, which
+    // is reserved for a missing or unsupported rating.
+    return "LOW";
 }
 const SEVERITY_ORDER = ["UNKNOWN", "LOW", "MEDIUM", "HIGH", "CRITICAL"];
 export function severityRank(label) {

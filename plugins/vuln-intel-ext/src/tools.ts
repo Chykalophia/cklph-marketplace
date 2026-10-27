@@ -119,6 +119,11 @@ export function registerTools(server: McpServer): void {
       let packages: db.PackageRef[] | undefined = args.packages;
       let snapshotId: number | null = null;
 
+      const sinceDate = new Date(args.since);
+      if (isNaN(sinceDate.getTime())) {
+        return err(`Invalid 'since' timestamp: ${args.since}. Use ISO 8601 format.`);
+      }
+
       if (!packages || packages.length === 0) {
         const snap = db.getLatestSnapshot();
         if (!snap) {
@@ -136,11 +141,6 @@ export function registerTools(server: McpServer): void {
       const minSeverityRank = args.severity
         ? SEVERITY_RANK[args.severity.toUpperCase()] ?? 0
         : 0;
-
-      const sinceDate = new Date(args.since);
-      if (isNaN(sinceDate.getTime())) {
-        return err(`Invalid 'since' timestamp: ${args.since}. Use ISO 8601 format.`);
-      }
 
       let results: osv.OsvBatchResult[];
       try {
@@ -198,22 +198,23 @@ export function registerTools(server: McpServer): void {
 
           allSeverities.push(summary.severity);
 
+          // Timestamps were validated at the parsing boundary (osv.parseVulnRecord), so an
+          // unreadable date can no longer fall through every comparison as "no change".
           const publishedDate = enriched.published ? new Date(enriched.published) : null;
           const modifiedDate = enriched.modified ? new Date(enriched.modified) : null;
           const withdrawnDate = enriched.withdrawn ? new Date(enriched.withdrawn) : null;
 
           if (withdrawnDate && withdrawnDate > sinceDate) {
             withdrawnIds.push(enriched.id);
-            continue;
-          }
-
-          if (publishedDate && publishedDate > sinceDate) {
+          } else if (publishedDate && publishedDate > sinceDate) {
             newVulns.push(summary);
-            if (summary.severity === "UNKNOWN") unknownSeverityCount++;
           } else if (modifiedDate && modifiedDate > sinceDate) {
             modifiedVulns.push(summary);
-            if (summary.severity === "UNKNOWN") unknownSeverityCount++;
+          } else {
+            continue;
           }
+          // Every reported advisory (new, modified or withdrawn) that has no rating is counted.
+          if (summary.severity === "UNKNOWN") unknownSeverityCount++;
         }
       }
 
