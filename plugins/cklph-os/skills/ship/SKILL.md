@@ -15,7 +15,8 @@ description: The SHIP phase of the cklph-os flow — open a PR (or merge) with a
    before the push, never reuse the pre-gate run.
 3. Push the **feature branch** (never `dev`/`main`).
 4. Open a PR with: a concise **summary (the why)**, a **test plan**, and the spec's
-   **acceptance-criteria checklist**. Generate release notes if relevant.
+   **acceptance-criteria checklist**. Generate release notes if relevant. Write the PR body and
+   release notes with `writing`.
 
 Push and PR are externally visible — **confirm with the user before doing them** unless they've
 authorized it for this task. Match the action to what was actually requested.

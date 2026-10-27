@@ -37,7 +37,8 @@ rather than reinventing what they already encode.
 
 ## Routing table
 Situation → skill. Every cklph-os skill except this one has a row here (STANDARD.md §10, Wire). Phase skills
-(`refine` → `survey` → `spec` → `plan` → `build` → `review` → `verify` → `ship`) are run by `flow`.
+(`refine` → `spec` → `plan` → `build` → `review` → `verify` → `ship`) are run by `flow`. `survey` is not a
+`flow` phase: invoke it yourself between `refine` and `spec` when the scope has gaps (rows below).
 
 | Situation | Skill |
 |---|---|

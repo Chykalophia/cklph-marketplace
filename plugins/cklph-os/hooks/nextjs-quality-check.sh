@@ -11,13 +11,11 @@ INPUT=$(cat 2>/dev/null || true)
 
 # Parse input using jq
 FILE_PATH=$(printf '%s' "$INPUT" | jq -r '.tool_input.file_path // empty' 2>/dev/null)
-SUCCESS=$(printf '%s' "$INPUT" | jq -r '.tool_response.success // false' 2>/dev/null)
 
-# Skip if not successful or not a JS/TS file
-if [[ "$SUCCESS" != "true" ]]; then
-    exit 0
-fi
-
+# No success check: PostToolUse fires only after a tool call succeeds (a failed call fires
+# PostToolUseFailure instead), and Write/Edit results carry no `success` field. Before 0.12.3 this
+# hook waited for `.tool_response.success == true`, so it exited here on every real edit.
+# Skip if not a JS/TS file
 if [[ ! "$FILE_PATH" =~ \.(js|jsx|ts|tsx)$ ]]; then
     exit 0
 fi
@@ -34,8 +32,10 @@ ISSUES=0
 
 echo "Next.js Quality Check: $FILE_PATH"
 
-# Check if it's an App Router file
-if [[ "$FILE_PATH" =~ app/.* ]]; then
+# Check if it's an App Router file: an `app/` path segment, not any path containing "app/"
+# (webapp/src/x.ts is not App Router code). Regex in a variable for bash 3.2.
+APP_RE='(^|/)app/'
+if [[ "$FILE_PATH" =~ $APP_RE ]]; then
 
     # Page component checks
     if [[ "$FILE_PATH" =~ page\.(js|jsx|ts|tsx)$ ]]; then
@@ -85,7 +85,7 @@ fi
 if grep -q '<a href=' "$FILE_PATH" 2>/dev/null; then
     if ! grep -q 'next/link' "$FILE_PATH" 2>/dev/null; then
         # Only suggest for internal links (not http)
-        if ! grep -E '<a href=["'"'"']https?://' "$FILE_PATH" 2>/dev/null; then
+        if ! grep -qE '<a href=["'"'"']https?://' "$FILE_PATH" 2>/dev/null; then
             echo "Suggestion: Use next/link for internal navigation"
         fi
     fi

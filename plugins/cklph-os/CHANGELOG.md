@@ -2,6 +2,40 @@
 
 All notable changes to cklph-os are documented here.
 Format: [Keep a Changelog](https://keepachangelog.com); versioning follows [SemVer](https://semver.org).
+Moved here from the repo root on 2026-10-27; the root CHANGELOG now records marketplace events only.
+
+## [0.12.3] — 2026-10-27
+
+Fixes from a quality survey of the plugin.
+
+### Fixed — hooks
+- `nextjs-quality-check` never ran in a real session: it waited for `tool_response.success == true`,
+  and Write/Edit results have no `success` field. The gate is gone (PostToolUse only fires after a
+  successful call). The App Router rules now need an `app/` path segment, so `webapp/src/x.ts` no
+  longer gets them, and the external-link check no longer prints matched lines.
+- `security-check` warnings went to stderr with exit 0, which Claude never sees on PostToolUse. They
+  now come back as `hookSpecificOutput.additionalContext` (exit 0, nothing blocked); without jq the
+  fallback is stderr + exit 2, which PostToolUse also shows to Claude.
+- `pre-commit-gate`: a quoted `description:` containing `: ` (valid YAML) no longer blocks the
+  commit. `git commit -a` / `-am` / `--all` now checks the tracked changes git is about to stage
+  (ESLint, Semgrep and the description check used to see only the index). Reports go to a per-run
+  temp file, not fixed `/tmp/*-gate.txt` names shared across sessions.
+- Tests: the bats payloads are real Write/Edit shapes (no fake `"success":true`); new cases for each
+  fix fail on the 0.12.2 hooks.
+
+### Changed — commands and skills
+- The eight commands share names with the phase skills, which hides each skill's description. Each
+  command now carries its skill's description verbatim and loads the skill's `SKILL.md`; a test
+  keeps them in sync. Names are unchanged.
+- `start-here` no longer lists `survey` as a `flow` phase; it is run by hand between `refine` and `spec`.
+- `plan/plan-check.md` is the one plan-check checklist; `cklph-reviewer` Mode B reads it instead of
+  carrying a copy that had dropped the explicit-decision-logic item, and `plan` points at it for the
+  loop limit.
+- `weekly-review` defers to `learn` (memory prune) and `stocktake` / STANDARD §10 (prune rules)
+  instead of restating them.
+- Call sites for skills only `start-here` routed to: `debugging` and `browser-debug` from `verify`,
+  `simplify` from `review`, `frontend-ui` and `performance` from `build`, `writing` from `ship`,
+  `harness-limits` from `flow`.
 
 ## [0.12.2] — 2026-10-27
 

@@ -15,6 +15,8 @@ React — App Router, Server vs Client Components, route handlers apply. Monorep
 Then **survey installed skills that fit the stack/task** (your context lists them; `claude plugin list`
 for plugins) and name the relevant ones in each implementer's brief — e.g. a Next.js or domain skill —
 so the implementer uses the specialist instead of reinventing it. cklph-os is the spine; skills are depth.
+Name the cklph-os ones too: `frontend-ui` for user-facing component or layout tasks, `performance` for
+tasks with a speed or Core Web Vitals target.
 
 For any framework / library / API code, instruct each implementer to **announce the stack in its report**
 ("STACK DETECTED: Next.js 16, Supabase v2"), verify against current docs (Context7 > official changelog >

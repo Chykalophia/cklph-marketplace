@@ -25,7 +25,8 @@ failure-injection attack checklist.
 
 Triage the findings:
 - **Critical / High** — fix before proceeding (inline, or dispatch a follow-up `cklph-implementer`).
-- **Medium / Low / Nit** — fix now if cheap, else note for follow-up.
+- **Medium / Low / Nit** — fix now if cheap, else note for follow-up. For readability Nits (works, but
+  reads harder than it should), apply `simplify`.
 
 **Change-sizing lens.** Target ~100 LOC for an easy review; ~300 acceptable for one logical change;
 ~1000+ must be split (stack the PRs / by-file-group / horizontal / vertical) — flag oversize work as a

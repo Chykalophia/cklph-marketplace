@@ -35,5 +35,6 @@ Self-correcting loops:
 - Push work **into** phase skills + sub-agents; pull back only concise results.
 - **Re-detect the next phase each step** rather than holding the whole plan in your window.
 - Track progress with the task tools.
+- A tool call is denied (classifier block)? Stop and invoke `harness-limits`; don't retry it another way.
 
 Constraint: sub-agents and hooks are CLI-only. Mirror must-follow rules as prose in `AGENTS.md`.
