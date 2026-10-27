@@ -373,6 +373,12 @@ block 'docker exec db sh -c -e "git reset --hard"'
 block 'docker exec db bash -x -c "git reset --hard"'
 block 'kubectl exec pod -- sh -e -c "git reset --hard"'
 block "docker exec db bash -o pipefail -c \"psql -c 'DROP TABLE x'\""
+block 'docker exec db bash -eo pipefail -c "git reset --hard"'
+block 'docker exec db sh -euxo pipefail -c "git reset --hard"'
+block 'docker exec db bash -xO extglob -c "git reset --hard"'
+block 'docker exec db bash --rcfile /dev/null -c "git reset --hard"'
+block 'docker exec db bash --init-file x -c "git reset --hard"'
+block 'docker exec db bash --norc -c "git reset --hard"'
 allow 'docker exec db bash -o pipefail script.sh -c x'
 allow 'docker exec db bash -x deploy.sh'
 block 'su -c -- "git reset --hard"'
@@ -488,10 +494,12 @@ if [ "$bms" -lt $((2000 * TS)) ]; then pass=$((pass + 1)); echo "PASS  ${#BIG}-b
 else fail=$((fail + 1)); echo "FAIL  ${#BIG}-byte command took ${bms} ms (limit $((2000 * TS)) ms)"; fi
 # Shapes the first timing case missed: many SQL-client segments, many capitalised commands.
 # Linear code does 2000 in a few seconds; the quadratic versions took ~13-27 s.
-for shape in sql upper; do
-    BIG=""
+# execopt is ONE exec segment, `docker exec db bash -o bash -o …`: every shell word is also an
+# option value, which made the exec shell scan quadratic (47 s) in a 0.12.2 draft.
+for shape in sql upper execopt; do
+    BIG=""; [ "$shape" = execopt ] && BIG="docker exec db"
     for k in $(seq 1 2000); do
-        case "$shape" in sql) BIG="$BIG psql -c \"select $k\";" ;; upper) BIG="$BIG NODE_ENV=test Rscript run$k.R && GIT Status;" ;; esac
+        case "$shape" in sql) BIG="$BIG psql -c \"select $k\";" ;; upper) BIG="$BIG NODE_ENV=test Rscript run$k.R && GIT Status;" ;; execopt) BIG="$BIG bash -o" ;; esac
     done
     BIGP=$(payload "$BIG")
     bsecs=$( { time (printf '%s' "$BIGP" | "$BASH_BIN" "$GATE" >/dev/null 2>&1) ; } 2>&1 )

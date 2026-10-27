@@ -562,8 +562,9 @@ check_segment() {   # $1 = one simple command (words joined by \037), $2 = recur
                 done
             fi
             # A shell inside exec runs its -c string: docker exec db sh -c "…", including after other
-            # shell options (bash -x -c "…", bash -o pipefail -c "…"); -o/-O take a value word.
-            local sk
+            # shell options (bash -x -c, -euxo pipefail -c, --rcfile f -c). Each o/O in a short
+            # cluster and --rcfile/--init-file take a value word, as in script_after.
+            local sk oo
             for ((j = i + 1; j < n - 1; j++)); do
                 [[ ${w[$j]##*/} =~ ^(bash|sh|zsh|dash)$ ]] || continue
                 for ((sk = j + 1; sk < n; sk++)); do
@@ -571,11 +572,15 @@ check_segment() {   # $1 = one simple command (words joined by \037), $2 = recur
                         script_after "$sk" "${w[@]}"; check_string "$SCRIPT" $((depth + 1)); break 2
                     fi
                     case "${w[$sk]}" in
-                        [-+]o|[-+]O) sk=$((sk + 1)) ;;
-                        -*|+*) ;;
+                        --rcfile|--init-file) sk=$((sk + 1)) ;;
+                        --*) ;;
+                        [-+]*) oo="${w[$sk]//[!oO]/}"; sk=$((sk + ${#oo})) ;;
                         *) break ;;
                     esac
                 done
+                # Resume after the words just scanned, so each word is read once: rescanning from
+                # every shell-named option value (bash -o bash -o …) was quadratic.
+                j=$((sk - 1))
             done
             for ((j = i + 1; j < n - 1; j++)); do
                 if [[ ${w[$j]} =~ ^(system|volume)$ ]] && [ "${w[$((j + 1))]}" = "prune" ]; then

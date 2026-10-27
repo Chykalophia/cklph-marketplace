@@ -11,8 +11,10 @@ Review follow-ups to 0.12.1 (PR #33's open review threads).
 - `xargs GIT commit --no-verify` (any capitalisation of the git word) was allowed by 0.12.1 and
   blocked by 0.12.0. Blocked again.
 - Shell options before `-c` inside `docker`/`podman`/`kubectl exec` (`bash -x -c "…"`,
-  `sh -e -c "…"`, `bash -o pipefail -c "…"`) now get the nested check the top level already had.
-- Each new case failed on the 0.12.1 gate first. Suite: 384 → 391 cases.
+  `sh -euxo pipefail -c "…"`, `bash -xO extglob -c`, `bash --rcfile f -c`) now get the nested check.
+  Each word is scanned once: a draft that rescanned from every shell-named option value took 47 s
+  on `docker exec db bash -o bash -o …`; that shape is now a timing case (0.5 s).
+- Each new case failed on the 0.12.1 gate first. Suite: 384 → 398 cases.
 - The suite's timing limits scale with `GATE_TIME_SCALE` (whole number, default 1) for slower runners.
 
 ### Changed — written rules and skills
