@@ -26,7 +26,7 @@ Use both — they are layered, not competing:
 | **Framework patterns** | `vercel:*` | `vercel:nextjs`, `vercel:react-best-practices`, `vercel:routing-middleware`, `vercel:shadcn`, `vercel:turbopack`, `vercel:auth`, `vercel:ai-sdk` |
 | **Peter's house style on top** | `cklph-nextjs` | layered `lib/` architecture, mutation security checklist, data-layer abstraction, 12 accumulated review pitfalls, cross-cutting discipline rules |
 
-## What's inside (v0.2.0)
+## What's inside
 
 ### Foundations
 - `architecture` — layered `lib/` structure (services / data / middleware / security / utils / validation) + "Why these layers" linking each to a principle from `cklph-os:design`.

@@ -56,4 +56,4 @@ For service tests, mock the **repo or Supabase client factory**, not the Supabas
 - Snapshot tests on components — they rot and nobody reads the diffs.
 - Asserting on log output as a behavior signal.
 
-Pair with **architecture** for what each layer does, **data-layer** for the abstractions tests should mock, and **discipline** for the review-tier ladder that runs these tests automatically.
+Pair with **architecture** for what each layer does, **data-layer** for the abstractions tests should mock, and **discipline** for the house rules these tests enforce.

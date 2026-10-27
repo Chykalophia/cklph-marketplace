@@ -3,6 +3,27 @@
 All notable changes to `cklph-nextjs` are documented here.
 Format: [Keep a Changelog](https://keepachangelog.com); versioning follows [SemVer](https://semver.org).
 
+## [0.2.4] — 2026-10-27
+
+### Fixed
+- **`security`** is now the single owner of the mutation order: an IP-keyed rate limit first (covers
+  unauthenticated traffic), CSRF, `getUser()`, then any per-user limit. `api-routes` and
+  `discipline` reference it instead of contradicting it.
+- **`api-routes`** — the route example ran the rate limit only after auth and had no CSRF step. It
+  now composes `limitByIp → csrfValidate → requireAuth` and keeps the per-user limit in the handler.
+- **`auth`** — the OAuth callback redirected to an unvalidated `next` (`?next=@evil.example` sent the
+  user to `evil.example`). A `safeNext` helper now accepts only a same-origin relative path.
+- **`security`** — the path-traversal check (`startsWith(base)`) let `/data/uploads-evil` through;
+  it now compares against `base + path.sep`. The open-redirect rule names the `//` and `/\` cases.
+- **`error-handling`** — the sample used `.single()`, so a missing row came back as an error and the
+  `NOT_FOUND` branch was unreachable. It now uses `.maybeSingle()`.
+- **`supabase-migrations`** — type generation now matches `discipline` and `data-model`
+  (`supabase gen types typescript --linked > lib/types/database.ts`).
+- **`ui-quality`**, **`testing`**, **`supabase-migrations`** — removed references to a nonexistent
+  `component-standards` skill and a "review tier" that `discipline` never defined.
+- **`discipline`** — replaced a project-specific component-library name with generic wording.
+- README: dropped the stale version number from the "What's inside" heading.
+
 ## [0.2.3] — 2026-10-26
 
 ### Fixed
