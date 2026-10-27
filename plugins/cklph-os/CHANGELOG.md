@@ -227,16 +227,6 @@ Adapted from: ECC `skills/living-docs-governance` (MIT), commit 25278e7 → `tem
 
 Adapted from: ECC `skills/skill-stocktake` + `skills/skill-comply` (MIT), commit 25278e7 → `stocktake`.
 
-## [Unreleased] — 2026-10-26
-
-### Removed
-- Removed cklph-architect and cklph-eos from the public marketplace.
-
-## [Unreleased] — 2026-06-09
-
-### Added — new plugin
-- **`cklph-regression-watch`** — on-demand site regression monitor (5th plugin). Baseline a live/staging site and surface only confirmed regressions (availability, SEO integrity, tracking tag-firing, visual, journeys) with evidence. Confirmation engine kills flakes; `regression-verifier` agent gates alerts. First executable plugin in the marketplace (Playwright + pixelmatch, under `plugins/cklph-regression-watch`).
-
 ## [0.9.0] — 2026-06-01
 
 ### Changed (breaking)
