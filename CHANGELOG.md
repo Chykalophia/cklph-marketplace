@@ -14,7 +14,7 @@ Format: [Keep a Changelog](https://keepachangelog.com).
 ## 2026-10-26
 
 ### Removed
-- cklph-architect and cklph-eos removed from the public marketplace.
+- Two private plugins moved out of the public marketplace.
 
 ## 2026-06-09
 

@@ -271,8 +271,8 @@ Adapted from: ECC `skills/skill-stocktake` + `skills/skill-comply` (MIT), commit
 
 ### Notes (repo-level, not plugin-specific)
 - The hosting **GitHub repo was renamed** from `Chykalophia/cklph-os` → `Chykalophia/cklph-marketplace`.
-  Better reflects what it is — a marketplace hosting 4 plugins (cklph-os, cklph-nextjs,
-  cklph-architect, cklph-eos), not a single plugin named after its first child. GitHub provides
+  Better reflects what it is — a marketplace hosting several plugins, not a single plugin named
+  after its first child. GitHub provides
   a redirect from the old URL; existing marketplace registrations continue to work, but the
   canonical URL is now the new one.
 - **README rewritten** to reflect the marketplace structure (one repo, four plugins) instead of
