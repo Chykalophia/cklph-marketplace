@@ -21,11 +21,17 @@ Two async results write the same state; the last to resolve wins, not the last t
 - **TanStack Query optimistic update without `cancelQueries`:** `onMutate` writes the cache, an
   in-flight refetch lands a moment later with pre-mutation server data and overwrites it. The item
   "flips back." Always `await queryClient.cancelQueries({ queryKey })` before `setQueryData`.
-- **Invalidate before the data is visible:** `onSuccess` and `onSettled` both run after the
-  mutation's promise resolves, so swapping one for the other fixes nothing. The race is elsewhere:
-  a second mutation still in flight, or a server that resolves the request before the write is
-  readable (a queue, a replica, an eventually consistent store). The refetch then returns stale rows.
-  Invalidate after the last related mutation settles, or write the server's response into the cache.
+- **Invalidate before the data is visible:** `onSuccess` and `onSettled` both run once the
+  mutation settles (`onSuccess` only on success, `onSettled` on error too), so swapping one for the
+  other fixes nothing. The race is elsewhere, and the two causes need different fixes:
+  - *Overlapping mutations:* a second related mutation is still in flight. Invalidate after the
+    last one settles: in `onSettled`, invalidate only when
+    `queryClient.isMutating({ mutationKey }) === 1` (this one is still counted). `useIsMutating` is
+    the render-time hook for showing the count, not for this check.
+  - *Read-after-write lag:* the server resolves before the write is readable (a queue, a replica,
+    an eventually consistent store), so even a late refetch returns stale rows. Write the server's
+    authoritative response into the cache when its shape matches the query, or retry the read until
+    the write shows up.
 - **Rollback clobbers a newer write:** `onError` restores the snapshot from `onMutate`, wiping a
   second mutation that succeeded in between. Roll back only the item you changed, not the whole list.
 - **Rapid double click:** two mutations, two optimistic writes, one rollback. Disable while

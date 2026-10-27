@@ -21,7 +21,7 @@ Every criterion has an objective pass/fail condition. Vague rubric, vague review
 |---|---|---|
 | Correct | Claims, numbers and code behavior check out against source or a run | Invented stat, wrong version, nonexistent API, logic bug |
 | Complete | Every spec requirement / acceptance criterion addressed | Missing section, skipped edge case |
-| Safe | No secrets, PII, client names in public output. Where the work has an input or access surface: input validated, authz checked (otherwise N/A, said so) | Leaked key, a client named in a public repo, IDOR |
+| Safe | No secrets, PII, client names in public output. Input surface (the work reads data it did not create: a request, form, file, webhook, CLI argument, URL): input validated. Access surface (anything not every caller may do: reading or changing data owned by or scoped to a user, account, organization, tenant, project or role, or any privileged or system-wide action such as admin settings): authorization checked. Each check is N/A only when its surface is absent, stated separately with the reason | Leaked key, a client named in a public repo, IDOR, an N/A whose surface is actually present |
 | Consistent | No contradictions inside the work | Section A says X, section B says not-X |
 | Fits the audience | No internal jargon or unexplained acronyms, no private paths or internal links, no TODO/FIXME, every next step names who does it | Internal jargon, unexplained acronyms, private paths, internal links, TODOs, next steps with no owner |
 
@@ -49,7 +49,8 @@ Spec: <spec or acceptance criteria>
 Work: <the diff, document or deliverable>
 Rubric: <the table>
 
-For each criterion: PASS, or FAIL with the exact problem and where it is.
+For each criterion: PASS, or FAIL with the exact problem and where it is. N/A only for a
+sub-check the rubric allows it for, with the reason; an N/A you disagree with is a FAIL.
 Then: Critical issues (must fix) and Suggestions (optional).
 End with the agent's own marker, last and outside any code block: `## REVIEW CLEAN` (pass) or
 `## ISSUES FOUND` (fail) for cklph-reviewer; `## RED-TEAM CLEAR` or `## RED-TEAM FINDINGS` for red-team.

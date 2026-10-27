@@ -28,8 +28,9 @@ Said with no command output beside them, each of these is a finding against your
 This section is the rule `verify`, `ship` and `spec` point to.
 - Command output from this session: the test summary line, `tsc` exit status, the curl response,
   the build log tail.
-- Observed behavior: what the screen showed after the click, with the steps taken. It decides the
-  verdict only where no executable check exists; where one does, it is supplemental.
+- Observed behavior: what the screen showed after the click, with the steps taken. Per criterion:
+  where an executable check exercises that same behavior, it decides and observation is
+  supplemental; where none does (a backend test for a UI criterion, say), observation is required.
 - For a bug fix: the repro failing **before** and passing **after**.
 
 ## Evidence that doesn't

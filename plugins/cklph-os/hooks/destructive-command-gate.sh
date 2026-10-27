@@ -269,24 +269,27 @@ same_path() {
     local x y; lc x "$1"; lc y "$2"; [ "$x" = "$y" ]
 }
 
-# script_after J WORDS...: sets SCRIPT to what a shell runs for `-c` at index J. Shells skip
-# options and `--` after -c (`bash -c -- '…'`, `bash -c -x '…'`), and -o/-O take a value
-# (`bash -c -o pipefail '…'`). Sets a variable rather than echoing: a $( ) fork per -c was slow.
+# script_after J: sets SCRIPT to what a shell runs for `-c` at index J of the caller's word array
+# `w` (bash scoping: the calling check_segment's local). Shells skip options and `--` after -c
+# (`bash -c -- '…'`, `bash -c -x '…'`), and -o/-O take a value (`bash -c -o pipefail '…'`).
+# Sets a variable rather than echoing (a $( ) fork per -c was slow) and reads `w` in place
+# rather than copying it: a copy per -c made `… -c x -c x …` quadratic. Also sets SCRIPT_END, the
+# index scanning stopped at, so a caller can resume there instead of rescanning the same options.
 script_after() {
-    local cix=$1 j=$(( $1 + 1 )); shift
-    local -a ws=("$@")
+    local j=$(( $1 + 1 )) nw=${#w[@]}
     # Each o/O inside the -c cluster takes a value word first (bash -co pipefail '…').
-    local cw="${ws[$cix]}" oo
+    local cw="${w[$1]}" oo
     case "$cw" in -[!-]*) oo="${cw//[!oO]/}"; j=$((j + ${#oo})) ;; esac
     SCRIPT=""
-    while [ "$j" -lt "${#ws[@]}" ]; do
-        case "${ws[$j]}" in
-            --) SCRIPT="${ws[$((j + 1))]:-}"; return ;;
+    while [ "$j" -lt "$nw" ]; do
+        case "${w[$j]}" in
+            --) SCRIPT="${w[$((j + 1))]:-}"; j=$((j + 1)); break ;;
             [-+]o|[-+]O|[-+]*[oO]) j=$((j + 2)) ;;
             -*|+*) j=$((j + 1)) ;;
-            *) SCRIPT="${ws[$j]}"; return ;;
+            *) SCRIPT="${w[$j]}"; break ;;
         esac
     done
+    SCRIPT_END=$j
 }
 
 # git accepts any unique prefix of a long option: pfx WORD FULL MIN is true when WORD is at least
@@ -420,7 +423,8 @@ check_segment() {   # $1 = one simple command (words joined by \037), $2 = recur
     if [ "$cmd" != git ]; then
         local sawgit=0
         for ((j = i + 1; j < n; j++)); do
-            [ "${w[$j]##*/}" = git ] && sawgit=1
+            # Case-insensitive, as above (xargs GIT commit runs git); a glob, not lc, to stay fork- and loop-free.
+            [[ ${w[$j]##*/} == [Gg][Ii][Tt] ]] && sawgit=1
             [ "$sawgit" = 1 ] && pfx "${w[$j]}" --no-verify 6 && block "--no-verify skips the repo's git hooks" \
                 "fix what the hook reports and commit normally. If the hook itself is broken, say so and ask the user."
         done
@@ -430,13 +434,13 @@ check_segment() {   # $1 = one simple command (words joined by \037), $2 = recur
         su)
             for ((j = i + 1; j < n; j++)); do
                 case "${w[$j]}" in
-                    -c|-[A-Za-z]*c|--command|--session-command) script_after "$j" "${w[@]}"; check_string "$SCRIPT" $((depth + 1)); break ;;
+                    -c|-[A-Za-z]*c|--command|--session-command) script_after "$j"; check_string "$SCRIPT" $((depth + 1)); break ;;
                     --command=*|--session-command=*) check_string "${w[$j]#*=}" $((depth + 1)); break ;;
                 esac
             done ;;
         bash|sh|zsh|dash)
             for ((j = i + 1; j < n - 1; j++)); do
-                if [[ ${w[$j]} =~ $SHELL_C_RE ]]; then script_after "$j" "${w[@]}"; check_string "$SCRIPT" $((depth + 1)); break; fi
+                if [[ ${w[$j]} =~ $SHELL_C_RE ]]; then script_after "$j"; check_string "$SCRIPT" $((depth + 1)); break; fi
             done ;;
         eval)
             local rest=""
@@ -556,15 +560,41 @@ check_segment() {   # $1 = one simple command (words joined by \037), $2 = recur
                 case "${w[$j]}" in --entrypoint) ep="${w[$((j + 1))]:-}" ;; --entrypoint=*) ep="${w[$j]#*=}" ;; esac
             done
             if [[ ${ep##*/} =~ ^(bash|sh|zsh|dash)$ ]]; then
+                # The first -c whose value is a script. docker's own -c (CPU shares) takes a bare
+                # number and can come first (docker run -c 256 --entrypoint sh img -c "…").
                 for ((j = i + 1; j < n - 1; j++)); do
-                    if [[ ${w[$j]} =~ $SHELL_C_RE ]]; then script_after "$j" "${w[@]}"; check_string "$SCRIPT" $((depth + 1)); break; fi
+                    if [[ ${w[$j]} =~ $SHELL_C_RE ]]; then
+                        script_after "$j"
+                        # Resume after the words just read: rescanning a run of -c -c … was quadratic.
+                        if [[ $SCRIPT =~ ^[0-9]+$ ]]; then j=$SCRIPT_END; continue; fi
+                        check_string "$SCRIPT" $((depth + 1)); break
+                    fi
                 done
             fi
-            # A shell inside exec runs its -c string: docker exec db sh -c "…".
+            # A shell inside exec runs its -c string: docker exec db sh -c "…", including after other
+            # shell options (bash -x -c, -euxo pipefail -c, --rcfile f -c). Each o/O in a short
+            # cluster and --rcfile/--init-file take a value word, as in script_after.
+            local sk oo
             for ((j = i + 1; j < n - 1; j++)); do
-                if [[ ${w[$j]##*/} =~ ^(bash|sh|zsh|dash)$ ]] && [[ ${w[$((j + 1))]} =~ $SHELL_C_RE ]]; then
-                    script_after "$((j + 1))" "${w[@]}"; check_string "$SCRIPT" $((depth + 1)); break
-                fi
+                [[ ${w[$j]##*/} =~ ^(bash|sh|zsh|dash)$ ]] || continue
+                for ((sk = j + 1; sk < n; sk++)); do
+                    # A bare number after -c is docker's CPU shares, so this "shell" was an option
+                    # value (docker run --name bash -c 256 img bash -c …): keep looking. The first
+                    # real script is checked and ends the scan, one tokenizer run per segment.
+                    if [[ ${w[$sk]} =~ $SHELL_C_RE ]]; then
+                        script_after "$sk"; [[ $SCRIPT =~ ^[0-9]+$ ]] && break
+                        check_string "$SCRIPT" $((depth + 1)); break 2
+                    fi
+                    case "${w[$sk]}" in
+                        --rcfile|--init-file) sk=$((sk + 1)) ;;
+                        --*) ;;
+                        [-+]*) oo="${w[$sk]//[!oO]/}"; sk=$((sk + ${#oo})) ;;
+                        *) break ;;
+                    esac
+                done
+                # Resume after the words just scanned, so each word is read once: rescanning from
+                # every shell-named option value (bash -o bash -o …) was quadratic.
+                j=$((sk - 1))
             done
             for ((j = i + 1; j < n - 1; j++)); do
                 if [[ ${w[$j]} =~ ^(system|volume)$ ]] && [ "${w[$((j + 1))]}" = "prune" ]; then
@@ -690,6 +720,8 @@ check_string() {   # $1 = command text, $2 = recursion depth
     [ "${2:-0}" -gt 3 ] && block "command nested more than 3 levels deep (bash -c / eval / env -S) cannot be checked" \
         "run the inner command directly, so it can be read."
     local segs line text="$1" SEGS SEGWORDS="" SEG_SQL=""
+    # No word-based early exit here, unlike the top level: a nested string can hold just the SQL
+    # client (`echo 'DROP TABLE t' | bash -c 'psql db'`), and the DROP check needs to see it.
     # A newline inside quotes reaches here as \036; a nested shell needs it back to see its own
     # line continuations (bash -c 'g\<newline>it …').
     case "$text" in *$'\036'*) text=$(printf '%s' "$text" | tr '\036' '\n') ;; esac

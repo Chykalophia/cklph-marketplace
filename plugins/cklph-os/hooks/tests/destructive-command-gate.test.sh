@@ -9,6 +9,10 @@ set -o pipefail
 HERE=$(cd "$(dirname "$0")" && pwd)
 GATE="$HERE/../destructive-command-gate.sh"
 BASH_BIN="${GATE_BASH:-$(command -v bash)}"
+# Timing limits are tuned on an Apple-silicon Mac. Slower or loaded runners (shared CI) can scale
+# them: GATE_TIME_SCALE=3 triples every limit. Whole numbers only.
+TS="${GATE_TIME_SCALE:-1}"
+case "$TS" in ''|*[!0-9]*|0) TS=1 ;; esac
 REPO_ROOT=$(git -C "$HERE" rev-parse --show-toplevel 2>/dev/null)
 pass=0; fail=0
 
@@ -365,6 +369,31 @@ block 'bash -c -- "git reset --hard"'
 block 'bash -c -x "git reset --hard"'
 block 'sh -c -e "git reset --hard"'
 block 'docker exec db sh -c -e "git reset --hard"'
+# Shell options before -c inside exec, as at the top level.
+block 'docker exec db bash -x -c "git reset --hard"'
+block 'kubectl exec pod -- sh -e -c "git reset --hard"'
+block "docker exec db bash -o pipefail -c \"psql -c 'DROP TABLE x'\""
+block 'docker exec db bash -eo pipefail -c "git reset --hard"'
+block 'docker exec db sh -euxo pipefail -c "git reset --hard"'
+block 'docker exec db bash -xO extglob -c "git reset --hard"'
+block 'docker exec db bash --rcfile /dev/null -c "git reset --hard"'
+block 'docker exec db bash --init-file x -c "git reset --hard"'
+block 'docker exec db bash --norc -c "git reset --hard"'
+block "docker run --name bash -c 256 alpine bash -c 'git reset --hard'"
+block "docker run -c 256 --entrypoint sh alpine -c 'git reset --hard'"
+block "docker exec db sh -c 'echo ok' && docker exec db bash -c 'git reset --hard'"
+allow 'docker run -c 256 --entrypoint sh alpine -c "ls -la"'
+allow "kubectl exec pod -c app -- sh -c 'ls -la'"
+# Only the SQL client sits inside the nested string; the DROP is outside it. A 0.12.2 draft's
+# early exit in check_string let all of these through.
+block "echo 'DROP TABLE users;' | bash -c 'psql mydb'"
+block "echo 'DROP TABLE users;' | sh -c psql"
+block "echo 'DROP TABLE users;' | eval psql mydb"
+block "echo 'truncate users' | env -S 'mysql app'"
+block "echo 'drop table users' | su postgres -c 'psql app'"
+block "echo 'drop table users' | eval kubectl exec pg -- psql app"
+allow 'docker exec db bash -o pipefail script.sh -c x'
+allow 'docker exec db bash -x deploy.sh'
 block 'su -c -- "git reset --hard"'
 block 'eval -- "git reset --hard"'
 # Arithmetic << is a shift, not a heredoc; a leading here-string is a redirection.
@@ -458,6 +487,8 @@ allow 'git grep -e --no-verify -- docs'
 allow 'git log -S "--no-verify"'
 allow 'git log --grep "--no-verify"'
 block 'xargs git commit --no-verify -m x'
+block 'xargs GIT commit --no-verify -m x'
+block 'xargs /usr/bin/Git commit --no-verify -m x'
 block 'find . -name x -exec git commit --no-verify -m x \;'
 block 'docker run --rm --entrypoint sh alpine -c "git reset --hard"'
 allow 'docker run --restart always -d mysql && echo "DROP TABLE is bad"'
@@ -472,20 +503,28 @@ BIGP=$(payload "$BIG && psql -c 'select 1'")
 TIMEFORMAT=%R
 bsecs=$( { time (printf '%s' "$BIGP" | "$BASH_BIN" "$GATE" >/dev/null 2>&1) ; } 2>&1 )
 bms=$(awk -v s="$bsecs" 'BEGIN { printf "%d", s * 1000 }')
-if [ "$bms" -lt 2000 ]; then pass=$((pass + 1)); echo "PASS  ${#BIG}-byte command in ${bms} ms (limit 2000 ms)"
-else fail=$((fail + 1)); echo "FAIL  ${#BIG}-byte command took ${bms} ms (limit 2000 ms)"; fi
+if [ "$bms" -lt $((2000 * TS)) ]; then pass=$((pass + 1)); echo "PASS  ${#BIG}-byte command in ${bms} ms (limit $((2000 * TS)) ms)"
+else fail=$((fail + 1)); echo "FAIL  ${#BIG}-byte command took ${bms} ms (limit $((2000 * TS)) ms)"; fi
 # Shapes the first timing case missed: many SQL-client segments, many capitalised commands.
 # Linear code does 2000 in a few seconds; the quadratic versions took ~13-27 s.
-for shape in sql upper; do
-    BIG=""
+# execopt is ONE exec segment, `docker exec db bash -o bash -o …`: every shell word is also an
+# option value, which made the exec shell scan quadratic (47 s) in a 0.12.2 draft. execc and
+# entryc repeat `-c 1` (docker's CPU-shares form, which the scan skips) 2000 times in one
+# segment: a word-array copy per -c made that quadratic (41-51 s) in another draft. execrm
+# repeats a real script: only the first is tokenized (checking every one took 76 s). entryrun is
+# `-c -c … -c 1`: each -c re-read the whole run until the scan resumed where the last one stopped.
+for shape in sql upper execopt execc entryc entryrun execrm; do
+    case "$shape" in execopt|execc|execrm) BIG="docker exec db" ;; entryc|entryrun) BIG="docker run --entrypoint sh img" ;; *) BIG="" ;; esac
     for k in $(seq 1 2000); do
-        case "$shape" in sql) BIG="$BIG psql -c \"select $k\";" ;; upper) BIG="$BIG NODE_ENV=test Rscript run$k.R && GIT Status;" ;; esac
+        case "$shape" in sql) BIG="$BIG psql -c \"select $k\";" ;; upper) BIG="$BIG NODE_ENV=test Rscript run$k.R && GIT Status;" ;;
+            execopt) BIG="$BIG bash -o" ;; execc) BIG="$BIG bash -c 1" ;; entryc) BIG="$BIG -c 1" ;; entryrun) BIG="$BIG -c" ;; execrm) BIG="$BIG bash -c 'echo rm'" ;; esac
     done
+    [ "$shape" = entryrun ] && BIG="$BIG 1"
     BIGP=$(payload "$BIG")
     bsecs=$( { time (printf '%s' "$BIGP" | "$BASH_BIN" "$GATE" >/dev/null 2>&1) ; } 2>&1 )
     bms=$(awk -v s="$bsecs" 'BEGIN { printf "%d", s * 1000 }')
-    if [ "$bms" -lt 8000 ]; then pass=$((pass + 1)); echo "PASS  2000 $shape segments (${#BIG} bytes) in ${bms} ms (limit 8000 ms)"
-    else fail=$((fail + 1)); echo "FAIL  2000 $shape segments (${#BIG} bytes) took ${bms} ms (limit 8000 ms)"; fi
+    if [ "$bms" -lt $((8000 * TS)) ]; then pass=$((pass + 1)); echo "PASS  2000 $shape segments (${#BIG} bytes) in ${bms} ms (limit $((8000 * TS)) ms)"
+    else fail=$((fail + 1)); echo "FAIL  2000 $shape segments (${#BIG} bytes) took ${bms} ms (limit $((8000 * TS)) ms)"; fi
 done
 
 echo "== parser fallbacks and fail-open"
@@ -520,7 +559,7 @@ echo "== prose copies mirror the gate (STANDARD.md one-owner exception)"
 # Desktop reads security-hardening and the web reads the repo's AGENTS.md; neither loads this hook.
 # A rule the gate blocks but a copy omits is a rule those surfaces silently lose.
 # One entry per BLOCKS line in the hook header; add a row here when the header gains one.
-RULES=('rm -rf' '`.*`' 'git push --force' '+branch' '--force-with-lease' '--mirror' '--prune' 'git reset --hard' 'git checkout .'
+RULES=('`rm -r`' 'rm -rf' '`$HOME`' '`..`' '`/*`' '`.*`' 'git push --force' '+branch' '--force-with-lease' '--mirror' '--prune' 'git reset --hard' 'git checkout .'
     'git restore .' 'git clean -f' '--no-verify' 'git commit -n' 'DROP TABLE' 'DROP DATABASE'
     'DROP SCHEMA' 'TRUNCATE' 'wp db drop' 'wp db reset' 'docker system prune' 'docker volume prune'
     'podman' 'chmod 777' 'world-writable' 'a+rwx' 'o+w' 'pnpm' 'publish' 'supabase db reset'
@@ -540,8 +579,8 @@ P=$(payload 'git commit -m "feat: thing" && git push -u origin feat/x')
 TIMEFORMAT=%R
 secs=$( { time (for _ in 1 2 3 4 5 6 7 8 9 10 11 12 13 14 15 16 17 18 19 20; do printf '%s' "$P" | "$BASH_BIN" "$GATE" >/dev/null 2>&1; done) ; } 2>&1 )
 ms=$(awk -v s="$secs" 'BEGIN { printf "%d", s * 1000 / 20 }')
-if [ "$ms" -lt 100 ]; then pass=$((pass + 1)); echo "PASS  average ${ms} ms per call (limit 100 ms)"
-else fail=$((fail + 1)); echo "FAIL  average ${ms} ms per call (limit 100 ms)"; fi
+if [ "$ms" -lt $((100 * TS)) ]; then pass=$((pass + 1)); echo "PASS  average ${ms} ms per call (limit $((100 * TS)) ms)"
+else fail=$((fail + 1)); echo "FAIL  average ${ms} ms per call (limit $((100 * TS)) ms)"; fi
 
 echo "--- destructive-command-gate: $pass passed, $fail failed ($("$BASH_BIN" --version | head -1))"
 [ "$fail" -eq 0 ]
