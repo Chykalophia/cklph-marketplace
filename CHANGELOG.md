@@ -21,7 +21,10 @@ Review follow-ups to 0.12.1 (PR #33's open review threads).
   was quadratic).
 - New cases for a SQL client alone inside a nested string (`echo 'DROP TABLE t' | bash -c 'psql db'`),
   which a draft of this release let through.
-- Each new case failed on the 0.12.1 gate or on a draft first. Suite: 384 → 412 cases.
+- `--entrypoint sh img -c -c … -c 1` re-read the run of options once per `-c` (82 s for 2000);
+  the scan now resumes where the last one stopped (0.3 s).
+- Each new block case and timing shape failed on the 0.12.1 gate or on a draft first; the new allow
+  cases guard against false positives. Suite: 384 → 413 cases.
 - The suite's timing limits scale with `GATE_TIME_SCALE` (whole number, default 1) for slower runners.
 
 ### Changed — written rules and skills

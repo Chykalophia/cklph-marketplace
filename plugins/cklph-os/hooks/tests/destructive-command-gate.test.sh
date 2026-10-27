@@ -511,13 +511,15 @@ else fail=$((fail + 1)); echo "FAIL  ${#BIG}-byte command took ${bms} ms (limit 
 # option value, which made the exec shell scan quadratic (47 s) in a 0.12.2 draft. execc and
 # entryc repeat `-c 1` (docker's CPU-shares form, which the scan skips) 2000 times in one
 # segment: a word-array copy per -c made that quadratic (41-51 s) in another draft. execrm
-# repeats a real script: only the first is tokenized (checking every one took 76 s).
-for shape in sql upper execopt execc entryc execrm; do
-    case "$shape" in execopt|execc|execrm) BIG="docker exec db" ;; entryc) BIG="docker run --entrypoint sh img" ;; *) BIG="" ;; esac
+# repeats a real script: only the first is tokenized (checking every one took 76 s). entryrun is
+# `-c -c … -c 1`: each -c re-read the whole run until the scan resumed where the last one stopped.
+for shape in sql upper execopt execc entryc entryrun execrm; do
+    case "$shape" in execopt|execc|execrm) BIG="docker exec db" ;; entryc|entryrun) BIG="docker run --entrypoint sh img" ;; *) BIG="" ;; esac
     for k in $(seq 1 2000); do
         case "$shape" in sql) BIG="$BIG psql -c \"select $k\";" ;; upper) BIG="$BIG NODE_ENV=test Rscript run$k.R && GIT Status;" ;;
-            execopt) BIG="$BIG bash -o" ;; execc) BIG="$BIG bash -c 1" ;; entryc) BIG="$BIG -c 1" ;; execrm) BIG="$BIG bash -c 'echo rm'" ;; esac
+            execopt) BIG="$BIG bash -o" ;; execc) BIG="$BIG bash -c 1" ;; entryc) BIG="$BIG -c 1" ;; entryrun) BIG="$BIG -c" ;; execrm) BIG="$BIG bash -c 'echo rm'" ;; esac
     done
+    [ "$shape" = entryrun ] && BIG="$BIG 1"
     BIGP=$(payload "$BIG")
     bsecs=$( { time (printf '%s' "$BIGP" | "$BASH_BIN" "$GATE" >/dev/null 2>&1) ; } 2>&1 )
     bms=$(awk -v s="$bsecs" 'BEGIN { printf "%d", s * 1000 }')

@@ -33,8 +33,9 @@ AC-003  Export downloads the filtered rows
 - Must not  include rows from another account, or internal columns
 - Verify  `npm test -- src/export.test.ts` (the repo's own test script, never a tool fetched on the fly) for
           the filtering. One manual download in the browser, required: the test does not exercise the
-          download itself (`../verify/rationalization-patterns.md`: observation decides wherever no
-          executable check covers that behavior)
+          download itself. Open the file and check the columns, that only filtered rows are there, and
+          that no other account's rows are (`../verify/rationalization-patterns.md`: observation
+          decides wherever no executable check covers that behavior)
 ```
 - **Must not** is the part specs skip: the side effect that would make a passing "Then" a bug
   (data from another tenant, a duplicate charge, an email to real users). Write it whenever one exists.

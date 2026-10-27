@@ -273,7 +273,8 @@ same_path() {
 # `w` (bash scoping: the calling check_segment's local). Shells skip options and `--` after -c
 # (`bash -c -- '…'`, `bash -c -x '…'`), and -o/-O take a value (`bash -c -o pipefail '…'`).
 # Sets a variable rather than echoing (a $( ) fork per -c was slow) and reads `w` in place
-# rather than copying it: a copy per -c made `… -c x -c x …` quadratic.
+# rather than copying it: a copy per -c made `… -c x -c x …` quadratic. Also sets SCRIPT_END, the
+# index scanning stopped at, so a caller can resume there instead of rescanning the same options.
 script_after() {
     local j=$(( $1 + 1 )) nw=${#w[@]}
     # Each o/O inside the -c cluster takes a value word first (bash -co pipefail '…').
@@ -282,12 +283,13 @@ script_after() {
     SCRIPT=""
     while [ "$j" -lt "$nw" ]; do
         case "${w[$j]}" in
-            --) SCRIPT="${w[$((j + 1))]:-}"; return ;;
+            --) SCRIPT="${w[$((j + 1))]:-}"; j=$((j + 1)); break ;;
             [-+]o|[-+]O|[-+]*[oO]) j=$((j + 2)) ;;
             -*|+*) j=$((j + 1)) ;;
-            *) SCRIPT="${w[$j]}"; return ;;
+            *) SCRIPT="${w[$j]}"; break ;;
         esac
     done
+    SCRIPT_END=$j
 }
 
 # git accepts any unique prefix of a long option: pfx WORD FULL MIN is true when WORD is at least
@@ -562,7 +564,9 @@ check_segment() {   # $1 = one simple command (words joined by \037), $2 = recur
                 # number and can come first (docker run -c 256 --entrypoint sh img -c "…").
                 for ((j = i + 1; j < n - 1; j++)); do
                     if [[ ${w[$j]} =~ $SHELL_C_RE ]]; then
-                        script_after "$j"; [[ $SCRIPT =~ ^[0-9]+$ ]] && continue
+                        script_after "$j"
+                        # Resume after the words just read: rescanning a run of -c -c … was quadratic.
+                        if [[ $SCRIPT =~ ^[0-9]+$ ]]; then j=$SCRIPT_END; continue; fi
                         check_string "$SCRIPT" $((depth + 1)); break
                     fi
                 done
