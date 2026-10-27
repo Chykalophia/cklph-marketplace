@@ -81,24 +81,32 @@ marketplace stays CLI-only by nature. Cowork likely matches Desktop; web (reads 
 
 ## 4. Directory layout
 
-### The repo (`cklph-os/`) — a marketplace that hosts the plugin
+### The repo (`cklph-marketplace/`) — a marketplace that hosts the plugins
 ```
 .claude-plugin/
   marketplace.json         # MARKETPLACE manifest (lists plugins) — repo root, this file only
 plugins/
-  cklph-os/                # the plugin itself
+  <name>/                  # one directory per plugin
     .claude-plugin/
-      plugin.json          # PLUGIN manifest (name/description/version/author) — this file only
+      plugin.json          # PLUGIN manifest (name/description/version/author) — owns the description;
+                           # marketplace.json copies it verbatim
     skills/<name>/SKILL.md  # required; supporting files beside it
+    README.md              # required
+    CHANGELOG.md           # required — this plugin's version history
+    NOTICE.md              # when anything was adapted from another project (§10)
     hooks/
       hooks.json           # all hooks, referenced via ${CLAUDE_PLUGIN_ROOT} (auto-discovered)
       *.sh                 # hook scripts
-    agents/<name>.md        # optional — not in MVP
+    agents/<name>.md        # optional
     commands/<name>.md      # optional, legacy — prefer skills
+    scripts/                # optional — called as "${CLAUDE_PLUGIN_ROOT}/scripts/<x>" (quoted)
+    tests/                  # optional — the plugin's own tests, run in CI
     .mcp.json               # optional — plugin-provided MCP servers
+CHANGELOG.md                # marketplace-level events only
 STANDARD.md                 # this file
 templates/                  # AGENTS.md / CLAUDE.md / STATE.md starters
-docs/ideas/                 # refinement artifacts
+test/                       # bats tests for cklph-os hooks
+docs/ideas/                 # refinement artifacts (historical; decisions live here in STANDARD.md)
 ```
 
 > Marketplace manifest and plugin manifest live at DIFFERENT levels: `marketplace.json` at the
@@ -168,7 +176,7 @@ STATE.md                   # working state
 
 ## 7. Distribution & versioning
 - `cklph-os` is published through a **personal marketplace** (`.claude-plugin/marketplace.json`).
-- Install once per machine: `/plugin marketplace add <owner>/cklph-os` then `/plugin install`.
+- Install once per machine: `/plugin marketplace add Chykalophia/cklph-marketplace` then `/plugin install <name>@cklph`.
 - Bump `version` in `plugin.json` on change; `/plugin` reload to update consumers.
 - Consuming repos carry **no copies** of shared skills/hooks — only references and project-specific extras.
 

@@ -11,8 +11,45 @@ jobs:
       - uses: actions/checkout@v5
       - name: Install bats + jq
         run: sudo apt-get update && sudo apt-get install -y bats jq
-      - name: Validate hook scripts (syntax)
+      - name: Validate shell scripts (syntax)
         run: |
-          for f in plugins/cklph-os/hooks/*.sh; do bash -n "$f"; done
-      - name: Run hook tests
+          shopt -s nullglob   # an empty glob is skipped; a named file that is missing fails
+          for f in plugins/*/hooks/*.sh plugins/*/tools/*.sh plugins/*/tests/*.sh plugins/*/scripts/*.sh \
+                   plugins/cklph-wp/scripts/cwp plugins/cklph-visual-qa/scripts/shot; do
+            bash -n "$f"
+          done
+      - name: Run cklph-os hook tests (includes the destructive-command gate suite)
+        # Shared runners are slower than the machine the timing limits were tuned on.
+        env:
+          GATE_TIME_SCALE: "3"
         run: bats test/
+
+  plugins:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v5
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+      - name: cklph-wp (cwp, fake ssh)
+        run: bash plugins/cklph-wp/tests/cwp.test.sh
+      - name: cklph-elementor (el-tools.py)
+        run: |
+          python3 -m py_compile plugins/cklph-elementor/scripts/el-tools.py
+          bash plugins/cklph-elementor/tests/el-tools.test.sh
+      - name: cklph-audit (scanner wrappers against fake scanners, engine flow)
+        run: node --test plugins/cklph-audit/tests/*.test.mjs
+      - name: vuln-intel-ext (typecheck, tests, committed dist/ matches src/)
+        working-directory: plugins/vuln-intel-ext
+        run: |
+          npm ci
+          npm test
+          git diff --exit-code -- dist/
+          test -z "$(git ls-files --others --exclude-standard -- dist/)" || { echo 'untracked files in dist/'; exit 1; }
+      - name: cklph-regression-watch (engine tests + fixture self-test, headless Chromium)
+        working-directory: plugins/cklph-regression-watch
+        run: |
+          npm ci
+          npx playwright install --with-deps chromium
+          npm test
+          npm run self-test

@@ -11,6 +11,16 @@ Format: [Keep a Changelog](https://keepachangelog.com).
   `plugins/cklph-os/CHANGELOG.md`, like every other plugin. This file now records marketplace
   events only; the marketplace-level entries that history carried (repo rename, `cklph-nextjs`
   launch, marketplace manifest, `private/` overlay) moved here under their dates.
+- Catalog: `marketplace.json` descriptions now copy each `plugin.json` verbatim (five had drifted);
+  `plugin.json` owns them.
+- README lists all eleven plugins, grouped, with what each pairs with; `cklph-os` gets its own
+  README like every other plugin. STANDARD.md §4 describes the marketplace layout (it still showed
+  the single-plugin repo) and the real install command.
+- CI runs every plugin's tests, not just the cklph-os hooks: cwp, el-tools, the cklph-audit
+  wrappers and engine, vuln-intel-ext (including a check that the committed `dist/` matches
+  `src/`) and the regression-watch engine and self-test.
+- `docs/ideas/cklph-os.md` is marked historical.
+- Cleanup across the plugins touched in PRs #35–#40: see each affected plugin's CHANGELOG for 2026-10-27.
 
 ## 2026-10-26
 
