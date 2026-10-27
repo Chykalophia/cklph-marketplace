@@ -14,7 +14,7 @@
     {
       "name": "cklph-nextjs",
       "source": "./plugins/cklph-nextjs",
-      "description": "Peter's opinionated Next.js + Supabase patterns. House style on top of the framework, complements vercel:* skills.",
+      "description": "Peter's opinionated Next.js + Supabase patterns. House style on top of the framework, complements vercel:* skills, not a replacement.",
       "category": "framework"
     },
     {
@@ -26,7 +26,7 @@
     {
       "name": "cklph-wp",
       "source": "./plugins/cklph-wp",
-      "description": "Drive WordPress from Claude Code via wp-cli over SSH — connection to managed hosts (Flywheel/WP Engine/generic), posts/meta/options/media, and the hard-won hosting gotchas. Foundation for cklph-elementor and cklph-figma-to-wp.",
+      "description": "Drive WordPress from Claude Code via wp-cli over SSH — connection to managed hosts, posts/meta/options/media, and the hard-won hosting gotchas. Foundation for cklph-elementor and cklph-figma-to-wp.",
       "category": "platform"
     },
     {
@@ -38,13 +38,13 @@
     {
       "name": "cklph-figma",
       "source": "./plugins/cklph-figma",
-      "description": "Read designs from the Figma MCP — design context, screenshots, structure metadata, and design tokens (colors, type, spacing). The design-source layer for any Figma-to-code work.",
+      "description": "Read designs from the Figma MCP — design context, screenshots, structure metadata, and design tokens. The design-source layer for any Figma-to-code work.",
       "category": "design"
     },
     {
       "name": "cklph-visual-qa",
       "source": "./plugins/cklph-visual-qa",
-      "description": "Verify a rendered web page VISUALLY against a design — headless-Chrome screenshots + ImageMagick crop/compare, overflow probes, and the adversarial visual-reviewer. Framework-agnostic; pairs with cklph-figma.",
+      "description": "Verify a rendered web page VISUALLY against a design — headless-Chrome screenshots, ImageMagick crop/compare, overflow probes, and the adversarial visual-reviewer agent. Framework-agnostic; pairs with cklph-figma.",
       "category": "design"
     },
     {
@@ -62,7 +62,7 @@
     {
       "name": "cro-research-reporting",
       "source": "./plugins/cro-research-reporting",
-      "description": "Audit conversion funnels, run deep sourced research, write conversion copy and outbound/positioning, and produce render-safe reports + annotated redesign blueprints. Chykalophia CRO toolkit.",
+      "description": "A strategist's toolkit: audit ecommerce/conversion funnels, run deep sourced research, write conversion copy, and turn findings into polished render-safe reports and annotated redesign blueprints. Distilled from real CRO engagements and from the best public skills/agents.",
       "category": "marketing"
     },
     {

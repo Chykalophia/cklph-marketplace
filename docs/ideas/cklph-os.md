@@ -1,5 +1,9 @@
 # cklph-os — Refined Direction (idea-refine output)
 
+> **Historical.** This is the original idea-refine artifact, kept for the reasoning behind the
+> design. It is not maintained: names changed since (the planned `using-cklph` bootstrap skill
+> shipped as `start-here`), and the decisions it reached live in [STANDARD.md](../../STANDARD.md).
+
 ## Problem Statement
 **How might we** give one solo dev a single, DRY, low-maintenance system of reusable
 skills / automations / guidance that follows him across Claude Code CLI, web, Cowork, and

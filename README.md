@@ -15,18 +15,46 @@
 ---
 
 > [!NOTE]
-> **TL;DR** — One repo, one marketplace (`cklph`), plugins that layer on each other:
-> a dev-workflow spine, opinionated Next.js + Supabase patterns, and more listed in
-> `.claude-plugin/marketplace.json`. Install only what you need.
+> **TL;DR** — One repo, one marketplace (`cklph`), eleven plugins that layer on each other:
+> a dev-workflow spine, Next.js + Supabase patterns, auditing and monitoring, a WordPress and
+> design pipeline, and CRO research. Install only what you need.
 
 ---
 
-## 🧩 The core plugins
+## 🧩 The plugins
+
+**Core**
 
 | Plugin | What it does | When you want it |
 | --- | --- | --- |
 | **`cklph-os`** | Dev-workflow spine — phase loop (`refine → spec → plan → build → review → verify → ship`, plus `survey` run by hand for scope gaps), three adversarial agents (`cklph-implementer` / `cklph-reviewer` / `red-team`), daily-rhythm primitives (`triage` · `decide` · `daily-frame` · `weekly-review`), self-improvement loop (`learn`), skill hygiene (`stocktake` + a local usage log), and quality-gate hooks, including a destructive-command gate. | **Always.** This is the core. |
 | **`cklph-nextjs`** | Opinionated Next.js + Supabase patterns layered on top of the official `vercel:*` skills — layered `lib/` architecture, mutation security checklist, data-layer abstraction rules, 12 review pitfalls, full stack coverage. | If you work in Next.js + Supabase repos. |
+
+**Auditing and monitoring**
+
+| Plugin | What it does | Pairs with |
+| --- | --- | --- |
+| **`cklph-audit`** | Whole-repo security and correctness audit: scanner-backed lenses, adversarial verification of every finding, optional DAST and exploit checks in Docker, and a report with fix waves. | `cve-mcp` + `vuln-intel-ext` (optional enrichment) |
+| **`vuln-intel-ext`** | MCP sidecar: what new advisories hit my dependencies since the last scan, dependency snapshots, feed status, WordPress vulnerability lookup. Extends `cve-mcp`. | `cklph-audit` |
+| **`cklph-regression-watch`** | Baseline a live or staging site, re-check it, and report only confirmed regressions (availability, SEO, tracking, visual, journeys). | — |
+
+**WordPress and design pipeline** (each works alone; together they take a Figma design to a verified Elementor page)
+
+| Plugin | What it does | Pairs with |
+| --- | --- | --- |
+| **`cklph-wp`** | wp-cli over SSH (`cwp`): managed-host connections, posts/meta/options/media, hosting gotchas. | foundation for the rest |
+| **`cklph-elementor`** | Read and write Elementor data programmatically: the `_elementor_data` model, CSS/responsive gotchas, templates and conditions, the Kit. | `cklph-wp`, `cklph-visual-qa` |
+| **`cklph-figma`** | Read designs and tokens from the Figma MCP. | — |
+| **`cklph-visual-qa`** | Headless-Chrome screenshots, crop/compare, overflow probes, and an adversarial visual-reviewer agent. | `cklph-figma` |
+| **`cklph-figma-to-wp`** | Orchestrates design → tokens → Elementor JSON → draft → visual check. | all four above |
+
+**Strategy**
+
+| Plugin | What it does | Pairs with |
+| --- | --- | --- |
+| **`cro-research-reporting`** | Conversion audits, deep sourced research, conversion copy, and render-safe reports. | — |
+
+Each plugin's `README.md` has the details; `.claude-plugin/marketplace.json` is the catalog.
 
 ---
 
@@ -43,6 +71,7 @@
 ```bash
 /plugin install cklph-os@cklph            # the dev spine — always
 /plugin install cklph-nextjs@cklph        # only if you work in Next.js + Supabase
+/plugin install <name>@cklph              # any other plugin from the tables above
 ```
 
 Restart your CLI after install so the skills load.
@@ -144,10 +173,15 @@ Each plugin has its own `plugin.json`, `README.md`, and `CHANGELOG.md` inside it
 ## 🧪 Testing
 
 ```bash
-bats test/
+bats test/                                              # cklph-os hooks, incl. the destructive-command gate
+bash plugins/cklph-wp/tests/cwp.test.sh                 # cwp, against a fake ssh
+bash plugins/cklph-elementor/tests/el-tools.test.sh
+node --test plugins/cklph-audit/tests/*.test.mjs        # scanner wrappers against fake scanners
+(cd plugins/vuln-intel-ext && npm ci && npm test)
+(cd plugins/cklph-regression-watch && npm ci && npm test && npm run self-test)   # needs Chromium
 ```
 
-CI runs the suite on every push (see the badge up top).
+CI runs all of these on every push (see the badge up top).
 
 ---
 
