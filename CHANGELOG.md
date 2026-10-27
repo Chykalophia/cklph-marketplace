@@ -3,12 +3,37 @@
 All notable changes to cklph-os are documented here.
 Format: [Keep a Changelog](https://keepachangelog.com); versioning follows [SemVer](https://semver.org).
 
+## [0.12.2] — 2026-10-27
+
+Review follow-ups to 0.12.1 (PR #33's open review threads).
+
+### Fixed — destructive-command gate
+- `xargs GIT commit --no-verify` (any capitalisation of the git word) was allowed by 0.12.1 and
+  blocked by 0.12.0. Blocked again.
+- Shell options before `-c` inside `docker`/`podman`/`kubectl exec` (`bash -x -c "…"`,
+  `sh -e -c "…"`, `bash -o pipefail -c "…"`) now get the nested check the top level already had.
+- Each new case failed on the 0.12.1 gate first. Suite: 384 → 391 cases.
+- The suite's timing limits scale with `GATE_TIME_SCALE` (whole number, default 1) for slower runners.
+
+### Changed — written rules and skills
+- `security-hardening` and the `AGENTS.md` template list `rm -r` as well as `rm -rf`, plus the
+  `$HOME`, `..` and `/*` targets the gate already blocked; the mirror test checks for them. The
+  template names each `… publish` command in full.
+- `survey` (brownfield): repo scripts run only in a disposable sandbox, otherwise those checks
+  are recorded as not run; adds `composer install --no-plugins --no-scripts`; the completion
+  marker needs only the go-aheads the register actually requires.
+- `review` two-reviewer gate: input validation and authorization are separate checks, each with an
+  objective surface test and its own N/A; the reviewer prompt allows N/A.
+- `verify`: observed behavior is required for any criterion no executable check exercises.
+- `spec`: the example verify step uses the repo's own test script, not `npx vitest`.
+- `click-path-audit`: separates overlapping mutations from read-after-write lag, with a fix for each.
+
 ## [0.12.1] — 2026-10-26
 
 ### Fixed — destructive-command gate (follow-up to the PR #24 review)
 On the 0.12.0 gate, 134 of the 384 cases in the new suite fail: 115 destructive commands let
 through, 18 ordinary commands blocked, and one timing case over its limit. Each fix below was a failing test first. Suite: 124 → 384 cases, passing on
-bash 3.2.57 and 5.2.26; `test/hooks.bats` still passes.
+bash 3.2.57 and 5.2.26; `test/hooks.bats` passes except its pre-existing NUL-byte case on Alpine/BusyBox.
 - **Hidden behind shell syntax:** commands inside `for`/`while`/`until` … `do`, `if` … `then`/`else`,
   `{ …; }` and after `!`; behind leading or glued redirections (`>/dev/null git …`, `2>&1 git …`,
   `<<< x git …`, `git reset --hard>/dev/null`); split by line continuations; uppercase (`GIT`,

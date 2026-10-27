@@ -29,7 +29,7 @@ CLI the gate also sees through wrappers (`sudo`, `env`, `timeout`…) and comman
 
 | Don't | Do instead |
 |---|---|
-| `rm -rf` on `/`, `~`, `.`, `*`, `.*` (takes `.git`) or the repo root | name the exact directory (`rm -rf ./dist`) |
+| `rm -r` / `rm -rf` on `/`, `~`, `$HOME`, `.`, `..`, `*`, `/*`, `.*` (takes `.git`) or the repo root | name the exact directory (`rm -rf ./dist`) |
 | `git push --force` / `-f` / `+branch` | `git fetch`, then `git push --force-with-lease` |
 | `git push --mirror` / `--prune` | push the specific branch; delete a remote branch by name |
 | `git reset --hard` | `git stash push -m "..."` first, or `git reset --keep` |

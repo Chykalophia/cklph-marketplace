@@ -31,7 +31,7 @@ AC-003  Export downloads the filtered rows
 - When    they click "Export CSV"
 - Then    a file downloads with columns [id, name, created_at] and only the filtered rows
 - Must not  include rows from another account, or internal columns
-- Verify  `npx vitest run src/export.test.ts` (the project's own test command). One manual
+- Verify  `npm test -- src/export.test.ts` (the repo's own test script, never a tool fetched on the fly). One manual
           download as supplemental evidence (`../verify/rationalization-patterns.md`: observed behavior decides only
           where no executable check exists)
 ```

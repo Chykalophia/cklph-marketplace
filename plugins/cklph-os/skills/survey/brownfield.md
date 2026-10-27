@@ -26,13 +26,16 @@ perimeter (paths, entry points, callers) at the top of the register before anyth
   database, package manager, CI, how it deploys today.
 - **Run what exists, carefully.** An inherited repo's scripts are untrusted code. Read them first
   (`package.json` scripts and install hooks, `composer.json`, Makefile, CI config). Install with
-  lifecycle scripts off (`npm ci --ignore-scripts`, `pnpm install --ignore-scripts`; Yarn 1 `--ignore-scripts`, Yarn 2+
-  `--mode=skip-build`). A package that needs its install script (Prisma generating its client, for
-  one) then fails: a finding about the install, not a gap in the code. `pre`/`post` scripts still run with `npm test`,
-  so read them too, and run type-check, lint, tests and build with
-  no secrets in the environment, in a container where you can. Anything that phones home, touches a
-  real database or needs production credentials: stop and get the go-ahead. Record counts and
-  failures, don't fix them.
+  lifecycle scripts off (`npm ci --ignore-scripts`, `pnpm install --ignore-scripts`; Yarn 1
+  `--ignore-scripts`, Yarn 2+ `--mode=skip-build`; `composer install --no-plugins --no-scripts`). A
+  package that needs its install script (Prisma generating its client, for one) then fails: a
+  finding about the install, not a gap in the code. `pre`/`post` scripts still run with `npm test`,
+  so read them too. Run type-check, lint, tests and build **only in a disposable sandbox** (a
+  container with the repo copied in, no secrets in its environment, network off unless a step
+  needs it). Removing secrets alone is not isolation: the scripts can still read and change your
+  files. No sandbox available: record those checks as not run, and say why. Anything that phones
+  home, touches a real database or needs production credentials: stop and get the go-ahead.
+  Record counts and failures, don't fix them.
 - **Review the slice:** `cklph-reviewer` on the slice; `security-hardening` if it touches input,
   auth or data. Deeper: `/cklph-audit:quick <lens> [path]` (e.g. `security`). Next.js + Supabase specifics: `cklph-nextjs` skills.
   WordPress: plugin and theme versions, custom code in `functions.php` / mu-plugins, page builder.
@@ -75,8 +78,8 @@ perimeter (paths, entry points, callers) at the top of the register before anyth
 - Each actionable row (fix-forward or rewrite) then runs the normal loop: `spec` → `plan` → `build` → `review` → `verify`. For a legacy
   gap the first test usually encodes the rule that was only in the code. Wont-fix rows skip the
   loop: they close with their reason.
-- The survey itself ends here: `## SURVEY COMPLETE` once every row is triaged and the go-ahead is
-  in, `## SURVEY OPEN` while any triage call or go-ahead is pending.
+- The survey itself ends here: `## SURVEY COMPLETE` once every row is triaged and any go-ahead it
+  needs (rewrite, migration, vendor change) is in, `## SURVEY OPEN` while any triage call or go-ahead is pending.
 
 ## 5. Close the loop
 When every row is done or wont-fix, rerun step 1 on the same perimeter and diff it against the

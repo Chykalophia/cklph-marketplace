@@ -420,7 +420,8 @@ check_segment() {   # $1 = one simple command (words joined by \037), $2 = recur
     if [ "$cmd" != git ]; then
         local sawgit=0
         for ((j = i + 1; j < n; j++)); do
-            [ "${w[$j]##*/}" = git ] && sawgit=1
+            # Case-insensitive, as above (xargs GIT commit runs git); a glob, not lc, to stay fork- and loop-free.
+            [[ ${w[$j]##*/} == [Gg][Ii][Tt] ]] && sawgit=1
             [ "$sawgit" = 1 ] && pfx "${w[$j]}" --no-verify 6 && block "--no-verify skips the repo's git hooks" \
                 "fix what the hook reports and commit normally. If the hook itself is broken, say so and ask the user."
         done
@@ -560,11 +561,21 @@ check_segment() {   # $1 = one simple command (words joined by \037), $2 = recur
                     if [[ ${w[$j]} =~ $SHELL_C_RE ]]; then script_after "$j" "${w[@]}"; check_string "$SCRIPT" $((depth + 1)); break; fi
                 done
             fi
-            # A shell inside exec runs its -c string: docker exec db sh -c "…".
+            # A shell inside exec runs its -c string: docker exec db sh -c "…", including after other
+            # shell options (bash -x -c "…", bash -o pipefail -c "…"); -o/-O take a value word.
+            local sk
             for ((j = i + 1; j < n - 1; j++)); do
-                if [[ ${w[$j]##*/} =~ ^(bash|sh|zsh|dash)$ ]] && [[ ${w[$((j + 1))]} =~ $SHELL_C_RE ]]; then
-                    script_after "$((j + 1))" "${w[@]}"; check_string "$SCRIPT" $((depth + 1)); break
-                fi
+                [[ ${w[$j]##*/} =~ ^(bash|sh|zsh|dash)$ ]] || continue
+                for ((sk = j + 1; sk < n; sk++)); do
+                    if [[ ${w[$sk]} =~ $SHELL_C_RE ]]; then
+                        script_after "$sk" "${w[@]}"; check_string "$SCRIPT" $((depth + 1)); break 2
+                    fi
+                    case "${w[$sk]}" in
+                        [-+]o|[-+]O) sk=$((sk + 1)) ;;
+                        -*|+*) ;;
+                        *) break ;;
+                    esac
+                done
             done
             for ((j = i + 1; j < n - 1; j++)); do
                 if [[ ${w[$j]} =~ ^(system|volume)$ ]] && [ "${w[$((j + 1))]}" = "prune" ]; then
