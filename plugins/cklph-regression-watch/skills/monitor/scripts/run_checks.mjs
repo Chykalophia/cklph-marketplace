@@ -5,11 +5,14 @@
 import fs from 'fs';
 import path from 'path';
 import { pathToFileURL } from 'url';
-import { chromium } from 'playwright';
-import { probeUrl } from './lib/probe.mjs';
-import { evaluate, exitCodeFor, EXIT } from './lib/evaluate.mjs';
+import { exitCodeFor, EXIT } from './lib/exit.mjs';
 
+// Modules with npm dependencies load inside the guard, so a broken install exits ERROR (2), not 1.
+let chromium, probeUrl, evaluate;
 try {
+  ({ chromium } = await import('playwright'));
+  ({ probeUrl } = await import('./lib/probe.mjs'));
+  ({ evaluate } = await import('./lib/evaluate.mjs'));
   process.exit(exitCodeFor(await main()));
 } catch (e) {
   process.stderr.write(`run_checks error: ${e && e.stack ? e.stack : e}\n`);

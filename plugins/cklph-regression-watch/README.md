@@ -2,7 +2,7 @@
 
 Baseline a site, re-check it on a schedule, and alert **only on a confirmed regression with evidence attached**. Built for an agency watching many client sites. Availability, SEO integrity, tracking tag-firing, and visual regression work today; user journeys are scaffolded for the staging pilot.
 
-Status: **v1 engine, verified working.** The spec is `skills/monitor/SKILL.md` (workflow), `check-catalog.md` (every check) and `thresholds.md` (retries, tolerance, masking).
+Status: **v1 engine, verified working.** The spec is `skills/monitor/SKILL.md` (workflow), `skills/monitor/check-catalog.md` (every check) and `skills/monitor/thresholds.md` (retries, tolerance, masking).
 
 ## Install
 ```
@@ -52,7 +52,7 @@ config.fixture-demo.json    config for the self-test
 - **Height changes are not diffs:** full-page screenshots are compared over their overlapping area; a page-size change is reported separately as FYI.
 - **Evidence required:** every finding carries the status / absent request / before-after value / diff image.
 - **Silent unless broken:** a passing run writes a report but fires no alert.
-- **What it does not do:** it does not read robots.txt, throttle requests, or set a custom user agent. Each URL is loaded `retries` times by a default headless Chromium. Point it at sites you look after, and keep the URL list modest on production.
+- **What it does not do:** it does not read robots.txt, throttle requests, or set a custom user agent. A baseline capture loads each URL once; each re-check loads it `retries` times. Both use a default headless Chromium. Point it at sites you look after, and keep the URL list modest on production.
 
 ## Next (needs input / wiring)
 - Staging URL + journey definitions to enable JN1–JN4 (full journeys on staging).

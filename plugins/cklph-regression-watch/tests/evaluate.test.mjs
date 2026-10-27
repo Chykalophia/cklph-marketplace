@@ -77,3 +77,13 @@ test('mask boxes from the baseline are applied too, so a moved dynamic region do
   ));
   assert.equal(f.filter((x) => x.status === 'regressed').length, 0, JSON.stringify(f));
 });
+
+test('a missing current screenshot is a finding, never a silent pass', () => {
+  const a = png(path.join(tmp, 'no-cur', 'base.png'), 100, 100);
+  for (const cur of [null, path.join(tmp, 'no-cur', 'never-written.png')]) {
+    const f = vr(evaluate(snap(a), snap(cur), { config: {} }));
+    const miss = f.find((x) => x.id === 'VR1' && x.status === 'regressed');
+    assert.ok(miss, `no VR1 finding for current screenshot ${cur}: ${JSON.stringify(f)}`);
+    assert.match(miss.message, /current screenshot/i);
+  }
+});

@@ -3,6 +3,9 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { spawnSync } from 'node:child_process';
+import fs from 'node:fs';
+import os from 'node:os';
+import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 
 const runChecks = fileURLToPath(new URL('../skills/monitor/scripts/run_checks.mjs', import.meta.url));
@@ -21,4 +24,17 @@ test('an engine error exits 2, not 1 (which means "regressions found")', () => {
   const r = spawnSync(process.execPath, [runChecks, '--config', '/nonexistent/config.json', '--baseline', '/nonexistent'], { encoding: 'utf8' });
   assert.equal(r.status, 2, `stderr: ${r.stderr}`);
   assert.match(r.stderr, /error/i);
+});
+
+test('a dependency that fails to load exits 2, not 1', () => {
+  // A copy of the scripts with no node_modules above it: playwright and pngjs cannot resolve.
+  const tmp = fs.mkdtempSync(path.join(os.tmpdir(), 'rw-noddeps-'));
+  try {
+    fs.cpSync(path.dirname(runChecks), tmp, { recursive: true });
+    const r = spawnSync(process.execPath, [path.join(tmp, 'run_checks.mjs'), '--config', '/nonexistent/config.json'], { encoding: 'utf8' });
+    assert.match(r.stderr, /playwright|pngjs|pixelmatch/, `expected a module-load failure, got: ${r.stderr}`);
+    assert.equal(r.status, 2, `stderr: ${r.stderr}`);
+  } finally {
+    fs.rmSync(tmp, { recursive: true, force: true });
+  }
 });

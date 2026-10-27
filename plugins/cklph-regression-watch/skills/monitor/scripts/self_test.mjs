@@ -28,32 +28,42 @@ const run = (script, args, cwd = root) => {
 const failures = [];
 const expect = (ok, msg, out) => { process.stdout.write(`${ok ? 'ok  ' : 'FAIL'} ${msg}\n`); if (!ok) failures.push(msg + '\n' + out); };
 
-const cap = run('capture.mjs', ['--config', config, '--out', 'baselines/selftest'], tmp); // relative --out, cwd = tmp
-expect(cap.code === 0, 'capture writes a baseline', cap.out);
-const shotPath = JSON.parse(fs.readFileSync(path.join(tmp, 'baselines/selftest/baseline.json'), 'utf8')).pages['page.html'].screenshotPath;
-expect(shotPath && !path.isAbsolute(shotPath) && shotPath.startsWith('screens'), `screenshot path is baseline-relative (${shotPath})`, '');
+try {
+  const cap = run('capture.mjs', ['--config', config, '--out', 'baselines/selftest'], tmp); // relative --out, cwd = tmp
+  expect(cap.code === 0, 'capture writes a baseline', cap.out);
+  let shotPath = null;
+  try {
+    shotPath = JSON.parse(fs.readFileSync(path.join(tmp, 'baselines/selftest/baseline.json'), 'utf8')).pages['page.html'].screenshotPath;
+  } catch (e) {
+    expect(false, 'baseline.json is readable', String(e));
+  }
+  expect(shotPath && !path.isAbsolute(shotPath) && shotPath.startsWith('screens'), `screenshot path is baseline-relative (${shotPath})`, '');
+  if (failures.length) throw new Error('no usable baseline; skipping the re-check steps');
 
-const baseDir = path.join(tmp, 'baselines/selftest');
-const good = run('run_checks.mjs', ['--config', config, '--baseline', baseDir]);
-expect(good.code === 0 && /— PASS/.test(good.out), `good page: exit 0 and PASS (got exit ${good.code})`, good.out);
-expect(/\[VR1/.test(good.out) === false && !/visual check skipped/.test(good.out), 'good page: no visual finding', good.out);
+  const baseDir = path.join(tmp, 'baselines/selftest');
+  const good = run('run_checks.mjs', ['--config', config, '--baseline', baseDir]);
+  expect(good.code === 0 && /— PASS/.test(good.out), `good page: exit 0 and PASS (got exit ${good.code})`, good.out);
+  expect(/\[VR1/.test(good.out) === false && !/visual check skipped/.test(good.out), 'good page: no visual finding', good.out);
 
-fs.copyFileSync(path.join(root, 'fixtures/bad.html'), path.join(site, 'page.html'));
-const bad = run('run_checks.mjs', ['--config', config, '--baseline', baseDir]);
-expect(bad.code === 1, `bad page: exit 1 (got ${bad.code})`, bad.out);
-expect(/7 REGRESSION\(S\)/.test(bad.out), 'bad page: 7 confirmed regressions', bad.out);
+  fs.copyFileSync(path.join(root, 'fixtures/bad.html'), path.join(site, 'page.html'));
+  const bad = run('run_checks.mjs', ['--config', config, '--baseline', baseDir]);
+  expect(bad.code === 1, `bad page: exit 1 (got ${bad.code})`, bad.out);
+  expect(/7 REGRESSION\(S\)/.test(bad.out), 'bad page: 7 confirmed regressions', bad.out);
 
-const moved = path.join(tmp, 'moved-baseline');
-fs.renameSync(baseDir, moved);
-const mv = run('run_checks.mjs', ['--config', config, '--baseline', moved], os.tmpdir());
-expect(/\[VR1 · High\]/.test(mv.out) && !/visual check skipped/.test(mv.out), 'moved baseline, other cwd: VR1 still evaluated', mv.out);
+  const moved = path.join(tmp, 'moved-baseline');
+  fs.renameSync(baseDir, moved);
+  const mv = run('run_checks.mjs', ['--config', config, '--baseline', moved], os.tmpdir());
+  expect(/\[VR1 · High\]/.test(mv.out) && !/visual check skipped/.test(mv.out), 'moved baseline, other cwd: VR1 still evaluated', mv.out);
 
-const extra = path.join(tmp, 'config-extra.json');
-fs.writeFileSync(extra, JSON.stringify({ ...demo, baseUrl: site + path.sep, urls: ['page.html', 'not-in-baseline.html'] }, null, 2));
-const ex = run('run_checks.mjs', ['--config', extra, '--baseline', moved]);
-expect(/\[BASELINE\].*not-in-baseline\.html/.test(ex.out), 'a URL missing from the baseline is reported', ex.out);
-
-fs.rmSync(tmp, { recursive: true, force: true });
+  const extra = path.join(tmp, 'config-extra.json');
+  fs.writeFileSync(extra, JSON.stringify({ ...demo, baseUrl: site + path.sep, urls: ['page.html', 'not-in-baseline.html'] }, null, 2));
+  const ex = run('run_checks.mjs', ['--config', extra, '--baseline', moved]);
+  expect(/\[BASELINE\].*not-in-baseline\.html/.test(ex.out), 'a URL missing from the baseline is reported', ex.out);
+} catch (e) {
+  failures.push(`self-test stopped: ${e && e.message ? e.message : e}`);
+} finally {
+  fs.rmSync(tmp, { recursive: true, force: true });
+}
 if (failures.length) {
   process.stderr.write('\n' + failures.join('\n----\n') + '\n');
   process.exit(1);

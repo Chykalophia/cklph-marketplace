@@ -34,7 +34,7 @@ Severity-weighted. ✅ = implemented in v1 engine. ◑ = scaffolded, needs the s
 ## Visual regression
 | ID | Check | Severity | Regressed when | Status |
 |---|---|---|---|---|
-| VR1 | Full-page visual diff vs baseline | High | Diff % over tolerance after masking dynamic regions, measured over the area both screenshots share | ✅ (pixelmatch + masks) |
+| VR1 | Full-page visual diff vs baseline | High | Diff % over tolerance after masking dynamic regions, measured over the area both screenshots share. A missing current screenshot is a regression, never a pass | ✅ (pixelmatch + masks) |
 | VR1-size | Page size changed | Low | Never regressed; reported as FYI (`changed`) | ✅ |
 | VR2 | Key element presence (logo/nav/hero/footer) | High | A required element's box vanishes | ◑ v1.1 |
 

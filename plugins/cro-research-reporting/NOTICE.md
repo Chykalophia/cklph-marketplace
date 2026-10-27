@@ -11,6 +11,7 @@ skills, references and agents. The upstream commits used were not recorded.
 | Shopify/theme-tools (https://github.com/Shopify/theme-tools) | Copyright 2022-present, Shopify Inc. | `ecommerce-cro-audit/references/liquid-product-template-checklist.md` |
 
 Each is licensed under the MIT License; the full text below applies to each copyright holder above.
+The copyright lines are copied from each project's own LICENSE file.
 
 Also credited as influences, with no text adapted: Anthropic Agent Skills (anthropics/skills),
 assafelovic/gpt-researcher (Apache-2.0), Shopify Dawn, and the public CRO and UX research of
@@ -18,7 +19,11 @@ Baymard Institute, Nielsen Norman Group, GoodUI and CXL/Speero.
 
 MIT License
 
-Copyright (c) <year> <copyright holder>  (see the table above)
+Copyright (c) 2025 Corey Haines
+Copyright (c) 2024 Seth Hobson
+Copyright (c) 2024 Stanford Open Virtual Assistant Lab
+Copyright (c) 2025 LangChain
+Copyright 2022-present, Shopify Inc.
 
 Permission is hereby granted, free of charge, to any person obtaining a copy
 of this software and associated documentation files (the "Software"), to deal

@@ -15,6 +15,9 @@ Format: [Keep a Changelog](https://keepachangelog.com); versioning follows [SemV
   user to `evil.example`). A `safeNext` helper now accepts only a same-origin relative path.
 - **`security`** — the path-traversal check (`startsWith(base)`) let `/data/uploads-evil` through;
   it now compares against `base + path.sep`. The open-redirect rule names the `//` and `/\` cases.
+- **`security`** — `path.resolve` does not follow symlinks, so a link inside the upload dir could
+  still point outside. Added a `realpath` variant (the parent dir for new files) and the `wx` write
+  flag, which refuses a dangling link.
 - **`error-handling`** — the sample used `.single()`, so a missing row came back as an error and the
   `NOT_FOUND` branch was unreachable. It now uses `.maybeSingle()`.
 - **`supabase-migrations`** — type generation now matches `discipline` and `data-model`

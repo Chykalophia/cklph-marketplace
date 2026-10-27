@@ -61,6 +61,22 @@ If any of those four pass when they shouldn't, you skipped a step.
   const target = path.resolve(base, userPath);
   if (!target.startsWith(base + path.sep)) throw APIErrors.forbidden();
   ```
+  `path.resolve` is lexical, so a symlink inside `UPLOAD_DIR` can still point outside it. If users can create links there, or you cannot rule it out, resolve links with `realpath`. A new file does not exist yet, so resolve its parent directory instead:
+  ```ts
+  import fs from 'node:fs/promises';
+
+  async function safePath(userPath: string) {
+    const base = await fs.realpath(UPLOAD_DIR);
+    const target = path.resolve(base, userPath);
+    const real = await fs.realpath(target).catch(async (e) => {
+      if (e.code !== 'ENOENT') throw e;
+      return path.join(await fs.realpath(path.dirname(target)), path.basename(target));
+    });
+    if (!real.startsWith(base + path.sep)) throw APIErrors.forbidden();
+    return real;
+  }
+  ```
+  Write new files with `{ flag: 'wx' }`: it fails if the name already exists, including a dangling symlink, which the parent-directory check cannot see.
 - **Open redirect** — `redirect(user_provided_url)` must validate against an allowlist, or accept only a same-origin relative path: it starts with a single `/`, and not `//` or `/\` (browsers read both as a new host). See the `safeNext` helper in **auth**.
 - **Secret in URL / log** — never put a token in a query string (it lands in proxy logs and browser history); never log full request URLs that include credentials.
 

@@ -8,9 +8,8 @@ import pixelmatch from 'pixelmatch';
 
 const SEV = { critical: 'Critical', high: 'High', medium: 'Medium', low: 'Low' };
 
-// Scheduler contract for run_checks.mjs. Never exit with the count: 256 regressions would read as 0.
-export const EXIT = { CLEAN: 0, REGRESSIONS: 1, ERROR: 2 };
-export const exitCodeFor = (confirmedCount) => (confirmedCount > 0 ? EXIT.REGRESSIONS : EXIT.CLEAN);
+// Scheduler contract for run_checks.mjs, kept in a dependency-free module.
+export { EXIT, exitCodeFor } from './exit.mjs';
 
 // Baselines store screenshot paths relative to the baseline dir, so a baseline can be moved and
 // run_checks can run from any cwd. Older baselines stored cwd-relative paths; fall back to those.
@@ -100,10 +99,13 @@ export function evaluate(base, cur, opts = {}) {
   if (base.analytics?.gtm && !cur.analytics?.gtm) add('TR2', SEV.high, 'regressed', 'GTM container stopped loading', { baseline: true, current: false });
 
   // VR1 — visual regression (mask dynamic regions first)
-  if (cfg.visual?.enabled !== false && base.screenshotPath && cur.screenshotPath) {
+  // A page that failed to load is already AV1; otherwise a missing current screenshot must not pass.
+  if (cfg.visual?.enabled !== false && base.screenshotPath && !cur.error) {
     const baseShot = resolveShot(base.screenshotPath, opts.baseDir);
     if (!fs.existsSync(baseShot)) {
       add('VR1', SEV.high, 'changed', 'Baseline screenshot not found; visual check skipped (re-run capture.mjs)', { baseline: baseShot });
+    } else if (!cur.screenshotPath || !fs.existsSync(cur.screenshotPath)) {
+      add('VR1', SEV.high, 'regressed', 'Current screenshot missing; visual check could not run', { baseline: baseShot, current: cur.screenshotPath || null });
     } else {
       // Mask each capture's dynamic regions in both images: a block that moved is masked where it was and where it is.
       const masks = (base.maskBoxes || []).concat(cur.maskBoxes || []);

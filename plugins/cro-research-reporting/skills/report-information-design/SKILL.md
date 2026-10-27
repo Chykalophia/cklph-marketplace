@@ -1,8 +1,8 @@
 ---
 name: report-information-design
 description: >
-  Turns analysis or research into a polished report, brief, audit or one-pager, usually self-
-  contained HTML. Use when asked to build a report, write up findings, add an executive summary, or
+  Turns analysis or research into a polished report, brief, audit or one-pager, usually
+  self-contained HTML. Use when asked to build a report, write up findings, add an executive summary, or
   present information professionally, before drafting the deliverable.
 license: MIT
 metadata:
