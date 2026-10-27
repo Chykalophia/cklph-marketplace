@@ -31,7 +31,7 @@ The only things guaranteed wherever a surface reads the repo.
 - `AGENTS.md` — **source of truth for instructions** (cross-tool standard).
 - `CLAUDE.md` — one line: `@AGENTS.md`, plus Claude-only notes.
 - `.claude/skills/` — **project-specific** skills only (not reusable ones).
-- `STATE.md` — per-repo working state (active work, decisions, blockers).
+- `STATE.md` — per-repo working state (active work, decisions, blockers, and a "Removed on purpose" list).
 
 ### Layer 2 — Shared Behavior Plugin (`cklph-os`, installed once per machine)
 The reusable engine. Distributed via a personal marketplace; updated in one place.
@@ -152,7 +152,10 @@ STATE.md                   # working state
   (deleted files and abandoned approaches, with the reason and replacement) so no session recreates
   them. Update before `/compact` or session end.
 - **One owner per fact:** rules in `AGENTS.md`, current state in `STATE.md`, history in git, the
-  CHANGELOG or an ADR. Other files link to the owner; they don't copy it.
+  CHANGELOG or an ADR. Other files link to the owner; they don't copy it. **One exception:** a
+  rule that must reach a surface where its owner never loads is copied, and a test fails when a
+  copy drops a rule the test lists (the list sits beside the owner's own tests). The destructive-command list is the case: the hook owns it (CLI), `security-hardening`
+  mirrors it for Desktop, the `AGENTS.md` template mirrors it for the web.
 
 ---
 

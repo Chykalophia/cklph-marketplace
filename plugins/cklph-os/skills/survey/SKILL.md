@@ -1,6 +1,6 @@
 ---
 name: survey
-description: Gap-filling design partner. Use when scoping a new feature after refine but before spec (users, devices, states, edge cases, alternatives, SaaS defaults), or when you inherit a client site or codebase and need a gap register before changing anything.
+description: Gap-filling design partner. Use when scoping a new feature or project after refine but before spec (users, devices, states, edge cases, alternatives, SaaS defaults), or when you inherit a client site or codebase and need a gap register before changing anything.
 ---
 
 # survey — drill the gaps before specing
@@ -46,7 +46,8 @@ slice, audit it with evidence (no fixes yet), work backward through git history,
 **four-axis gap register**: **Thinking** (decided but never written down), **Coding practice**,
 **Missing features** (what a day-one build would have had), **Technology** (outdated, duplicated,
 fighting the project). Every row carries an evidence pointer, a severity and a forward fix.
-Procedure and register format: `@brownfield.md`.
+Procedure and register format: `@brownfield.md`. It ends with the same markers: `## SURVEY COMPLETE`
+once every row is triaged and the go-ahead is in, `## SURVEY OPEN` while decisions are still pending.
 
 ## Anti-patterns
 - **Not a substitute for `refine`** — if the direction is still fuzzy, send the user back there first.

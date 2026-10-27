@@ -163,6 +163,331 @@ allow 'wp db export backup.sql'
 allow 'CKLPH_ALLOW_DESTRUCTIVE=1 git push --force origin feat/x'
 allow 'CKLPH_ALLOW_DESTRUCTIVE=1 rm -rf ./build/*'
 
+# Every section below "dangerous"/"safe" was written BEFORE its fix. How many of each fail against
+# the original gate and against main's gate is measured in docs/proof/destructive-command-gate/.
+echo "== review bypasses (PR #24 comments)"
+block 'rm -rf .*'
+block 'rm -rf .[!.]*'
+block 'rm -rf ./.*'
+allow 'rm -rf .cache'
+block "psql -c 'DR'\"OP TABLE users\""
+block "mysql -e 'TRUNC'\"ATE sessions\""
+allow 'psql -c "select 1"'
+block 'sudo -u root rm -rf /'
+block 'sudo -nu root rm -rf /'
+block 'doas -u root rm -rf /'
+block 'env -u HOME rm -rf /'
+block 'env -S "git reset --hard"'
+block 'nice -n 10 git reset --hard'
+block 'timeout 30 git push --force'
+block 'timeout -s KILL 30 rm -rf ~'
+allow 'sudo -u www-data ls /var/www'
+allow 'timeout 30 npm test'
+block 'chmod 00777 shared.txt'
+block 'chmod a=rwx shared.txt'
+block 'r""m -rf /'
+block "g''it reset --hard"
+block 'git push --mirror origin'
+allow 'eval eval eval ls'
+block 'eval eval eval eval ls'
+block "bash -c \"bash -c 'bash -c \\\"bash -c ls\\\"'\""
+
+echo "== two-reviewer gate, round 1"
+block 'rm -rf ~/.*'
+block 'rm -rf $HOME/.*'
+block 'rm -rf /.*'
+block 'rm -rf "$CLAUDE_PROJECT_DIR"/.*'
+allow 'rm -rf ~/.cache/pip'
+block 'env -iS "git reset --hard"'
+block 'env -vS "git reset --hard"'
+block "env -S '-i git reset --hard'"
+block "env -S '-u HOME git reset --hard'"
+block 'env -S -- git reset --hard'
+block 'env -P /usr/bin git reset --hard'
+block 'env --split "git reset --hard"'
+allow 'env -S "echo hi" git reset --hard'
+allow 'env -S "node --inspect" app.js'
+expect 2 'block: line continuation inside a command name' "$(printf 'g\\\nit reset --hard')"
+expect 2 'block: line continuation inside bash -c' "$(printf "bash -c 'g\\\\\nit reset --hard'")"
+block 'sudo --us root git reset --hard'
+block 'timeout --sig KILL 30 git reset --hard'
+block 'nice --adj 10 git reset --hard'
+block 'env --un HOME git reset --hard'
+block 'doas -a bsdauth git reset --hard'
+block 'npx -c "git reset --hard"'
+block 'npx --call "git reset --hard"'
+block 'npm exec -c "git reset --hard"'
+block 'npm exec -- git reset --hard'
+allow 'npm exec -- vitest run'
+block "echo 'DR'\"OP TABLE users\" | psql"
+block "printf '%s' 'TRUNC''ATE t' | mysql db"
+allow 'echo "select 1" | psql'
+block 'chmod 1777 shared'
+block 'chmod 4777 shared'
+block 'chmod 666 shared.txt'
+block 'chmod u=rwx,go=rwx shared'
+block 'chmod a+wrx shared'
+block 'chmod o+w shared'
+allow 'chmod 0755 bin'
+allow 'chmod 7770 dir'
+allow 'chmod u+w,go-w file'
+allow 'chmod +w file'
+block 'GIT reset --hard'
+block 'Rm -rf /'
+block 'su -c "git reset --hard"'
+block 'su root -c "git reset --hard"'
+block 'builtin eval "git reset --hard"'
+block 'stdbuf -oL git reset --hard'
+block 'stdbuf -o L git reset --hard'
+block 'ionice -c 3 git reset --hard'
+block 'chrt -r 10 git reset --hard'
+block 'setsid git reset --hard'
+block 'caffeinate -t 60 git reset --hard'
+block 'watch -n 2 git reset --hard'
+block 'git push --prune origin'
+allow 'git fetch --prune'
+allow 'su - deploy'
+
+echo "== two-reviewer gate, round 2"
+# Regressions round 1 introduced: an escaped backslash ends the line, it does not continue it.
+expect 2 'block: escaped backslash before a newline, then a destructive line' "$(printf 'echo done \\\\\ngit reset --hard')"
+expect 2 'block: quoted heredoc whose last line ends in a backslash' "$(printf "cat <<'EOF'\nfoo \\\\\nEOF\ngit reset --hard")"
+expect 2 'block: line continuation inside double quotes' "$(printf 'bash -c "g\\\nit reset --hard"')"
+# Shell grammar in front of the command.
+block 'for d in a b; do git reset --hard; done'
+block 'if true; then git push -f; fi'
+block '{ git reset --hard; }'
+block '! git reset --hard'
+block 'while true; do git clean -fd; done'
+block 'if git diff --quiet; then :; else git checkout .; fi'
+block 'until false; do git clean -fd; done'
+block 'if git reset --hard; then echo ok; fi'
+allow 'if git diff --quiet; then echo ok; fi'
+allow 'for f in *.ts; do echo "$f"; done'
+block '>/dev/null git reset --hard'
+block '2>&1 git push --force'
+block '> out.log git reset --hard'
+block 'git reset --hard>/dev/null'
+block 'git checkout .>/dev/null'
+allow 'git status >/dev/null 2>&1'
+# git's own abbreviations and short clusters.
+block 'git reset --har'
+block 'git push --mirr origin'
+block 'git push --pru origin'
+block 'git commit --no-veri -m x'
+block 'git clean --forc'
+block 'git commit -nm wip'
+block 'git commit -anm wip'
+allow 'git commit -am "fix: n+1 query"'
+allow 'git clean -fdx -e.env -n'
+block 'git clean -fdx -e.env'
+# -p . is blocked too: `yes | git checkout -p .` answers every prompt (round 3 found it).
+block 'git checkout -p .'
+allow 'git push --force-with-lease origin feat/x'
+# --no-verify only means something to git.
+allow 'rg -n -- "--no-verify" plugins/'
+allow 'echo "--no-verify"'
+block 'git push --no-verify'
+# wp-cli global flags before the subcommand.
+block 'wp --allow-root db reset --yes'
+block 'wp --path=/var/www db drop --yes'
+block 'wp @staging db reset --yes'
+block 'wp --allow-root db query "DROP TABLE wp_posts"'
+allow 'wp --allow-root db export backup.sql'
+# rm targets.
+block 'rm -rf */'
+block 'rm -rf **'
+block 'rm -rf ./**'
+block 'rm -rf .?*'
+block 'rm -rf {.,}*'
+# Command strings in more places.
+block 'bash -Ec "git reset --hard"'
+block 'su -lc "git reset --hard"'
+block 'docker exec db /usr/bin/psql -c "DROP TABLE x"'
+block 'docker exec db sh -c "git reset --hard"'
+block 'kubectl exec -it pod -- bash -c "git reset --hard"'
+# chmod: short octal, and the net effect of every clause.
+block 'chmod 2 shared'
+block 'chmod 22 shared'
+block 'chmod o-x+w shared'
+allow 'chmod a+rwx,o-w shared'
+allow 'chmod 664 notes.txt'
+allow 'chmod g+w shared'
+# publish only as the package manager's own subcommand.
+allow 'npm run publish'
+allow 'yarn run publish:docs'
+block 'yarn npm publish'
+block 'pnpm --filter web publish'
+# Header claims that had no test.
+block 'rm -rf ..'
+block 'rm -rf *'
+block 'rm -rf $PWD'
+block 'rm -rf $(pwd)'
+allow 'git clean -fd --dry-run'
+block 'psql -c "DROP SCHEMA public CASCADE"'
+block 'sqlite3 app.db "DROP TABLE users"'
+block 'mariadb -e "TRUNCATE t"'
+block 'podman exec db psql -c "DROP TABLE x"'
+block 'kubectl exec db -- psql -c "DROP TABLE x"'
+block 'wp db drop --yes'
+block 'podman system prune -af'
+block 'yarn publish'
+block 'bun publish'
+block 'zsh -c "git reset --hard"'
+block 'dash -c "git reset --hard"'
+block 'time git reset --hard'
+block 'exec git reset --hard'
+block 'command git reset --hard'
+block 'nohup git reset --hard'
+block 'bunx -p x git reset --hard'
+block 'pnpm exec git reset --hard'
+block 'yarn dlx git reset --hard'
+block 'bun x git reset --hard'
+block 'chmod 0002 shared'
+
+echo "== round 3 (scoped, after the final reviewers)"
+# Regression from round 2: an option's VALUE was read as a flag cluster.
+allow 'git commit -m "Title" -m "- Add new feature"'
+allow 'git commit -m "- fix n+1 query"'
+allow 'git commit --message "- new thing"'
+allow 'git commit -am "- n"'
+allow "git commit -m '-n is now supported'"
+allow 'git commit -F - --author "Dev <dev@example.com>"'
+allow 'git push -o ci.skip origin feat/x'
+allow 'git clean -n -e -fdx'
+# git's real minimum prefixes (checked against git 2.55).
+block 'git reset --h'
+block 'git clean --f'
+block 'git push --m origin'
+block 'git restore --staged --w .'
+# Options between -c and the script; eval --.
+block 'bash -c -- "git reset --hard"'
+block 'bash -c -x "git reset --hard"'
+block 'sh -c -e "git reset --hard"'
+block 'docker exec db sh -c -e "git reset --hard"'
+block 'su -c -- "git reset --hard"'
+block 'eval -- "git reset --hard"'
+# Arithmetic << is a shift, not a heredoc; a leading here-string is a redirection.
+expect 2 'block: $((1<<2)) then a destructive line' "$(printf 'echo $((1<<2))\ngit reset --hard')"
+expect 2 'block: (( x = 1<<3 )) then a destructive line' "$(printf '(( x = 1<<3 ))\ngit reset --hard')"
+block '<<< x git reset --hard'
+block '>|out.log git reset --hard'
+# Control bytes in the input cannot split or hide words.
+expect 2 'block: \037 inside a word' "$(printf 'git -c core.pager=cat\037 reset --hard')"
+expect 2 'block: \036 then a comment' "$(printf 'true x\036# ; git reset --hard')"
+# Cheap tail items.
+block 'git --config-env a.b=HOME reset --hard'
+block 'git --attr-source HEAD reset --hard'
+block 'supabase db reset --linked=true'
+block 'psql -c "DROP/**/TABLE users"'
+block "bun exec 'git reset --hard'"
+block 'yes | git checkout -p .'
+block 'npm run -s publish --tag x && npm publish'
+allow 'npm run -s publish'
+allow 'npm run --silent publish'
+allow 'npm publish --dry-run=true'
+allow 'chmod 644 2'
+allow 'docker logs mysql 2>&1 | tail; truncate -s 0 app.log'
+block 'docker exec -i mysql mysql -e "DROP TABLE t"'
+
+echo "== round 3 review: regressions in round 3's own code"
+# The canonical Claude Code commit idiom: a heredoc inside $( ). An apostrophe in the body must not
+# swallow the rest of the call.
+expect 2 'block: commit heredoc in $( ) with an apostrophe, then git push --force' "git commit -m \"\$(cat <<'EOF'
+fix: don't drop the cache
+EOF
+)\" && git push --force origin main"
+expect 2 'block: x=$(cat <<EOF) with an apostrophe, then git push -f' "$(printf "x=\$(cat <<EOF\nit's\nEOF\n)\ngit push -f")"
+expect 2 'block: commit heredoc with an unbalanced ( then git reset --hard' "git commit -m \"\$(cat <<'EOF'
+wip (part 1
+EOF
+)\"
+git reset --hard HEAD~1"
+expect 0 'allow: commit heredoc in $( ) with an apostrophe' "git commit -m \"\$(cat <<'EOF'
+fix: don't drop the cache
+EOF
+)\""
+block 'git commit -S --no-verify -m x'
+block 'git commit -u --no-verify -m x'
+block 'git commit -u -n -m x'
+block 'git commit -S -nm x'
+allow 'git commit -S -m "signed"'
+expect 0 'allow: (( opening nested subshells, then a heredoc mentioning reset --hard' "$(printf '((cd a && make) || echo fail)\ncat > NOTES.md <<EOF\ngit reset --hard is forbidden\nEOF')"
+expect 2 'block: (( nested subshells, heredoc with apostrophe, then git push --force' "$(printf "((cd a && make) || true)\ncat <<EOF\ndon't\nEOF\ngit push --force")"
+block "bash -c -o pipefail 'git reset --hard'"
+block "bash -O extglob -c 'git reset --hard'"
+allow 'docker run -e MYSQL_ROOT_PASSWORD=x -d mysql; echo "truncate log"'
+allow 'docker run --name mysql -d mysql:8 && echo "DROP TABLE is bad"'
+block 'docker run --rm postgres psql -h db -c "DROP TABLE x"'
+block 'kubectl exec -n prod db-0 -c pg -- psql -c "DROP TABLE x"'
+allow 'mysql -e "select truncate(1.234, 1)"'
+
+echo "== follow-up on main: the last review's open findings"
+expect 2 'block: heredoc closed by EOF) inside $( ), then git push --force' "$(printf 'git commit -m "$(cat <<EOF\nmsg\nEOF)" && git push --force')"
+expect 2 'block: x=$(cat <<EOF ... EOF) then git reset --hard' "$(printf 'x=$(cat <<EOF\nhi\nEOF)\ngit reset --hard')"
+expect 0 'allow: heredoc closed by EOF) inside $( )' "$(printf 'git commit -m "$(cat <<EOF\nmsg\nEOF)"')"
+expect 2 'block: $[1<<2] then a destructive line' "$(printf 'echo $[1<<2]\ngit reset --hard')"
+expect 2 'block: ${x:-<<EOF} then a destructive line' "$(printf 'echo ${x:-<<EOF}\ngit reset --hard')"
+block 'git push -- origin +main'
+block 'git push origin -- +main'
+block 'git am --no-v'
+block 'git commit --no-verif -m x'
+block 'podman exec -l psql -c "DROP TABLE x"'
+allow 'docker run -l app=web -d mysql'
+
+echo "== two-reviewer gate on the main port"
+# A quoted } inside ${ } must not end it (the JSON-default idiom).
+expect 2 'block: ${BODY:-'"'"'{}'"'"'} then git push --force' "$(printf "BODY=\${BODY:-'{}'}\ngit push --force origin main")"
+expect 2 'block: ${BODY:-"{}"} then git reset --hard' "$(printf 'BODY=${BODY:-"{}"}\ngit reset --hard')"
+block 'echo ${x:-"}"}; git reset --hard'
+block "echo \${x:-'}'}; git reset --hard"
+allow "BODY=\${BODY:-'{}'}"
+allow 'echo "${x:-$(date)}"'
+# -u and -S take only an ATTACHED value: the letters after them are that value, not flags.
+allow 'git commit -uno -m x'
+allow 'git commit -unormal -m x'
+allow 'git commit -Snm x'
+allow 'git commit -Sjohn@x.com -m x'
+block 'git commit -S -nm x'
+# zsh does not end a heredoc at EOF); a later exact EOF line means zsh reads on. Block if either reading blocks.
+expect 2 'block: EOF) body line under the zsh reading, then git reset --hard' "$(printf 'git commit -m "$(cat <<'"'"'EOF'"'"'\nEOF)" note don'"'"'t\nEOF\n)" && git reset --hard')"
+block "bash -co pipefail 'git reset --hard'"
+block "bash -ceo pipefail 'git reset --hard'"
+allow 'git grep -n -e "--no-verify"'
+allow 'git grep -e --no-verify -- docs'
+allow 'git log -S "--no-verify"'
+allow 'git log --grep "--no-verify"'
+block 'xargs git commit --no-verify -m x'
+block 'find . -name x -exec git commit --no-verify -m x \;'
+block 'docker run --rm --entrypoint sh alpine -c "git reset --hard"'
+allow 'docker run --restart always -d mysql && echo "DROP TABLE is bad"'
+block 'rm --recur -f ~'
+allow 'npm run -w pkg publish'
+allow 'npm run --workspace pkg publish'
+block 'x+=1 git reset --hard'
+
+echo "== large commands stay fast (a quadratic substitution once made 41 KB take 164 s)"
+BIG="git add"; for k in $(seq 1 1600); do BIG="$BIG src/components/feature-$k/index.ts"; done
+BIGP=$(payload "$BIG && psql -c 'select 1'")
+TIMEFORMAT=%R
+bsecs=$( { time (printf '%s' "$BIGP" | "$BASH_BIN" "$GATE" >/dev/null 2>&1) ; } 2>&1 )
+bms=$(awk -v s="$bsecs" 'BEGIN { printf "%d", s * 1000 }')
+if [ "$bms" -lt 2000 ]; then pass=$((pass + 1)); echo "PASS  ${#BIG}-byte command in ${bms} ms (limit 2000 ms)"
+else fail=$((fail + 1)); echo "FAIL  ${#BIG}-byte command took ${bms} ms (limit 2000 ms)"; fi
+# Shapes the first timing case missed: many SQL-client segments, many capitalised commands.
+# Linear code does 2000 in a few seconds; the quadratic versions took ~13-27 s.
+for shape in sql upper; do
+    BIG=""
+    for k in $(seq 1 2000); do
+        case "$shape" in sql) BIG="$BIG psql -c \"select $k\";" ;; upper) BIG="$BIG NODE_ENV=test Rscript run$k.R && GIT Status;" ;; esac
+    done
+    BIGP=$(payload "$BIG")
+    bsecs=$( { time (printf '%s' "$BIGP" | "$BASH_BIN" "$GATE" >/dev/null 2>&1) ; } 2>&1 )
+    bms=$(awk -v s="$bsecs" 'BEGIN { printf "%d", s * 1000 }')
+    if [ "$bms" -lt 8000 ]; then pass=$((pass + 1)); echo "PASS  2000 $shape segments (${#BIG} bytes) in ${bms} ms (limit 8000 ms)"
+    else fail=$((fail + 1)); echo "FAIL  2000 $shape segments (${#BIG} bytes) took ${bms} ms (limit 8000 ms)"; fi
+done
+
 echo "== parser fallbacks and fail-open"
 # Restricted PATH: everything the gate needs except the JSON parser under test.
 BIN=$(mktemp -d)
@@ -190,6 +515,25 @@ case "$msg" in
     *"--force-with-lease"*"CKLPH_ALLOW_DESTRUCTIVE=1"*) pass=$((pass + 1)); echo "PASS  message names --force-with-lease and the escape hatch" ;;
     *) fail=$((fail + 1)); echo "FAIL  message: $msg" ;;
 esac
+
+echo "== prose copies mirror the gate (STANDARD.md one-owner exception)"
+# Desktop reads security-hardening and the web reads the repo's AGENTS.md; neither loads this hook.
+# A rule the gate blocks but a copy omits is a rule those surfaces silently lose.
+# One entry per BLOCKS line in the hook header; add a row here when the header gains one.
+RULES=('rm -rf' '`.*`' 'git push --force' '+branch' '--force-with-lease' '--mirror' '--prune' 'git reset --hard' 'git checkout .'
+    'git restore .' 'git clean -f' '--no-verify' 'git commit -n' 'DROP TABLE' 'DROP DATABASE'
+    'DROP SCHEMA' 'TRUNCATE' 'wp db drop' 'wp db reset' 'docker system prune' 'docker volume prune'
+    'podman' 'chmod 777' 'world-writable' 'a+rwx' 'o+w' 'pnpm' 'publish' 'supabase db reset'
+    'CKLPH_ALLOW_DESTRUCTIVE=1' 'sudo' 'bash -c')
+if [ -n "${MIRROR_DOCS:-}" ]; then IFS=: read -r -a docs <<< "$MIRROR_DOCS"   # colon-separated override
+else docs=("$REPO_ROOT/plugins/cklph-os/skills/security-hardening/SKILL.md" "$REPO_ROOT/templates/AGENTS.md"); fi
+for d in "${docs[@]}"; do
+    if [ ! -f "$d" ]; then fail=$((fail + 1)); echo "FAIL  mirror doc not found: $d"; continue; fi
+    missing=""
+    for r in "${RULES[@]}"; do grep -qF -- "$r" "$d" || missing="$missing [$r]"; done
+    if [ -z "$missing" ]; then pass=$((pass + 1)); echo "PASS  ${d#"$REPO_ROOT"/} lists every gate rule"
+    else fail=$((fail + 1)); echo "FAIL  ${d#"$REPO_ROOT"/} is missing:$missing"; fi
+done
 
 echo "== timing"
 P=$(payload 'git commit -m "feat: thing" && git push -u origin feat/x')

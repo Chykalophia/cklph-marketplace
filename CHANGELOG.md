@@ -3,6 +3,46 @@
 All notable changes to cklph-os are documented here.
 Format: [Keep a Changelog](https://keepachangelog.com); versioning follows [SemVer](https://semver.org).
 
+## [0.12.1] — 2026-10-26
+
+### Fixed — destructive-command gate (follow-up to the PR #24 review)
+On the 0.12.0 gate, 134 of the 384 cases in the new suite fail: 115 destructive commands let
+through, 18 ordinary commands blocked, and one timing case over its limit. Each fix below was a failing test first. Suite: 124 → 384 cases, passing on
+bash 3.2.57 and 5.2.26; `test/hooks.bats` still passes.
+- **Hidden behind shell syntax:** commands inside `for`/`while`/`until` … `do`, `if` … `then`/`else`,
+  `{ …; }` and after `!`; behind leading or glued redirections (`>/dev/null git …`, `2>&1 git …`,
+  `<<< x git …`, `git reset --hard>/dev/null`); split by line continuations; uppercase (`GIT`,
+  macOS file systems are case-insensitive); and after `$((1<<2))`, `$[1<<2]` or `${x:-<<EOF}`, which
+  are not heredocs. A heredoc inside `$( )` (the `git commit -m "$(cat <<'EOF' …)"` idiom) is still
+  tracked, also when closed by `EOF)`, and a quoted `}` in `${BODY:-'{}'}` no longer ends the expansion.
+- **Wrappers and command strings:** `env -iS`/`-vS`/`-P`, options between `-c` and the script
+  (`bash -c -- '…'`, `-co pipefail`, `-Ec`), `eval --`, `su -c`/`-lc`, `watch`, `bun exec`, `npm exec`,
+  `stdbuf`, `ionice`, `chrt`, `setsid`, `caffeinate`, `builtin`, GNU long-option prefixes
+  (`sudo --us`), `x+=1` assignments, shells inside `docker`/`podman`/`kubectl exec` and behind
+  `docker run --entrypoint sh`.
+- **git:** the shortest prefixes git accepts (`reset --h`, `clean --f`, `push --m`, `restore --w`,
+  `am --no-v`), short clusters (`commit -nm`, `clean -fdx -e.env`), `push --prune`, `+ref` after `--`,
+  `checkout -p .` (piping `yes` defeats the prompt), `--config-env`/`--attr-source` before the
+  subcommand, and `--no-verify` on git run through `xargs` or `find -exec`.
+- **rm, chmod, SQL:** `~/.*`, `/.*`, `.?*`, `{.,}*`, `*/`, `**`, `--recur`; any world-writable chmod
+  (`666`, `1777`, `2`, `o+w`, `o-x+w`; net effect, so `a+rwx,o-w` passes); quote-split SQL piped
+  into a client, `DROP/**/TABLE`, clients run by path inside `docker exec|run`;
+  `supabase db reset --linked=true`.
+- **No longer blocked:** `rg -- "--no-verify"` and `git grep`/`git log` searching for it (checked on
+  git options only), `git commit -m "- fix"` / `-uno` / `-S<key>` (option values are skipped),
+  `npm run publish` / `npm run -w pkg publish`, `chmod 644 2`, `docker run -d mysql` and
+  `docker logs mysql` (an image or container name is not a SQL client), MySQL `TRUNCATE(` .
+- **Speed:** a 58 KB command checks in ~0.4 s and 2000 chained commands in ~3-5 s; timing tests cover
+  a long command, many SQL clients and many capitalised words. The header gives the shapes that are
+  still slow, and the remaining known gaps are listed under DOES NOT CATCH.
+
+### Changed
+- The `security-hardening` table and the `AGENTS.md` template mirror the gate's full list, and the
+  suite fails if either drops a listed rule (STANDARD.md names this as the one-owner exception).
+- `verify`, `ship` and `spec` point to one evidence rule (`verify/rationalization-patterns.md`);
+  `ship` re-runs `verify` after a two-reviewer fix round; brownfield `survey` covers pnpm/Yarn 2+
+  install flags and `pre`/`post` scripts, and ends with the SURVEY markers.
+
 ## [0.12.0] — 2026-10-26
 
 ### Added

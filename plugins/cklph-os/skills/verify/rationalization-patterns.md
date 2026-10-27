@@ -4,8 +4,8 @@ Lazy depth for `verify`. A claim of done is a claim about the world. If the outp
 is not on screen in this session, the claim is a guess, however confident it sounds.
 
 ## The check
-Before writing "done", "fixed", "works", "verified" or `## VERIFIED`, read your own last message
-back. For every claim in it, point at the command output **from this session** that shows it. No
+Before sending a report that says "done", "fixed", "works", "verified" or `## VERIFIED`, reread
+that draft, the one about to go out, not an earlier message. For every claim in it, point at the evidence **from this session** that shows it (see below). No
 output → run the command, or rewrite the claim as what it is ("not yet run").
 
 ## Phrases that mean "I didn't check"
@@ -17,7 +17,7 @@ Said with no command output beside them, each of these is a finding against your
 | "I believe this fixes", "this likely resolves" | a hypothesis presented as a result | test the hypothesis, then report the result |
 | "looks good", "looks right" | code was read, not executed | run it; for UI, exercise it in the browser |
 | "tests should pass" | the suite was not run | run the suite; paste the summary line |
-| "this is a pre-existing issue" | a failure you are stepping around | prove it fails at the actual base revision (a clean worktree: `git worktree add ../base <base-sha>`; it has no `node_modules` or build output, so install and build there first; rerun; then `git worktree remove ../base`), or fix it |
+| "this is a pre-existing issue" | a failure you are stepping around | prove it fails on the base revision too: `git worktree add --detach <tmp> <base>`, install and build there first, rerun, then `git worktree remove --force <tmp>` on that tmp path only (a stash reruns *this* branch's commits), or fix it |
 | "skipping tests / lint / type-check for now" | a gate turned off to get to green | run it; if it can't run, that is a `## GAPS FOUND` item |
 | "tests are failing but I'll fix them" | done claimed with red tests | not done; route the failure back to `build` |
 | "leaving the failing test", "won't fix the broken build" | a known failure shipped | fix it, or ask the user to accept it explicitly |
@@ -25,9 +25,11 @@ Said with no command output beside them, each of these is a finding against your
 | "same as before", "unchanged" | a regression nobody looked for | diff the output against the base |
 
 ## Evidence that counts
+This section is the rule `verify`, `ship` and `spec` point to.
 - Command output from this session: the test summary line, `tsc` exit status, the curl response,
   the build log tail.
-- Observed behavior: what the screen showed after the click, with the steps taken.
+- Observed behavior: what the screen showed after the click, with the steps taken. It decides the
+  verdict only where no executable check exists; where one does, it is supplemental.
 - For a bug fix: the repro failing **before** and passing **after**.
 
 ## Evidence that doesn't
