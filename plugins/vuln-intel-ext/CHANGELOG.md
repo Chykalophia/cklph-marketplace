@@ -3,6 +3,19 @@
 All notable changes to `vuln-intel-ext` are documented here. This project adheres to
 [Semantic Versioning](https://semver.org/).
 
+## 1.0.4 — 2026-10-27
+
+### Fixed
+- **The MCP server never started (since 1.0.1).** The plugin cache arrived with a `node_modules`
+  directory but without better-sqlite3's native binding, so the server died at startup with
+  "Could not locate the bindings file", and `scripts/start.sh` skipped its own install because the
+  directory existed. `start.sh` now checks that the binding actually loads and runs
+  `npm rebuild better-sqlite3` once if it doesn't, with a clear stderr message if the rebuild
+  fails. Verified on a copy of the broken 1.0.3 install: the old script fails, the new one
+  rebuilds and answers `initialize`; later starts skip the rebuild. All npm output stays on stderr
+  (stdout is the MCP channel).
+- `package-lock.json`'s root `engines` now matches `package.json` (it still said `20.x || >=22`).
+
 ## 1.0.3 — 2026-10-27
 
 Theme: an error or an unparsed response was being reported as a clean result. Every such path
