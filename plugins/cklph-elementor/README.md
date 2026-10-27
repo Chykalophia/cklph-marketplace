@@ -10,7 +10,7 @@ encodes the `_elementor_data` model and the styling/responsive quirks that silen
 container vs widget `custom_css`, variable-driven flex gaps, inner-margin spacing, nested-container
 padding, flexslider, nav-menu collapse, the Kit globals.
 
-## What's inside (v0.1.0)
+## What's inside
 
 | Skill | Trigger |
 |---|---|
@@ -20,7 +20,20 @@ padding, flexslider, nav-menu collapse, the Kit globals.
 | `elementor-responsive` | Broken/cramped at tablet/mobile; overflow; header/footer not adapting. |
 
 **Script:** `scripts/el-tools.py` — `validate`, `tree`, `widgets`, `add-style` (inject the reliable
-html-widget `<style>` channel). Pairs with `cwp meta-read`/`meta-write` for transport.
+html-widget `<style>` channel; idempotent, re-running replaces the earlier style widget). Pairs with
+`cwp meta-read`/`meta-write` for transport.
+
+### Running the scripts (PATH)
+
+Every runnable example in these skills calls this plugin's script as
+`"${CLAUDE_PLUGIN_ROOT}/scripts/el-tools.py"`. `cwp` comes from **cklph-wp** and is called by bare name
+(`${CLAUDE_PLUGIN_ROOT}` points at this plugin, not cklph-wp), so it needs cklph-wp's `scripts/` on
+PATH (see the cklph-wp README, "Running `cwp`"). To type the short
+names yourself, once:
+
+```bash
+export PATH="<cklph-elementor plugin dir>/scripts:<cklph-wp plugin dir>/scripts:$PATH"
+```
 
 ## The core loop
 

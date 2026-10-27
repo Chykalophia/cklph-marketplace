@@ -7,14 +7,15 @@ description: Connect Claude Code to a remote WordPress site via wp-cli over SSH,
 
 Reach WordPress through **wp-cli over an SSH host alias**. By default `cwp` opens a **fresh connection
 per command and closes it** — secure (no shared socket to ride), at some speed cost. Opt into bounded
-multiplexing with `CKLPH_WP_MUX=1` when you need throughput on a trusted machine. Never hardcode the
+multiplexing with `CKLPH_WP_MUX=1` (exactly `1`; any other value leaves it off) when you need throughput on a trusted machine. Never hardcode the
 host in scripts — drive it from `CKLPH_WP_HOST`. Verify the key is authorized and `wp-cli` is present
 **before** reading or writing.
 
-## 1. One-time SSH alias (multiplexed)
+## 1. One-time SSH alias (identity only)
 
-Add to `~/.ssh/config` (the alias name is yours; the User is the host's SSH/SFTP slug). `cwp` adds the
-`ControlMaster` options itself, so the alias only needs identity:
+Add to `~/.ssh/config` (the alias name is yours; the User is the host's SSH/SFTP slug). `cwp` sets the
+`ControlMaster` options itself (`ControlMaster=no` by default; a bounded master only with
+`CKLPH_WP_MUX=1`), so the alias only needs identity:
 
 ```sshconfig
 Host my-wp
@@ -35,19 +36,20 @@ speed (a fresh connection per call) and possible **rate limiting on managed host
 `profile` or a screenshot loop makes many calls).
 
 ### Opt into multiplexing for speed — on a machine you trust
-`CKLPH_WP_MUX=1` reuses one connection per host — but **security-bounded**, because an open
-authenticated socket is a standing risk (same-user processes can ride it with no re-auth, and a
-compromised machine has a live pipe to the host):
+`CKLPH_WP_MUX=1` reuses one connection per host. Only the exact value `1` turns it on: unset, empty,
+`0` or anything else keeps the default (and a value other than empty/`0`/`1` prints a warning). It is
+**security-bounded**, because an open authenticated socket is a standing risk (same-user processes
+can ride it with no re-auth, and a compromised machine has a live pipe to the host):
 
 - **Idle close** — `CKLPH_WP_PERSIST` (90s): closes shortly after the last call.
 - **Hard cap** — `CKLPH_WP_MAXLIFE` (600s): rotates the connection (close + fresh-auth reopen) past the cap.
 - **Watchdog** — force-closes the master at the cap even if `cwp` is never run again.
 
-Set it per-project in `./.cklph-wp` when you need the speed. Then:
+Set it per-project in the `./.cklph-wp` config file when you need the speed. Then:
 ```bash
-cwp up        # open the master now
-cwp status    # ALIVE/closed + age + time until it rotates/closes
-cwp down      # close it — DO THIS when you finish a session
+"${CLAUDE_PLUGIN_ROOT}/scripts/cwp" up        # open the master now
+"${CLAUDE_PLUGIN_ROOT}/scripts/cwp" status    # ALIVE/closed + age + time until it rotates/closes
+"${CLAUDE_PLUGIN_ROOT}/scripts/cwp" down      # close it — DO THIS when you finish a session
 ```
 Don't raise the limits to hours — short-lived is the point.
 
@@ -72,13 +74,18 @@ you can't type the passphrase). If `Invalid request, you must specify a site`, t
 
 ## 3. Use the `cwp` wrapper
 
-`export CKLPH_WP_HOST=my-wp` (or put it in `./.cklph-wp`), then:
+`export CKLPH_WP_HOST=my-wp` (or put it in the `./.cklph-wp` file), then:
 
 ```bash
-${CLAUDE_PLUGIN_ROOT}/scripts/cwp env                      # site / core / theme
-${CLAUDE_PLUGIN_ROOT}/scripts/cwp wp post list --post_type=page --fields=ID,post_title --format=csv
-${CLAUDE_PLUGIN_ROOT}/scripts/cwp meta-write 218 _some_key payload.json   # protected-safe write
+"${CLAUDE_PLUGIN_ROOT}/scripts/cwp" env                      # site / core / theme
+"${CLAUDE_PLUGIN_ROOT}/scripts/cwp" wp post list --post_type=page --fields=ID,post_title --format=csv
+"${CLAUDE_PLUGIN_ROOT}/scripts/cwp" meta-write 218 _some_key payload.json   # protected-safe write
 ```
+
+Examples in this plugin's skills use the `"${CLAUDE_PLUGIN_ROOT}/scripts/cwp"` form. Other plugins'
+skills call bare `cwp`, which resolves only if this plugin's `scripts/` is on PATH (cklph-wp README,
+"Running `cwp`"). `cwp wp ...` quotes
+each argument for the remote shell, so local quoting (`--post_title='Two Words'`) survives.
 
 The wrapper filters the host's harmless PHP notices and uses the protected-meta write path that
 sidesteps every gateway quirk. **Read those quirks before you fight one** — @references/hosting-gotchas.md.
