@@ -42,10 +42,11 @@ now returns an error, and no failure is cached or recorded as a negative result.
   README and `package.json` `engines` now state exactly the range it declares,
   `20.x || 22.x || 23.x || 24.x || 25.x || 26.x`.
 - Malformed OSV and WPScan responses are rejected at the parsing boundary instead of read as
-  clean: a querybatch result that is not an object, a non-list `vulns`, an advisory record with
+  clean: a querybatch result that is not an object, a present `vulns` value that is not a list
+  (an omitted or null `vulns` is a valid empty result), an advisory record with
   a missing/invalid `modified` or an invalid `published`/`withdrawn` date, a WPScan body without
-  an entry for the requested slug/version, or a non-list `vulnerabilities` is an error; nothing
-  is recorded or cached. A CVSS 0.0 vector is `LOW` (not `UNKNOWN`), and withdrawn `UNKNOWN`
+  an entry for the requested slug/version, or a non-list `vulnerabilities` is an error. No scan
+  is recorded (the dependency snapshot itself is still saved) and no WPScan error is cached. A CVSS 0.0 vector is `LOW` (not `UNKNOWN`), and withdrawn `UNKNOWN`
   advisories are counted in `unknownSeverityCount`.
 
 ### Added
