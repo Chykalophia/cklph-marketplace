@@ -68,16 +68,18 @@ elif command -v docker >/dev/null 2>&1; then
   # zap-baseline.py writes -J reports only under /zap/wrk, and refuses to run when it is not
   # mounted. The zap user (uid 1000) must be able to write there, so the mounted dir is
   # world-writable; it sits inside a private (0700) dir so no other local user can reach it.
-  ZAP_TMP=$(mktemp -d)
+  ZAP_TMP=$(mktemp -d 2>/dev/null) || ZAP_TMP=""
   ZAP_WRK="$ZAP_TMP/wrk"
-  mkdir "$ZAP_WRK" && chmod 777 "$ZAP_WRK"
   # Remove the container, network and report dir even if the scan is interrupted. Killing the
   # docker CLI does not stop the container, and the network cannot be removed while the
   # container is attached, so the container is named and removed first.
   trap 'docker rm -f "$ZAP_NET" >/dev/null 2>&1; docker network rm "$ZAP_NET" >/dev/null 2>&1; rm -rf "$ZAP_TMP"' EXIT
   trap 'exit 130' INT
   trap 'exit 143' TERM
-  if docker network create --driver bridge "$ZAP_NET" >/dev/null 2>&1; then
+  # An empty ZAP_TMP would make ZAP_WRK "/wrk": skip ZAP rather than write outside a temp dir.
+  if [ -z "$ZAP_TMP" ] || ! mkdir "$ZAP_WRK" || ! chmod 777 "$ZAP_WRK"; then
+    echo "could not create a temp dir for the ZAP report. ZAP skipped." >&2
+  elif docker network create --driver bridge "$ZAP_NET" >/dev/null 2>&1; then
     # Exit codes: 0 pass, 1 FAIL alerts, 2 WARN alerts, 3 other failure. Run in the background
     # and wait, so a signal is handled at once instead of after the scan finishes.
     docker run --rm --name "$ZAP_NET" --network "$ZAP_NET" \
