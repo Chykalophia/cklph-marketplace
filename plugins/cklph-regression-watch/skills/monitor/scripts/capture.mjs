@@ -22,6 +22,8 @@ for (const u of config.urls) {
   const full = resolve(u);
   const shot = path.join(outDir, 'screens', slug(u) + '.png');
   const sig = await probeUrl(page, full, { masks, screenshotPath: shot });
+  // Store the screenshot path relative to the baseline dir so the baseline works from any cwd and can be moved.
+  if (sig.screenshotPath) sig.screenshotPath = path.relative(outDir, shot);
   pages[u] = sig;
   console.log(`baseline ${u}: status=${sig.status} title=${sig.title ? 'y' : 'n'} canonical=${sig.canonical ? 'y' : 'n'} jsonld=${sig.jsonLdCount} ga4=${sig.analytics.ga4} gtm=${sig.analytics.gtm}`);
 }

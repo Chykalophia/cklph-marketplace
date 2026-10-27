@@ -32,15 +32,17 @@ A deploy just shipped. A theme/plugin updated. A migration happened. Or on a sch
    Review the printed summary. If it's the state you want to defend, keep it.
 3. **Run checks** (on demand or via a scheduled task):
    `node skills/monitor/scripts/run_checks.mjs --config config.[client].json --baseline baselines/[client]`
-   The confirmation engine re-tests each non-pass `retries` times. Output is the report contract; exit code = number of confirmed regressions.
+   The confirmation engine re-tests each non-pass `retries` times. Output is the report contract. Exit code: `0` nothing confirmed, `1` confirmed regressions (count in the report), `2` engine error.
 4. **Verify before alerting.** Hand confirmed findings to the `regression-verifier` agent. It re-reads each against its evidence and the baseline, drops anything unsupported or stale, and authorizes the alert.
-5. **Alert (only if broken).** Send the headline + report link to Peter via a ClickUp Reminder. Client-facing summaries are drafted, never auto-sent.
+5. **Alert (only if broken).** The engine sends nothing itself. Send the headline + report link to Peter through whatever channel is connected (e.g. a ClickUp reminder). Client-facing summaries are drafted, never auto-sent.
 6. **Roll the baseline forward** when a change is intentional and accepted: re-run `capture.mjs` to promote the new state so it stops re-alerting.
 
 ## How to run the self-test (the eval)
 Prove the engine before trusting it. `config.fixture-demo.json` + `fixtures/` are a seeded-regression harness:
-- Capture baseline of `fixtures/page.html` (good), run checks → PASS (the masked `#ticker` proves no false alarm on dynamic content).
-- `cp fixtures/bad.html fixtures/page.html`, run checks → 7 confirmed regressions with evidence. Restore with `cp fixtures/good.html fixtures/page.html`.
+`npm run self-test` (from the plugin directory) copies the fixtures to a temp dir and checks:
+- Baseline of the good page, run checks → exit 0, PASS (the masked `#ticker` proves no false alarm on dynamic content).
+- Swap in the bad page, run checks → exit 1, 7 confirmed regressions with evidence.
+`npm test` runs the browser-free unit tests (visual diff, baseline paths, exit codes).
 
 ## Reference map
 - `@check-catalog.md` — every check, ID, severity, pass/changed/regressed criteria.
@@ -50,14 +52,15 @@ Prove the engine before trusting it. `config.fixture-demo.json` + `fixtures/` ar
 - `scripts/lib/probe.mjs` — capture one URL's signals (status, redirects, SEO, analytics firing, screenshot, mask boxes).
 - `scripts/lib/evaluate.mjs` — diff current vs baseline → findings; visual diff via pixelmatch with masking.
 - `scripts/capture.mjs` — write a versioned baseline.
-- `scripts/run_checks.mjs` — re-check + confirmation engine + report; exit code = confirmed regressions.
+- `scripts/run_checks.mjs` — re-check + confirmation engine + report; exit 0 clean, 1 regressions, 2 error.
+- `scripts/self_test.mjs` — end-to-end self-test against the fixtures, in a temp dir.
 
 ## Guardrails
 - Never alert without a confirmed re-test AND attached evidence. One failure is a flake until proven.
 - Journeys use synthetic data and stop before any irreversible action (no real payments or lead submissions). Prefer staging.
 - Never auto-send client-facing messages. Draft, then Peter approves. Internal pings to Peter are fine.
-- Respect robots.txt, rate-limit politely, identify the crawler. Don't hammer production.
+- The engine does not read robots.txt, throttle, or set an identifying user agent; it loads each URL `retries` times with a default headless Chromium. Only point it at sites you're responsible for, keep the URL list modest, and don't hammer production.
 - Read per-site URLs/secrets from config, never hardcode them in the skill.
 
 ## Related
-`cro-research-reporting` (conversion side of the same sites), `report-information-design` (client-facing write-up). Scheduling via the `scheduled-tasks` tool (v1) or n8n (multi-client fleet, v2).
+`cro-research-reporting` (conversion side of the same sites), `report-information-design` (client-facing write-up). Scheduling is not built in: run `run_checks.mjs` from cron, CI or n8n and branch on the exit code.

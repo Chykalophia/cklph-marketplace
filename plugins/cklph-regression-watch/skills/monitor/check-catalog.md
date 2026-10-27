@@ -9,6 +9,7 @@ Severity-weighted. ✅ = implemented in v1 engine. ◑ = scaffolded, needs the s
 | AV2 | Redirect / final-URL integrity | High | Final URL differs from baseline | ✅ (flagged as change) |
 | AV3 | Broken internal links | High | A link that was 200 now 4xx/5xx | ◑ v1.1 |
 | AV4 | Console errors | Low | New console errors vs baseline | ◑ captured, not yet scored |
+| BASELINE | URL in config but not in the baseline | — | Never regressed; reported as FYI so a skipped URL is visible | ✅ |
 
 ## 🟧 SEO integrity
 | ID | Check | Severity | Regressed when | Status |
@@ -33,7 +34,8 @@ Severity-weighted. ✅ = implemented in v1 engine. ◑ = scaffolded, needs the s
 ## Visual regression
 | ID | Check | Severity | Regressed when | Status |
 |---|---|---|---|---|
-| VR1 | Full-page visual diff vs baseline | High | Diff % over tolerance after masking dynamic regions | ✅ (pixelmatch + masks) |
+| VR1 | Full-page visual diff vs baseline | High | Diff % over tolerance after masking dynamic regions, measured over the area both screenshots share | ✅ (pixelmatch + masks) |
+| VR1-size | Page size changed | Low | Never regressed; reported as FYI (`changed`) | ✅ |
 | VR2 | Key element presence (logo/nav/hero/footer) | High | A required element's box vanishes | ◑ v1.1 |
 
 ## 🟪 Journeys (staging pilot — full journeys)
