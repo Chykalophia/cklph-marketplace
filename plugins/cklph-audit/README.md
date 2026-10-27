@@ -121,7 +121,8 @@ Extensible (later): `performance` (N+1, hot paths, caching, bundle), `a11y` (WCA
                that feeds /cklph-os:flow)
 10. SELFREVIEW  adversarial self-review of the report (the "check itself" loop): an
                audit-reviewer re-reads the report for gaps, missed areas, under-explored
-               crown jewels. Gaps are surfaced in the appendix. Default true in full; off
+               crown jewels. The engine appends the gaps (or why no review ran) as a closing
+               ## Self-review section after the appendix. Default true in full; off
                in :quick.
 ```
 
@@ -176,15 +177,15 @@ v1.0 takes the v3 engine and extends it from a "very good audit tool" to a **ful
 
 4. **Patch generation + validation (opt-in, auto-on with DAST).** `audit-patcher` generates a code patch addressing the root cause, applies it in a sandbox git worktree, runs the test suite, re-runs the exploit (must FAIL — vuln closed), and runs an LLM-as-judge pass for functional correctness. Up to 3 iteration rounds. Patches are proposals for developer review, not auto-merges.
 
-5. **Adversarial self-review (the "check itself" loop).** After synthesis, an audit-reviewer re-reads the report for gaps — missed areas, under-explored crown jewels, coverage narrative honesty. Gaps are surfaced in the appendix. Default true in full mode; up to `selfReview.maxRounds` rounds.
+5. **Adversarial self-review (the "check itself" loop).** After synthesis, one audit-reviewer pass re-reads the report for gaps — missed areas, under-explored crown jewels, coverage narrative honesty. The engine appends them to the report as a `## Self-review` section of open coverage gaps (there is no re-scan yet, so they are not resolved), or says why no review ran. Default true in full mode; `selfReview.enabled: false` turns it off.
 
 6. **SOC 2 + CASA compliance matrix (NOT HIPAA).** The compliance lens runs as a single post-reconcile mapping job, taking the aggregated confirmed findings from all other lenses and mapping them to SOC 2 Trust Services Criteria + CASA controls. Every control → `met` (cite the guard) / `violation` (link finding) / `not-applicable` (reason) / `not-checked` (gap requiring manual evidence). This is the audit's bridge to a formal attestation.
 
-7. **Feed freshness checks.** `feed-status.sh` checks CVE database age and tool versions. `/cklph-audit:refresh-feeds` updates vulnerability feeds and checks for new tools/CVE sources. The report appendix warns if feeds are stale.
+7. **Feed freshness checks (manual).** `feed-status.sh` checks CVE database age and tool versions, and `/cklph-audit:refresh-feeds` updates the local vulnerability databases. The audit engine does not run either, so run `refresh-feeds` before an SCA or container audit; the report appendix says feed freshness was not checked by the run.
 
 8. **Extended threat modeling.** The Map phase now includes cloud/infra trust boundaries (VPCs, security groups, IAM roles, public endpoints, container ingress, K8s policies, CI/CD trust) when IaC/container/k8s/supply-chain lenses are in scope.
 
-9. **Git-history hotspots (T3.1) + CPG reachability (T3.2).** `git-hotspots.sh` (churn × complexity + temporal coupling) and `cpg.sh` (Joern or grep-fallback for callers/sinks) — the Tier-3 roadmap items, now shipped.
+9. **Git-history hotspots (T3.1) + CPG reachability (T3.2).** `git-hotspots.sh` (churn × complexity + temporal coupling) ships as a standalone tool only: no agent or workflow phase runs it yet, so it does not feed `riskScore`. `cpg.sh` (Joern or grep-fallback for callers/sinks) is what the security lens calls; its Joern path needs a `joern-query` wrapper on PATH and is untested.
 
 Config-compatible: a v3 `audit.config.yaml` runs unchanged — every new key defaults off-but-safe. DAST and Patch are **opt-in** (`dast.enabled: false`, `patch.enabled: false` by default — the audit stays read-only unless you explicitly break the seal). SelfReview defaults true in full mode. The compliance lens is opt-in (add `compliance` to the lenses list). The new security lenses (sca, iac, container, k8s, supply-chain) are available but not in the default lens list — add them explicitly. **No HIPAA** in 1.0 (added in 1.2.0 as an opt-in rulebook).
 
@@ -194,7 +195,7 @@ Config-compatible: a v3 `audit.config.yaml` runs unchanged — every new key def
 
 ## What you get out
 
-- **`AUDIT-<date>.md`** — a coverage summary (examined X/N per denominator, commands verbatim), the rule-closure coverage matrix, an optional compliance matrix (one sub-section per selected framework: SOC 2, CASA, HIPAA), findings bucketed Critical/High/Medium/Low (each with `file:line`, confidence, remediation bucket, why it's real and how the verifier confirmed it, a concrete fix, and — when DAST/patch ran — exploit PoC evidence and patch diffs), a positive-controls (INFO) section of checked-and-clean patterns, and a self-review appendix documenting the "check itself" loop.
+- **`AUDIT-<date>.md`** — a coverage summary (examined X/N per denominator, commands verbatim), the rule-closure coverage matrix, an optional compliance matrix (one sub-section per selected framework: SOC 2, CASA, HIPAA), findings bucketed Critical/High/Medium/Low (each with `file:line`, confidence, remediation bucket, why it's real and how the verifier confirmed it, a concrete fix, and — when DAST/patch ran — exploit PoC evidence and patch diffs), a positive-controls (INFO) section of checked-and-clean patterns, and a closing `## Self-review` section, appended by the engine, with the self-review's open gaps (or why it did not run).
 - **A remediation-wave plan** — grouped, ordered fixes (quick wins first within a severity band) ready to hand to `/cklph-os:flow` or `cklph-implementer` waves; `owner-decision` items in their own subsection — they're questions, not work.
 - **An updated baseline** (when you run `:baseline`) so the next run is delta-only.
 
@@ -214,8 +215,8 @@ Config-compatible: a v3 `audit.config.yaml` runs unchanged — every new key def
 - **v1 (0.1.0)**: `cklph-audit` plugin · security + correctness + architecture lenses · scout/reviewer/verifier/synthesizer agents · the workflow engine · `audit.config.yaml` + `.audit-baseline.json` · `run` / `quick` / `baseline` / `init` commands.
 - **v2 (0.2.0)**: the coverage upgrade — recon (denominators + seeds), rulebook + rule-closure matrix, coverage math, positive controls (INFO), docs-drift lens, richer finding schema. See `SPEC-v2.md`.
 - **v3 (0.3.0, current)**: the master-practice upgrade — Map phase (threat model) + `audit-modeler`, evidence-arbitrated verify (reachability trace), variant analysis + `variant-sweep.sh`, root-cause/invariant findings, risk-routed depth, coverage narrative, and the opt-in omission lens. See `SPEC-v3.md`.
-- **Deferred (Tier 3, prove value first)**: git-history hotspots / change-coupling as a `riskScore` input · a CPG/graph reachability tool the reviewer queries · specialized weird-machine lenses (concurrency, state-machine, economic) · ensemble panels for crown-jewel units · an executable-repro requirement for the highest severities. Tracked in `docs/MASTER-PRACTICE-ROADMAP.md`.
-- **v4 (1.0.0)**: the comprehensive security suite — 9 new lenses (sca, iac, container, k8s, supply-chain, compliance, concurrency, state-machine, economic), SAST recall, DAST + exploit-to-confirm, patch generation, adversarial self-review, SOC 2 + CASA compliance matrix, feed freshness checks. All Tier 3 items shipped.
+- **Deferred at v3 (Tier 3)**: these landed in v4 (below), except that git-history hotspots is a tool no phase runs yet (not a `riskScore` input) and ensemble panels are a config stub the engine does not read. Tracked in `docs/MASTER-PRACTICE-ROADMAP.md`.
+- **v4 (1.0.0)**: the comprehensive security suite — 9 new lenses (sca, iac, container, k8s, supply-chain, compliance, concurrency, state-machine, economic), SAST recall, DAST + exploit-to-confirm, patch generation, adversarial self-review, SOC 2 + CASA compliance matrix, feed freshness checks (manual). Tier 3 items landed, two only partly (T3.1 hotspots is a tool no phase runs; T3.4 ensemble is a config stub).
 - **v4.1 (1.1.0)**: MCP vulnerability intelligence integration — SCA lens auto-detects and uses `cve-mcp` (EPSS/KEV/exploit-availability/risk-ranking) and `vuln-intel-ext` (diff_since/delta-scanning/WordPress) MCP servers when available. Feed-refresh skill enhanced with MCP feed_status + delta scan.
 - **v4.2 (1.2.0)**: the opt-in `agent-config` lens (static review of MCP configs, agent settings, hooks, instruction docs, skills, and agent runtimes) and an opt-in HIPAA rulebook for the compliance lens. Adapted from ECC (MIT); see each folder's NOTICE.
 - **Later**: `performance` + `a11y` lenses · a scheduled weekly **delta** audit (emails/ClickUps only NEW findings) · a CLI pre-promotion gate (fast security lens before dev→staging→main) · auto-handoff of confirmed Criticals into a `/cklph-os:flow` remediation run.

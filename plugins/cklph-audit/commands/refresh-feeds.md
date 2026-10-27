@@ -1,17 +1,5 @@
-# /cklph-audit:refresh-feeds
+---
+description: Update vulnerability databases and check feed freshness and tool versions before an audit
+---
 
-Update all vulnerability databases and check tool versions before an audit.
-
-```bash
-/cklph-audit:refresh-feeds
-```
-
-Runs `feed-status.sh` to check the current state, then updates:
-- `trivy db update`
-- `grype db update`
-- `semgrep --update`
-- `osv-scanner --update`
-
-Also checks NVD/GHSA/OSV.dev for recent disclosures and logs feed freshness. The audit engine warns in the report appendix if CVE databases are stale (older than `feedRefresh.maxAgeHours`, default 24h).
-
-Run this before a major audit or on a schedule (e.g. weekly) to keep vulnerability data current.
+Use the **feed-refresh** skill to update the local vulnerability databases and report feed freshness and tool versions. Run it before an SCA or container audit: the audit engine does not check feed age itself. $ARGUMENTS

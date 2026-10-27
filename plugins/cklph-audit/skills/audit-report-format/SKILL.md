@@ -7,7 +7,7 @@ description: The exact AUDIT-<date>.md contract — front-matter, coverage summa
 
 This skill defines the exact shape `audit-synthesizer` must emit as `report.markdown`. The contract exists so reports are consistent, git-diffable across runs, and feed cleanly into `/cklph-os:flow`. **Nothing is silently truncated** — anything not audited, whether a *unit*, a *rulebook rule*, an *enumerated pattern* (budget, sampling, low-confidence, recon gaps), or a skipped *phase* (whether the Map + Variant + DAST + Patch + SelfReview phases ran), is named in the report.
 
-The document has ten parts, in order: **Front-matter → Coverage summary → Coverage matrix → Compliance matrix → Coverage narrative → Severity sections → Held-untraced → Positive controls (INFO) → Remediation waves → Appendix.**
+The document has eleven parts, in order: **Front-matter → Coverage summary → Coverage matrix → Compliance matrix → Coverage narrative → Severity sections → Held-untraced → Positive controls (INFO) → Remediation waves → Appendix → Self-review.** The synthesizer writes the first ten and ends at the Appendix; the engine appends the closing `## Self-review` section (see §9).
 
 An OPTIONAL `## Summary` lead block (new-finding counts, rule closure, positive-control count, unit derivation, a one-or-two-line headline) may sit between the front-matter and the Coverage summary — a human skim layer only, never a substitute for the sections below. The template includes one.
 
@@ -30,14 +30,14 @@ phases:                     # v3 optional phases — false = skipped (quick mode
   variant: true             # Variant (sibling hunt on confirmed critical/high) ran
   dast: false               # DAST (dynamic testing: ZAP/Nuclei) ran — opt-in, off by default
   patch: false              # Patch (generate + test + re-exploit) ran — opt-in, auto-on with DAST
-  self_review: true         # SelfReview (adversarial red-team of the report) ran — default in full
+  self_review: false        # write false; the ENGINE rewrites it to the real outcome after the SelfReview pass
 counts: { critical: 2, high: 5, medium: 8, low: 3, info: 4 }   # info = positive controls
 coverage:
   rulebook_size: 12         # discrete rules extracted from the rulesFrom docs
   checked: 10               # rules with any status other than unchecked
   unchecked: [agents-md:rule-7, claude-md:rule-2]   # NOT CHECKED — mirrored in the matrix
 positive_controls: 4        # entries in the Positive controls (INFO) section
-held_untraced: 1            # majority-held findings awaiting an independent trace
+held_untraced: 1            # critical/high neither confirmed nor cleanly refuted (see Held-untraced)
 deferred_unverified: 0      # reviewer candidates the verifier budget couldn't afford (0 = full coverage)
 suppressed_by_baseline: 4   # confirmed but already accepted
 skipped:
@@ -71,6 +71,7 @@ Rules for the summary:
 - Every recon denominator gets a row: the pattern, the **re-runnable command verbatim**, and `examined X / N`.
 - Where `X < N`, the row says **sampled** and gives the sampling rationale (risk-weighting) — never leave a shortfall unexplained.
 - Each lens states its reviewer coverage: `seedsVerified / seedsGiven` and `toolCandidatesJudged`.
+- Each lens lists every tool failure its reviewers reported (`COVERAGE_TOTALS.<lens>.reviewed.toolFailures`: a scanner that failed, was missing, or whose output could not be parsed). That recall did NOT run, so its zero candidates mean **not checked**, never clean — say so on the lens line.
 - If recon didn't run for a lens (quick mode, config, agent died), say so here in one line — and expand why in the appendix. Never render an empty table silently.
 
 ## 3. Coverage matrix
@@ -195,19 +196,19 @@ Rules for every finding:
 - Cite the rule id (CWE/ASVS/own-rule). If a repo rule applied, name it.
 - Finding ids are stable per-report (`C-1`, `H-3`, `M-2`, `L-1`) and are what remediation waves and the coverage matrix reference.
 
-## 6. Held-untraced (majority-held, awaiting an independent trace)
+## 6. Held-untraced (inconclusive critical/high, needs owner review)
 
-A `## Held-untraced` section, written from `HELD_UNTRACED`, immediately after the severity sections. These are critical/high findings the panel **neither confirmed nor cleanly refuted** — either it was majority-held but **no independent verifier supplied a reachability trace** (the reviewer's own `validationSteps` do not count — the accuser cannot vouch for itself), or it was majority-refuted but **no verifier cited a concrete guard** to justify the refutation. Either way the outcome is *inconclusive*, so under the v3 evidence-arbiter they are not promoted to a severity section — but they are the opposite of "clean." They MUST be surfaced here — never silently dropped — as **needs-owner-input**, so a suspected critical/high is never lost for want of evidence either way.
+A `## Held-untraced` section, written from `HELD_UNTRACED`, immediately after the severity sections. These are critical/high findings the panel **neither confirmed nor cleanly refuted** — either it was majority-held but **no independent verifier supplied a reachability trace** (the reviewer's own `validationSteps` do not count — the accuser cannot vouch for itself), or it was majority-refuted but **no verifier cited a concrete guard** to justify the refutation, or the vote split with no majority either way, or too few voters returned (no quorum). Either way the outcome is *inconclusive*, so under the v3 evidence-arbiter they are not promoted to a severity section — but they are the opposite of "clean." They MUST be surfaced here — never silently dropped — as **needs-owner-input**, so a suspected critical/high is never lost for want of evidence either way.
 
 ```markdown
 ## Held-untraced
 
-> Majority-held by the verifier panel, but no independent reachability trace was produced. Not confirmed, not cleared — **needs owner review**. Treat as suspected-real until traced or refuted.
+> Critical/high findings the verifier panel could neither confirm nor cleanly refute. Not confirmed, not cleared — **needs owner review**. Treat as suspected-real until traced or refuted.
 
 ### [U-1] <short title>
 - **Location:** `file.ts:42` · **Severity (claimed):** high · **Rule:** CWE-…
-- **Why held:** majority of N voters could not refute it; none produced an input→sink / invariant-violation trace.
-- **To resolve:** produce the reachability trace (promote) or the missing guard (refute).
+- **Why held:** <from `heldReason`> — `majority-held-no-trace`: the majority could not refute it, but no voter produced an input→sink / invariant-violation trace · `refuted-without-guard`: the majority refuted it, but no voter cited the guard · `split-vote`: neither side had a majority (a tie after a voter died, or held short of a unanimous threshold) · `no-quorum`: too few voters returned to decide. Never write "majority-held" for the last three.
+- **To resolve:** produce the reachability trace (promote) or the missing guard (refute); for `no-quorum` (and a `split-vote` caused by a dead voter), re-run verification until the voter quorum is reached.
 ```
 
 Omit the section only when `HELD_UNTRACED` is empty; whenever it is non-empty, `RUN_META.heldUntracedCount` matches the entry count. Ids are stable per-report (`U-1`, `U-2`, …). Held-untraced items are NOT findings and NOT positive controls — they never appear in waves or the INFO section.
@@ -284,8 +285,8 @@ A closing `## Appendix` that makes coverage auditable:
 - **DAST phase (dynamic testing)** — state whether the DAST phase ran (`RUN_META.dastRan`). If it did NOT, say why: `dast.enabled: false` (default — opt-in), quick mode, or the runner died. Note the consequence: runtime-only issues (auth bypass, session, IDOR, headers, rate limits) were NOT dynamically tested — the audit is static-only for this run. If it ran, note what was booted (Docker Compose / local dev / provided URL), which tools ran (ZAP/Nuclei/ffuf), and how many runtime findings were collected.
 - **Exploit verification** — state whether exploit verification ran (`RUN_META.exploitRan`). If it did, note how many confirmed critical/high findings had PoC exploits attempted, how many were `confirmed-exploitable` vs `likely (static only)`. If it did NOT, note that findings are based on static reachability only — no dynamic proof of exploitability.
 - **Patch phase** — state whether the Patch phase ran (`RUN_META.patchRan`). If it did, note how many findings were auto-patched vs `patch-unverified` vs `patch-failed`. If it did NOT, note that patches are suggestions only (the reviewer's `suggestedFix`) — no automated patch generation or validation occurred.
-- **SelfReview phase (adversarial self-review)** — state whether the SelfReview phase ran (`RUN_META.selfReviewRan`). If it did, render a `### Self-review results` subsection: what the red-team agent checked, what gaps it found, whether they were resolved (re-scanned) or remain unresolved. If unresolved gaps remain, list them as "coverage is incomplete in these areas." If it did NOT, note that no adversarial self-review of the report was performed.
-- **Feed freshness** — state when vulnerability databases were last updated (`RUN_META.feedStatus`). If stale (older than `feedRefresh.maxAgeHours`), warn: "Security findings are based on a vulnerability database N hours old — re-run `/cklph-audit:refresh-feeds` for current data." Note which tools' DBs are current vs stale.
+- **SelfReview phase (adversarial self-review)** — NOT written by the synthesizer. SelfReview runs once, after the report is written; the engine appends a `## Self-review` section at the very end of the report (after the appendix) listing the gaps it found — reported as open coverage gaps, since nothing is re-scanned — or why no review ran (quick mode, disabled, or the agent died), and rewrites `phases.self_review` in the front-matter.
+- **Feed freshness** — the engine does not check vulnerability-feed freshness (`RUN_META.feedFreshnessChecked: false`). State that plainly and recommend running `/cklph-audit:refresh-feeds` (which runs `feed-status.sh`) before the next SCA/container audit. Never state a database age the run did not measure.
 - **Denominator commands (verbatim)** — every recon denominator command, exactly as run, so the coverage math is re-runnable by the reader.
 - If the run was `quick` mode, state plainly at the top of the appendix: **coverage is partial — only the top-N highest-risk units were audited.**
 

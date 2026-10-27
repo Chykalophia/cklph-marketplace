@@ -125,12 +125,12 @@ case `[SoftwareSeni][eng-practices]`. `cklph-reviewer` already has an "omissions
 cklph-audit as a lens that, per external input / IO / branch, asserts {validation? error-path?
 logging? rollback? test?} and reports the missing ones. Scored separately from defect-finding.
 
-### Tier 3 — bigger bets — ✅ shipped in 1.0.0
+### Tier 3 — bigger bets — ◐ landed in 1.0.0 (T3.1 and T3.4 only partly)
 
-> **Outcome (1.0.0):** all five Tier 3 bets shipped in the 1.0.0 "comprehensive security suite" wave.
+> **Outcome (1.0.0):** the Tier 3 bets landed in the 1.0.0 "comprehensive security suite" wave, but two only partly: T3.1 is a tool no phase runs, and T3.4 is a config block the engine does not read (corrected in 1.2.3).
 > The original text is kept below for provenance.
 
-- **T3.1 Git-history hotspots / change-coupling** ✅ shipped as `tools/git-hotspots.sh` —
+- **T3.1 Git-history hotspots / change-coupling** ◐ tool only, NOT wired: `tools/git-hotspots.sh` exists but no agent or workflow phase runs it, so it does not yet feed `riskScore` —
   churn × complexity + temporal coupling as a `riskScore` input. A snapshot analysis structurally
   cannot see this `[CodeScene]`.
 - **T3.2 Graph/CPG reachability tool** ✅ shipped as `tools/cpg.sh` — Joern or grep-fallback for
@@ -140,7 +140,7 @@ logging? rollback? test?} and reports the missing ones. Scored separately from d
   `economic-lens` — every check→use gap, TOCTOU (now web-exploitable via single-packet attacks
   `[PortSwigger]`), reachable-but-unintended state transitions, and value-bearing flow analysis
   `[PZero-more]`.
-- **T3.4 Ensemble panels** ✅ shipped as `ensemble` config block — diverse models/prompts beat depth
+- **T3.4 Ensemble panels** ◐ config stub only: the `ensemble` block is in the config template, but the engine does not read it — diverse models/prompts beat depth
   for recall (+18% recall in the studies) `[Ensemble]`. Gated to highest-risk units only via
   `riskGate: 0.8`. Config: `ensemble: { enabled: false, models: [], riskGate: 0.8 }`.
 - **T3.5 Reproduction requirement** ✅ shipped as the DAST + exploit-verifier phase —
@@ -177,8 +177,9 @@ bump tracked separately):
 > **Outcome (0.3.0):** steps 1–5 all shipped in the one 0.3.0 "master-practice" wave (T2.1/T2.2/T2.3
 > came forward from the tentative v0.4 into 0.3.0), plus the §4 review-stack wins.
 >
-> **Outcome (1.0.0):** step 6's Tier 3 bets — all five (T3.1–T3.5) — shipped in the 1.0.0
-> "comprehensive security suite" wave, alongside nine new lenses, DAST + exploit verification,
+> **Outcome (1.0.0):** step 6's Tier 3 bets landed in the 1.0.0 "comprehensive security suite" wave,
+> two only partly (T3.1 hotspots is a tool no phase runs; T3.4 ensemble is a config stub the engine
+> does not read; corrected in 1.2.3), alongside nine new lenses, DAST + exploit verification,
 > patch generation, compliance mapping, self-review, and feed freshness. The original plan is kept
 > below for provenance.
 
@@ -187,7 +188,7 @@ bump tracked separately):
 3. **T1.4 risk-routed depth** — wires existing pieces together; folds into the v0.3 build.
 4. **T2.1 map phase** — the flagship v0.4; spec it separately, it's the largest design. *[Actually shipped in 0.3.0.]*
 5. **T2.2 coverage narrative + T2.3 omission lens** — round out v0.4's "trustworthy clean bill." *[Actually shipped in 0.3.0 — the `omission` lens is the opt-in `omission:<kind>` lens + `tools/omissions.sh`.]*
-6. Tier 3 + review-stack wins — opportunistic, value-proven first. *[All Tier 3 items shipped in 1.0.0.]*
+6. Tier 3 + review-stack wins — opportunistic, value-proven first. *[Tier 3 landed in 1.0.0; T3.1 is tool-only and T3.4 a config stub — see above.]*
 
 Everything in Tier 1 reuses machinery already in the engine (normalizedSnippet, riskScore, model
 routing, the verify fan-out). That's the boring-wins path: **the frontier architecture is built;
