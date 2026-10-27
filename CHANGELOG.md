@@ -14,11 +14,14 @@ Review follow-ups to 0.12.1 (PR #33's open review threads).
   `sh -euxo pipefail -c "…"`, `bash -xO extglob -c`, `bash --rcfile f -c`) now get the nested check.
   Each word is scanned once: a draft that rescanned from every shell-named option value took 47 s
   on `docker exec db bash -o bash -o …`; that shape is now a timing case (0.5 s).
-- A container option that looks like a shell (`docker run --name bash -c 256 img bash -c "…"`,
-  `docker run -c 256 --entrypoint sh img -c "…"`) no longer ends the scan before the real `-c`.
-- Nested command strings take the same fork-free early exit as the top level, and `script_after`
-  reads the word array in place: 2000 repeated `-c x` in one call drop from 41–51 s to about 1 s.
-- Each new case failed on the 0.12.1 gate first. Suite: 384 → 403 cases.
+- docker's own `-c <number>` (CPU shares) no longer ends the scan before the real shell's `-c`
+  (`docker run --name bash -c 256 img bash -c "…"`, `docker run -c 256 --entrypoint sh img -c "…"`).
+  Still one tokenizer run per segment: checking every `-c` instead took 76 s on a 2000-repeat call.
+- `script_after` reads the word array in place instead of copying it per call (a copy per `-c`
+  was quadratic).
+- New cases for a SQL client alone inside a nested string (`echo 'DROP TABLE t' | bash -c 'psql db'`),
+  which a draft of this release let through.
+- Each new case failed on the 0.12.1 gate or on a draft first. Suite: 384 → 412 cases.
 - The suite's timing limits scale with `GATE_TIME_SCALE` (whole number, default 1) for slower runners.
 
 ### Changed — written rules and skills

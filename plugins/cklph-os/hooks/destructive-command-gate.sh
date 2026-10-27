@@ -118,10 +118,8 @@ esac
 # quadratic and took minutes on a 40 KB command.
 STRIPPED="$CMD"
 case "$CMD" in *[\"\'\\]*) STRIPPED=$(printf '%s' "$CMD" | tr -d '\042\047\134\012') ;; esac
-# FAST_RE is also check_string's early exit for nested command strings.
-FAST_RE='(rm|git|docker|podman|chmod|publish|supabase|wp|no-verify|drop|truncate|eval|-c|-S)'
 shopt -s nocasematch
-if ! [[ $STRIPPED =~ $FAST_RE ]]; then
+if ! [[ $STRIPPED =~ (rm|git|docker|podman|chmod|publish|supabase|wp|no-verify|drop|truncate|eval|-c|-S) ]]; then
     shopt -u nocasematch
     exit 0
 fi
@@ -560,9 +558,13 @@ check_segment() {   # $1 = one simple command (words joined by \037), $2 = recur
                 case "${w[$j]}" in --entrypoint) ep="${w[$((j + 1))]:-}" ;; --entrypoint=*) ep="${w[$j]#*=}" ;; esac
             done
             if [[ ${ep##*/} =~ ^(bash|sh|zsh|dash)$ ]]; then
-                # Every -c, not just the first: docker's own -c (CPU shares) can come first.
+                # The first -c whose value is a script. docker's own -c (CPU shares) takes a bare
+                # number and can come first (docker run -c 256 --entrypoint sh img -c "…").
                 for ((j = i + 1; j < n - 1; j++)); do
-                    if [[ ${w[$j]} =~ $SHELL_C_RE ]]; then script_after "$j"; check_string "$SCRIPT" $((depth + 1)); fi
+                    if [[ ${w[$j]} =~ $SHELL_C_RE ]]; then
+                        script_after "$j"; [[ $SCRIPT =~ ^[0-9]+$ ]] && continue
+                        check_string "$SCRIPT" $((depth + 1)); break
+                    fi
                 done
             fi
             # A shell inside exec runs its -c string: docker exec db sh -c "…", including after other
@@ -572,10 +574,12 @@ check_segment() {   # $1 = one simple command (words joined by \037), $2 = recur
             for ((j = i + 1; j < n - 1; j++)); do
                 [[ ${w[$j]##*/} =~ ^(bash|sh|zsh|dash)$ ]] || continue
                 for ((sk = j + 1; sk < n; sk++)); do
-                    # check_string exits on a block. Otherwise keep scanning: a container option
-                    # can look like a shell and its -c (docker run --name bash -c 256 img bash -c …).
+                    # A bare number after -c is docker's CPU shares, so this "shell" was an option
+                    # value (docker run --name bash -c 256 img bash -c …): keep looking. The first
+                    # real script is checked and ends the scan, one tokenizer run per segment.
                     if [[ ${w[$sk]} =~ $SHELL_C_RE ]]; then
-                        script_after "$sk"; check_string "$SCRIPT" $((depth + 1)); break
+                        script_after "$sk"; [[ $SCRIPT =~ ^[0-9]+$ ]] && break
+                        check_string "$SCRIPT" $((depth + 1)); break 2
                     fi
                     case "${w[$sk]}" in
                         --rcfile|--init-file) sk=$((sk + 1)) ;;
@@ -712,14 +716,8 @@ check_string() {   # $1 = command text, $2 = recursion depth
     [ "${2:-0}" -gt 3 ] && block "command nested more than 3 levels deep (bash -c / eval / env -S) cannot be checked" \
         "run the inner command directly, so it can be read."
     local segs line text="$1" SEGS SEGWORDS="" SEG_SQL=""
-    # Same early exit as the top level, without a fork: a string with no quote or backslash that
-    # matches no rule word needs no tokenizer (`… sh -c x` repeated 2000 times took 16 s).
-    case "$text" in
-        *[\"\'\\]*) ;;
-        *) shopt -s nocasematch
-           if ! [[ $text =~ $FAST_RE ]]; then shopt -u nocasematch; return 0; fi
-           shopt -u nocasematch ;;
-    esac
+    # No word-based early exit here, unlike the top level: a nested string can hold just the SQL
+    # client (`echo 'DROP TABLE t' | bash -c 'psql db'`), and the DROP check needs to see it.
     # A newline inside quotes reaches here as \036; a nested shell needs it back to see its own
     # line continuations (bash -c 'g\<newline>it …').
     case "$text" in *$'\036'*) text=$(printf '%s' "$text" | tr '\036' '\n') ;; esac
