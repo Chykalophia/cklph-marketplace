@@ -25,15 +25,17 @@ Edit the id that appears there. (Real case: `471` had the `include/general` cond
 Conditions live in `_elementor_conditions` (e.g. `["include/product"]`, `["include/general"]`). After
 changing them, **rebuild the cache** or nothing takes effect:
 
-```php
-cwp wp eval '\ElementorPro\Modules\ThemeBuilder\Module::instance()->get_conditions_manager()->get_cache()->regenerate();'
+```bash
+cwp eval '\ElementorPro\Modules\ThemeBuilder\Module::instance()->get_conditions_manager()->get_cache()->regenerate();'
 ```
 A template only applies when `post_status=publish`. Set a preview target so the editor renders real
 data: `_elementor_page_settings = {"preview_type":"single-product","preview_id":<id>}`.
 
 ## Safe-copy editing (don't edit a live template blind)
 
-Duplicate to a **draft with no conditions**, build/verify there, then publish + move the condition:
+Duplicate to a **draft with no conditions**, build/verify there, then publish + move the condition.
+(`cwp` is cklph-wp's script, on PATH per the cklph-wp README. It quotes each argument for the remote
+shell, so the title below arrives intact.)
 
 ```bash
 ID=$(cwp wp post create --post_type=elementor_library --post_status=draft --post_title='Single (draft)' --porcelain)
@@ -41,6 +43,22 @@ cwp wp post meta update $ID _elementor_template_type product
 cwp meta-read 218 _elementor_data base.json && cwp meta-write $ID _elementor_data base.json
 # (deliberately DO NOT copy _elementor_conditions — keeps the draft inert)
 ```
+
+**Seeing the safe copy.** An inert draft renders on no public URL, and screenshot tools (`shot` in
+cklph-visual-qa) are logged out, so they can't load a draft or `?preview=true`. To screenshot it, on a
+**staging** site and with the user's go-ahead (it is a publish):
+
+1. Create a throwaway, **published** test target the template can apply to: a test page, or for a
+   single-product template one test product.
+2. Publish the copy with a display condition that includes **only that one test object**. Copy the
+   exact condition string format from an existing `_elementor_conditions` value on the site
+   (`cwp wp post meta get <id> _elementor_conditions --format=json`) rather than guessing it.
+3. Regenerate the conditions cache (above). Confirm the test URL renders the copy with the
+   `data-elementor-id` check above (a specific condition should outrank the live template's broad one),
+   then screenshot that URL, cache-busted.
+4. When it matches, ship it (move the real condition), then delete the test object.
+
+Never do this on production: a published condition is live for every visitor of the test URL.
 
 ## The Kit — reuse, don't redefine
 

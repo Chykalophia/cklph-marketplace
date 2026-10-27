@@ -8,7 +8,7 @@ Pairs with cklph-wp's `cwp` for transport. Typical flow:
     el-tools.py widgets raw.txt          # widget-type census
     # ...edit raw.txt -> new.json...
     el-tools.py validate new.json
-    el-tools.py add-style new.json v2.json '@id' '.elementor-element-XXXX{gap:12px!important}'
+    el-tools.py add-style new.json v2.json '@root' '.elementor-element-XXXX{gap:12px!important}'
     cwp meta-write 218 _elementor_data v2.json
     cwp wp elementor flush-css           # regen CSS so changes render
 
@@ -16,7 +16,9 @@ Commands:
     validate <file>                       valid JSON + Elementor shape? (exit 0/1)
     tree <file>                           container/widget tree with key settings
     widgets <file>                        count widget types
-    add-style <in> <out> <id> <css>       inject/replace a hidden html-widget <style> (the reliable CSS channel)
+    add-style <in> <out> <target> <css>   inject/replace a hidden html-widget <style> (the reliable CSS channel)
+                                          <target> = '@root' (first top-level element) or '@id:<elementId>'
+                                          idempotent: an earlier style widget is replaced wherever it was
 """
 import sys, json, collections
 
@@ -79,26 +81,30 @@ def add_style(inp, outp, target_id, css):
     """Inject a hidden html widget carrying a <style>. The html-widget <style> is the RELIABLE
     CSS channel — per-element custom_css works for WIDGETS but NOT containers; an html-widget
     <style> applies regardless. target_id picks the element to append into (use '@root' for the
-    top-level container, or '@id:<elementId>')."""
+    top-level container, or '@id:<elementId>'). Idempotent: every existing copy of the style
+    widget is removed from the whole tree first, so re-runs and target moves never duplicate it."""
     d = _load(inp)
     wid = "elcss01"
     html = (f"<style>.elementor-element-{wid}{{display:none !important}}{css}</style>")
     widget = {"id": wid, "elType": "widget", "widgetType": "html",
               "settings": {"html": html}, "elements": []}
-    def attach(nodes, is_root=False):
-        for n in nodes:
-            hit = (target_id == "@root" and is_root) or \
-                  (target_id.startswith("@id:") and n.get("id") == target_id[4:])
-            if hit:
-                n.setdefault("elements", [])
-                n["elements"] = [e for e in n["elements"] if e.get("id") != wid]
-                n["elements"].append(widget); return True
-            if attach(n.get("elements", [])): return True
-        return False
+    if target_id != "@root" and not target_id.startswith("@id:"):
+        print(f"bad target {target_id!r}: use '@root' or '@id:<elementId>'"); return 1
+    def strip(nodes):
+        kept = [n for n in nodes if n.get("id") != wid]
+        for n in kept:
+            if "elements" in n: n["elements"] = strip(n["elements"])
+        return kept
+    d = strip(d)
+    if not d:
+        print("no top-level element to attach to"); return 1
     if target_id == "@root":
-        d[0].setdefault("elements", []).append(widget)
-    elif not attach(d, True):
-        print(f"target {target_id} not found"); return 1
+        target = d[0]
+    else:
+        target = next((n for n in _walk(d) if n.get("id") == target_id[4:]), None)
+        if target is None:
+            print(f"target {target_id} not found"); return 1
+    target.setdefault("elements", []).append(widget)
     json.dump(d, open(outp, "w"))
     print(f"wrote {outp} (html-widget {wid} with scoped <style>)")
     return 0

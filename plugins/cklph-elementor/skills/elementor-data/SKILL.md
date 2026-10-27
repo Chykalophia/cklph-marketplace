@@ -29,6 +29,9 @@ generate anything; write it through the slash-safe path; always regenerate CSS a
 
 ## Read → understand → write (with cklph-wp's `cwp`)
 
+`el-tools.py` = `${CLAUDE_PLUGIN_ROOT}/scripts/el-tools.py`. `cwp` is cklph-wp's script and must be on
+PATH (cklph-wp README, "Running `cwp`"); otherwise use its full path in the cklph-wp plugin.
+
 ```bash
 cwp meta-read 218 _elementor_data raw.txt
 el-tools.py tree    raw.txt     # the container/widget tree + key settings

@@ -15,8 +15,10 @@ channel that *always* works: drop one **html widget** carrying a scoped `<style>
 itself `display:none`). Target elements by their stable id class `.elementor-element-<id>`.
 
 ```bash
-el-tools.py add-style in.json out.json '@root' '.elementor-element-1ca2054b{--row-gap:12px!important}'
+${CLAUDE_PLUGIN_ROOT}/scripts/el-tools.py add-style in.json out.json '@root' '.elementor-element-1ca2054b{--row-gap:12px!important}'
 ```
+
+There is one style widget per document: re-running `add-style` replaces it (pass the full CSS each time).
 
 The `<style>` applies even though the widget is hidden. This is how you reach containers, pseudo-
 elements, third-party widget internals, and per-breakpoint rules.
@@ -24,13 +26,9 @@ elements, third-party widget internals, and per-breakpoint rules.
 ## Get the control name right — read the widget source
 
 Guessing setting keys wastes time (they're often non-obvious: it's `button_bg_color`, not
-`button_background_color`; `dropdown`, `alignment`, `layout`). Read the widget PHP and grep the
-`add_control(` IDs:
-
-```bash
-cwp wp eval 'echo WP_PLUGIN_DIR;'    # -> /www/wp-content/plugins
-cwp wp eval 'echo "";'  # then: ssh host "grep -nE \"add_control\(|'\''name'\'' =>\" /www/.../widgets/product-add-to-cart.php"
-```
+`button_background_color`; `dropdown`, `alignment`, `layout`). Grep the installed widget PHP for its
+`add_control(` IDs; the procedure lives in the `version-docs` skill (cklph-wp), section 2. Keys already
+found that way are listed in @references/css-gotchas.md.
 
 Global colors/typography reference via `settings.__globals__`, e.g.
 `"__globals__": {"typography_typography": "globals/typography?id=0e3c4db"}` — never hardcode a hex
