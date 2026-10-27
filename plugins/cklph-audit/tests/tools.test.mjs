@@ -121,7 +121,7 @@ console.log('supplychain.sh');
   const sb = sandbox({ semgrep: `${lastArgDirGuard}\ncat <<'EOF'\n${OUT}\nEOF` });
   const wf = path.join(sb.root, 'repo', '.github', 'workflows');
   fs.mkdirSync(wf, { recursive: true });
-  fs.copyFileSync(path.join(PLUGIN, 'fixtures/supply-chain/should-flag/deploy.yml'), path.join(wf, 'deploy.yml'));
+  fs.copyFileSync(path.join(PLUGIN, 'fixtures/supply-chain/should-flag/.github/workflows/deploy.yml'), path.join(wf, 'deploy.yml'));
   const out = lines(sb.run('supplychain.sh', ['repo']).stdout);
   const tools = out.map(f => f.tool).sort().join(',');
   ok(out.some(f => f.tool === 'semgrep-ci'), `semgrep-ci finding parsed (relative target) — the parser was a SyntaxError before (${tools})`);
@@ -455,6 +455,33 @@ console.log('cpg.sh Joern target');
   const log2 = fs.existsSync(path.join(sb.root, 'jq.log')) ? fs.readFileSync(path.join(sb.root, 'jq.log'), 'utf8') : '';
   ok(/cpg\.call\.name\("exec"\)/.test(log2), 'a plain function name still reaches joern-query');
   sb.done();
+}
+
+// ── container.sh: no image named → no guessing from `docker images` ─
+console.log('container.sh image selection');
+{
+  const sb = sandbox({
+    docker: 'printf "%s\\n" "$*" >> "$HOME/docker.log"; [ "$1" = images ] && echo "unrelated/app:latest"; exit 0',
+    trivy: 'printf "%s\\n" "$*" >> "$HOME/trivy.log"; echo "{\\"Results\\":[]}"',
+  });
+  fs.mkdirSync(path.join(sb.root, 'app'));
+  const r = sb.run('container.sh', ['app']);
+  const dockerLog = fs.existsSync(path.join(sb.root, 'docker.log')) ? fs.readFileSync(path.join(sb.root, 'docker.log'), 'utf8') : '';
+  const trivyLog = fs.existsSync(path.join(sb.root, 'trivy.log')) ? fs.readFileSync(path.join(sb.root, 'trivy.log'), 'utf8') : '';
+  ok(!/^images/m.test(dockerLog) && !/unrelated\/app/.test(trivyLog), 'no image argument → docker images is never consulted and no unrelated image is scanned');
+  ok(/no image named/.test(r.stderr), 'no image argument → stderr says the image scan was skipped');
+  sb.run('container.sh', ['app', 'mine:1']);
+  const trivyLog2 = fs.existsSync(path.join(sb.root, 'trivy.log')) ? fs.readFileSync(path.join(sb.root, 'trivy.log'), 'utf8') : '';
+  ok(/mine:1/.test(trivyLog2), 'an explicit image is still scanned');
+  sb.done();
+}
+
+// ── supply-chain fixtures sit where supplychain.sh looks (.github/workflows) ─
+console.log('supply-chain fixtures');
+{
+  for (const d of ['should-flag', 'should-not-flag']) {
+    ok(fs.existsSync(path.join(PLUGIN, 'fixtures/supply-chain', d, '.github/workflows/deploy.yml')), `fixtures/supply-chain/${d} keeps its workflow under .github/workflows`);
+  }
 }
 
 console.log(failed === 0 ? '\n✓ ALL TOOL TESTS PASSED' : `\n✗ ${failed} tool test(s) failed`);

@@ -7,7 +7,7 @@ description: The container/OCI lens — vulnerable base images, secrets baked in
 
 You are the **judgment layer** of a three-layer pipeline.
 
-1. **Deterministic tool → recall.** Run `${CLAUDE_PLUGIN_ROOT}/tools/container.sh` — wraps Trivy image scan, Grype, dive (layer inspection), hadolint (Dockerfile linting). Emits JSON lines: `{ tool, rule, severity, image, layer, package, cve, rationale }`.
+1. **Deterministic tool → recall.** Run `"${CLAUDE_PLUGIN_ROOT}/tools/container.sh" <root> [image]` — wraps Trivy image scan, Grype, dive (layer inspection), hadolint (Dockerfile linting). Emits JSON lines: `{ tool, rule, severity, image, layer, package, cve, rationale }`. The image scan runs only for an image you name: find this repo's own tag (compose `image:`, a Makefile or CI `docker build -t`) and pass it if that image exists locally (`docker image inspect <tag>`). Never pick one from `docker images`; an unrelated image's CVEs are not this repo's. With no image, only the Dockerfiles are linted: say so in coverage.
 2. **You (reviewer LLM) → judgment.** Strip base-image noise (Alpine has hundreds of CVEs, most not reachable), judge real exposure, check for secrets in layers, privileged/root misconfig.
 3. **Verifier → precision.** A separate `audit-verifier` refutes every finding.
 
