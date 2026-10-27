@@ -113,13 +113,14 @@ cklph-marketplace/
 │   │   ├── skills/                   # start-here + flow + phases + support + daily-rhythm + learn
 │   │   ├── agents/                   # cklph-implementer · cklph-reviewer · red-team
 │   │   ├── commands/                 # /cklph-os:flow + per-phase commands
+│   │   ├── CHANGELOG.md              # cklph-os version history
 │   │   └── hooks/                    # pre-commit-gate · nextjs-quality-check · security-check · destructive-command-gate · skill-usage-log
 │   ├── cklph-nextjs/                 # Next.js + Supabase house style (17 skills)
 │   └── …                             # one directory per plugin in marketplace.json
 ├── templates/                        # AGENTS.md · CLAUDE.md · STATE.md starters
 ├── test/                             # bats tests for the hooks
 ├── STANDARD.md                       # the spec everything follows
-└── CHANGELOG.md                      # cklph-os version history (siblings have their own under plugins/<name>/CHANGELOG.md)
+└── CHANGELOG.md                      # marketplace-level events only (each plugin has plugins/<name>/CHANGELOG.md)
 ```
 
 Each plugin has its own `plugin.json`, `README.md`, and `CHANGELOG.md` inside its `plugins/<name>/` directory.
