@@ -106,7 +106,8 @@ export function getLatestScan() {
 export function getWPScanCache(type, name, version) {
     const d = getDb();
     const row = d
-        .prepare(`SELECT data_json, cached_at FROM wpscan_cache WHERE type = ? AND name = ? AND version IS ?`)
+        .prepare(`SELECT data_json, cached_at FROM wpscan_cache WHERE type = ? AND name = ? AND version IS ?
+       ORDER BY cached_at DESC, rowid DESC LIMIT 1`)
         .get(type, name, version ?? null);
     if (!row)
         return null;
@@ -114,7 +115,12 @@ export function getWPScanCache(type, name, version) {
 }
 export function setWPScanCache(type, name, version, data) {
     const d = getDb();
-    d.prepare(`INSERT OR REPLACE INTO wpscan_cache (type, name, version, data_json, cached_at)
-     VALUES (?, ?, ?, ?, datetime('now'))`).run(type, name, version ?? null, JSON.stringify(data));
+    // The primary key includes the nullable `version`, and NULLs never collide, so INSERT OR
+    // REPLACE alone piles up rows for unversioned lookups. Delete the old row(s) explicitly.
+    d.transaction(() => {
+        d.prepare(`DELETE FROM wpscan_cache WHERE type = ? AND name = ? AND version IS ?`).run(type, name, version ?? null);
+        d.prepare(`INSERT INTO wpscan_cache (type, name, version, data_json, cached_at)
+       VALUES (?, ?, ?, ?, datetime('now'))`).run(type, name, version ?? null, JSON.stringify(data));
+    })();
 }
 //# sourceMappingURL=db.js.map

@@ -203,7 +203,8 @@ export function getWPScanCache(
   const d = getDb();
   const row = d
     .prepare(
-      `SELECT data_json, cached_at FROM wpscan_cache WHERE type = ? AND name = ? AND version IS ?`,
+      `SELECT data_json, cached_at FROM wpscan_cache WHERE type = ? AND name = ? AND version IS ?
+       ORDER BY cached_at DESC, rowid DESC LIMIT 1`,
     )
     .get(type, name, version ?? null) as
     | { data_json: string; cached_at: string }
@@ -220,8 +221,17 @@ export function setWPScanCache(
   data: unknown,
 ): void {
   const d = getDb();
-  d.prepare(
-    `INSERT OR REPLACE INTO wpscan_cache (type, name, version, data_json, cached_at)
-     VALUES (?, ?, ?, ?, datetime('now'))`,
-  ).run(type, name, version ?? null, JSON.stringify(data));
+  // The primary key includes the nullable `version`, and NULLs never collide, so INSERT OR
+  // REPLACE alone piles up rows for unversioned lookups. Delete the old row(s) explicitly.
+  d.transaction(() => {
+    d.prepare(`DELETE FROM wpscan_cache WHERE type = ? AND name = ? AND version IS ?`).run(
+      type,
+      name,
+      version ?? null,
+    );
+    d.prepare(
+      `INSERT INTO wpscan_cache (type, name, version, data_json, cached_at)
+       VALUES (?, ?, ?, ?, datetime('now'))`,
+    ).run(type, name, version ?? null, JSON.stringify(data));
+  })();
 }
