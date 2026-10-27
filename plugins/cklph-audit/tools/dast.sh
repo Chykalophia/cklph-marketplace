@@ -50,19 +50,45 @@ if command -v zap-cli >/dev/null 2>&1; then
         }) + "\n");
     });' || true
 elif command -v docker >/dev/null 2>&1; then
-  # ZAP via Docker (softwaresecurityproject/zap-stable)
-  docker run --rm --network=host softwaresecurityproject/zap-stable:latest \
-    zap-baseline.py -t "$URL" -J /dev/stdout 2>/dev/null | node -e '
-      let raw=""; process.stdin.on("data",d=>raw+=d); process.stdin.on("end",()=>{
-        let r={}; try{r=JSON.parse(raw);}catch{}
-        for (const s of (r.site||[]))
-          for (const a of (s.alerts||[]))
-            process.stdout.write(JSON.stringify({
-              tool: "zap", rule: a.pluginid || "zap", severity: a.riskcode?.toLowerCase() || "medium",
-              url: a.instances?.[0]?.uri || "", method: a.instances?.[0]?.method || "",
-              param: a.instances?.[0]?.param || "", evidence: a.desc || ""
-            }) + "\n");
-      });' || true
+  # ZAP via Docker (zaproxy/zap-stable). Same isolation as exploit-runner.sh: a throwaway
+  # user-defined bridge network, never --network=host, so the scanner does not share the
+  # host's network namespace. The target is reached through the host gateway, so a localhost
+  # URL is rewritten to host.docker.internal. On Linux a target bound only to 127.0.0.1 is then
+  # unreachable: bind it to 0.0.0.0 (or the bridge address).
+  # LIMIT (documented, not enforced): a bridge network does not firewall egress. The scanner
+  # can still reach the internet and any port the host exposes on the gateway interface (and,
+  # on Docker Desktop, the host's loopback services). Scan only a disposable target.
+  ZAP_URL="$URL"
+  ZAP_URL="${ZAP_URL/:\/\/localhost/://host.docker.internal}"
+  ZAP_URL="${ZAP_URL/:\/\/127.0.0.1/://host.docker.internal}"
+  ZAP_NET="cklph-dast-$$-$RANDOM"
+  # zap-baseline.py writes -J reports only under /zap/wrk, and refuses to run when it is not
+  # mounted. The zap user (uid 1000) must be able to write there.
+  ZAP_WRK=$(mktemp -d)
+  chmod 777 "$ZAP_WRK"
+  if docker network create --driver bridge "$ZAP_NET" >/dev/null 2>&1; then
+    docker run --rm --network "$ZAP_NET" \
+      --add-host=host.docker.internal:host-gateway \
+      -v "$ZAP_WRK:/zap/wrk:rw" \
+      zaproxy/zap-stable:latest \
+      zap-baseline.py -t "$ZAP_URL" -J report.json >/dev/null 2>&1 || true
+    docker network rm "$ZAP_NET" >/dev/null 2>&1 || true
+    # riskcode is "0".."3"; map it to FINDINGS_SCHEMA's words. The schema has no "info", so
+    # ZAP's informational alerts (0) become low.
+    [ -s "$ZAP_WRK/report.json" ] && node -e '
+      let r={}; try{r=JSON.parse(require("fs").readFileSync(process.argv[1],"utf8"));}catch{}
+      const sev={"3":"high","2":"medium","1":"low","0":"low"};
+      for (const s of (r.site||[]))
+        for (const a of (s.alerts||[]))
+          process.stdout.write(JSON.stringify({
+            tool: "zap", rule: a.pluginid || "zap", severity: sev[a.riskcode] || "medium",
+            url: a.instances?.[0]?.uri || "", method: a.instances?.[0]?.method || "",
+            param: a.instances?.[0]?.param || "", evidence: a.desc || ""
+          }) + "\n");' "$ZAP_WRK/report.json" || true
+  else
+    echo "could not create an isolated docker network; refusing to fall back to host networking. ZAP skipped." >&2
+  fi
+  rm -rf "$ZAP_WRK"
 fi
 
 # ── Nuclei (template-based scanning) ─────────────────────────────────────────
@@ -74,8 +100,8 @@ if command -v nuclei >/dev/null 2>&1; then
       process.stdout.write(JSON.stringify({
         tool: "nuclei", rule: r["template-id"] || "nuclei",
         severity: (r.info?.severity||"medium").toLowerCase(),
-        url: r.matched-at || r.host || "", method: "", param: "",
-        evidence: r.matcher-name || r["template-id"] || ""
+        url: r["matched-at"] || r.host || "", method: "", param: "",
+        evidence: r["matcher-name"] || r["template-id"] || ""
       }) + "\n");' "$line" || true
   done
 fi

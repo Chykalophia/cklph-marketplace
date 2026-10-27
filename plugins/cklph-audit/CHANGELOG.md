@@ -3,6 +3,21 @@
 All notable changes to `cklph-audit` are documented here. This project adheres to
 [Semantic Versioning](https://semver.org/).
 
+## 1.2.2 — 2026-10-26
+
+### Fixed
+- **DAST ZAP scan (`tools/dast.sh`)** — the Docker path never produced a result: the image
+  `softwaresecurityproject/zap-stable` does not exist (now `zaproxy/zap-stable`), and
+  `zap-baseline.py -J /dev/stdout` refuses to run without `/zap/wrk` mounted (it now writes
+  `report.json` into a mounted temp dir and reads it back). It also ran with `--network=host`;
+  it now uses a throwaway bridge network with `host.docker.internal`, the same isolation as
+  `exploit-runner.sh`, and skips ZAP rather than fall back to host networking. ZAP `riskcode`
+  (`"0"`..`"3"`) is mapped to FINDINGS_SCHEMA severities instead of being passed through as a
+  digit; informational alerts become `low`. Verified against a local target: 10 findings, network
+  removed afterwards.
+- **DAST Nuclei parsing** — `r.matched-at` / `r.matcher-name` parsed as subtraction and threw
+  `ReferenceError`, so every Nuclei result was silently dropped; now bracket access.
+
 ## 1.2.1 — 2026-10-26
 
 ### Fixed
