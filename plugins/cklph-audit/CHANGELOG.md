@@ -13,8 +13,15 @@ All notable changes to `cklph-audit` are documented here. This project adheres t
   it now uses a throwaway bridge network with `host.docker.internal`, the same isolation as
   `exploit-runner.sh`, and skips ZAP rather than fall back to host networking. ZAP `riskcode`
   (`"0"`..`"3"`) is mapped to FINDINGS_SCHEMA severities instead of being passed through as a
-  digit; informational alerts become `low`. Verified against a local target: 10 findings, network
-  removed afterwards.
+  digit; informational alerts become `low`. `evidence` is the alert name plus the matched
+  request/response string (or ZAP's per-instance note), not the generic rule description. A
+  failed scan (exit 3 or no report) now says so on stderr instead of looking like a clean
+  target. The container, network and report dir are removed on exit, TERM or INT (the
+  container is named so it can be stopped; the docker CLI dying does not stop it). The report
+  dir is world-writable for ZAP's uid but sits inside a private 0700 dir. Documented: a dev
+  server with a host allowlist (Vite) must allow `host.docker.internal`. Verified against a
+  local target: 9 findings; an unreachable target reports the failure; a TERM mid-scan leaves no
+  container or network.
 - **DAST Nuclei parsing** — `r.matched-at` / `r.matcher-name` parsed as subtraction and threw
   `ReferenceError`, so every Nuclei result was silently dropped; now bracket access.
 
