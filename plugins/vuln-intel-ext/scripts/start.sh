@@ -15,4 +15,16 @@ if [ ! -d "node_modules" ]; then
   }
 fi
 
+# node_modules can exist without the native binding: a plugin installer that copies node_modules or
+# installs with scripts disabled leaves better-sqlite3 unbuilt, and the dir check above then skips
+# the install forever ("Could not locate the bindings file", server never starts). Check that the
+# binding actually loads, and rebuild it once if not.
+if ! node -e 'new (require("better-sqlite3"))(":memory:").close()' >/dev/null 2>&1; then
+  echo "[vuln-intel-ext] better-sqlite3 native binding missing or unloadable: rebuilding..." >&2
+  npm rebuild better-sqlite3 >&2 2>&1 && node -e 'new (require("better-sqlite3"))(":memory:").close()' >/dev/null 2>&1 || {
+    echo "[vuln-intel-ext] better-sqlite3 could not be built for Node $(node --version). Needs Node 20.x or 22.x-26.x and a C compiler; try: cd $PLUGIN_DIR && npm rebuild better-sqlite3" >&2
+    exit 1
+  }
+fi
+
 exec node dist/index.js

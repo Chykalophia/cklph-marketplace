@@ -1,7 +1,7 @@
 {
   "name": "vuln-intel-ext",
   "description": "Sidecar MCP server extending cve-mcp with diff_since (what new CVEs hit my deps since my last scan), dependency snapshots, feed status, and WordPress vulnerability lookup. Powered by OSV.dev (30+ ecosystems, no API key required).",
-  "version": "1.0.3",
+  "version": "1.0.4",
   "author": {
     "name": "Peter Krzyzek"
   }
