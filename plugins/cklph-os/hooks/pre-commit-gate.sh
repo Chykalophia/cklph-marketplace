@@ -147,36 +147,12 @@ local_bin() {
     return 1
 }
 
-# `git commit -a` / `-am` / `--all` stages tracked changes only when git runs, after this hook, so
-# the index alone misses them (before 0.12.3 an -am commit skipped ESLint and Semgrep). Read the
-# commit's own arguments (up to the next separator) for a short-option cluster that has `a` before
-# any option taking a value (m F c C t), or --all. Words inside a quoted -m message can false-match:
-# that only lints a few more files, never fewer.
-COMMIT_ARGS="${ONE_LINE#*"$INVOCATION"}"
-COMMIT_ARGS="${COMMIT_ARGS%%[;&|]*}"
-ALL=0
-set -f   # split the words, never glob them
-for w in $COMMIT_ARGS; do
-    case "$w" in
-        --all) ALL=1 ;;
-        --*) ;;
-        -*) w="${w#-}"; w="${w%%[mFcCt]*}"; case "$w" in *a*) ALL=1 ;; esac ;;
-    esac
-done
-set +f
-# changed_files <pathspec…>: NUL-delimited ACM files this commit will include.
-changed_files() {
-    git diff --cached -z --name-only --diff-filter=ACM -- "$@" 2>/dev/null
-    [ "$ALL" = 1 ] && git diff -z --name-only --diff-filter=ACM -- "$@" 2>/dev/null
-    return 0
-}
-
 # One private report file per run (fixed /tmp names collided across concurrent sessions).
 GATE_LOG=$(mktemp "${TMPDIR:-/tmp}/cklph-gate.XXXXXX") || GATE_LOG=/dev/null
 trap '[ "$GATE_LOG" != /dev/null ] && rm -f "$GATE_LOG"' EXIT
 
-# Committed TS/TSX files (presence check). Reused by ESLint and Semgrep below.
-HAS_STAGED=$(changed_files '*.ts' '*.tsx' | tr '\0' '\n')
+# Staged TS/TSX files (presence check). Reused by ESLint and Semgrep below.
+HAS_STAGED=$(git diff --cached --name-only --diff-filter=ACM -- '*.ts' '*.tsx' 2>/dev/null)
 
 # 1. TypeScript type check — only when this is a TS project AND tsc is installed locally.
 #    A missing tsconfig or missing compiler SKIPS (never blocks); the repo's own gate enforces strictly.
@@ -203,7 +179,7 @@ echo "--- ESLint Check ---"
 ESLINT_BIN=$(local_bin eslint || true)
 ESLINT_MAX_WARNINGS="${CKLPH_ESLINT_MAX_WARNINGS:-0}"
 if [ -n "$HAS_STAGED" ] && [ -n "$ESLINT_BIN" ]; then
-    if ! changed_files '*.ts' '*.tsx' \
+    if ! git diff --cached -z --name-only --diff-filter=ACM -- '*.ts' '*.tsx' \
         | xargs -0 "$ESLINT_BIN" --max-warnings="$ESLINT_MAX_WARNINGS" > "$GATE_LOG" 2>&1; then
         echo "FAIL: ESLint errors found" >&2
         tail -5 "$GATE_LOG" >&2
@@ -220,7 +196,7 @@ fi
 # 3. Semgrep custom rules (staged files only; requires both semgrep AND a .semgrep/ config dir).
 echo "--- Semgrep Check ---"
 if command -v semgrep >/dev/null 2>&1 && [ -d .semgrep ] && [ -n "$HAS_STAGED" ]; then
-    if ! changed_files '*.ts' '*.tsx' \
+    if ! git diff --cached -z --name-only --diff-filter=ACM -- '*.ts' '*.tsx' \
         | xargs -0 semgrep scan --config .semgrep/ --severity ERROR --quiet --error > "$GATE_LOG" 2>&1; then
         echo "FAIL: Semgrep ERROR-level findings" >&2
         tail -10 "$GATE_LOG" >&2
@@ -239,7 +215,7 @@ fi
 # 4. cklph skill description sanity — colon-space inside a frontmatter description value re-parses
 #    as a nested YAML key and breaks plugin loading. Real previously-hit bug; prevent regression.
 echo "--- Skill Description Sanity ---"
-STAGED_SKILLS=$(changed_files '*SKILL.md' | tr '\0' '\n')
+STAGED_SKILLS=$(git diff --cached --name-only --diff-filter=ACM -- '*SKILL.md' 2>/dev/null || true)
 if [ -n "$STAGED_SKILLS" ]; then
     DESC_BAD=0
     while IFS= read -r f; do
@@ -247,7 +223,12 @@ if [ -n "$STAGED_SKILLS" ]; then
         # Pull the description value (line after `description:`), check for ": " (colon-space).
         desc_val=$(awk '/^description:/{sub(/^description:[ ]*/, ""); print; exit}' "$f")
         # A quoted scalar may contain ": " (valid YAML); only a plain scalar re-parses as a key.
-        case "$desc_val" in \"*|\'*) continue ;; esac
+        # Skip it only when the quote is closed on the same line (optionally followed by a
+        # comment): an unterminated quote is broken frontmatter and falls through to the check.
+        desc_val="${desc_val%"${desc_val##*[![:space:]]}"}"
+        case "$desc_val" in
+            \"*\"|\'*\'|\"*\"[[:space:]]#*|\'*\'[[:space:]]#*) continue ;;
+        esac
         if printf '%s' "$desc_val" | grep -q ': '; then
             echo "FAIL: $f has colon-space inside description value (breaks YAML loading)" >&2
             DESC_BAD=1

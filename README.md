@@ -25,7 +25,7 @@
 
 | Plugin | What it does | When you want it |
 | --- | --- | --- |
-| **`cklph-os`** | Dev-workflow spine — phase loop (`refine → survey → spec → plan → build → review → verify → ship`), three adversarial agents (`cklph-implementer` / `cklph-reviewer` / `red-team`), daily-rhythm primitives (`triage` · `decide` · `daily-frame` · `weekly-review`), self-improvement loop (`learn`), skill hygiene (`stocktake` + a local usage log), and quality-gate hooks, including a destructive-command gate. | **Always.** This is the core. |
+| **`cklph-os`** | Dev-workflow spine — phase loop (`refine → spec → plan → build → review → verify → ship`, plus `survey` run by hand for scope gaps), three adversarial agents (`cklph-implementer` / `cklph-reviewer` / `red-team`), daily-rhythm primitives (`triage` · `decide` · `daily-frame` · `weekly-review`), self-improvement loop (`learn`), skill hygiene (`stocktake` + a local usage log), and quality-gate hooks, including a destructive-command gate. | **Always.** This is the core. |
 | **`cklph-nextjs`** | Opinionated Next.js + Supabase patterns layered on top of the official `vercel:*` skills — layered `lib/` architecture, mutation security checklist, data-layer abstraction rules, 12 review pitfalls, full stack coverage. | If you work in Next.js + Supabase repos. |
 
 ---
@@ -60,12 +60,11 @@ Restart your CLI after install so the skills load.
 
 ## 🔧 The build flow (`cklph-os`)
 
-Eight composable phases — run one standalone, or chain them with the orchestrator.
+Seven composable phases — run one standalone, or chain them with the orchestrator.
 
 | Phase | Command | Does |
 | --- | --- | --- |
 | refine | `/cklph-os:refine` | sharpen a vague idea *(optional)* |
-| survey | `/cklph-os:survey` | gap-fill across users / devices / edges / cross-cutting concerns |
 | spec | `/cklph-os:spec` | requirements + acceptance criteria |
 | plan | `/cklph-os:plan` | decompose into a wave task-graph |
 | build | `/cklph-os:build` | execute via sub-agent waves |
@@ -76,6 +75,9 @@ Eight composable phases — run one standalone, or chain them with the orchestra
 > [!TIP]
 > **`/cklph-os:flow <goal>`** runs the whole loop and asks your mode first:
 > **full-agentic** · **partial** · **interactive**.
+
+`survey` (gap-fill across users / devices / edges / cross-cutting concerns) is not a `flow` phase:
+invoke the `cklph-os:survey` skill yourself between `refine` and `spec` when the scope has gaps.
 
 ---
 

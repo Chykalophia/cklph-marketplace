@@ -7,8 +7,22 @@ set -uo pipefail
 # Resolve the edited file path. Prefer the JSON payload on stdin (modern hook
 # contract); fall back to the legacy env var, then a positional arg. The legacy
 # CLAUDE_TOOL_FILE_PATH env var is not reliably set, so stdin is the source of truth.
+# The payload is read with jq, else python3 (stdlib json), as destructive-command-gate does.
 INPUT=$(cat 2>/dev/null || true)
-FILE_PATH=$(printf '%s' "$INPUT" | jq -r '.tool_input.file_path // empty' 2>/dev/null)
+FILE_PATH=""
+if command -v jq >/dev/null 2>&1; then
+    FILE_PATH=$(printf '%s' "$INPUT" | jq -r '.tool_input.file_path // empty' 2>/dev/null) || FILE_PATH=""
+elif command -v python3 >/dev/null 2>&1; then
+    FILE_PATH=$(printf '%s' "$INPUT" | python3 -I -c '
+import json, sys
+try:
+    d = json.load(sys.stdin)
+    p = (d.get("tool_input") or {}).get("file_path") or ""
+    sys.stdout.write(p if isinstance(p, str) else "")
+except Exception:
+    pass
+' 2>/dev/null) || FILE_PATH=""
+fi
 if [[ -z "$FILE_PATH" ]]; then
     FILE_PATH="${CLAUDE_TOOL_FILE_PATH:-${1:-}}"
 fi
@@ -20,9 +34,9 @@ fi
 # How Claude sees the result. On PostToolUse, exit-0 stdout goes to the debug log and exit-0
 # stderr is never shown, so before 0.12.3 every warning here was invisible to Claude. Warnings are
 # collected in REPORT and returned as JSON hookSpecificOutput.additionalContext (shown to Claude
-# next to the tool result, exit 0, nothing blocked). Without jq there is no safe way to build that
-# JSON, so the fallback is stderr + exit 2, which PostToolUse also shows to Claude (the tool has
-# already run, so exit 2 cannot block it either).
+# next to the tool result, exit 0, nothing blocked). Without jq (path read via python3 above) the
+# fallback is stderr + exit 2, which PostToolUse also shows to Claude (the tool has already run, so
+# exit 2 cannot block it either).
 WARNINGS=0
 REPORT="Security Check: $FILE_PATH"
 warn() { REPORT="$REPORT"$'\n'"$1"; WARNINGS=$((WARNINGS + 1)); }

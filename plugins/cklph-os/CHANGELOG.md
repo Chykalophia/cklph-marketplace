@@ -2,7 +2,8 @@
 
 All notable changes to cklph-os are documented here.
 Format: [Keep a Changelog](https://keepachangelog.com); versioning follows [SemVer](https://semver.org).
-Moved here from the repo root on 2026-10-27; the root CHANGELOG now records marketplace events only.
+Moved here from the repo root on 2026-10-27; marketplace and repo-level events (repo rename, sibling
+plugins, the marketplace manifest) live in the root CHANGELOG.
 
 ## [0.12.3] — 2026-10-27
 
@@ -14,14 +15,15 @@ Fixes from a quality survey of the plugin.
   successful call). The App Router rules now need an `app/` path segment, so `webapp/src/x.ts` no
   longer gets them, and the external-link check no longer prints matched lines.
 - `security-check` warnings went to stderr with exit 0, which Claude never sees on PostToolUse. They
-  now come back as `hookSpecificOutput.additionalContext` (exit 0, nothing blocked); without jq the
-  fallback is stderr + exit 2, which PostToolUse also shows to Claude.
+  now come back as `hookSpecificOutput.additionalContext` (exit 0, nothing blocked). Without jq the
+  payload's `file_path` is read with python3 (as `destructive-command-gate` does) and the report
+  goes to stderr with exit 2, which PostToolUse also shows to Claude.
 - `pre-commit-gate`: a quoted `description:` containing `: ` (valid YAML) no longer blocks the
-  commit. `git commit -a` / `-am` / `--all` now checks the tracked changes git is about to stage
-  (ESLint, Semgrep and the description check used to see only the index). Reports go to a per-run
-  temp file, not fixed `/tmp/*-gate.txt` names shared across sessions.
+  commit; the quote must close on that line, so an unterminated one is still checked. Reports go
+  to a per-run temp file, not fixed `/tmp/*-gate.txt` names shared across sessions.
 - Tests: the bats payloads are real Write/Edit shapes (no fake `"success":true`); new cases for each
-  fix fail on the 0.12.2 hooks.
+  fix fail on the 0.12.2 hooks. The warning-count assertion keeps optional scanners off PATH, and the
+  command/skill sync test fails on a command with no same-named skill instead of skipping it.
 
 ### Changed — commands and skills
 - The eight commands share names with the phase skills, which hides each skill's description. Each
@@ -32,7 +34,7 @@ Fixes from a quality survey of the plugin.
   carrying a copy that had dropped the explicit-decision-logic item, and `plan` points at it for the
   loop limit.
 - `weekly-review` defers to `learn` (memory prune) and `stocktake` / STANDARD §10 (prune rules)
-  instead of restating them.
+  instead of restating them; stocktake's report is reviewed with Peter, who decides what to act on.
 - Call sites for skills only `start-here` routed to: `debugging` and `browser-debug` from `verify`,
   `simplify` from `review`, `frontend-ui` and `performance` from `build`, `writing` from `ship`,
   `harness-limits` from `flow`.
@@ -269,15 +271,6 @@ Adapted from: ECC `skills/skill-stocktake` + `skills/skill-comply` (MIT), commit
   every task." Behavior unchanged; only the trigger name, frontmatter `name:`, and body header
   changed. Cross-references in `learn`, `handoff`, `survey`, and `STANDARD.md` updated.
 
-### Notes (repo-level, not plugin-specific)
-- The hosting **GitHub repo was renamed** from `Chykalophia/cklph-os` → `Chykalophia/cklph-marketplace`.
-  Better reflects what it is — a marketplace hosting several plugins, not a single plugin named
-  after its first child. GitHub provides
-  a redirect from the old URL; existing marketplace registrations continue to work, but the
-  canonical URL is now the new one.
-- **README rewritten** to reflect the marketplace structure (one repo, four plugins) instead of
-  the original "cklph-os is a plugin" framing. Old README confused fresh-Monday-morning users.
-
 ## [0.8.6] — 2026-05-31
 
 ### Added
@@ -386,13 +379,6 @@ Adapted from: ECC `skills/skill-stocktake` + `skills/skill-comply` (MIT), commit
 - **Principles surface** — `using-cklph` now opens with a tight 5-principle block (Lean / Boring-wins /
   DRY / Spine-not-walled-garden / Evidence-over-vibes) so values are unmissable before any
   skill-routing decision. Surfaced from `STANDARD.md`, inspired by next-forge's principles-front-and-center pattern.
-
-### Sibling plugin launched
-- **`cklph-nextjs` v0.1.0** — Peter's opinionated Next.js + Supabase patterns now live in a sibling
-  plugin in the same `cklph` marketplace. Auto-loads across his Next.js + Supabase repos
-  (every cklph-stack repo), **composing with `vercel:*` framework
-  skills rather than replacing them**. Install: `claude plugin install cklph-nextjs@cklph`. See
-  `plugins/cklph-nextjs/CHANGELOG.md` for its own version log.
 
 ## [0.8.0] — 2026-05-30
 
@@ -507,13 +493,7 @@ Adapted from: ECC `skills/skill-stocktake` + `skills/skill-comply` (MIT), commit
 
 ## [0.5.1] — 2026-05-29
 
-### Changed
-- **Privacy:** scrubbed internal/client project names from docs (and history) — generic placeholders now.
-  The public repo is the shareable core.
-
-### Added
-- **Private overlay** — `private/` (gitignored except its README) for personal/internal/client skills,
-  refs, and notes; documented the user-level private layer (`~/.claude/skills/`, `~/.claude/memory/GLOBAL.md`).
+Repo-level only (privacy scrub, `private/` overlay); see the root `CHANGELOG.md`, 2026-05-29.
 
 ## [0.5.0] — 2026-05-29
 
@@ -602,7 +582,6 @@ Adapted from: ECC `skills/skill-stocktake` + `skills/skill-comply` (MIT), commit
   - `nextjs-quality-check.sh` (advisory; exit 2 surfaces findings to Claude)
   - `security-check.sh` (advisory secret scan; reads file path from stdin)
   - `pre-commit-gate.sh` (blocks `git commit` on tsc/ESLint/Semgrep errors)
-- Personal `cklph` marketplace manifest.
 - `STANDARD.md` (the spec), `AGENTS.md` / `CLAUDE.md` / `STATE.md` templates, and a `bats` hook test suite.
 
 ### Notes

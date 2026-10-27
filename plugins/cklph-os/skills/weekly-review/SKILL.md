@@ -24,7 +24,8 @@ Run `learn`'s "Prune stale memory" flow (it owns the delete / update / promote s
 `MEMORY.md` silently truncating at line 200.
 
 ## Skill hygiene (5 min)
-Invoke `stocktake` and act on its report; it applies the prune rules (STANDARD.md §10 owns them).
+Invoke `stocktake` and review its report with Peter; he decides whether to act on any recommendation
+(stocktake only recommends; STANDARD.md §10 owns the prune rules).
 This step is what makes the Measure and Prune stages of the skill lifecycle actually happen; don't skip it.
 
 ## Anti-pattern

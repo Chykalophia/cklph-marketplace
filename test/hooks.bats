@@ -81,7 +81,10 @@ edit_payload() {  # edit_payload <file>
 @test "security-check: a warning reaches Claude as PostToolUse additionalContext (exit 0)" {
   command -v jq >/dev/null || skip "jq required"
   printf 'const k = "AKIAIOSFODNN7EXAMPLE";\n' > "$TMP/secret.ts"
-  run bash "$HOOKS/security-check.sh" <<< "$(write_payload "$TMP/secret.ts")"
+  # Optional scanners (gitleaks, bandit) add to the count; keep them off PATH so it is exact.
+  mkdir -p "$TMP/bin"
+  for b in cat grep cut tr jq; do ln -s "$(command -v "$b")" "$TMP/bin/$b"; done
+  run env PATH="$TMP/bin" "$BASH" "$HOOKS/security-check.sh" <<< "$(write_payload "$TMP/secret.ts")"
   [ "$status" -eq 0 ]
   run jq -r 'select(.hookSpecificOutput.hookEventName == "PostToolUse") | .hookSpecificOutput.additionalContext' <<< "$output"
   [ "$status" -eq 0 ]
@@ -96,6 +99,17 @@ edit_payload() {  # edit_payload <file>
   printf 'const k = "AKIAIOSFODNN7EXAMPLE";\n' > "$TMP/secret.ts"
   run env PATH="$TMP/bin" "$BASH" "$HOOKS/security-check.sh" "$TMP/secret.ts" </dev/null
   [ "$status" -eq 2 ]
+  has "AKIA...) detected (line 1)"
+}
+
+@test "security-check: without jq the path is read from the real stdin payload via python3 (exit 2)" {
+  command -v python3 >/dev/null || skip "python3 required"
+  mkdir -p "$TMP/bin"
+  for b in cat grep cut tr python3; do ln -s "$(command -v "$b")" "$TMP/bin/$b"; done
+  printf 'const k = "AKIAIOSFODNN7EXAMPLE";\n' > "$TMP/secret.ts"
+  run env PATH="$TMP/bin" "$BASH" "$HOOKS/security-check.sh" <<< "$(write_payload "$TMP/secret.ts")"
+  [ "$status" -eq 2 ]
+  has "Security Check: $TMP/secret.ts"
   has "AKIA...) detected (line 1)"
 }
 
@@ -234,21 +248,17 @@ gate() {  # gate <command> [payload cwd, default $TMP/elsewhere]
   has "PASS: Skill descriptions clean"
 }
 
-@test "pre-commit-gate: 'git commit -am' checks tracked changes the index does not hold yet (exit 2)" {
-  REPO="$TMP/repo"; mkdir -p "$REPO/skills/x" "$TMP/elsewhere"
+@test "pre-commit-gate: an unterminated quoted description containing ': ' still fails (exit 2)" {
+  REPO="$TMP/repo"; mkdir -p "$REPO/skills/u" "$TMP/elsewhere"
   git -C "$REPO" init -q
-  printf -- '---\nname: x\ndescription: fine\n---\n' > "$REPO/skills/x/SKILL.md"
+  printf -- '---\nname: u\ndescription: "Use when: the quote never closes\n---\n' > "$REPO/skills/u/SKILL.md"
   git -C "$REPO" add skills
-  git -C "$REPO" -c user.name=t -c user.email=t@example.invalid commit -qm init
-  printf -- '---\nname: x\ndescription: Use when: things break\n---\n' > "$REPO/skills/x/SKILL.md"
   gate "git -C $REPO commit -m x"
-  [ "$status" -eq 0 ]
-  gate "git -C $REPO commit -am x"
   [ "$status" -eq 2 ]
   has "colon-space"
-  gate "git -C $REPO commit --all -m x"
-  [ "$status" -eq 2 ]
-  gate "git -C $REPO commit -m 'a' -v"
+  printf -- "---\nname: u\ndescription: 'Use when: closed' # note\n---\n" > "$REPO/skills/u/SKILL.md"
+  git -C "$REPO" add skills
+  gate "git -C $REPO commit -m x"
   [ "$status" -eq 0 ]
 }
 
@@ -307,6 +317,7 @@ bad = []
 for cmd in sorted((root / "commands").glob("*.md")):
     skill = root / "skills" / cmd.stem / "SKILL.md"
     if not skill.exists():
+        bad.append(cmd.name + ": missing matching skill " + str(skill.relative_to(root)))
         continue
     d = lambda t: re.search(r"^description:[ ]*(.*)$", t, re.M).group(1)
     text = cmd.read_text()
