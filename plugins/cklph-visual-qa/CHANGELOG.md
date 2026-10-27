@@ -14,6 +14,10 @@ Format: [Keep a Changelog](https://keepachangelog.com); versioning follows [SemV
 - Docs say `shot` is logged out (it can't capture drafts or `?preview=true`), call it as
   `${CLAUDE_PLUGIN_ROOT}/scripts/shot`, and the README says how to put it on PATH. README heading no
   longer carries a stale version number.
+- `shot probe` also flags elements past the LEFT viewport edge (`r.left < -3`), not just the right,
+  and prints each offender's left/right; `overflow=0` now means neither edge.
+- `visual-verify` and `visual-reviewer` examples call `${CLAUDE_PLUGIN_ROOT}/scripts/shot` instead of
+  bare `shot`.
 
 ## [0.1.0] — 2026-06-09
 

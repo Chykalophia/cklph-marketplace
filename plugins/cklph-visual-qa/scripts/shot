@@ -9,7 +9,7 @@
 #   shot <url> <out.png> [WIDTHxHEIGHT] [scale]   capture a URL (default 1440x2000, scale 1)
 #   shot crop <in.png> <out.png> WxH+X+Y [pct]    crop a region (coords are in the PNG's pixels)
 #   shot probe                                     print a JS overflow-probe <script> to inject into the page;
-#                                                  it lists elements wider than the viewport in a banner
+#                                                  it lists elements past either viewport edge in a banner
 #
 # Notes:
 #   - Headless Chrome CLAMPS its window to ~500px minimum. A "375" capture renders at 500px and the
@@ -38,7 +38,7 @@ case "$sub" in
   probe)
     # Takes no arguments: it only prints a script. Older docs passed <url> [width]; accept and say so.
     [ $# -gt 1 ] && echo "shot probe: arguments ignored (it prints a script; inject it, then capture the page)" >&2
-    js='setTimeout(function(){var vw=document.documentElement.clientWidth,o=[];document.querySelectorAll("body *").forEach(function(e){var r=e.getBoundingClientRect();if(r.right>vw+3){o.push(e.tagName+"."+(e.className||"").toString().split(" ").slice(0,2).join(".")+" w="+Math.round(r.width));}});var b=document.createElement("div");b.style.cssText="position:fixed;top:0;left:0;right:0;z-index:99999;background:#fff;color:#000;font:11px monospace;padding:6px;white-space:pre-wrap;border-bottom:3px solid red";b.textContent="VW="+vw+" docW="+document.documentElement.scrollWidth+" overflow="+o.length+"\n"+o.slice(0,12).join("\n");document.body.appendChild(b);},2500);'
+    js='setTimeout(function(){var vw=document.documentElement.clientWidth,o=[];document.querySelectorAll("body *").forEach(function(e){var r=e.getBoundingClientRect();if(r.right>vw+3||r.left<-3){o.push(e.tagName+"."+(e.className||"").toString().split(" ").slice(0,2).join(".")+" w="+Math.round(r.width)+" l="+Math.round(r.left)+" r="+Math.round(r.right));}});var b=document.createElement("div");b.style.cssText="position:fixed;top:0;left:0;right:0;z-index:99999;background:#fff;color:#000;font:11px monospace;padding:6px;white-space:pre-wrap;border-bottom:3px solid red";b.textContent="VW="+vw+" docW="+document.documentElement.scrollWidth+" overflow="+o.length+"\n"+o.slice(0,12).join("\n");document.body.appendChild(b);},2500);'
     echo "shot probe: paste this <script> via your styling channel, then capture the top of the page:" >&2
     echo "<script>$js</script>" ;;
   *)

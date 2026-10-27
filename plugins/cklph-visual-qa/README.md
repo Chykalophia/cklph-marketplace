@@ -15,7 +15,7 @@ chase phantoms (Chrome's 500px window clamp, CDN cache, CSS-load races).
 |---|---|
 | `visual-verify` (skill) | After any UI/styling change; matching a design pixel-for-pixel; proving "it should look like X". |
 | `visual-reviewer` (agent) | Adversarial pass — assumes the page does NOT match until pixels prove it; returns a ranked delta list. |
-| `scripts/shot` | `shot <url> <out> [WxH] [scale]`, `shot crop <in> <out> WxH+X+Y [pct]`, `shot probe` (prints the overflow-probe script). |
+| `scripts/shot` | `shot <url> <out> [WxH] [scale]`, `shot crop <in> <out> WxH+X+Y [pct]`, `shot probe` (prints the overflow-probe script; flags elements past either viewport edge). |
 
 Capturing needs Google Chrome/Chromium (override with `CKLPH_CHROME`); `crop` needs ImageMagick
 (`magick`); `probe` needs neither.

@@ -7,7 +7,7 @@ description: Connect Claude Code to a remote WordPress site via wp-cli over SSH,
 
 Reach WordPress through **wp-cli over an SSH host alias**. By default `cwp` opens a **fresh connection
 per command and closes it** — secure (no shared socket to ride), at some speed cost. Opt into bounded
-multiplexing with `CKLPH_WP_MUX=1` when you need throughput on a trusted machine. Never hardcode the
+multiplexing with `CKLPH_WP_MUX=1` (exactly `1`; any other value leaves it off) when you need throughput on a trusted machine. Never hardcode the
 host in scripts — drive it from `CKLPH_WP_HOST`. Verify the key is authorized and `wp-cli` is present
 **before** reading or writing.
 
@@ -36,9 +36,10 @@ speed (a fresh connection per call) and possible **rate limiting on managed host
 `profile` or a screenshot loop makes many calls).
 
 ### Opt into multiplexing for speed — on a machine you trust
-`CKLPH_WP_MUX=1` reuses one connection per host — but **security-bounded**, because an open
-authenticated socket is a standing risk (same-user processes can ride it with no re-auth, and a
-compromised machine has a live pipe to the host):
+`CKLPH_WP_MUX=1` reuses one connection per host. Only the exact value `1` turns it on: unset, empty,
+`0` or anything else keeps the default (and a value other than empty/`0`/`1` prints a warning). It is
+**security-bounded**, because an open authenticated socket is a standing risk (same-user processes
+can ride it with no re-auth, and a compromised machine has a live pipe to the host):
 
 - **Idle close** — `CKLPH_WP_PERSIST` (90s): closes shortly after the last call.
 - **Hard cap** — `CKLPH_WP_MAXLIFE` (600s): rotates the connection (close + fresh-auth reopen) past the cap.
@@ -46,9 +47,9 @@ compromised machine has a live pipe to the host):
 
 Set it per-project in the `./.cklph-wp` config file when you need the speed. Then:
 ```bash
-cwp up        # open the master now
-cwp status    # ALIVE/closed + age + time until it rotates/closes
-cwp down      # close it — DO THIS when you finish a session
+${CLAUDE_PLUGIN_ROOT}/scripts/cwp up        # open the master now
+${CLAUDE_PLUGIN_ROOT}/scripts/cwp status    # ALIVE/closed + age + time until it rotates/closes
+${CLAUDE_PLUGIN_ROOT}/scripts/cwp down      # close it — DO THIS when you finish a session
 ```
 Don't raise the limits to hours — short-lived is the point.
 
@@ -81,8 +82,9 @@ ${CLAUDE_PLUGIN_ROOT}/scripts/cwp wp post list --post_type=page --fields=ID,post
 ${CLAUDE_PLUGIN_ROOT}/scripts/cwp meta-write 218 _some_key payload.json   # protected-safe write
 ```
 
-Other skills write this as bare `cwp`; it resolves only if `scripts/` is on PATH (cklph-wp README,
-"Running `cwp`"). Otherwise use the `${CLAUDE_PLUGIN_ROOT}/scripts/cwp` form above. `cwp wp ...` quotes
+Examples in this plugin's skills use the `${CLAUDE_PLUGIN_ROOT}/scripts/cwp` form. Other plugins'
+skills call bare `cwp`, which resolves only if this plugin's `scripts/` is on PATH (cklph-wp README,
+"Running `cwp`"). `cwp wp ...` quotes
 each argument for the remote shell, so local quoting (`--post_title='Two Words'`) survives.
 
 The wrapper filters the host's harmless PHP notices and uses the protected-meta write path that

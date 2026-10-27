@@ -16,6 +16,13 @@ Format: [Keep a Changelog](https://keepachangelog.com); versioning follows [SemV
   since a draft can't be screenshotted logged out (publish scoped to one test object, staging only).
 - Scripts are referenced as `${CLAUDE_PLUGIN_ROOT}/scripts/el-tools.py`; the README says how to put
   `el-tools.py` and cklph-wp's `cwp` on PATH. README heading no longer carries a stale version number.
+- `add-style` removes only its own style widget (id `elcss01` AND `elType` widget AND `widgetType`
+  html). If any other element already uses that id it refuses and writes nothing, since the style's
+  `display:none` would hide it. Fixture checks: `bash tests/el-tools.test.sh`.
+- `elementor-templates` / `elementor-data`: runnable examples call
+  `${CLAUDE_PLUGIN_ROOT}/scripts/el-tools.py`; `cwp` (cklph-wp) is stated up front as needing PATH.
+  Shipping the safe copy now regenerates the conditions cache again after moving the real condition,
+  and checks the real URL, before the test object is deleted.
 
 ## [0.1.1] — 2026-10-26
 

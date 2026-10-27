@@ -35,7 +35,8 @@ forced-command shell** in front of wp-cli. Each one cost real debugging time —
   widget `src`. Host a real file and reference its URL.
 - Write the file into the shared webroot, then reference the public URL:
   - Generate a PHP file locally with the bytes base64-embedded, `cwp put` it to
-    `/www/wp-content/uploads/x.php`, then `cwp wp eval-file /www/wp-content/uploads/x.php` to
+    `/www/wp-content/uploads/x.php`, then
+    `${CLAUDE_PLUGIN_ROOT}/scripts/cwp wp eval-file /www/wp-content/uploads/x.php` to
     `file_put_contents()` the decoded bytes next to it. Reference `https://site/wp-content/uploads/icon.png`.
   - `wp media import` from a **separate** SSH connection often fails because the source temp file
     landed on a different backend — do upload+import in one connection, or write straight to the webroot.

@@ -14,6 +14,10 @@ Format: [Keep a Changelog](https://keepachangelog.com); versioning follows [SemV
 - `tokenize` points at `./.cklph-wp.d/site-profile.md` for per-site notes (cklph-wp 0.3.1 layout).
 - The README says how to put `cwp`, `el-tools.py` and `shot` on PATH, since the skills call them by
   bare name. README heading no longer carries a stale version number.
+- `translate` step 7 (Ship) regenerates the Elementor conditions cache after moving the display
+  condition and confirms the real URL renders the new template before deleting the test object.
+- `translate` / `tokenize` say why the other plugins' scripts need PATH (`${CLAUDE_PLUGIN_ROOT}` points
+  at this plugin); the README fallback says "absolute path" instead of "full path".
 
 ## [0.1.0] — 2026-06-09
 

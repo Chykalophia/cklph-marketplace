@@ -25,8 +25,10 @@ html-widget `<style>` channel; idempotent, re-running replaces the earlier style
 
 ### Running the scripts (PATH)
 
-Skills here call `${CLAUDE_PLUGIN_ROOT}/scripts/el-tools.py`, and `cwp` from **cklph-wp** by bare name,
-which needs cklph-wp's `scripts/` on PATH (see the cklph-wp README, "Running `cwp`"). To type the short
+Every runnable example in these skills calls this plugin's script as
+`${CLAUDE_PLUGIN_ROOT}/scripts/el-tools.py`. `cwp` comes from **cklph-wp** and is called by bare name
+(`${CLAUDE_PLUGIN_ROOT}` points at this plugin, not cklph-wp), so it needs cklph-wp's `scripts/` on
+PATH (see the cklph-wp README, "Running `cwp`"). To type the short
 names yourself, once:
 
 ```bash

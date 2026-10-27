@@ -16,10 +16,10 @@ The `.d` matters: `./.cklph-wp` is the connection-config **file** that `cwp` sou
 be a directory (if it is, `cwp` loads no config and warns).
 
 ## Generate the baseline
-`cwp` = `${CLAUDE_PLUGIN_ROOT}/scripts/cwp` (or bare `cwp` once it is on PATH; see the README).
+Examples call `${CLAUDE_PLUGIN_ROOT}/scripts/cwp`; bare `cwp` in prose is the same script.
 
 ```bash
-mkdir -p .cklph-wp.d && cwp profile > .cklph-wp.d/site-profile.md
+mkdir -p .cklph-wp.d && ${CLAUDE_PLUGIN_ROOT}/scripts/cwp profile > .cklph-wp.d/site-profile.md
 ```
 That snapshots versions, active plugins (with versions), the active theme, post types, taxonomies, and
 Elementor/WooCommerce facts. Then fill in the by-hand sections — these are the high-value parts:
@@ -34,8 +34,9 @@ Custom fields live in meta, but *which* keys and *how to fill them* depends on t
 webroot eval-file pattern (PHP with `$vars` can't go on the `cwp eval` command line):
 
 ```php
-// .cklph-wp.d/probe.php  →  cwp put .cklph-wp.d/probe.php /www/wp-content/uploads/probe.php
-//                          cwp wp eval-file /www/wp-content/uploads/probe.php   (then delete it)
+// .cklph-wp.d/probe.php. Upload it, run it, then delete it:
+//   ${CLAUDE_PLUGIN_ROOT}/scripts/cwp put .cklph-wp.d/probe.php /www/wp-content/uploads/probe.php
+//   ${CLAUDE_PLUGIN_ROOT}/scripts/cwp wp eval-file /www/wp-content/uploads/probe.php
 if (function_exists('acf_get_field_groups')) {
   foreach (acf_get_field_groups() as $g) {
     echo "GROUP {$g['title']} ({$g['key']})\n";

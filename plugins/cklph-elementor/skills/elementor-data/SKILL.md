@@ -29,15 +29,16 @@ generate anything; write it through the slash-safe path; always regenerate CSS a
 
 ## Read → understand → write (with cklph-wp's `cwp`)
 
-`el-tools.py` = `${CLAUDE_PLUGIN_ROOT}/scripts/el-tools.py`. `cwp` is cklph-wp's script and must be on
-PATH (cklph-wp README, "Running `cwp`"); otherwise use its full path in the cklph-wp plugin.
+`el-tools.py` is this plugin's script, called below as `${CLAUDE_PLUGIN_ROOT}/scripts/el-tools.py`.
+`cwp` is cklph-wp's script; `${CLAUDE_PLUGIN_ROOT}` points here, not at cklph-wp, so `cwp` must be on
+PATH (cklph-wp README, "Running `cwp`") or called by its absolute path in the cklph-wp install.
 
 ```bash
 cwp meta-read 218 _elementor_data raw.txt
-el-tools.py tree    raw.txt     # the container/widget tree + key settings
-el-tools.py widgets raw.txt     # widget census — what this site actually uses
+${CLAUDE_PLUGIN_ROOT}/scripts/el-tools.py tree    raw.txt     # the container/widget tree + key settings
+${CLAUDE_PLUGIN_ROOT}/scripts/el-tools.py widgets raw.txt     # widget census — what this site actually uses
 # ...generate/patch into new.json...
-el-tools.py validate new.json
+${CLAUDE_PLUGIN_ROOT}/scripts/el-tools.py validate new.json
 cwp meta-write 218 _elementor_data new.json
 cwp wp elementor flush-css      # REQUIRED — regenerate CSS or changes won't render (try flush_css if that errors)
 ```
@@ -57,6 +58,6 @@ designed. Reuse over invention.
 
 ## When a written layout doesn't render
 1. Did you `flush-css`? Most common cause.
-2. Is the JSON valid + slash-clean? `el-tools.py validate`, then re-read and diff.
+2. Is the JSON valid + slash-clean? `${CLAUDE_PLUGIN_ROOT}/scripts/el-tools.py validate`, then re-read and diff.
 3. Is it a theme-builder **template** with no display conditions? See `elementor-templates`.
 4. CDN cache — fetch with `?v=…`.

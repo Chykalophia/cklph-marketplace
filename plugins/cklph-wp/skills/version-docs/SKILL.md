@@ -11,18 +11,19 @@ against the most authoritative source available — which, on a live site, is us
 source itself**.
 
 ## 1. Know the versions
-From `cwp profile` / the site profile (`cwp wp plugin list --status=active --fields=name,version`).
+From `cwp profile` / the site profile
+(`${CLAUDE_PLUGIN_ROOT}/scripts/cwp wp plugin list --status=active --fields=name,version`).
 Record them; every API decision is relative to these.
 
 ## 2. The installed source is the ground truth
 The code on the server **is** the version. For exact control names, hook names, function signatures,
 markup, and CSS selectors, **read it** — no doc is more accurate:
 
-`cwp` = `${CLAUDE_PLUGIN_ROOT}/scripts/cwp` (or bare `cwp` once it is on PATH; see the README).
+Examples call `${CLAUDE_PLUGIN_ROOT}/scripts/cwp`; bare `cwp` in prose is the same script.
 
 ```bash
-cwp eval 'echo WP_PLUGIN_DIR;'         # -> /www/wp-content/plugins
-cwp shell                              # then grep/sed the actual file:
+${CLAUDE_PLUGIN_ROOT}/scripts/cwp eval 'echo WP_PLUGIN_DIR;'         # -> /www/wp-content/plugins
+${CLAUDE_PLUGIN_ROOT}/scripts/cwp shell                              # then grep/sed the actual file:
 #   grep -nE "add_control\(|'name' =>" .../elementor-pro/modules/woocommerce/widgets/<widget>.php
 #   grep -rn "function the_thing"      .../<plugin>/includes/
 ```
@@ -42,7 +43,7 @@ For how an API is *meant* to be used (not just its signature), fetch current doc
 ## 4. When in doubt, verify on the install
 If a function/hook may not exist in this version, probe it before relying on it:
 ```bash
-cwp eval 'var_dump(function_exists("acf_get_field_groups"), class_exists("WooCommerce"));'
+${CLAUDE_PLUGIN_ROOT}/scripts/cwp eval 'var_dump(function_exists("acf_get_field_groups"), class_exists("WooCommerce"));'
 ```
 
 ## The rule

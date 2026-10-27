@@ -22,7 +22,7 @@ meta, and `wp_slash()` semantics.
 **Script:** `scripts/cwp` — env-driven wp-cli wrapper (`CKLPH_WP_HOST` = an `~/.ssh/config` alias).
 **Secure by default: no shared SSH socket** — a fresh connection per command, so nothing persists for
 another same-user process to ride. Opt into bounded multiplexing for speed on a trusted machine with
-`CKLPH_WP_MUX=1` (idle-close `CKLPH_WP_PERSIST` 90s, hard cap `CKLPH_WP_MAXLIFE` 600s w/ auto-rotate +
+`CKLPH_WP_MUX=1`, exactly `1` (idle-close `CKLPH_WP_PERSIST` 90s, hard cap `CKLPH_WP_MAXLIFE` 600s w/ auto-rotate +
 watchdog; `cwp down` when done). Commands: `up`/`status`/`down` (connection), `wp` (passthrough),
 `env`, `profile`, `meta-read`, `meta-write` (protected-safe), `eval`, `put`, `shell`.
 
@@ -44,7 +44,8 @@ PATH. Do this once, using the directory where this plugin is installed:
 export PATH="<cklph-wp plugin dir>/scripts:$PATH"   # e.g. in ~/.zshrc; or symlink scripts/cwp into ~/bin
 ```
 
-Without it, call `scripts/cwp` by its full path. `cwp wp ...` quotes each argument for the remote
+Without it, call it by its absolute path, `<cklph-wp plugin dir>/scripts/cwp` (inside a cklph-wp
+skill that is `${CLAUDE_PLUGIN_ROOT}/scripts/cwp`; `scripts/cwp` alone only works from the plugin dir). `cwp wp ...` quotes each argument for the remote
 shell, so write `cwp wp post update 12 --post_title='Two Words'` exactly as you would locally.
 
 ## Composes with

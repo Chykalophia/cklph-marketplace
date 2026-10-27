@@ -22,7 +22,8 @@ updates everywhere, for free.
 
 ## 2. Mirror existing-page conventions
 
-`el-tools.py tree` / `widgets` two or three existing pages before authoring. Match **their** choices:
+`el-tools.py tree` / `widgets` (cklph-elementor's script; on PATH per this plugin's README, "Scripts on
+PATH") two or three existing pages before authoring. Match **their** choices:
 which widget renders a button (theme widget vs Pro widget), how containers nest, which dynamic
 WooCommerce/ACF widgets they use. **Patch the read-back JSON** of a comparable section rather than
 writing a fresh tree — you inherit the conventions automatically.

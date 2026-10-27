@@ -7,8 +7,9 @@ description: Run the end-to-end Figma-to-Elementor translation of a specific fra
 
 Execute the build as a gated loop. Don't generate the whole page and hope — build the section, write
 it, **look at it**, fix, move on. Invoke the focused skills by name at each step (see `start-here`).
-`cwp`, `el-tools.py` and `shot` come from cklph-wp, cklph-elementor and cklph-visual-qa and must be on
-PATH (see `start-here`).
+`cwp`, `el-tools.py` and `shot` come from cklph-wp, cklph-elementor and cklph-visual-qa. This plugin's
+`${CLAUDE_PLUGIN_ROOT}` points here, not at them, so they must be on PATH (this plugin's README,
+"Scripts on PATH").
 
 ## Steps
 
@@ -41,8 +42,10 @@ PATH (see `start-here`).
    collapse). Re-verify each breakpoint.
 
 7. **Ship.** Once every breakpoint matches, move the real display condition onto the new template
-   (or write the layout onto the live one) and delete the test page/product. Confirm on the real
-   front-end URL, cache-busted.
+   (or write the layout onto the live one), then **regenerate the conditions cache** (the
+   `elementor-templates` "Display conditions + cache" command) so the new routing takes effect.
+   Confirm on the real front-end URL, cache-busted, with the `data-elementor-id` check from
+   `elementor-templates`. Only then delete the test page/product.
 
 ## Guardrails
 - **A live template controls every matching page** — never edit it blind; use the safe copy, confirm,

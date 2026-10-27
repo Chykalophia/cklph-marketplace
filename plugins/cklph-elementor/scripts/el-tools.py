@@ -19,6 +19,7 @@ Commands:
     add-style <in> <out> <target> <css>   inject/replace a hidden html-widget <style> (the reliable CSS channel)
                                           <target> = '@root' (first top-level element) or '@id:<elementId>'
                                           idempotent: an earlier style widget is replaced wherever it was
+                                          (only the html widget with id elcss01; refuses if another element uses that id)
 """
 import sys, json, collections
 
@@ -82,7 +83,9 @@ def add_style(inp, outp, target_id, css):
     CSS channel — per-element custom_css works for WIDGETS but NOT containers; an html-widget
     <style> applies regardless. target_id picks the element to append into (use '@root' for the
     top-level container, or '@id:<elementId>'). Idempotent: every existing copy of the style
-    widget is removed from the whole tree first, so re-runs and target moves never duplicate it."""
+    widget (id elcss01, elType widget, widgetType html) is removed from the whole tree first, so
+    re-runs and target moves never duplicate it. Other elements are never removed; if one already
+    uses the id, nothing is written (the style's display:none would hide it)."""
     d = _load(inp)
     wid = "elcss01"
     html = (f"<style>.elementor-element-{wid}{{display:none !important}}{css}</style>")
@@ -90,12 +93,22 @@ def add_style(inp, outp, target_id, css):
               "settings": {"html": html}, "elements": []}
     if target_id != "@root" and not target_id.startswith("@id:"):
         print(f"bad target {target_id!r}: use '@root' or '@id:<elementId>'"); return 1
+    def is_style(n):
+        # only OUR generated widget: same id AND an html widget. Any other element that happens to
+        # use this id (a container, a heading) is left alone.
+        return n.get("id") == wid and n.get("elType") == "widget" and n.get("widgetType") == "html"
     def strip(nodes):
-        kept = [n for n in nodes if n.get("id") != wid]
+        kept = [n for n in nodes if not is_style(n)]
         for n in kept:
             if "elements" in n: n["elements"] = strip(n["elements"])
         return kept
     d = strip(d)
+    clash = [n for n in _walk(d) if n.get("id") == wid]
+    if clash:
+        # the style hides .elementor-element-elcss01, so sharing the id would hide that element too
+        print(f"id {wid} is already used by a non-style element "
+              f"(elType={clash[0].get('elType')!r}, widgetType={clash[0].get('widgetType')!r}); "
+              f"left it untouched and wrote nothing. Rename that element's id first."); return 1
     if not d:
         print("no top-level element to attach to"); return 1
     if target_id == "@root":

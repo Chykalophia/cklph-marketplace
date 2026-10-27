@@ -25,6 +25,14 @@ Format: [Keep a Changelog](https://keepachangelog.com); versioning follows [SemV
 - Docs use `cwp eval '<php>'` and `${CLAUDE_PLUGIN_ROOT}/scripts/cwp`; the README says how to put
   `cwp` on PATH for other plugins. `version-docs` section 2 is now the single home for "read control
   names from the installed source". README heading no longer carries a stale version number.
+- **`CKLPH_WP_MUX` is strict.** Multiplexing turns on only for exactly `CKLPH_WP_MUX=1`. Before, any
+  non-empty value (including `0`) enabled it; now unset, empty, `0` or anything else keeps the
+  no-shared-socket default, and an unrecognized value prints a warning. `CKLPH_WP_PERSIST` /
+  `CKLPH_WP_MAXLIFE` must be whole seconds (they are interpolated into the watchdog command).
+- Meta keys may not start with `-` (wp-cli would read `--debug` as an option, not a key).
+- Local checks with a fake `ssh` on PATH (MUX values, key validation): `bash tests/cwp.test.sh`.
+- Every runnable example in this plugin's skills calls `${CLAUDE_PLUGIN_ROOT}/scripts/cwp`; the README
+  fallback is the absolute install path (`scripts/cwp` alone only works from the plugin dir).
 
 ## [0.3.0] — 2026-06-09
 

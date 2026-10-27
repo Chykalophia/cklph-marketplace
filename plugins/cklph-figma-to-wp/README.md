@@ -31,7 +31,7 @@ Install all four; the pipeline assumes them. Each is also useful standalone — 
 
 This plugin ships no scripts; its skills call the other plugins' scripts by bare name: `cwp`
 (cklph-wp), `el-tools.py` (cklph-elementor) and `shot` (cklph-visual-qa). Put each plugin's
-`scripts/` directory on PATH once, as each of those READMEs describes, or call the scripts by full path:
+`scripts/` directory on PATH once, as each of those READMEs describes, or call each by its absolute path in that plugin's install directory:
 
 ```bash
 export PATH="<cklph-wp dir>/scripts:<cklph-elementor dir>/scripts:<cklph-visual-qa dir>/scripts:$PATH"

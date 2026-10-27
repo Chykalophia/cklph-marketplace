@@ -47,14 +47,23 @@ _denoise(){ grep -v -e "fileperms()" -e "stat failed for" -e "Could not reliably
 _now(){ date +%s; }
 _die(){ echo "cwp: $*" >&2; exit 2; }
 _need_id(){ [[ "${1:-}" =~ ^[0-9]+$ ]] || _die "expected a numeric post ID, got '${1:-}'"; }
-_need_key(){ [[ "${1:-}" =~ ^[A-Za-z0-9_.:-]+$ ]] || _die "meta key must match [A-Za-z0-9_.:-]+, got '${1:-}'"; }
+# A key may not START with '-': wp-cli would read it as an option, not the key.
+_need_key(){ [[ "${1:-}" =~ ^[A-Za-z0-9_.:][A-Za-z0-9_.:-]*$ ]] || _die "meta key must match [A-Za-z0-9_.:][A-Za-z0-9_.:-]*, got '${1:-}'"; }
 # Quote ONE word for the remote shell: ssh joins its args into a single string that the
 # remote shell re-parses, so every user-supplied word must be quoted or it re-splits.
 # POSIX single quotes ('...' with each ' -> '\'') work in any remote sh, unlike printf %q.
 _q(){ local sq="'" bs="\\"; local s="${1//$sq/$sq$bs$sq$sq}"; printf '%s' "$sq$s$sq"; }
 _qargs(){ local a out=""; for a in "$@"; do out="$out $(_q "$a")"; done; printf '%s' "${out# }"; }
 
-if [ -z "${CKLPH_WP_MUX:-}" ]; then
+# Multiplexing is on ONLY for exactly CKLPH_WP_MUX=1. Anything else (unset, empty, 0, "no",
+# "true") keeps the secure default, and a value other than empty/0/1 gets a warning.
+case "${CKLPH_WP_MUX:-}" in
+  1) MUX=1 ;;
+  ''|0) MUX=0 ;;
+  *) MUX=0; echo "cwp: CKLPH_WP_MUX='${CKLPH_WP_MUX}' is not 1, so multiplexing stays OFF (set exactly 1 to enable)" >&2 ;;
+esac
+
+if [ "$MUX" != 1 ]; then
   # --- DEFAULT: no shared socket ------------------------------------------
   # Every command opens its own connection and closes it. Nothing persists for
   # another same-user process to ride. `ControlMaster=no` overrides any mux in
@@ -65,6 +74,8 @@ else
   # --- CKLPH_WP_MUX=1: bounded multiplexing (opt-in, for speed) ------------
   PERSIST="${CKLPH_WP_PERSIST:-90}"          # seconds idle before the master auto-closes
   MAXLIFE="${CKLPH_WP_MAXLIFE:-600}"         # seconds — hard ceiling on one connection's lifetime
+  [[ "$PERSIST" =~ ^[0-9]+$ ]] || _die "CKLPH_WP_PERSIST must be whole seconds, got '$PERSIST'"
+  [[ "$MAXLIFE" =~ ^[1-9][0-9]*$ ]] || _die "CKLPH_WP_MAXLIFE must be whole seconds > 0, got '$MAXLIFE'"
   CM="${CKLPH_WP_CM:-$HOME/.ssh/cm-cwp-${HOST//[^a-zA-Z0-9]/_}}"
   SSH_OPTS=( -o BatchMode=yes -o ControlMaster=auto -o "ControlPath=$CM"
              -o "ControlPersist=${PERSIST}" -o ServerAliveInterval=30 -o ServerAliveCountMax=4 )
@@ -96,16 +107,16 @@ case "$sub" in help|-h|--help) :;; *) [ -n "$HOST" ] || _die "set CKLPH_WP_HOST 
 case "$sub" in
   # --- connection control --------------------------------------------------
   up)
-    if [ -z "${CKLPH_WP_MUX:-}" ]; then echo "no-mux (default): per-command connections — nothing to open" >&2
+    if [ "$MUX" != 1 ]; then echo "no-mux (default): per-command connections — nothing to open" >&2
     else _ensure; echo "master open ($HOST) — idle-close ${PERSIST}s, hard cap ${MAXLIFE}s" >&2; fi ;;
   status)
-    if [ -z "${CKLPH_WP_MUX:-}" ]; then echo "no-mux (default): no persistent socket (per-command connections)"
+    if [ "$MUX" != 1 ]; then echo "no-mux (default): no persistent socket (per-command connections)"
     elif _alive; then
       age=$(( $(_now) - $(cat "$CM.opened" 2>/dev/null || echo "$(_now)") ))
       echo "master ALIVE — age ${age}s · idle-close ${PERSIST}s · rotates/closes by ${MAXLIFE}s (in $((MAXLIFE-age))s)"
     else echo "master closed"; fi ;;
   down)
-    if [ -z "${CKLPH_WP_MUX:-}" ]; then echo "no-mux (default): nothing to close" >&2
+    if [ "$MUX" != 1 ]; then echo "no-mux (default): nothing to close" >&2
     else _close; echo "master closed" >&2; fi ;;
   shell)  _ensure; ssh "${SSH_OPTS[@]}" "$HOST" ;;
 
