@@ -26,6 +26,9 @@ Format: [Keep a Changelog](https://keepachangelog.com); versioning follows [SemV
 - **Visual check:** a missing current screenshot was a silent pass, because `probe.mjs` returned the
   path even when the screenshot failed and the visual check then skipped. The path is now `null` on
   failure, and a missing current screenshot is a `VR1` regression.
+- **Capture:** a failed *baseline* screenshot left `screenshotPath` out of the baseline, so every
+  re-check skipped `VR1` for that URL without saying so. With the visual check on, `capture.mjs`
+  now exits `2`, names each URL with no screenshot on stderr, and does not write `baseline.json`.
 - **Exit code:** `playwright` and `evaluate.mjs` loaded before the error guard, so a broken install
   exited `1` ("regressions found"). They now load inside it and a load failure exits `2`; the exit
   contract lives in a dependency-free `lib/exit.mjs`.

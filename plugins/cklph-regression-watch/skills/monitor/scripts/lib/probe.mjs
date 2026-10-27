@@ -64,7 +64,7 @@ export async function probeUrl(page, url, { masks = [], screenshotPath = null } 
     robots: dom.robots, h1Count: dom.h1s.length, h1: dom.h1s[0] || null,
     jsonLdCount: dom.jsonLdCount, analytics, requestCount: requests.length,
     consoleErrors: consoleErrors.length,
-    screenshotPath: shot, // null when the screenshot failed, so evaluate reports it
+    screenshotPath: shot, // null when the screenshot failed: evaluate reports it on re-check, capture.mjs fails on it
     maskBoxes,
   };
 }
