@@ -15,7 +15,7 @@ channel that *always* works: drop one **html widget** carrying a scoped `<style>
 itself `display:none`). Target elements by their stable id class `.elementor-element-<id>`.
 
 ```bash
-${CLAUDE_PLUGIN_ROOT}/scripts/el-tools.py add-style in.json out.json '@root' '.elementor-element-1ca2054b{--row-gap:12px!important}'
+"${CLAUDE_PLUGIN_ROOT}/scripts/el-tools.py" add-style in.json out.json '@root' '.elementor-element-1ca2054b{--row-gap:12px!important}'
 ```
 
 There is one style widget per document: re-running `add-style` replaces it (pass the full CSS each time).

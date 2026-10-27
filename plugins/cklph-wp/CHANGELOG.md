@@ -22,16 +22,21 @@ Format: [Keep a Changelog](https://keepachangelog.com); versioning follows [SemV
 - Stale "always multiplexed" wording in the `cwp` header and help, README, `wp-connect` and
   `hosting-gotchas` now matches the 0.3.0 default (fresh connection per command; `CKLPH_WP_MUX=1` for
   bounded multiplexing).
-- Docs use `cwp eval '<php>'` and `${CLAUDE_PLUGIN_ROOT}/scripts/cwp`; the README says how to put
+- Docs use `cwp eval '<php>'` and `"${CLAUDE_PLUGIN_ROOT}/scripts/cwp"`; the README says how to put
   `cwp` on PATH for other plugins. `version-docs` section 2 is now the single home for "read control
   names from the installed source". README heading no longer carries a stale version number.
 - **`CKLPH_WP_MUX` is strict.** Multiplexing turns on only for exactly `CKLPH_WP_MUX=1`. Before, any
   non-empty value (including `0`) enabled it; now unset, empty, `0` or anything else keeps the
-  no-shared-socket default, and an unrecognized value prints a warning. `CKLPH_WP_PERSIST` /
-  `CKLPH_WP_MAXLIFE` must be whole seconds (they are interpolated into the watchdog command).
+  no-shared-socket default, and an unrecognized value prints a warning. `CKLPH_WP_PERSIST` and
+  `CKLPH_WP_MAXLIFE` must be whole seconds greater than 0, checked before they are passed to
+  OpenSSH (`ControlPersist`) and the watchdog (`sleep`) respectively. `0` is rejected for both:
+  OpenSSH reads `ControlPersist=0` as "keep the master forever", which would defeat the idle-close.
 - Meta keys may not start with `-` (wp-cli would read `--debug` as an option, not a key).
-- Local checks with a fake `ssh` on PATH (MUX values, key validation): `bash tests/cwp.test.sh`.
-- Every runnable example in this plugin's skills calls `${CLAUDE_PLUGIN_ROOT}/scripts/cwp`; the README
+- Local checks with a fake `ssh` on PATH (MUX values, PERSIST/MAXLIFE validation, key validation and
+  the quoted key reaching ssh): `bash tests/cwp.test.sh`. The checks pin PERSIST/MAXLIFE, so values
+  exported in the caller's shell do not change the result.
+- Every runnable example in this plugin's skills calls `"${CLAUDE_PLUGIN_ROOT}/scripts/cwp"` (quoted, so
+  an install path containing spaces still works); the README
   fallback is the absolute install path (`scripts/cwp` alone only works from the plugin dir).
 
 ## [0.3.0] — 2026-06-09

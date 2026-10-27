@@ -23,17 +23,20 @@ want() {
     if [ "$2" = "$3" ]; then pass=$((pass + 1)); printf 'PASS  %s\n' "$1"
     else fail=$((fail + 1)); printf 'FAIL  %s (got %s, want %s)\n' "$1" "$2" "$3"; fi
 }
-# run_cwp <MUX value or "unset"> <args...>: runs cwp in an empty project dir with the fake ssh
+# run_cwp <MUX value or "unset"> <args...>: runs cwp in an empty project dir with the fake ssh.
+# PERSIST/MAXLIFE are pinned to known-valid values so a value inherited from the caller's shell
+# cannot fail the MUX checks before they test what they mean to; tests that need another value
+# pass it through EXTRA_ENV (e.g. EXTRA_ENV="CKLPH_WP_PERSIST=0").
 run_cwp() {
     local mux="$1"; shift
+    local muxenv=(CKLPH_WP_MUX="$mux")
+    [ "$mux" = unset ] && muxenv=()
     : > "$LOG"
-    if [ "$mux" = unset ]; then
-        (cd "$TMP/proj" && env -u CKLPH_WP_MUX PATH="$TMP/bin:$PATH" FAKE_SSH_LOG="$LOG" \
-            CKLPH_WP_HOST=fake-host CKLPH_WP_CM="$TMP/cm" CKLPH_WP_MAXLIFE=1 bash "$CWP" "$@")
-    else
-        (cd "$TMP/proj" && env PATH="$TMP/bin:$PATH" FAKE_SSH_LOG="$LOG" CKLPH_WP_MUX="$mux" \
-            CKLPH_WP_HOST=fake-host CKLPH_WP_CM="$TMP/cm" CKLPH_WP_MAXLIFE=1 bash "$CWP" "$@")
-    fi
+    # shellcheck disable=SC2086  # EXTRA_ENV is a deliberate list of VAR=value words
+    (cd "$TMP/proj" && env -u CKLPH_WP_MUX -u CKLPH_WP_PERSIST -u CKLPH_WP_MAXLIFE \
+        PATH="$TMP/bin:$PATH" FAKE_SSH_LOG="$LOG" ${muxenv[@]+"${muxenv[@]}"} \
+        CKLPH_WP_HOST=fake-host CKLPH_WP_CM="$TMP/cm" CKLPH_WP_PERSIST=60 CKLPH_WP_MAXLIFE=1 \
+        ${EXTRA_ENV:-} bash "$CWP" "$@")
 }
 cm_mode() { grep -o 'ControlMaster=[a-z]*' "$LOG" | sort -u | tr '\n' ' ' | sed 's/ $//'; }
 
@@ -53,14 +56,21 @@ want "MUX=1 -> bounded master" "$(cm_mode)" "ControlMaster=auto"
 want "MUX=1 opened the master (-fN)" "$(grep -c -- '-fN fake-host' "$LOG")" 1
 run_cwp 1 down >/dev/null 2>&1
 run_cwp 1 status >/dev/null 2>&1 || true
-(cd "$TMP/proj" && env PATH="$TMP/bin:$PATH" FAKE_SSH_LOG="$LOG" CKLPH_WP_MUX=1 CKLPH_WP_HOST=fake-host \
-    CKLPH_WP_CM="$TMP/cm" CKLPH_WP_MAXLIFE='5;id' bash "$CWP" up >/dev/null 2>&1)
-want "non-numeric CKLPH_WP_MAXLIFE rejected" "$?" 2
+for bad in "CKLPH_WP_MAXLIFE=5;id" CKLPH_WP_MAXLIFE=0 CKLPH_WP_PERSIST=0 CKLPH_WP_PERSIST=00 CKLPH_WP_PERSIST=-5; do
+    EXTRA_ENV="$bad" run_cwp 1 up >/dev/null 2>&1
+    want "$bad rejected (exit 2)" "$?" 2
+    want "$bad never reached ssh" "$(wc -l < "$LOG" | tr -d ' ')" 0
+done
+EXTRA_ENV="CKLPH_WP_PERSIST=45" run_cwp 1 up >/dev/null 2>&1
+want "PERSIST=45 accepted" "$?" 0
+want "PERSIST=45 passed to ssh as ControlPersist=45" "$(grep -o 'ControlPersist=[0-9]*' "$LOG" | sort -u)" "ControlPersist=45"
+run_cwp 1 down >/dev/null 2>&1
 
 echo "== meta keys"
 for k in _elementor_data my.key ns:key a-b; do
     run_cwp unset meta-read 12 "$k" >/dev/null 2>&1
     want "key '$k' accepted" "$?" 0
+    want "key '$k' reached ssh quoted" "$(grep -cF "wp post meta get 12 '$k'" "$LOG")" 1
 done
 for k in --debug -x 'x;touch y' 'a b'; do
     run_cwp unset meta-read 12 "$k" >/dev/null 2>&1

@@ -19,7 +19,7 @@ values are right in the code" is not evidence — only the rendered pixels are.
 
 ## Method
 1. **Capture** with this plugin's `shot` (headless Chrome + ImageMagick):
-   `${CLAUDE_PLUGIN_ROOT}/scripts/shot '<url>?v=<rand>' /tmp/r.png <WxH> <scale>`.
+   `"${CLAUDE_PLUGIN_ROOT}/scripts/shot" '<url>?v=<rand>' /tmp/r.png <WxH> <scale>`.
    Always cache-bust the URL. Capture each breakpoint that's in scope.
 2. **Crop to the section** at 2× and Read both the rendered crop and the design crop side by side.
 3. **Compare concretely**, in this order: element presence/order → alignment (do left/right edges line

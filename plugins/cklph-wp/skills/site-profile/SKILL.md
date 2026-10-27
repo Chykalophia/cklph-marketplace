@@ -16,10 +16,10 @@ The `.d` matters: `./.cklph-wp` is the connection-config **file** that `cwp` sou
 be a directory (if it is, `cwp` loads no config and warns).
 
 ## Generate the baseline
-Examples call `${CLAUDE_PLUGIN_ROOT}/scripts/cwp`; bare `cwp` in prose is the same script.
+Examples call `"${CLAUDE_PLUGIN_ROOT}/scripts/cwp"`; bare `cwp` in prose is the same script.
 
 ```bash
-mkdir -p .cklph-wp.d && ${CLAUDE_PLUGIN_ROOT}/scripts/cwp profile > .cklph-wp.d/site-profile.md
+mkdir -p .cklph-wp.d && "${CLAUDE_PLUGIN_ROOT}/scripts/cwp" profile > .cklph-wp.d/site-profile.md
 ```
 That snapshots versions, active plugins (with versions), the active theme, post types, taxonomies, and
 Elementor/WooCommerce facts. Then fill in the by-hand sections — these are the high-value parts:
@@ -35,8 +35,8 @@ webroot eval-file pattern (PHP with `$vars` can't go on the `cwp eval` command l
 
 ```php
 // .cklph-wp.d/probe.php. Upload it, run it, then delete it:
-//   ${CLAUDE_PLUGIN_ROOT}/scripts/cwp put .cklph-wp.d/probe.php /www/wp-content/uploads/probe.php
-//   ${CLAUDE_PLUGIN_ROOT}/scripts/cwp wp eval-file /www/wp-content/uploads/probe.php
+//   "${CLAUDE_PLUGIN_ROOT}/scripts/cwp" put .cklph-wp.d/probe.php /www/wp-content/uploads/probe.php
+//   "${CLAUDE_PLUGIN_ROOT}/scripts/cwp" wp eval-file /www/wp-content/uploads/probe.php
 if (function_exists('acf_get_field_groups')) {
   foreach (acf_get_field_groups() as $g) {
     echo "GROUP {$g['title']} ({$g['key']})\n";

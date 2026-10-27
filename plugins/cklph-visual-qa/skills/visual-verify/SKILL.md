@@ -8,14 +8,14 @@ description: Verify a rendered web page actually matches a design or intent by s
 A value that's "correct" in code can still render wrong — cache, an override, the wrong CSS channel, a
 responsive trap. The only proof is **looking at the rendered page next to the design**. Screenshot,
 compare, fix, repeat. Capture with this plugin's `shot` (headless Chrome + ImageMagick), called below
-as `${CLAUDE_PLUGIN_ROOT}/scripts/shot`. It is logged out: give it a URL a visitor can load
+as `"${CLAUDE_PLUGIN_ROOT}/scripts/shot"`. It is logged out: give it a URL a visitor can load
 (published, e.g. on staging), not a draft or `?preview=true`.
 
 ## The loop
 
 ```bash
-${CLAUDE_PLUGIN_ROOT}/scripts/shot 'https://site/page?v=1' /tmp/now.png 1440x2600        # capture (always cache-bust the URL)
-${CLAUDE_PLUGIN_ROOT}/scripts/shot crop /tmp/now.png /tmp/region.png 1500x900+1360+800   # zoom the area you changed
+"${CLAUDE_PLUGIN_ROOT}/scripts/shot" 'https://site/page?v=1' /tmp/now.png 1440x2600        # capture (always cache-bust the URL)
+"${CLAUDE_PLUGIN_ROOT}/scripts/shot" crop /tmp/now.png /tmp/region.png 1500x900+1360+800   # zoom the area you changed
 # Read /tmp/region.png AND the Figma screenshot, compare side by side, list the deltas, fix, re-capture.
 ```
 
@@ -29,11 +29,11 @@ Chrome won't size its window below ~500px. A `375` capture **renders at 500px** 
 shows only the **left 375px** — text looks cut off but isn't. Before chasing mobile "overflow":
 
 ```bash
-${CLAUDE_PLUGIN_ROOT}/scripts/shot probe                                 # prints the JS overflow-probe <script> (no URL needed)
+"${CLAUDE_PLUGIN_ROOT}/scripts/shot" probe                                 # prints the JS overflow-probe <script> (no URL needed)
 ```
 
 Inject that `<script>` (via your styling channel), capture the top of the page at 500px
-(`${CLAUDE_PLUGIN_ROOT}/scripts/shot '<url>?v=2' /tmp/m.png 500x900`), and read the banner:
+(`"${CLAUDE_PLUGIN_ROOT}/scripts/shot" '<url>?v=2' /tmp/m.png 500x900`), and read the banner:
 `VW=500 overflow=0` means **no overflow** past either edge — it was the clamp. Verify mobile at **500px** (Chrome's
 floor); a fluid `%`/flex layout that's clean at 500 scales fine to 375 on a real device.
 

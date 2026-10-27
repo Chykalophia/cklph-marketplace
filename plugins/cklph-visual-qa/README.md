@@ -25,7 +25,7 @@ drafts, no `?preview=true`. Point it at a published (staging) URL.
 
 ### Running `shot` (PATH)
 
-The skill and agent call `${CLAUDE_PLUGIN_ROOT}/scripts/shot`. Other plugins (`cklph-figma-to-wp`) and
+The skill and agent call `"${CLAUDE_PLUGIN_ROOT}/scripts/shot"`. Other plugins (`cklph-figma-to-wp`) and
 your own shell call bare `shot`, which needs this plugin's `scripts/` on PATH, once:
 
 ```bash

@@ -47,9 +47,9 @@ can ride it with no re-auth, and a compromised machine has a live pipe to the ho
 
 Set it per-project in the `./.cklph-wp` config file when you need the speed. Then:
 ```bash
-${CLAUDE_PLUGIN_ROOT}/scripts/cwp up        # open the master now
-${CLAUDE_PLUGIN_ROOT}/scripts/cwp status    # ALIVE/closed + age + time until it rotates/closes
-${CLAUDE_PLUGIN_ROOT}/scripts/cwp down      # close it — DO THIS when you finish a session
+"${CLAUDE_PLUGIN_ROOT}/scripts/cwp" up        # open the master now
+"${CLAUDE_PLUGIN_ROOT}/scripts/cwp" status    # ALIVE/closed + age + time until it rotates/closes
+"${CLAUDE_PLUGIN_ROOT}/scripts/cwp" down      # close it — DO THIS when you finish a session
 ```
 Don't raise the limits to hours — short-lived is the point.
 
@@ -77,12 +77,12 @@ you can't type the passphrase). If `Invalid request, you must specify a site`, t
 `export CKLPH_WP_HOST=my-wp` (or put it in the `./.cklph-wp` file), then:
 
 ```bash
-${CLAUDE_PLUGIN_ROOT}/scripts/cwp env                      # site / core / theme
-${CLAUDE_PLUGIN_ROOT}/scripts/cwp wp post list --post_type=page --fields=ID,post_title --format=csv
-${CLAUDE_PLUGIN_ROOT}/scripts/cwp meta-write 218 _some_key payload.json   # protected-safe write
+"${CLAUDE_PLUGIN_ROOT}/scripts/cwp" env                      # site / core / theme
+"${CLAUDE_PLUGIN_ROOT}/scripts/cwp" wp post list --post_type=page --fields=ID,post_title --format=csv
+"${CLAUDE_PLUGIN_ROOT}/scripts/cwp" meta-write 218 _some_key payload.json   # protected-safe write
 ```
 
-Examples in this plugin's skills use the `${CLAUDE_PLUGIN_ROOT}/scripts/cwp` form. Other plugins'
+Examples in this plugin's skills use the `"${CLAUDE_PLUGIN_ROOT}/scripts/cwp"` form. Other plugins'
 skills call bare `cwp`, which resolves only if this plugin's `scripts/` is on PATH (cklph-wp README,
 "Running `cwp`"). `cwp wp ...` quotes
 each argument for the remote shell, so local quoting (`--post_title='Two Words'`) survives.

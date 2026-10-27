@@ -36,7 +36,7 @@ watchdog; `cwp down` when done). Commands: `up`/`status`/`down` (connection), `w
 
 ### Running `cwp` (PATH)
 
-Skills in this plugin call the script as `${CLAUDE_PLUGIN_ROOT}/scripts/cwp`. Skills in other plugins
+Skills in this plugin call the script as `"${CLAUDE_PLUGIN_ROOT}/scripts/cwp"`. Skills in other plugins
 (`cklph-elementor`, `cklph-figma-to-wp`) and your own shell call it as bare `cwp`, which needs it on
 PATH. Do this once, using the directory where this plugin is installed:
 
@@ -45,7 +45,7 @@ export PATH="<cklph-wp plugin dir>/scripts:$PATH"   # e.g. in ~/.zshrc; or symli
 ```
 
 Without it, call it by its absolute path, `<cklph-wp plugin dir>/scripts/cwp` (inside a cklph-wp
-skill that is `${CLAUDE_PLUGIN_ROOT}/scripts/cwp`; `scripts/cwp` alone only works from the plugin dir). `cwp wp ...` quotes each argument for the remote
+skill that is `"${CLAUDE_PLUGIN_ROOT}/scripts/cwp"`; `scripts/cwp` alone only works from the plugin dir). `cwp wp ...` quotes each argument for the remote
 shell, so write `cwp wp post update 12 --post_title='Two Words'` exactly as you would locally.
 
 ## Composes with

@@ -74,7 +74,7 @@ else
   # --- CKLPH_WP_MUX=1: bounded multiplexing (opt-in, for speed) ------------
   PERSIST="${CKLPH_WP_PERSIST:-90}"          # seconds idle before the master auto-closes
   MAXLIFE="${CKLPH_WP_MAXLIFE:-600}"         # seconds — hard ceiling on one connection's lifetime
-  [[ "$PERSIST" =~ ^[0-9]+$ ]] || _die "CKLPH_WP_PERSIST must be whole seconds, got '$PERSIST'"
+  [[ "$PERSIST" =~ ^[1-9][0-9]*$ ]] || _die "CKLPH_WP_PERSIST must be whole seconds > 0 (OpenSSH reads ControlPersist=0 as forever), got '$PERSIST'"
   [[ "$MAXLIFE" =~ ^[1-9][0-9]*$ ]] || _die "CKLPH_WP_MAXLIFE must be whole seconds > 0, got '$MAXLIFE'"
   CM="${CKLPH_WP_CM:-$HOME/.ssh/cm-cwp-${HOST//[^a-zA-Z0-9]/_}}"
   SSH_OPTS=( -o BatchMode=yes -o ControlMaster=auto -o "ControlPath=$CM"
