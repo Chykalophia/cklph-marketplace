@@ -1,21 +1,19 @@
 ---
 name: getting-started
 description: >
-  This is the front door to the CRO, research & reporting toolkit. Use it FIRST when someone is
-  getting started, is unsure which skill to use, or makes a broad/vague request. Trigger phrases:
-  "where do I start", "what can this do", "how do I use this", "get started", "set up", "onboard
-  me", "help me with my store/page/campaign", "what should I focus on", "I don't know where to
-  begin". It orients the user, captures a reusable engagement brief, and routes to the right skill,
-  command, or agent.
+  Front door to the CRO, research and reporting toolkit. Use when someone is getting started, asks
+  what this can do, is unsure which skill fits, or makes a broad request about their store, page or
+  campaign, before routing to a skill, command or agent.
 license: MIT
 metadata:
   author: Chykalophia
-  version: "0.3.0"
 ---
 
 # Getting Started (begin here)
 
 The front door. Orient the user, capture a reusable engagement brief, then route to the right tool. Run this whenever someone is starting, is unsure which skill applies, or asks something broad.
+
+**Trigger phrases:** "where do I start", "what can this do", "how do I use this", "get started", "set up", "onboard me", "help me with my store/page/campaign", "what should I focus on", "I don't know where to begin".
 
 ## What this toolkit does (say this plainly)
 A strategist's kit to: **audit** a conversion funnel, run **deep sourced research**, write **conversion copy**, sharpen **positioning/outbound**, and turn it into **polished reports + redesign blueprints** — with a **verifier** that checks the work before it ships.

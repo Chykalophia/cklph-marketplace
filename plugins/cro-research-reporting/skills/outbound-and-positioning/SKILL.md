@@ -1,20 +1,19 @@
 ---
 name: outbound-and-positioning
 description: >
-  This skill should be used for cold outreach, follow-up sequences, B2B sales qualification, and
-  positioning/messaging. Trigger phrases include "write a cold email", "outreach to", "follow-up
-  sequence", "cadence", "qualify this deal", "discovery questions", "value proposition",
-  "positioning", "messaging", "how do we describe ourselves", or "elevator pitch". Use it whenever
-  the task is reaching prospects or sharpening how an offer is positioned.
+  Cold outreach, follow-up cadences, B2B qualification and positioning. Use when asked for a cold
+  email or sequence, deal qualification, discovery questions, or a sharper value proposition,
+  messaging or elevator pitch, before writing outreach or positioning copy.
 license: MIT
 metadata:
   author: Chykalophia
-  version: "0.2.0"
 ---
 
 # Outbound & Positioning
 
 Reach the right people with messages that read like a peer wrote them, and sharpen the positioning those messages express.
+
+**Trigger phrases:** "write a cold email", "outreach to", "follow-up sequence", "cadence", "qualify this deal", "discovery questions", "value proposition", "positioning", "messaging", "how do we describe ourselves", or "elevator pitch".
 
 ## Principles
 1. **Write like a peer, not a vendor.** Lead with their world ("you"), not yours ("we/I"). If you can delete the opener and the email still makes sense, the personalization is fake.

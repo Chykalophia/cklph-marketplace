@@ -56,6 +56,6 @@ Iterate skills with the official skill-creator harness pattern: for each skill, 
 - **Evidence over assertion:** every recommendation ties to data or a tiered source; vendor lift figures are labeled directional.
 - **Render-safe by default:** report components encode hard-won fixes (no text inside data-width bars; no absolute-positioned label clouds; everything collapses on mobile; QA before shipping).
 - **Brand-faithful:** reports match the subject's real brand tokens.
-- Informed by public work (frameworks are public methods; MIT-licensed repos adapted with attribution): Anthropic Agent Skills (anthropics/skills), wshobson/agents and coreyhaines31/marketingskills (agent/skill patterns), gpt-researcher / Stanford STORM / LangChain open_deep_research (research rigor), Baymard Institute / Nielsen Norman Group / GoodUI / CXL-Speero (CRO knowledge), and Shopify Dawn / theme-tools (Shopify practice).
+- Informed by public work (frameworks are public methods; material adapted from MIT-licensed repos is credited, with the license text, in `NOTICE.md`): Anthropic Agent Skills (anthropics/skills), wshobson/agents and coreyhaines31/marketingskills (agent/skill patterns), gpt-researcher / Stanford STORM / LangChain open_deep_research (research rigor), Baymard Institute / Nielsen Norman Group / GoodUI / CXL-Speero (CRO knowledge), and Shopify Dawn / theme-tools (Shopify practice).
 
-Version 0.3.0 · by Chykalophia.
+By Chykalophia. The current version is in `.claude-plugin/plugin.json`; history is in `CHANGELOG.md`.

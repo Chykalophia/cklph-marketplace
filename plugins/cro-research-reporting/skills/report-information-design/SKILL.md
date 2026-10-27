@@ -1,21 +1,19 @@
 ---
 name: report-information-design
 description: >
-  This skill should be used when turning analysis or research into a polished, well-organized report,
-  brief, audit, or one-pager, especially a self-contained HTML document. Trigger phrases: "build a
-  report", "write up the findings", "create an HTML report/brief/audit", "turn this research into a
-  report", "how should I present this", "organize this information", "make it look professional", "add
-  an executive summary and recommendations". Use it whenever findings need to become a shareable
-  deliverable.
+  Turns analysis or research into a polished report, brief, audit or one-pager, usually self-
+  contained HTML. Use when asked to build a report, write up findings, add an executive summary, or
+  present information professionally, before drafting the deliverable.
 license: MIT
 metadata:
   author: Chykalophia
-  version: "0.2.0"
 ---
 
 # Report & Information Design
 
 Turn findings into a document a busy decision-maker can scan in two minutes and a practitioner can act on for a month, and make it render flawlessly.
+
+**Trigger phrases:** "build a report", "write up the findings", "create an HTML report/brief/audit", "turn this research into a report", "how should I present this", "organize this information", "make it look professional", "add an executive summary and recommendations".
 
 ## Principles
 1. **Lead with the conclusion (BLUF).** Open with the finding and the recommendation.
