@@ -50,19 +50,71 @@ if command -v zap-cli >/dev/null 2>&1; then
         }) + "\n");
     });' || true
 elif command -v docker >/dev/null 2>&1; then
-  # ZAP via Docker (softwaresecurityproject/zap-stable)
-  docker run --rm --network=host softwaresecurityproject/zap-stable:latest \
-    zap-baseline.py -t "$URL" -J /dev/stdout 2>/dev/null | node -e '
-      let raw=""; process.stdin.on("data",d=>raw+=d); process.stdin.on("end",()=>{
-        let r={}; try{r=JSON.parse(raw);}catch{}
-        for (const s of (r.site||[]))
-          for (const a of (s.alerts||[]))
-            process.stdout.write(JSON.stringify({
-              tool: "zap", rule: a.pluginid || "zap", severity: a.riskcode?.toLowerCase() || "medium",
-              url: a.instances?.[0]?.uri || "", method: a.instances?.[0]?.method || "",
-              param: a.instances?.[0]?.param || "", evidence: a.desc || ""
-            }) + "\n");
-      });' || true
+  # ZAP via Docker (zaproxy/zap-stable). Same isolation as exploit-runner.sh: a throwaway
+  # user-defined bridge network, never --network=host, so the scanner does not share the
+  # host's network namespace. The target is reached through the host gateway, so a localhost
+  # URL is rewritten to host.docker.internal. On Linux a target bound only to 127.0.0.1 is then
+  # unreachable: bind it to 0.0.0.0 (or the bridge address).
+  # LIMIT (documented, not enforced): a bridge network does not firewall egress. The scanner
+  # can still reach the internet and any port the host exposes on the gateway interface (and,
+  # on Docker Desktop, the host's loopback services). Scan only a disposable target.
+  # LIMIT: the scanner sends Host: host.docker.internal. A dev server with a host allowlist
+  # (Vite's server.allowedHosts, for one) answers that with a rejection page, and ZAP scans the
+  # rejection page. Allow host.docker.internal there, or pass a URL the bridge reaches as-is.
+  ZAP_URL="$URL"
+  ZAP_URL="${ZAP_URL/:\/\/localhost/://host.docker.internal}"
+  ZAP_URL="${ZAP_URL/:\/\/127.0.0.1/://host.docker.internal}"
+  ZAP_NET="cklph-dast-$$-$RANDOM"
+  # zap-baseline.py writes -J reports only under /zap/wrk, and refuses to run when it is not
+  # mounted. The zap user (uid 1000) must be able to write there, so the mounted dir is
+  # world-writable; it sits inside a private (0700) dir so no other local user can reach it.
+  ZAP_TMP=$(mktemp -d 2>/dev/null) || ZAP_TMP=""
+  ZAP_WRK="$ZAP_TMP/wrk"
+  # Remove the container, network and report dir even if the scan is interrupted. Killing the
+  # docker CLI does not stop the container, and the network cannot be removed while the
+  # container is attached, so the container is named and removed first.
+  trap 'docker rm -f "$ZAP_NET" >/dev/null 2>&1; docker network rm "$ZAP_NET" >/dev/null 2>&1; rm -rf "$ZAP_TMP"' EXIT
+  trap 'exit 130' INT
+  trap 'exit 143' TERM
+  # An empty ZAP_TMP would make ZAP_WRK "/wrk": skip ZAP rather than write outside a temp dir.
+  if [ -z "$ZAP_TMP" ] || ! mkdir "$ZAP_WRK" || ! chmod 777 "$ZAP_WRK"; then
+    echo "could not create a temp dir for the ZAP report. ZAP skipped." >&2
+  elif docker network create --driver bridge "$ZAP_NET" >/dev/null 2>&1; then
+    # Exit codes: 0 pass, 1 FAIL alerts, 2 WARN alerts, 3 other failure. Run in the background
+    # and wait, so a signal is handled at once instead of after the scan finishes.
+    docker run --rm --name "$ZAP_NET" --network "$ZAP_NET" \
+      --add-host=host.docker.internal:host-gateway \
+      -v "$ZAP_WRK:/zap/wrk:rw" \
+      zaproxy/zap-stable:latest \
+      zap-baseline.py -t "$ZAP_URL" -J report.json >/dev/null 2>&1 &
+    wait $!
+    ZAP_RC=$?
+    docker network rm "$ZAP_NET" >/dev/null 2>&1 || true
+    if [ ! -s "$ZAP_WRK/report.json" ] || [ "$ZAP_RC" -gt 2 ]; then
+      echo "ZAP scan failed (exit $ZAP_RC, report $([ -s "$ZAP_WRK/report.json" ] && echo present || echo missing)) against $ZAP_URL: zero ZAP findings means the scan did not run, not that the target is clean." >&2
+    fi
+    # riskcode is "0".."3"; map it to FINDINGS_SCHEMA's words. The schema has no "info", so
+    # ZAP's informational alerts (0) become low. evidence is the alert name plus the matched
+    # request/response string (or ZAP's per-instance note when there is none, e.g. a missing
+    # header), not the generic rule description.
+    [ -s "$ZAP_WRK/report.json" ] && node -e '
+      let r={}; try{r=JSON.parse(require("fs").readFileSync(process.argv[1],"utf8"));}catch{}
+      const sev={"3":"high","2":"medium","1":"low","0":"low"};
+      for (const s of (r.site||[]))
+        for (const a of (s.alerts||[])) {
+          const i = a.instances?.[0] || {};
+          const detail = i.evidence || i.otherinfo || a.otherinfo || "";
+          process.stdout.write(JSON.stringify({
+            tool: "zap", rule: a.pluginid || "zap", severity: sev[a.riskcode] || "medium",
+            url: i.uri || "", method: i.method || "", param: i.param || "",
+            evidence: (a.name || a.alert || "") + (detail ? ": " + detail : "")
+          }) + "\n");
+        }' "$ZAP_WRK/report.json" || true
+  else
+    echo "could not create an isolated docker network; refusing to fall back to host networking. ZAP skipped." >&2
+  fi
+  rm -rf "$ZAP_TMP"
+  trap - EXIT INT TERM
 fi
 
 # ── Nuclei (template-based scanning) ─────────────────────────────────────────
@@ -74,8 +126,8 @@ if command -v nuclei >/dev/null 2>&1; then
       process.stdout.write(JSON.stringify({
         tool: "nuclei", rule: r["template-id"] || "nuclei",
         severity: (r.info?.severity||"medium").toLowerCase(),
-        url: r.matched-at || r.host || "", method: "", param: "",
-        evidence: r.matcher-name || r["template-id"] || ""
+        url: r["matched-at"] || r.host || "", method: "", param: "",
+        evidence: r["matcher-name"] || r["template-id"] || ""
       }) + "\n");' "$line" || true
   done
 fi
