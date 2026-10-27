@@ -341,6 +341,65 @@ console.log('\n=== SCENARIO D: report truthfulness ===');
   const reasons = Object.fromEntries((synthInput?.heldUntraced || []).map(f => [f.id, f.heldReason]));
   if (reasons.F2 !== 'refuted-without-guard' || reasons.F1 !== 'no-quorum') { problems++; console.log(`  ✗ held reasons wrong: ${JSON.stringify(reasons)} (want F2 refuted-without-guard, F1 no-quorum)`); }
   else console.log('  ✓ refuted-without-guard and no-quorum highs are held with their own reasons');
+  // D2b: the vulnIntel switch is checked on the path it gates — an SCA review job. With
+  // enabled:false the SCA reviewer prompt carries no VULN_INTEL_MCP block; by default it does.
+  const scaPrompt = async (vulnIntel) => {
+    const prompts = {};
+    const a = JSON.parse(JSON.stringify(args));
+    a.lenses = ['security', 'sca']; a.config.lenses = ['security', 'sca'];
+    if (vulnIntel) a.config.vulnIntel = vulnIntel;
+    await runFn({ agent: async (p, o = {}) => { prompts[o.label || ''] = p; return mkAgent({})(p, o); }, parallel, pipeline, phase, log, args: a, budget });
+    return prompts['review:api-surface:sca'];
+  };
+  const offP = await scaPrompt({ enabled: false }), onP = await scaPrompt(null);
+  if (offP === undefined || onP === undefined) { problems++; console.log('  ✗ no SCA review job ran — the vulnIntel check exercised nothing'); }
+  else if (offP.includes('VULN_INTEL_MCP') || !onP.includes('VULN_INTEL_MCP')) { problems++; console.log(`  ✗ SCA prompt VULN_INTEL_MCP: off=${offP.includes('VULN_INTEL_MCP')} on=${onP.includes('VULN_INTEL_MCP')} (want false/true)`); }
+  else console.log('  ✓ SCA review prompt omits VULN_INTEL_MCP when vulnIntel.enabled is false, carries it by default');
+  // D3b: three requested voters, some die. A split vote is NOT "refuted-without-guard"; a guard
+  // cited by a vote that is not a majority (tie, or no quorum) does NOT cleanly refute a high.
+  const run3 = async (perVoter) => {
+    synthInput = null;
+    const a = JSON.parse(JSON.stringify(args)); a.config.verify = { voters: 3 };
+    await runFn({ agent: async (p, o = {}) => {
+      if ((o.label || '').startsWith('verify:')) {
+        const m = p.match(/FINDING:\s*(\{[\s\S]*\})/); let f = {}; try { f = JSON.parse(m[1]); } catch {}
+        const n = Number((p.match(/Voter (\d+)\//) || [])[1]);
+        const v = perVoter(f.title || '', n);
+        if (v !== undefined) return v;
+      }
+      return mkAgent({})(p, o);
+    }, parallel, pipeline, phase, log, args: a, budget });
+    return { held: Object.fromEntries((synthInput?.heldUntraced || []).map(f => [f.id, f.heldReason])), fresh: (synthInput?.findings || []).map(f => f.id) };
+  };
+  const hold = { refuted: false, reason: 'looks real' };
+  const refNoGuard = { refuted: true, reason: 'probably fine' };
+  const refGuard = { refuted: true, reason: 'guarded', counterEvidence: 'proxy.ts:3 getUser()' };
+  const tie = await run3((t, n) => t.includes('getSession') ? [null, hold, refNoGuard, null][n] : undefined);
+  if (tie.held.F2 !== 'split-vote') { problems++; console.log(`  ✗ 1 hold / 1 refute (no guard) / 1 dead labeled ${JSON.stringify(tie.held.F2)}, want "split-vote"`); }
+  else console.log('  ✓ a 1-1 split with a dead voter is held as "split-vote", not "refuted-without-guard"');
+  const tieG = await run3((t, n) => t.includes('getSession') ? [null, hold, refGuard, null][n] : undefined);
+  if (tieG.held.F2 !== 'split-vote') { problems++; console.log(`  ✗ 1 hold / 1 refute WITH guard / 1 dead → ${JSON.stringify(tieG.held.F2)} (a tie must not cleanly refute a high)`); }
+  else console.log('  ✓ a guard cited in a tied vote does not drop the high — held as "split-vote"');
+  const lone = await run3((t, n) => t.includes('users route') ? [null, refGuard, null, null][n] : undefined);
+  if (lone.held.F1 !== 'no-quorum') { problems++; console.log(`  ✗ lone surviving voter refuting with a guard → ${JSON.stringify(lone.held.F1)} (want held "no-quorum", not dropped)`); }
+  else console.log('  ✓ one surviving voter (no quorum) cannot cleanly refute a critical — held as "no-quorum"');
+  // D5: a scanner failure the reviewer reports reaches COVERAGE_TOTALS, so it cannot read as zero candidates
+  synthInput = null;
+  const failMsg = 'semgrep failed (exit 2, no output) — not scanned';
+  const reviewPrompts = {};
+  await runFn({ agent: async (p, o = {}) => {
+    if (o.label === 'review:api-surface:security') {
+      reviewPrompts.sec = p;
+      const r = await agent(p, o); return { ...r, coverage: { ...r.coverage, toolFailures: [failMsg] } };
+    }
+    if (o.label === 'synthesize:report') reviewPrompts.synth = p;
+    return mkAgent({})(p, o);
+  }, parallel, pipeline, phase, log, args: JSON.parse(JSON.stringify(args)), budget });
+  // the block that follows the COVERAGE_TOTALS: data marker (the name also appears in the instructions)
+  const ct = (reviewPrompts.synth || '').split('\nCOVERAGE_TOTALS:\n')[1]?.split('\n\n')[0];
+  let tf; try { tf = JSON.parse(ct).security.reviewed.toolFailures; } catch {}
+  if (!Array.isArray(tf) || !tf.some(x => x.includes(failMsg)) || !/toolFailures/.test(reviewPrompts.sec || '')) { problems++; console.log(`  ✗ reviewer tool failure did not reach COVERAGE_TOTALS (got ${JSON.stringify(tf)})`); }
+  else console.log('  ✓ reviewer-reported scanner failure reaches COVERAGE_TOTALS.security.reviewed.toolFailures');
   // D4: a dead synthesizer must not look like a clean run (report:null is the clean signal)
   const rD4 = await runFn({ agent: mkAgent({ 'synthesize:report': null }), parallel, pipeline, phase, log, args: JSON.parse(JSON.stringify(args)), budget });
   if (!rD4?.report || !/SYNTHESIS FAILED/.test(rD4.report.markdown || '')) { problems++; console.log('  ✗ dead synthesizer returned report:null — reads as a clean run'); }

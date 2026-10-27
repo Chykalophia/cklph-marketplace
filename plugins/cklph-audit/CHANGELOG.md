@@ -16,12 +16,20 @@ All notable changes to `cklph-audit` are documented here. This project adheres t
   container fixture went from abs 1 / rel 0 to 1 / 1.
 - **Secrets left on disk (`tools/secrets.sh`)** — the gitleaks report (raw secret values) was never
   deleted. It is now written with `--redact` into a private 0700 temp dir that a trap removes on
-  exit, INT or TERM. Every wrapper that writes a scanner report now uses one `mktemp -d` dir
-  with the same trap, so none leaks its `mktemp` file any more.
+  exit, INT or TERM. The wrappers changed in this release that write scanner reports (sast, sca,
+  iac, k8s, container, supplychain, secrets) use one `mktemp -d` dir with the same trap, so their
+  reports no longer stay on disk. (`dry.sh`, not changed here, still leaves its jscpd report dir.)
 - **Failures read as "clean"** — a scanner that crashed, printed nothing, or printed output the
   parser could not read used to yield zero findings silently. Every parser touched now says so on
   stderr (and Semgrep's `errors[]`, e.g. a ruleset that failed to download, is reported), as
-  `dast.sh` already did for ZAP. The reviewer agent is told that such a tool did not scan.
+  `dast.sh` already did for ZAP. Also reported: a non-zero exit that still wrote a report (Semgrep
+  above 1, CodeQL, and Trivy/Grype/Syft in sca and container are parsed and flagged as possibly
+  incomplete), output of the wrong shape (Grype without `matches[]`, Syft without `artifacts[]`, a
+  non-Trivy report, SARIF without `runs[]`, Hadolint output that is not an array), and Node missing
+  (sca, iac, k8s, container and supplychain stop with a "node not found" warning; detect-secrets
+  and CodeQL say they were not parsed). The reviewer lists such failures in the new
+  `coverage.toolFailures`, which the engine carries into `COVERAGE_TOTALS` so the report shows that
+  recall as not checked.
 - **`sast.sh [language]`** passed a bare `--lang`, which Semgrep rejects; the language now adds its
   registry ruleset (`p/typescript`, `p/python`, …). The variable is no longer named `LANG`. The
   CodeQL branch read `res.ruleId` as the file and asked for an unsupported `--format=json`; it now
@@ -34,13 +42,17 @@ All notable changes to `cklph-audit` are documented here. This project adheres t
   ran; now `-d`.
 - **`tools/dast.sh`** — ffuf ran with `-s` (bare words) into a JSON parser, so every hit was
   dropped; now `-json`. Compose files other than `docker-compose.yml` (`compose.yaml`, …) are
-  detected and the same file is used for up and down; teardown passed `down --quiet`, which is not
+  detected and the same file is used for up and down, and the scan URL is the first port that file
+  publishes (`docker compose config --format json`) instead of `docker compose port` with no service,
+  which always failed and silently fell back to `localhost:3000`; teardown passed `down --quiet`, which is not
   a `docker compose down` flag, so the stack was never stopped. A dev server it starts is now
-  stopped at teardown (own process group). The 1.2.2 bridge-network ZAP design is unchanged.
+  stopped at teardown (own process group). A non-zero ffuf exit is reported instead of being
+  swallowed by `|| true`. The 1.2.2 bridge-network ZAP design is unchanged.
 - **`tools/cpg.sh`** — the Joern `reachable` query referenced an undefined `sink`, `sinks` had no
   Joern case and exited before the grep fallback, and the Joern branch was gated on `joern` while
   calling `joern-query`. Unhandled queries now fall through to the grep fallback; `reachable`
-  without Joern says on stderr that nothing was queried.
+  without Joern says on stderr that nothing was queried. A target that is not a plain function name
+  (quotes, spaces, newlines) is no longer spliced into the Joern query string.
 - **`tools/exploit-runner.sh`** — an explicit `[container-image]` was overwritten by the
   extension default, and the PoC was exec'd directly (exit 126 without an exec bit, counted as "not
   exploitable"). It now runs through its interpreter (`sh`/`python`/`node`), the image default
@@ -49,10 +61,15 @@ All notable changes to `cklph-audit` are documented here. This project adheres t
   (`--format/--output`); now `--json --outputfile` and `--report-formats json --output-path`. Not
   run here (neither is installed).
 - **`tools/feed-status.sh`** computed Trivy DB age from `NextUpdate` (a future time, so always "up
-  to date") and only looked in `~/.cache`; it now uses `DownloadedAt`/`UpdatedAt` and also checks
-  the macOS cache dirs. `tools/deadcode.sh` ignored its target (knip ran in the caller's cwd); it
-  now runs from the target's package root and keeps only results under the target. `await.sh`
-  runs `tsc` from the target's tsconfig root.
+  to date") and only looked in `~/.cache`; it now uses `DownloadedAt`/`UpdatedAt` and reads only the
+  current platform's cache dir (`~/Library/Caches` on macOS, `$XDG_CACHE_HOME` or `~/.cache`
+  elsewhere); `TRIVY_CACHE_DIR` / `GRYPE_DB_CACHE_DIR`, when set, are the only path probed (no DB
+  there = `unknown`). `tools/deadcode.sh` ignored its target (knip ran in the caller's cwd); it now
+  runs from the target's package root, keeps only results under the target, and reports paths
+  relative to the caller's cwd. `await.sh` runs `tsc` from the tsconfig root of the target, which
+  may be a file or glob. Every wrapper resolves its target with `cd --`, so a directory named like an
+  option (`-P`) is scanned instead of the caller's cwd. `k8s.sh` reports a failed manifest staging
+  dir instead of copying into `/`.
 - **Report contract (`workflows/audit.workflow.js`)** — RUN_META hard-coded `selfReviewRan: false`,
   self-review gaps never reached the report, and extra rounds re-read the same unchanged report
   under a "re-scanning" log. Self-review now runs one pass after the report is written; the engine
@@ -66,8 +83,11 @@ All notable changes to `cklph-audit` are documented here. This project adheres t
   enrichment could not be turned off. The value is normalized first.
 - **Held-untraced labeling** — the set also holds highs the majority refuted without citing a guard
   and highs whose voters did not reach quorum, yet the report called all of them "majority-held".
-  Each now carries `heldReason` (`majority-held-no-trace` / `refuted-without-guard` / `no-quorum`)
-  and the report renders it.
+  Each now carries `heldReason` (`majority-held-no-trace` / `refuted-without-guard` / `split-vote` /
+  `no-quorum`) and the report renders it. A refutation now needs quorum and a real majority: a
+  guard cited by a lone surviving voter, or by one side of a tie, no longer drops a critical/high
+  (it is held as `no-quorum` / `split-vote`), and held findings no longer also count as near-misses
+  or killed-candidate positive controls.
 - **Compliance rulebook path** — `rulebooks/<framework>.yaml` resolved to `soc2.yaml`, which did not
   exist; `soc2-tsc.yaml` is renamed `soc2.yaml`. The compliance prompt's unclosed backtick is closed,
   and the clean-run return carries the same keys (`vulnIntel`, `feedFreshnessChecked`) as the full one.
@@ -83,14 +103,20 @@ All notable changes to `cklph-audit` are documented here. This project adheres t
   actually work.
 
 ### Added
-- `tests/tools.test.mjs` — runs every wrapper against fake scanner binaries on an isolated PATH
-  (no scanner install needed): parses each embedded `node -e` program, checks relative and absolute
+- `tests/tools.test.mjs` — runs selected wrappers (sast, sca, secrets, supplychain, dast, cpg,
+  exploit-runner, iac, k8s, container, await, deadcode, feed-status) against fake scanner binaries
+  on an isolated PATH (no scanner install needed): parses every embedded `node -e` program, checks relative and absolute
   targets give the same findings, that failures are reported on stderr, that the gitleaks report is
   redacted and deleted, the OSV and CodeQL shapes, ffuf `-json`, compose detection and teardown, and
-  exploit-runner's image and interpreter handling. Against the 1.2.2 tools it fails 26 checks.
+  exploit-runner's image and interpreter handling; non-zero exits with output, wrong-shape output,
+  a missing Node, the compose URL, option-like targets, nested-package paths and platform cache
+  dirs. Against the 1.2.2 tools it fails 26 checks; the review follow-up checks fail 22 more
+  against the first 1.2.3 tools.
 - `tests/engine-flow.test.mjs` — new checks for the self-review section and front-matter flag, a
-  single self-review pass, `vulnIntel.enabled: false`, each `heldReason`, and the dead-synthesizer
-  fallback. Against the 1.2.2 engine they fail 10 checks.
+  single self-review pass, `vulnIntel.enabled: false` (checked on an SCA review prompt), each
+  `heldReason` including split votes and no-quorum guards, reviewer `toolFailures` reaching
+  `COVERAGE_TOTALS`, and the dead-synthesizer fallback. Against the 1.2.2 engine they fail 10
+  checks; the review follow-up checks fail 4 more against the first 1.2.3 engine.
 
 ### Known, not changed
 - `secrets.sh` runs `gitleaks detect`, which scans the git history of the repo that contains the

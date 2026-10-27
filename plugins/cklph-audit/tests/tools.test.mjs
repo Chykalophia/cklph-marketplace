@@ -42,12 +42,13 @@ console.log('node -e syntax');
 }
 
 // ── harness: a sandbox with fake scanners on an isolated PATH ────────────────
-function sandbox(fakes) {
+// sandbox(fakes, { noNode: true }) leaves node off PATH (models a host with a scanner but no Node).
+function sandbox(fakes, { noNode = false } = {}) {
   const root = fs.mkdtempSync(path.join(os.tmpdir(), 'cklph-tooltest-'));
   const bin = path.join(root, 'bin');
   const tmp = path.join(root, 'tmp');
   fs.mkdirSync(bin); fs.mkdirSync(tmp);
-  fs.symlinkSync(process.execPath, path.join(bin, 'node'));
+  if (!noNode) fs.symlinkSync(process.execPath, path.join(bin, 'node'));
   for (const [name, body] of Object.entries(fakes)) {
     fs.writeFileSync(path.join(bin, name), `#!/bin/bash\n${body}\n`, { mode: 0o755 });
   }
@@ -245,6 +246,214 @@ console.log('exploit-runner.sh');
   sb.run('exploit-runner.sh', ['poc.py', 'http://localhost:3000', 'my/python:3.13', 'F1']);
   const a2 = fs.readFileSync(path.join(sb.root, 'run.args'), 'utf8').split('\n');
   ok(a2.includes('my/python:3.13') && !a2.includes('python:3.12-slim'), 'an explicit [container-image] is no longer overwritten by the extension default');
+  sb.done();
+}
+
+// ── 9. a scanner that exits non-zero but still wrote output: parsed AND reported ─
+console.log('non-zero exit with output');
+{
+  const ONE = JSON.stringify({ results: [{ check_id: 'r1', path: 'a.js', start: { line: 1 }, extra: { severity: 'ERROR', metadata: {} } }], errors: [] });
+  const sb = sandbox({ semgrep: `cat <<'EOF'\n${ONE}\nEOF\necho "partial: timeout on 3 files" >&2\nexit 2` });
+  fs.mkdirSync(path.join(sb.root, 'repo', '.github', 'workflows'), { recursive: true });
+  const s = sb.run('sast.sh', ['.']);
+  ok(lines(s.stdout).length === 1 && /semgrep exited 2/.test(s.stderr), `sast.sh: semgrep exit 2 with output → finding kept AND stderr says the scan may be incomplete (${s.stderr.trim().slice(0, 80)})`);
+  const c = sb.run('supplychain.sh', ['repo']);
+  ok(lines(c.stdout).some(f => f.tool === 'semgrep-ci') && /semgrep exited 2/.test(c.stderr), 'supplychain.sh: semgrep exit 2 with output → finding kept AND reported');
+  sb.done();
+
+  const outArg = 'out=""; prev=""; for a in "$@"; do [ "$prev" = "--output" ] && out="$a"; prev="$a"; done';
+  const sb2 = sandbox({
+    trivy: `${outArg}\necho '{"SchemaVersion":2,"Results":[]}' > "\${out:-/dev/stdout}"\necho "fatal: db corrupt" >&2\nexit 1`,
+    grype: `echo '{"matches":[]}'\necho "failed to load db" >&2\nexit 1`,
+    syft: `echo '{"artifacts":[]}'\nexit 1`,
+  });
+  const sca = sb2.run('sca.sh', ['.']);
+  ok(/trivy exited 1/.test(sca.stderr) && /grype exited 1/.test(sca.stderr) && /syft exited 1/.test(sca.stderr), 'sca.sh: trivy/grype/syft non-zero exit with an empty report → stderr says so, not a silent clean');
+  const con = sb2.run('container.sh', ['.', 'img:1']);
+  ok(/trivy image exited 1/.test(con.stderr) && /grype exited 1/.test(con.stderr), 'container.sh: trivy/grype image non-zero exit with an empty report → stderr says so');
+  sb2.done();
+}
+
+// ── 10. output that parses but has the wrong shape is reported, not read as zero ─
+console.log('unexpected output shape');
+{
+  const sb = sandbox({ grype: `echo '{"unexpected":true}'`,
+    codeql: 'for a in "$@"; do case "$a" in --output=*) echo "{}" > "${a#--output=}";; esac; done' });
+  const r = sb.run('sca.sh', ['.']);
+  ok(/grype output has no matches array/.test(r.stderr), 'sca.sh: grype JSON without matches[] → stderr warning');
+  const q = sb.run('sast.sh', ['.'], { env: { CODEQL_DATABASE: sb.root } });
+  ok(/no runs array/.test(q.stderr), 'sast.sh: CodeQL SARIF without runs[] → stderr warning');
+  sb.done();
+
+  const sb2 = sandbox({ hadolint: `echo '{"error":"unexpected"}'` });
+  fs.mkdirSync(path.join(sb2.root, 'app'));
+  fs.writeFileSync(path.join(sb2.root, 'app', 'Dockerfile'), 'FROM node:latest\n');
+  const h = sb2.run('container.sh', ['app']);
+  ok(h.stdout.trim() === '' && /not an array/.test(h.stderr), 'container.sh: hadolint JSON that is not an array → stderr warning');
+  sb2.done();
+}
+
+// ── 11. scanner installed but Node missing: the wrapper says it could not parse ─
+console.log('no node on PATH');
+{
+  const sb = sandbox({
+    checkov: `echo '{"results":{"failed_checks":[{"check_id":"CKV_1","file_path":"/main.tf"}]}}'`,
+    kubescape: 'exit 0',
+    grype: `echo '{"matches":[]}'`,
+    hadolint: `echo '[]'`,
+    semgrep: `echo '{"results":[],"errors":[]}'`,
+    'detect-secrets': `echo '{"results":{"a.js":[{"type":"Secret Keyword","line_number":1}]}}'`,
+  }, { noNode: true });
+  fs.mkdirSync(path.join(sb.root, '.github', 'workflows'), { recursive: true });
+  fs.writeFileSync(path.join(sb.root, 'pod.yaml'), 'apiVersion: v1\nkind: Pod\n');
+  for (const t of ['iac.sh', 'k8s.sh', 'sca.sh', 'container.sh', 'supplychain.sh', 'secrets.sh']) {
+    const r = sb.run(t, ['.']);
+    ok(/node not found/.test(r.stderr), `${t}: no node → stderr says findings were NOT collected (${r.stderr.trim().split('\n')[0].slice(0, 70)})`);
+  }
+  sb.done();
+  // supplychain.sh with no semgrep either: the SLSA / pull_request_target checks emit through node too
+  const sb2 = sandbox({}, { noNode: true });
+  fs.mkdirSync(path.join(sb2.root, '.github', 'workflows'), { recursive: true });
+  const sc = sb2.run('supplychain.sh', ['.']);
+  ok(/node not found/.test(sc.stderr), 'supplychain.sh: no node, no semgrep → the SLSA check is reported as not run, not silently dropped');
+  sb2.done();
+}
+
+// ── 12. iac / k8s / container: relative and absolute targets give the same findings ─
+console.log('iac.sh / k8s.sh / container.sh targets');
+{
+  const sb = sandbox({
+    checkov: `d=""; prev=""; for a in "$@"; do [ "$prev" = "-d" ] && d="$a"; prev="$a"; done\n[ -f "$d/main.tf" ] || { echo '[]'; exit 0; }\necho '{"results":{"failed_checks":[{"check_id":"CKV_AWS_20","file_path":"/main.tf","resource":"aws_s3_bucket.b","check_name":"public bucket"}]}}'`,
+    kubescape: [
+      'out=""; prev=""; dir=""; for a in "$@"; do [ "$prev" = "--output" ] && out="$a"; [ "$prev" = nsa ] && dir="$a"; prev="$a"; done',
+      'ls "$dir"/*.yaml >/dev/null 2>&1 || exit 0',
+      `echo '{"results":[{"objectMetadata":{"name":"web","namespace":"prod"},"assessmentTests":[{"testName":"privileged","severity":"High","testResults":[{"status":{"status":"failed"}}]}]}]}' > "$out"`,
+    ].join('\n'),
+    hadolint: `echo '[{"code":"DL3007","level":"warning","line":1,"message":"pin the tag"}]'`,
+  });
+  const app = path.join(sb.root, 'app');
+  fs.mkdirSync(app);
+  fs.writeFileSync(path.join(app, 'main.tf'), 'resource "aws_s3_bucket" "b" {}\n');
+  fs.writeFileSync(path.join(app, 'pod.yaml'), 'apiVersion: v1\nkind: Pod\nmetadata:\n  name: web\n');
+  fs.writeFileSync(path.join(app, 'Dockerfile'), 'FROM node:latest\n');
+  for (const [t, tool] of [['iac.sh', 'checkov'], ['k8s.sh', 'kubescape'], ['container.sh', 'hadolint']]) {
+    const rel = lines(sb.run(t, ['app']).stdout).filter(f => f.tool === tool);
+    const abs = lines(sb.run(t, [app]).stdout).filter(f => f.tool === tool);
+    ok(rel.length === 1 && abs.length === 1, `${t}: ${tool} finding with a relative (${rel.length}) and absolute (${abs.length}) target`);
+  }
+  ok(sb.leftovers().length === 0, 'no temp files left behind');
+  sb.done();
+
+  // k8s.sh: if the manifest staging dir cannot be created, say so (never copy into "/")
+  const sb2 = sandbox({ mkdir: 'exit 1', cp: 'echo "$*" >> "$HOME/cp.log"', kubescape: 'exit 0' });
+  fs.writeFileSync(path.join(sb2.root, 'pod.yaml'), 'apiVersion: v1\nkind: Pod\n');
+  const r2 = sb2.run('k8s.sh', ['.']);
+  ok(/could not stage/.test(r2.stderr) && !fs.existsSync(path.join(sb2.root, 'cp.log')), 'k8s.sh: staging mkdir fails → stderr warning and no copy');
+  sb2.done();
+}
+
+// ── 13. secrets.sh: a target named like an option is still a directory ─────
+console.log('secrets.sh option-like target');
+{
+  const sb = sandbox({ gitleaks: [
+    'prev=""; for a in "$@"; do [ "$prev" = "--source" ] && printf "%s" "$a" > "$HOME/source"; [ "$prev" = "--report-path" ] && echo "[]" > "$a"; prev="$a"; done',
+    'exit 0',
+  ].join('\n') });
+  fs.mkdirSync(path.join(sb.root, '-P'));
+  sb.run('secrets.sh', ['-P']);
+  const src = fs.readFileSync(path.join(sb.root, 'source'), 'utf8');
+  ok(src.endsWith('/-P'), `secrets.sh -P scans the directory named -P, not the caller's cwd (${src})`);
+  sb.done();
+}
+
+// ── 14. dast.sh: ffuf failure is loud; the compose URL comes from the selected file ─
+console.log('dast.sh boot + ffuf');
+{
+  const sb = sandbox({ ffuf: 'cat >/dev/null; echo "Encountered error(s): connection refused" >&2; exit 1' });
+  const r = sb.run('dast.sh', ['.', 'http://127.0.0.1:9']);
+  ok(/ffuf failed \(exit 1/.test(r.stderr), 'ffuf exit 1 → stderr says content discovery did not run');
+  sb.done();
+
+  const sb2 = sandbox({
+    docker: [
+      'echo "$*" >> "$HOME/docker.log"',
+      `case "$*" in *" config --format json"*) echo '{"services":{"db":{"image":"pg"},"web":{"ports":[{"target":3000,"published":"8089","protocol":"tcp"}]}}}';; esac`,
+      'exit 0',
+    ].join('\n'),
+    curl: 'exit 0',
+    ffuf: 'printf "%s\\n" "$@" > "$HOME/ffuf.args"; cat >/dev/null; exit 0',
+  });
+  fs.writeFileSync(path.join(sb2.root, 'compose.yaml'), 'services: {}\n');
+  sb2.run('dast.sh', ['.']);
+  const fa = fs.readFileSync(path.join(sb2.root, 'ffuf.args'), 'utf8');
+  ok(fa.includes('http://localhost:8089/FUZZ'), `compose: scans the port published in the selected compose file (${fa.split('\n')[1]})`);
+  sb2.done();
+}
+
+// ── 15. await.sh: a file target still finds its tsconfig root ───────────────
+console.log('await.sh');
+{
+  const sb = sandbox({ npx: 'echo "$PWD $*" >> "$HOME/npx.log"; exit 0' });
+  fs.mkdirSync(path.join(sb.root, 'src'));
+  fs.writeFileSync(path.join(sb.root, 'tsconfig.json'), '{}');
+  fs.writeFileSync(path.join(sb.root, 'src', 'a.ts'), 'export const a = 1\n');
+  const r = sb.run('await.sh', ['src/a.ts']);
+  const log = fs.existsSync(path.join(sb.root, 'npx.log')) ? fs.readFileSync(path.join(sb.root, 'npx.log'), 'utf8') : '';
+  ok(log.split('\n').some(l => l.startsWith(fs.realpathSync(sb.root) + ' ') && /tsc --noEmit/.test(l)), `file target → tsc runs from the tsconfig root (${r.stderr.trim().split('\n').pop()})`);
+  sb.done();
+}
+
+// ── 16. deadcode.sh: nested-package findings point at the repo-relative file ─
+console.log('deadcode.sh');
+{
+  const sb = sandbox({ npx: [
+    'case "$*" in *knip*) echo \'{"issues":[{"file":"src/a.ts","exports":[{"name":"unused","line":3}]},{"file":"other/b.ts","exports":[{"name":"x","line":1}]}]}\';; esac',
+    'exit 0',
+  ].join('\n') });
+  const pkg = path.join(sb.root, 'packages', 'app');
+  fs.mkdirSync(path.join(pkg, 'src'), { recursive: true });
+  fs.writeFileSync(path.join(pkg, 'package.json'), '{}');
+  const out = lines(sb.run('deadcode.sh', ['packages/app']).stdout);
+  ok(out.length === 2 && out[0].file === 'packages/app/src/a.ts', `knip path is relative to the caller's cwd, not the package (${out.map(f => f.file).join(',')})`);
+  sb.done();
+}
+
+// ── 17. feed-status.sh: platform cache dir, and overrides are authoritative ─
+console.log('feed-status.sh');
+{
+  const meta = (hoursAgo) => JSON.stringify({ DownloadedAt: new Date(Date.now() - hoursAgo * 3600000).toISOString() });
+  const mk = (os_) => sandbox({ trivy: 'echo "Version: 0.50.0"', uname: `echo ${os_}` });
+  const seed = (sb) => {
+    for (const [d, h] of [['.cache/trivy/db', 100], ['Library/Caches/trivy/db', 1]]) {
+      fs.mkdirSync(path.join(sb.root, d), { recursive: true });
+      fs.writeFileSync(path.join(sb.root, d, 'metadata.json'), meta(h));
+    }
+    fs.mkdirSync(path.join(sb.root, 'empty-cache'));
+  };
+  const age = (sb, env) => (lines(sb.run('feed-status.sh', [], { env }).stdout).find(l => l.tool === 'trivy') ?? {}).dbAge;
+  const lin = mk('Linux'); seed(lin);
+  ok(age(lin) === '100', `Linux reads ~/.cache/trivy, not a stale ~/Library/Caches copy (dbAge ${age(lin)})`);
+  ok(age(lin, { TRIVY_CACHE_DIR: path.join(lin.root, 'empty-cache') }) === 'unknown', 'TRIVY_CACHE_DIR with no DB → unknown, never another cache\'s age');
+  lin.done();
+  const mac = mk('Darwin'); seed(mac);
+  ok(age(mac) === '1', `macOS reads ~/Library/Caches/trivy (dbAge ${age(mac)})`);
+  mac.done();
+}
+
+// ── 18. cpg.sh: a Joern query is never built from a non-identifier target ───
+console.log('cpg.sh Joern target');
+{
+  const sb = sandbox({
+    'joern-parse': 'prev=""; for a in "$@"; do [ "$prev" = "--output-dir" ] && /bin/mkdir -p "$a"; prev="$a"; done',
+    'joern-query': 'printf "%s\\n" "$@" >> "$HOME/jq.log"; echo "[]"',
+  });
+  fs.mkdirSync(path.join(sb.root, 'src'));
+  const evil = sb.run('cpg.sh', ['src', 'reachable', 'x"); sys.exit(1); ("']);
+  const log1 = fs.existsSync(path.join(sb.root, 'jq.log')) ? fs.readFileSync(path.join(sb.root, 'jq.log'), 'utf8') : '';
+  ok(!/sys\.exit/.test(log1) && /not a plain function name/.test(evil.stderr), 'reachable with a quote-bearing target → refused, joern-query never sees it');
+  sb.run('cpg.sh', ['src', 'reachable', 'exec']);
+  const log2 = fs.existsSync(path.join(sb.root, 'jq.log')) ? fs.readFileSync(path.join(sb.root, 'jq.log'), 'utf8') : '';
+  ok(/cpg\.call\.name\("exec"\)/.test(log2), 'a plain function name still reaches joern-query');
   sb.done();
 }
 

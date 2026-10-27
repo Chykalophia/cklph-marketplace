@@ -162,8 +162,8 @@ crown jewels; if none (the Map phase did not run), narrate per lens from the cov
 
 ### U-1: <title>
 - **Where:** `<file>:<line>` · **severity (claimed):** <high|critical> · **rule:** `<…>`
-- **Why held:** <heldReason: majority-held-no-trace | refuted-without-guard | no-quorum, in words>.
-- **To resolve:** produce the reachability trace (promote) or the missing guard (refute).
+- **Why held:** <heldReason: majority-held-no-trace | refuted-without-guard | split-vote | no-quorum, in words>.
+- **To resolve:** majority-held-no-trace → produce the reachability trace (promote); refuted-without-guard → cite the missing guard (refute); split-vote / no-quorum → re-run verification until a voter majority (quorum) is reached.
 
 ### Deferred — unverified (verifier budget exhausted)
 

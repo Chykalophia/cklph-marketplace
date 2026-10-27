@@ -5,16 +5,23 @@
 # Output schema per line: { tool, dbAge, lastUpdated, upToDate, currentVersion, latestVersion }
 set -uo pipefail
 
+# The user cache dir the scanners use on THIS host: ~/Library/Caches on macOS, $XDG_CACHE_HOME or
+# ~/.cache elsewhere. Only the active platform's dir is probed, so a stale copy left by another
+# platform (or an old install) is never reported as the live DB.
+if [ "$(uname -s 2>/dev/null)" = Darwin ]; then
+  OS_CACHE="$HOME/Library/Caches"
+else
+  OS_CACHE="${XDG_CACHE_HOME:-$HOME/.cache}"
+fi
+
 # ── Trivy DB age ─────────────────────────────────────────────────────────────
 if command -v trivy >/dev/null 2>&1; then
   CUR_VER=$(trivy --version 2>/dev/null | head -1 | grep -oE '[0-9]+\.[0-9]+\.[0-9]+' || echo "unknown")
-  # trivy's cache: $TRIVY_CACHE_DIR, else the OS user cache dir (~/Library/Caches on macOS,
-  # $XDG_CACHE_HOME or ~/.cache elsewhere); the DB metadata sits in <cache>/db.
+  # trivy's cache: $TRIVY_CACHE_DIR when set (authoritative: no DB there means "unknown", never
+  # another cache's age), else the OS user cache dir; the DB metadata sits in <cache>/db.
   DB_DIR=""
-  for d in "${TRIVY_CACHE_DIR:-}" "${XDG_CACHE_HOME:-}/trivy" "$HOME/Library/Caches/trivy" "$HOME/.cache/trivy"; do
-    case "$d" in ""|/trivy) continue ;; esac
-    if [ -f "$d/db/metadata.json" ]; then DB_DIR="$d/db"; break; fi
-  done
+  d="${TRIVY_CACHE_DIR:-$OS_CACHE/trivy}"
+  if [ -f "$d/db/metadata.json" ]; then DB_DIR="$d/db"; fi
   DB_AGE="unknown"
   if [ -n "$DB_DIR" ]; then
     DB_AGE=$(node -e '
@@ -37,10 +44,11 @@ if command -v grype >/dev/null 2>&1; then
   CUR_VER=$(grype version 2>/dev/null | grep -iE '^version' | awk '{print $NF}' || echo "unknown")
   DB_AGE="unknown"
   DB_DIR=""
-  for d in "${GRYPE_DB_CACHE_DIR:-}" "${XDG_CACHE_HOME:-}/grype/db" "$HOME/Library/Caches/grype/db" "$HOME/.cache/grype/db"; do
-    case "$d" in ""|/grype/db) continue ;; esac
-    if [ -d "$d" ]; then DB_DIR="$d"; break; fi
-  done
+  # $GRYPE_DB_CACHE_DIR when set (authoritative), else <user cache>/grype/db. grype resolves its
+  # cache via XDG on every platform, so an explicit XDG_CACHE_HOME wins on macOS too.
+  if [ -n "${XDG_CACHE_HOME:-}" ]; then GRYPE_CACHE="$XDG_CACHE_HOME"; else GRYPE_CACHE="$OS_CACHE"; fi
+  d="${GRYPE_DB_CACHE_DIR:-$GRYPE_CACHE/grype/db}"
+  if [ -d "$d" ]; then DB_DIR="$d"; fi
   if [ -n "$DB_DIR" ]; then
     DB_AGE=$(node -e '
       const fs=require("fs"), path=require("path");

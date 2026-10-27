@@ -8,7 +8,7 @@
 # Usage: secrets.sh <root>
 set -uo pipefail
 ARG="${1:-.}"
-if ! TARGET="$(cd "$ARG" 2>/dev/null && pwd)"; then
+if ! TARGET="$(cd -- "$ARG" 2>/dev/null && pwd)"; then
   echo "secrets.sh: target not found: $ARG — nothing scanned." >&2
   exit 0
 fi
@@ -58,6 +58,8 @@ if command -v detect-secrets >/dev/null 2>&1; then
           file, line: h.line_number,
           rationale: "Candidate secret — verify real credential vs fixture"
         }) + "\n");' <<<"$SCAN"
+  else
+    echo "secrets.sh: node not found — cannot parse detect-secrets output; detect-secrets findings NOT collected." >&2
   fi
   exit 0
 fi

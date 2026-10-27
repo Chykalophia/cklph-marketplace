@@ -9,11 +9,18 @@
 set -uo pipefail
 ARG="${1:-.}"
 # Resolve the target ONCE to an absolute path, so a relative root is not re-resolved after cd.
-if ! TARGET="$(cd "$ARG" 2>/dev/null && pwd)"; then
+if ! TARGET="$(cd -- "$ARG" 2>/dev/null && pwd)"; then
   echo "supplychain.sh: target not found: $ARG — nothing scanned." >&2
   exit 0
 fi
 cd "$TARGET" || exit 0
+
+# Every parser below is a node program: without node no scanner output can be read, so say so
+# rather than let zero findings read as clean.
+if ! command -v node >/dev/null 2>&1; then
+  echo "supplychain.sh: node not found — scanner output cannot be parsed; NO findings collected (this is not a clean scan)." >&2
+  exit 0
+fi
 
 WORK="$(mktemp -d "${TMPDIR:-/tmp}/cklph-supplychain.XXXXXX")" || { echo "supplychain.sh: mktemp failed — nothing scanned." >&2; exit 0; }
 trap 'rm -rf "$WORK"' EXIT
@@ -29,7 +36,9 @@ if command -v semgrep >/dev/null 2>&1; then
   RC=$?
   if [ ! -s "$REPORT" ]; then
     echo "supplychain.sh: semgrep failed (exit $RC, no output): $(head -c 300 "$WORK/semgrep.err") — zero semgrep-ci findings means the scan did not run, not that CI is clean." >&2
-  elif command -v node >/dev/null 2>&1; then
+  else
+    # 0 = ran, 1 = findings with --error; anything else is a failure even when JSON was written
+    [ "$RC" -le 1 ] || echo "supplychain.sh: semgrep exited $RC but wrote output: $(head -c 300 "$WORK/semgrep.err") — semgrep-ci findings may be incomplete." >&2
     node -e '
       let r;
       try { r = JSON.parse(require("fs").readFileSync(process.argv[1], "utf8")); }
@@ -47,8 +56,6 @@ if command -v semgrep >/dev/null 2>&1; then
           rationale: "CI/CD finding — judge if an external contributor can trigger it"
         }) + "\n");
       }' "$REPORT"
-  else
-    echo "supplychain.sh: node not found — cannot parse semgrep output; semgrep-ci findings NOT collected." >&2
   fi
 fi
 

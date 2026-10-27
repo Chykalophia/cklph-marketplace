@@ -13,11 +13,18 @@ set -uo pipefail
 ARG="${1:-.}"
 ECO="${2:-}"
 # Resolve the target ONCE to an absolute path, so a relative root is not re-resolved after cd.
-if ! TARGET="$(cd "$ARG" 2>/dev/null && pwd)"; then
+if ! TARGET="$(cd -- "$ARG" 2>/dev/null && pwd)"; then
   echo "sca.sh: target not found: $ARG — nothing scanned." >&2
   exit 0
 fi
 cd "$TARGET" || exit 0
+
+# Every parser below is a node program: without node no report can be read, so say so rather
+# than let zero findings read as clean.
+if ! command -v node >/dev/null 2>&1; then
+  echo "sca.sh: node not found — scanner output cannot be parsed; NO findings collected (this is not a clean scan)." >&2
+  exit 0
+fi
 
 WORK="$(mktemp -d "${TMPDIR:-/tmp}/cklph-sca.XXXXXX")" || { echo "sca.sh: mktemp failed — nothing scanned." >&2; exit 0; }
 trap 'rm -rf "$WORK"' EXIT
@@ -28,6 +35,11 @@ trap 'exit 143' TERM
 no_output() {
   echo "sca.sh: $1 failed (exit $2, no output): $(head -c 300 "$3") — zero $1 findings means the scan did not run, not that the dependencies are clean." >&2
 }
+# rc_warn <tool> <exit-code> <stderr-file>: a scanner exited non-zero yet wrote a report — parse it,
+# but say the scan may be partial (an empty report from a failed run is not "no vulnerabilities").
+rc_warn() {
+  [ "$2" -eq 0 ] || echo "sca.sh: $1 exited $2 but wrote a report: $(head -c 300 "$3") — its findings may be incomplete; zero $1 findings does not mean clean." >&2
+}
 
 # ── Trivy (vulns + SBOM) ─────────────────────────────────────────────────────
 if command -v trivy >/dev/null 2>&1; then
@@ -35,11 +47,14 @@ if command -v trivy >/dev/null 2>&1; then
   trivy fs --quiet --format json --scanners vuln "$TARGET" --output "$REPORT" >/dev/null 2> "$WORK/trivy.err"
   RC=$?
   if [ ! -s "$REPORT" ]; then no_output trivy "$RC" "$WORK/trivy.err"
-  elif command -v node >/dev/null 2>&1; then
+  else
+    rc_warn trivy "$RC" "$WORK/trivy.err"
     node -e '
       let r;
       try { r = JSON.parse(require("fs").readFileSync(process.argv[1], "utf8")); }
       catch (e) { process.stderr.write("sca.sh: trivy output is not valid JSON (" + e.message + ") — trivy findings NOT collected.\n"); process.exit(0); }
+      // trivy omits Results when nothing was found, but always writes SchemaVersion
+      if (!r || typeof r !== "object" || (r.Results === undefined ? !("SchemaVersion" in r) : !Array.isArray(r.Results))) { process.stderr.write("sca.sh: trivy output is not a trivy report (no SchemaVersion/Results) — trivy findings NOT collected.\n"); process.exit(0); }
       for (const res of (r.Results || []))
         for (const v of (res.Vulnerabilities || []))
           process.stdout.write(JSON.stringify({
@@ -59,12 +74,14 @@ if command -v grype >/dev/null 2>&1; then
   grype dir:"$TARGET" -o json --quiet > "$REPORT" 2> "$WORK/grype.err"
   RC=$?
   if [ ! -s "$REPORT" ]; then no_output grype "$RC" "$WORK/grype.err"
-  elif command -v node >/dev/null 2>&1; then
+  else
+    rc_warn grype "$RC" "$WORK/grype.err"
     node -e '
       let r;
       try { r = JSON.parse(require("fs").readFileSync(process.argv[1], "utf8")); }
       catch (e) { process.stderr.write("sca.sh: grype output is not valid JSON (" + e.message + ") — grype findings NOT collected.\n"); process.exit(0); }
-      for (const m of (r.matches || []))
+      if (!r || !Array.isArray(r.matches)) { process.stderr.write("sca.sh: grype output has no matches array (unexpected shape) — grype findings NOT collected.\n"); process.exit(0); }
+      for (const m of r.matches)
         process.stdout.write(JSON.stringify({
           tool: "grype", rule: m.vulnerability.id || "vuln",
           severity: (m.vulnerability.severity||"medium").toLowerCase(),
@@ -88,7 +105,7 @@ if command -v osv-scanner >/dev/null 2>&1; then
   if [ "$RC" -eq 128 ]; then
     echo "sca.sh: osv-scanner found no lockfile/manifest it can read under $TARGET — no OSV findings, nothing was scanned." >&2
   elif [ "$RC" -gt 1 ] || [ ! -s "$REPORT" ]; then no_output osv-scanner "$RC" "$WORK/osv.err"
-  elif command -v node >/dev/null 2>&1; then
+  else
     node -e '
       let r;
       try { r = JSON.parse(require("fs").readFileSync(process.argv[1], "utf8")); }
@@ -127,12 +144,14 @@ if command -v syft >/dev/null 2>&1; then
   syft dir:"$TARGET" -o json --quiet > "$REPORT" 2> "$WORK/syft.err"
   RC=$?
   if [ ! -s "$REPORT" ]; then no_output syft "$RC" "$WORK/syft.err"
-  elif command -v node >/dev/null 2>&1; then
+  else
+    rc_warn syft "$RC" "$WORK/syft.err"
     node -e '
       let r;
       try { r = JSON.parse(require("fs").readFileSync(process.argv[1], "utf8")); }
       catch (e) { process.stderr.write("sca.sh: syft output is not valid JSON (" + e.message + ") — SBOM entries NOT collected.\n"); process.exit(0); }
-      for (const a of (r.artifacts || []))
+      if (!r || !Array.isArray(r.artifacts)) { process.stderr.write("sca.sh: syft output has no artifacts array (unexpected shape) — SBOM entries NOT collected.\n"); process.exit(0); }
+      for (const a of r.artifacts)
         if (a.type && /lang|package/i.test(a.type))
           process.stdout.write(JSON.stringify({
             tool: "syft", rule: "sbom:dependency", severity: "low",

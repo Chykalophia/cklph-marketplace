@@ -1,6 +1,6 @@
 ---
 name: feed-refresh
-description: Periodic vulnerability-feed refresh skill. Updates local tool databases (Trivy, Grype), pulls fresh CVE feeds (NVD, GHSA, OSV.dev), checks for new tool releases, and logs feed freshness status. The audit engine does NOT check feed age, so run this via /cklph-audit:refresh-feeds before an SCA or container audit.
+description: Periodic vulnerability-feed refresh skill. Updates local tool databases (Trivy, Grype), optionally checks for CVEs newer than those databases through the vuln-intel-ext MCP server (OSV), checks for new tool releases, and logs feed freshness status. The audit engine does NOT check feed age, so run this via /cklph-audit:refresh-feeds before an SCA or container audit.
 ---
 
 # feed-refresh — keep vulnerability data current
@@ -8,7 +8,7 @@ description: Periodic vulnerability-feed refresh skill. Updates local tool datab
 A security audit is only as good as its vulnerability data. Stale CVE databases = missed vulnerabilities. This skill:
 
 1. **Updates tool databases** (only those installed): `grype db update`; `trivy image --download-db-only` (check the tool's `--help` if either flag is rejected). Semgrep has no local DB to update (it fetches registry rules on every run), and OSV-Scanner queries the OSV API live by default, so neither needs an update step.
-2. **Pulls fresh CVE feeds:** checks NVD, GitHub Security Advisories, OSV.dev for recent disclosures.
+2. **Checks for newer CVEs (optional):** only when the `vuln-intel-ext` MCP server is available, its `diff_since` / `feed_status` tools query OSV for disclosures newer than the local databases (see the MCP sections below). Nothing here pulls NVD or GHSA feeds directly; without the MCP server this step is skipped, so say so.
 3. **Checks for new tool releases:** compares installed versions of semgrep, trivy, grype, checkov, kubescape, kics, hadolint against latest available.
 4. **Logs feed freshness:** when each DB was last updated, how many new CVEs since last check, which tools are out of date.
 
@@ -62,7 +62,7 @@ This closes the gap between "local DB was updated 2 hours ago" and "a CVE was pu
 
 ## Integration with the audit engine
 
-There is none yet. The audit engine never calls `feed-status.sh` and does not read `feedRefresh.*`; every report says in its appendix that feed freshness was not checked (`RUN_META.feedFreshnessChecked: false`) and points here. Run this skill before an SCA or container audit, and treat findings from a DB older than you are comfortable with as possibly incomplete.
+There is none yet. The audit engine never calls `feed-status.sh` and does not read `feedRefresh.*`; every synthesized report says in its appendix that feed freshness was not checked (the engine's raw fallback report, written only when the synthesizer dies, has no appendix) (`RUN_META.feedFreshnessChecked: false`) and points here. Run this skill before an SCA or container audit, and treat findings from a DB older than you are comfortable with as possibly incomplete.
 
 ## Periodic research note
 

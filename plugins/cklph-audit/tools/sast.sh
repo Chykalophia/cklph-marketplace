@@ -11,7 +11,7 @@ set -uo pipefail
 ARG="${1:-.}"
 SEMGREP_LANG="${2:-}"
 # Resolve the target ONCE to an absolute path, so a relative root is not re-resolved after cd.
-if ! TARGET="$(cd "$ARG" 2>/dev/null && pwd)"; then
+if ! TARGET="$(cd -- "$ARG" 2>/dev/null && pwd)"; then
   echo "sast.sh: target not found: $ARG — nothing scanned." >&2
   exit 0
 fi
@@ -45,6 +45,8 @@ if command -v semgrep >/dev/null 2>&1; then
   if [ ! -s "$REPORT" ]; then
     echo "sast.sh: semgrep failed (exit $RC, no output): $(head -c 300 "$WORK/semgrep.err") — zero semgrep findings means the scan did not run, not that the code is clean." >&2
   elif command -v node >/dev/null 2>&1; then
+    # 0 = ran, 1 = findings with --error; anything else is a failure even when JSON was written
+    [ "$RC" -le 1 ] || echo "sast.sh: semgrep exited $RC but wrote output: $(head -c 300 "$WORK/semgrep.err") — semgrep findings may be incomplete; zero findings does not mean clean." >&2
     node -e '
       let r;
       try { r = JSON.parse(require("fs").readFileSync(process.argv[1], "utf8")); }
@@ -86,13 +88,15 @@ if [ -n "${CODEQL_DATABASE:-}" ] && command -v codeql >/dev/null 2>&1; then
   if [ ! -s "$REPORT" ]; then
     echo "sast.sh: codeql failed (exit $RC, no SARIF): $(head -c 300 "$WORK/codeql.err") — zero codeql findings means it did not run." >&2
   elif command -v node >/dev/null 2>&1; then
+    [ "$RC" -eq 0 ] || echo "sast.sh: codeql exited $RC but wrote SARIF: $(head -c 300 "$WORK/codeql.err") — codeql findings may be incomplete." >&2
     node -e '
       let r;
       try { r = JSON.parse(require("fs").readFileSync(process.argv[1], "utf8")); }
       catch (e) { process.stderr.write("sast.sh: codeql SARIF is not valid JSON (" + e.message + ") — codeql findings NOT collected.\n"); process.exit(0); }
       const sevOf = (s) => { const n = parseFloat(s); if (isNaN(n)) return ""; return n >= 9 ? "critical" : n >= 7 ? "high" : n >= 4 ? "medium" : "low"; };
       const lvl = { error: "high", warning: "medium", note: "low" };
-      for (const run of (r.runs || [])) {
+      if (!r || !Array.isArray(r.runs)) { process.stderr.write("sast.sh: codeql SARIF has no runs array (unexpected shape) — codeql findings NOT collected.\n"); process.exit(0); }
+      for (const run of r.runs) {
         const rules = new Map();
         for (const ru of ((run.tool && run.tool.driver && run.tool.driver.rules) || [])) rules.set(ru.id, ru);
         for (const res of (run.results || [])) {
@@ -110,6 +114,8 @@ if [ -n "${CODEQL_DATABASE:-}" ] && command -v codeql >/dev/null 2>&1; then
           }) + "\n");
         }
       }' "$REPORT"
+  else
+    echo "sast.sh: node not found — cannot parse the codeql SARIF; codeql findings NOT collected." >&2
   fi
 fi
 exit 0

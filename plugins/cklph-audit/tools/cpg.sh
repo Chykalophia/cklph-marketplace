@@ -1,20 +1,22 @@
 #!/usr/bin/env bash
 # cpg.sh — code property graph reachability queries for the security lens (T3.2).
 # Wraps Joern (if available) to answer "who calls this function?" / "can input reach this sink?"
-# Falls back to a grep-based call-graph approximation. Emits JSON lines. Exits 0 ALWAYS.
+# Without Joern, callers and sinks fall back to a grep-based approximation; reachable has no
+# fallback and says on stderr that nothing was queried. Emits JSON lines. Exits 0 ALWAYS.
 # Usage: cpg.sh <root> <query-type> <target>
 #   <query-type>: callers|reachable|sinks
 #   <target>: function name (callers) / sink call name (reachable) / sink regex (sinks)
 # Output schema per line: { tool, query, file, line, snippet, rationale }
 # Joern: the queries go through a `joern-query` binary on PATH, which the Joern distribution does
-# NOT ship (its CLI is `joern --script`). Without one, every query uses the grep fallback.
+# NOT ship (its CLI is `joern --script`). Without one, callers and sinks use grep and reachable
+# reports that it was not queried.
 # The Joern branch is UNVERIFIED here (no Joern install in this repo's tests).
 set -uo pipefail
 ARG="${1:-.}"
 QUERY="${2:-callers}"
 TARGET="${3:-}"
 # Resolve the root ONCE to an absolute path, so a relative root is not re-resolved after cd.
-if ! ROOT="$(cd "$ARG" 2>/dev/null && pwd)"; then
+if ! ROOT="$(cd -- "$ARG" 2>/dev/null && pwd)"; then
   echo "cpg.sh: root not found: $ARG — nothing queried." >&2
   exit 0
 fi
@@ -22,13 +24,23 @@ cd "$ROOT" || exit 0
 
 if [ -z "$TARGET" ]; then printf '[]\n'; exit 0; fi
 
+# The target is spliced into a Joern (Scala) query string, so it must be a plain function/call
+# name: no quotes, backslashes, spaces or newlines that could close the string and run code.
+# (Joern operator names such as <operator>.assignment are allowed.)
+NAME_RE='^[A-Za-z_<][A-Za-z0-9_.<>:$]*$'
+PLAIN_NAME=false
+if [[ $TARGET =~ $NAME_RE ]]; then PLAIN_NAME=true; fi
+
 # ── Joern (if installed and a CPG exists or can be built) ────────────────────
 if command -v joern-parse >/dev/null 2>&1 && command -v joern-query >/dev/null 2>&1; then
   CPG_DIR="${JOERN_CPG_DIR:-$ROOT/.cpg}"
   if [ ! -d "$CPG_DIR" ]; then
     joern-parse "$ROOT" --output-dir "$CPG_DIR" >/dev/null 2>&1 || true
   fi
-  if [ -d "$CPG_DIR" ]; then
+  if [ -d "$CPG_DIR" ] && [ "$PLAIN_NAME" != true ] && [ "$QUERY" != sinks ]; then
+    echo "cpg.sh: '$TARGET' is not a plain function name — refusing to build a Joern query from it." >&2
+    [ "$QUERY" = reachable ] && exit 0   # callers falls through to the grep approximation below
+  elif [ -d "$CPG_DIR" ]; then
     case "$QUERY" in
       callers)
         joern-query --cpg "$CPG_DIR" "cpg.call.name(\"$TARGET\").method.l" --json 2>/dev/null \

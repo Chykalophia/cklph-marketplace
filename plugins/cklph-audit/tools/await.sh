@@ -29,7 +29,10 @@ fi
 
 # tsc is the exact backstop; surface that it ran (compile errors often hide await bugs).
 # tsc checks a whole project, so run it from the nearest tsconfig.json at or above the target.
-PROJ="$(cd "$TARGET" 2>/dev/null && pwd)" || PROJ=""
+# The target may be a file or a glob (unit paths often are): start from its nearest existing dir.
+SEARCH="$TARGET"
+while [ ! -d "$SEARCH" ] && [ "$SEARCH" != "/" ] && [ "$SEARCH" != "." ]; do SEARCH="$(dirname -- "$SEARCH")"; done
+PROJ="$(cd -- "$SEARCH" 2>/dev/null && pwd)" || PROJ=""
 while [ -n "$PROJ" ] && [ ! -f "$PROJ/tsconfig.json" ] && [ "$PROJ" != "/" ]; do PROJ="$(dirname "$PROJ")"; done
 if [ -z "$PROJ" ] || [ ! -f "$PROJ/tsconfig.json" ]; then
   echo "note: no tsconfig.json at or above $TARGET — 'tsc --noEmit' not run." >&2

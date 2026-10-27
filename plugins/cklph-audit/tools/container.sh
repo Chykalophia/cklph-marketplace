@@ -9,11 +9,18 @@ set -uo pipefail
 ARG="${1:-.}"
 IMAGE="${2:-}"
 # Resolve the target ONCE to an absolute path, so a relative root is not re-resolved after cd.
-if ! TARGET="$(cd "$ARG" 2>/dev/null && pwd)"; then
+if ! TARGET="$(cd -- "$ARG" 2>/dev/null && pwd)"; then
   echo "container.sh: target not found: $ARG — nothing scanned." >&2
   exit 0
 fi
 cd "$TARGET" || exit 0
+
+# Every parser below is a node program: without node no scanner output can be read, so say so
+# rather than let zero findings read as clean.
+if ! command -v node >/dev/null 2>&1; then
+  echo "container.sh: node not found — scanner output cannot be parsed; NO findings collected (this is not a clean scan)." >&2
+  exit 0
+fi
 
 WORK="$(mktemp -d "${TMPDIR:-/tmp}/cklph-container.XXXXXX")" || { echo "container.sh: mktemp failed — nothing scanned." >&2; exit 0; }
 trap 'rm -rf "$WORK"' EXIT
@@ -22,6 +29,11 @@ trap 'exit 143' TERM
 
 no_output() {
   echo "container.sh: $1 failed (exit $2, no output): $(head -c 300 "$3") — zero $1 findings means the scan did not run, not that the image is clean." >&2
+}
+# rc_warn <tool> <exit-code> <stderr-file>: non-zero exit but a report was written — parse it, and
+# say the scan may be partial (an empty report from a failed run is not a clean image).
+rc_warn() {
+  [ "$2" -eq 0 ] || echo "container.sh: $1 exited $2 but wrote a report: $(head -c 300 "$3") — its findings may be incomplete; zero $1 findings does not mean clean." >&2
 }
 
 # ── If an image is provided (or auto-detected from docker images) ────────────
@@ -38,7 +50,8 @@ if [ -n "$SCAN_IMAGE" ]; then
     trivy image --quiet --format json "$SCAN_IMAGE" > "$REPORT" 2> "$WORK/trivy.err"
     RC=$?
     if [ ! -s "$REPORT" ]; then no_output "trivy image" "$RC" "$WORK/trivy.err"
-    elif command -v node >/dev/null 2>&1; then
+    else
+      rc_warn "trivy image" "$RC" "$WORK/trivy.err"
       node -e '
         let r;
         try { r = JSON.parse(require("fs").readFileSync(process.argv[1], "utf8")); }
@@ -72,7 +85,8 @@ if [ -n "$SCAN_IMAGE" ]; then
     grype "$SCAN_IMAGE" -o json --quiet > "$REPORT" 2> "$WORK/grype.err"
     RC=$?
     if [ ! -s "$REPORT" ]; then no_output grype "$RC" "$WORK/grype.err"
-    elif command -v node >/dev/null 2>&1; then
+    else
+      rc_warn grype "$RC" "$WORK/grype.err"
       node -e '
         let r;
         try { r = JSON.parse(require("fs").readFileSync(process.argv[1], "utf8")); }
@@ -116,7 +130,8 @@ if command -v hadolint >/dev/null 2>&1; then
         catch (e) { process.stderr.write("container.sh: hadolint output for " + process.argv[1] + " is not valid JSON (" + e.message + ") — its findings NOT collected.\n"); return; }
         // hadolint levels → the FINDINGS_SCHEMA words
         const sev = { error: "medium", warning: "low", info: "low", style: "low" };
-        for (const f of (Array.isArray(arr) ? arr : []))
+        if (!Array.isArray(arr)) { process.stderr.write("container.sh: hadolint output for " + process.argv[1] + " is not an array (unexpected shape) — its findings NOT collected.\n"); return; }
+        for (const f of arr)
           process.stdout.write(JSON.stringify({
             tool: "hadolint", rule: f.code || "dockerfile-lint",
             severity: sev[String(f.level || "").toLowerCase()] || "low",

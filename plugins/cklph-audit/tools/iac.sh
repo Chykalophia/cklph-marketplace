@@ -9,11 +9,18 @@
 set -uo pipefail
 ARG="${1:-.}"
 # Resolve the target ONCE to an absolute path, so a relative root is not re-resolved after cd.
-if ! TARGET="$(cd "$ARG" 2>/dev/null && pwd)"; then
+if ! TARGET="$(cd -- "$ARG" 2>/dev/null && pwd)"; then
   echo "iac.sh: target not found: $ARG — nothing scanned." >&2
   exit 0
 fi
 cd "$TARGET" || exit 0
+
+# Every parser below is a node program: without node no scanner output can be read, so say so
+# rather than let zero findings read as clean.
+if ! command -v node >/dev/null 2>&1; then
+  echo "iac.sh: node not found — scanner output cannot be parsed; NO findings collected (this is not a clean scan)." >&2
+  exit 0
+fi
 
 WORK="$(mktemp -d "${TMPDIR:-/tmp}/cklph-iac.XXXXXX")" || { echo "iac.sh: mktemp failed — nothing scanned." >&2; exit 0; }
 trap 'rm -rf "$WORK"' EXIT
@@ -30,7 +37,7 @@ if command -v checkov >/dev/null 2>&1; then
   checkov -d "$TARGET" -o json --quiet > "$REPORT" 2> "$WORK/checkov.err"
   RC=$?
   if [ ! -s "$REPORT" ]; then no_output checkov "$RC" "$WORK/checkov.err"
-  elif command -v node >/dev/null 2>&1; then
+  else
     node -e '
       let r;
       try { r = JSON.parse(require("fs").readFileSync(process.argv[1], "utf8")); }
@@ -54,7 +61,7 @@ if command -v kics >/dev/null 2>&1; then
   RC=$?
   REPORT="$WORK/kics/results.json"
   if [ ! -s "$REPORT" ]; then no_output kics "$RC" "$WORK/kics.err"
-  elif command -v node >/dev/null 2>&1; then
+  else
     node -e '
       let r;
       try { r = JSON.parse(require("fs").readFileSync(process.argv[1], "utf8")); }
@@ -76,7 +83,7 @@ if command -v tfsec >/dev/null 2>&1; then
   tfsec "$TARGET" --format json --quiet > "$REPORT" 2> "$WORK/tfsec.err"
   RC=$?
   if [ ! -s "$REPORT" ]; then no_output tfsec "$RC" "$WORK/tfsec.err"
-  elif command -v node >/dev/null 2>&1; then
+  else
     node -e '
       let r;
       try { r = JSON.parse(require("fs").readFileSync(process.argv[1], "utf8")); }
@@ -97,7 +104,7 @@ if command -v trivy >/dev/null 2>&1; then
   trivy config --quiet --format json "$TARGET" > "$REPORT" 2> "$WORK/trivy.err"
   RC=$?
   if [ ! -s "$REPORT" ]; then no_output "trivy config" "$RC" "$WORK/trivy.err"
-  elif command -v node >/dev/null 2>&1; then
+  else
     node -e '
       let r;
       try { r = JSON.parse(require("fs").readFileSync(process.argv[1], "utf8")); }

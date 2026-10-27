@@ -7,7 +7,7 @@ description: The exact AUDIT-<date>.md contract — front-matter, coverage summa
 
 This skill defines the exact shape `audit-synthesizer` must emit as `report.markdown`. The contract exists so reports are consistent, git-diffable across runs, and feed cleanly into `/cklph-os:flow`. **Nothing is silently truncated** — anything not audited, whether a *unit*, a *rulebook rule*, an *enumerated pattern* (budget, sampling, low-confidence, recon gaps), or a skipped *phase* (whether the Map + Variant + DAST + Patch + SelfReview phases ran), is named in the report.
 
-The document has ten parts, in order: **Front-matter → Coverage summary → Coverage matrix → Compliance matrix → Coverage narrative → Severity sections → Held-untraced → Positive controls (INFO) → Remediation waves → Appendix.**
+The document has eleven parts, in order: **Front-matter → Coverage summary → Coverage matrix → Compliance matrix → Coverage narrative → Severity sections → Held-untraced → Positive controls (INFO) → Remediation waves → Appendix → Self-review.** The synthesizer writes the first ten and ends at the Appendix; the engine appends the closing `## Self-review` section (see §9).
 
 An OPTIONAL `## Summary` lead block (new-finding counts, rule closure, positive-control count, unit derivation, a one-or-two-line headline) may sit between the front-matter and the Coverage summary — a human skim layer only, never a substitute for the sections below. The template includes one.
 
@@ -71,6 +71,7 @@ Rules for the summary:
 - Every recon denominator gets a row: the pattern, the **re-runnable command verbatim**, and `examined X / N`.
 - Where `X < N`, the row says **sampled** and gives the sampling rationale (risk-weighting) — never leave a shortfall unexplained.
 - Each lens states its reviewer coverage: `seedsVerified / seedsGiven` and `toolCandidatesJudged`.
+- Each lens lists every tool failure its reviewers reported (`COVERAGE_TOTALS.<lens>.reviewed.toolFailures`: a scanner that failed, was missing, or whose output could not be parsed). That recall did NOT run, so its zero candidates mean **not checked**, never clean — say so on the lens line.
 - If recon didn't run for a lens (quick mode, config, agent died), say so here in one line — and expand why in the appendix. Never render an empty table silently.
 
 ## 3. Coverage matrix
@@ -197,7 +198,7 @@ Rules for every finding:
 
 ## 6. Held-untraced (inconclusive critical/high, needs owner review)
 
-A `## Held-untraced` section, written from `HELD_UNTRACED`, immediately after the severity sections. These are critical/high findings the panel **neither confirmed nor cleanly refuted** — either it was majority-held but **no independent verifier supplied a reachability trace** (the reviewer's own `validationSteps` do not count — the accuser cannot vouch for itself), or it was majority-refuted but **no verifier cited a concrete guard** to justify the refutation. Either way the outcome is *inconclusive*, so under the v3 evidence-arbiter they are not promoted to a severity section — but they are the opposite of "clean." They MUST be surfaced here — never silently dropped — as **needs-owner-input**, so a suspected critical/high is never lost for want of evidence either way.
+A `## Held-untraced` section, written from `HELD_UNTRACED`, immediately after the severity sections. These are critical/high findings the panel **neither confirmed nor cleanly refuted** — either it was majority-held but **no independent verifier supplied a reachability trace** (the reviewer's own `validationSteps` do not count — the accuser cannot vouch for itself), or it was majority-refuted but **no verifier cited a concrete guard** to justify the refutation, or the vote split with no majority either way, or too few voters returned (no quorum). Either way the outcome is *inconclusive*, so under the v3 evidence-arbiter they are not promoted to a severity section — but they are the opposite of "clean." They MUST be surfaced here — never silently dropped — as **needs-owner-input**, so a suspected critical/high is never lost for want of evidence either way.
 
 ```markdown
 ## Held-untraced
@@ -206,8 +207,8 @@ A `## Held-untraced` section, written from `HELD_UNTRACED`, immediately after th
 
 ### [U-1] <short title>
 - **Location:** `file.ts:42` · **Severity (claimed):** high · **Rule:** CWE-…
-- **Why held:** <from `heldReason`> — `majority-held-no-trace`: the majority could not refute it, but no voter produced an input→sink / invariant-violation trace · `refuted-without-guard`: the majority refuted it, but no voter cited the guard · `no-quorum`: too few voters returned to decide. Never write "majority-held" for the last two.
-- **To resolve:** produce the reachability trace (promote) or the missing guard (refute).
+- **Why held:** <from `heldReason`> — `majority-held-no-trace`: the majority could not refute it, but no voter produced an input→sink / invariant-violation trace · `refuted-without-guard`: the majority refuted it, but no voter cited the guard · `split-vote`: neither side had a majority (a tie after a voter died, or held short of a unanimous threshold) · `no-quorum`: too few voters returned to decide. Never write "majority-held" for the last three.
+- **To resolve:** produce the reachability trace (promote) or the missing guard (refute); for `no-quorum` (and a `split-vote` caused by a dead voter), re-run verification until the voter quorum is reached.
 ```
 
 Omit the section only when `HELD_UNTRACED` is empty; whenever it is non-empty, `RUN_META.heldUntracedCount` matches the entry count. Ids are stable per-report (`U-1`, `U-2`, …). Held-untraced items are NOT findings and NOT positive controls — they never appear in waves or the INFO section.

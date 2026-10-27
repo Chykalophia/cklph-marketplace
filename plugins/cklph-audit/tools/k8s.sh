@@ -6,11 +6,18 @@
 set -uo pipefail
 ARG="${1:-.}"
 # Resolve the target ONCE to an absolute path, so a relative root is not re-resolved after cd.
-if ! TARGET="$(cd "$ARG" 2>/dev/null && pwd)"; then
+if ! TARGET="$(cd -- "$ARG" 2>/dev/null && pwd)"; then
   echo "k8s.sh: target not found: $ARG — nothing scanned." >&2
   exit 0
 fi
 cd "$TARGET" || exit 0
+
+# Every parser below is a node program: without node no scanner output can be read, so say so
+# rather than let zero findings read as clean.
+if ! command -v node >/dev/null 2>&1; then
+  echo "k8s.sh: node not found — scanner output cannot be parsed; NO findings collected (this is not a clean scan)." >&2
+  exit 0
+fi
 
 WORK="$(mktemp -d "${TMPDIR:-/tmp}/cklph-k8s.XXXXXX")" || { echo "k8s.sh: mktemp failed — nothing scanned." >&2; exit 0; }
 trap 'rm -rf "$WORK"' EXIT
@@ -35,8 +42,12 @@ K8S_DIR=""
 K8S_FILES=$(find_k8s_files | head -50)
 if [ -n "$K8S_FILES" ]; then
   K8S_DIR="$WORK/manifests"
-  mkdir "$K8S_DIR" || K8S_DIR=""
-  printf '%s\n' "$K8S_FILES" | while IFS= read -r f; do cp "$f" "$K8S_DIR/" 2>/dev/null || true; done
+  if mkdir "$K8S_DIR"; then
+    printf '%s\n' "$K8S_FILES" | while IFS= read -r f; do cp "$f" "$K8S_DIR/" 2>/dev/null || true; done
+  else
+    K8S_DIR=""
+    echo "k8s.sh: could not stage the manifests in $WORK — kubescape not run; zero kubescape findings means nothing was scanned." >&2
+  fi
 fi
 
 # ── Kubescape (comprehensive K8s security) ───────────────────────────────────
@@ -45,7 +56,7 @@ if command -v kubescape >/dev/null 2>&1 && [ -n "$K8S_DIR" ]; then
   kubescape scan framework nsa "$K8S_DIR" --format json --output "$REPORT" --quiet >/dev/null 2> "$WORK/kubescape.err"
   RC=$?
   if [ ! -s "$REPORT" ]; then no_output kubescape "$RC" "$WORK/kubescape.err"
-  elif command -v node >/dev/null 2>&1; then
+  else
     node -e '
       let r;
       try { r = JSON.parse(require("fs").readFileSync(process.argv[1], "utf8")); }
@@ -70,7 +81,7 @@ if command -v kube-bench >/dev/null 2>&1; then
   kube-bench --json --outputfile "$REPORT" run >/dev/null 2> "$WORK/kube-bench.err"
   RC=$?
   if [ ! -s "$REPORT" ]; then no_output kube-bench "$RC" "$WORK/kube-bench.err"
-  elif command -v node >/dev/null 2>&1; then
+  else
     node -e '
       let r;
       try { r = JSON.parse(require("fs").readFileSync(process.argv[1], "utf8")); }

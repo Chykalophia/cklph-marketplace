@@ -125,7 +125,7 @@ case `[SoftwareSeni][eng-practices]`. `cklph-reviewer` already has an "omissions
 cklph-audit as a lens that, per external input / IO / branch, asserts {validation? error-path?
 logging? rollback? test?} and reports the missing ones. Scored separately from defect-finding.
 
-### Tier 3 — bigger bets — ✅ shipped in 1.0.0
+### Tier 3 — bigger bets — ◐ landed in 1.0.0 (T3.1 and T3.4 only partly)
 
 > **Outcome (1.0.0):** the Tier 3 bets landed in the 1.0.0 "comprehensive security suite" wave, but two only partly: T3.1 is a tool no phase runs, and T3.4 is a config block the engine does not read (corrected in 1.2.3).
 > The original text is kept below for provenance.
@@ -177,8 +177,9 @@ bump tracked separately):
 > **Outcome (0.3.0):** steps 1–5 all shipped in the one 0.3.0 "master-practice" wave (T2.1/T2.2/T2.3
 > came forward from the tentative v0.4 into 0.3.0), plus the §4 review-stack wins.
 >
-> **Outcome (1.0.0):** step 6's Tier 3 bets — all five (T3.1–T3.5) — shipped in the 1.0.0
-> "comprehensive security suite" wave, alongside nine new lenses, DAST + exploit verification,
+> **Outcome (1.0.0):** step 6's Tier 3 bets landed in the 1.0.0 "comprehensive security suite" wave,
+> two only partly (T3.1 hotspots is a tool no phase runs; T3.4 ensemble is a config stub the engine
+> does not read; corrected in 1.2.3), alongside nine new lenses, DAST + exploit verification,
 > patch generation, compliance mapping, self-review, and feed freshness. The original plan is kept
 > below for provenance.
 

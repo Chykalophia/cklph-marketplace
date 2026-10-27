@@ -121,7 +121,8 @@ Extensible (later): `performance` (N+1, hot paths, caching, bundle), `a11y` (WCA
                that feeds /cklph-os:flow)
 10. SELFREVIEW  adversarial self-review of the report (the "check itself" loop): an
                audit-reviewer re-reads the report for gaps, missed areas, under-explored
-               crown jewels. Gaps are surfaced in the appendix. Default true in full; off
+               crown jewels. The engine appends the gaps (or why no review ran) as a closing
+               ## Self-review section after the appendix. Default true in full; off
                in :quick.
 ```
 
@@ -214,7 +215,7 @@ Config-compatible: a v3 `audit.config.yaml` runs unchanged — every new key def
 - **v1 (0.1.0)**: `cklph-audit` plugin · security + correctness + architecture lenses · scout/reviewer/verifier/synthesizer agents · the workflow engine · `audit.config.yaml` + `.audit-baseline.json` · `run` / `quick` / `baseline` / `init` commands.
 - **v2 (0.2.0)**: the coverage upgrade — recon (denominators + seeds), rulebook + rule-closure matrix, coverage math, positive controls (INFO), docs-drift lens, richer finding schema. See `SPEC-v2.md`.
 - **v3 (0.3.0, current)**: the master-practice upgrade — Map phase (threat model) + `audit-modeler`, evidence-arbitrated verify (reachability trace), variant analysis + `variant-sweep.sh`, root-cause/invariant findings, risk-routed depth, coverage narrative, and the opt-in omission lens. See `SPEC-v3.md`.
-- **Deferred (Tier 3, prove value first)**: git-history hotspots / change-coupling as a `riskScore` input · a CPG/graph reachability tool the reviewer queries · specialized weird-machine lenses (concurrency, state-machine, economic) · ensemble panels for crown-jewel units · an executable-repro requirement for the highest severities. Tracked in `docs/MASTER-PRACTICE-ROADMAP.md`.
+- **Deferred at v3 (Tier 3)**: these landed in v4 (below), except that git-history hotspots is a tool no phase runs yet (not a `riskScore` input) and ensemble panels are a config stub the engine does not read. Tracked in `docs/MASTER-PRACTICE-ROADMAP.md`.
 - **v4 (1.0.0)**: the comprehensive security suite — 9 new lenses (sca, iac, container, k8s, supply-chain, compliance, concurrency, state-machine, economic), SAST recall, DAST + exploit-to-confirm, patch generation, adversarial self-review, SOC 2 + CASA compliance matrix, feed freshness checks (manual). Tier 3 items landed, two only partly (T3.1 hotspots is a tool no phase runs; T3.4 ensemble is a config stub).
 - **v4.1 (1.1.0)**: MCP vulnerability intelligence integration — SCA lens auto-detects and uses `cve-mcp` (EPSS/KEV/exploit-availability/risk-ranking) and `vuln-intel-ext` (diff_since/delta-scanning/WordPress) MCP servers when available. Feed-refresh skill enhanced with MCP feed_status + delta scan.
 - **v4.2 (1.2.0)**: the opt-in `agent-config` lens (static review of MCP configs, agent settings, hooks, instruction docs, skills, and agent runtimes) and an opt-in HIPAA rulebook for the compliance lens. Adapted from ECC (MIT); see each folder's NOTICE.

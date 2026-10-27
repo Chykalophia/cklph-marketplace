@@ -279,6 +279,7 @@ const REVIEW_SCHEMA = {
         seedsVerified: { type: 'number' },
         seedsGiven: { type: 'number' },
         toolCandidatesJudged: { type: 'number' },
+        toolFailures: { type: 'array', items: { type: 'string' } },   // a deterministic tool that failed / was missing / unparsed: recall NOT run
       },
     },
   },
@@ -607,18 +608,22 @@ function verifyFindings(findings, unitKey, lens, unitVoters, extraOpts = {}) {
           ? (v.length === unitVoters && holds === v.length)
           : (holds > v.length / 2))
         const refutedGuards = v.filter(x => x.refuted && x.counterEvidence).map(x => ({ counterEvidence: x.counterEvidence, reason: x.reason }))
-        const cleanlyRefuted = !pass && refutedGuards.length > 0    // majority refuted AND a guard was cited → a real near-miss
+        // A refutation needs the same quorum a promotion does, and an actual majority of the returned
+        // votes: a tie, or a lone survivor citing a guard, does not clear a critical/high.
+        const majorityRefuted = quorumMet && (v.length - holds) > v.length / 2
+        const cleanlyRefuted = majorityRefuted && refutedGuards.length > 0    // majority refuted AND a guard was cited → a real near-miss
         const voterTrace = v.find(x => !x.refuted && x.reachabilityTrace && x.reachabilityTrace.trim())
         const isHighSev = highSev
         const confirmed = pass && (!isHighSev || !!voterTrace)
         // every high-sev that isn't confirmed and wasn't cleanly refuted is surfaced — no high-sev silent drop.
         // NOT all of these held the majority: heldReason says which case it is, so the report never
-        // calls a majority-REFUTED or no-quorum finding "majority-held".
+        // calls a majority-REFUTED, split or no-quorum finding "majority-held".
         const heldUntraced = isHighSev && !confirmed && !cleanlyRefuted
         const heldReason = !heldUntraced ? undefined
           : !quorumMet ? 'no-quorum'                      // too few voters returned (incl. all died)
           : pass ? 'majority-held-no-trace'               // held by the majority, no voter supplied a trace
-          : 'refuted-without-guard'                       // majority refuted, but no voter cited a guard
+          : majorityRefuted ? 'refuted-without-guard'     // majority refuted, but no voter cited a guard
+          : 'split-vote'                                  // neither side has a majority (a tie, or held short of unanimous)
         if (voterTrace) f.reachabilityTrace = voterTrace.reachabilityTrace
         return { ...f, unit: unitKey, lens, confirmed, heldUntraced, ...(heldReason ? { heldReason } : {}), majorityHeld: pass, refutedGuards }
       })
@@ -849,7 +854,9 @@ const reviewed = await pipeline(
           `EVERY one: confirmed: true ONLY after reading the guard at its file:line; evidence = ` +
           `that citation:\n${JSON.stringify(safeControls)}\n`
         : '') +
-      `Report coverage HONESTLY: { seedsVerified, seedsGiven (${seeds.length} given), toolCandidatesJudged }.`,
+      `Report coverage HONESTLY: { seedsVerified, seedsGiven (${seeds.length} given), toolCandidatesJudged, ` +
+      `toolFailures }. toolFailures: one line per deterministic tool whose stderr said it failed, was not ` +
+      `installed, or produced output it could not parse (its zero candidates mean NOT CHECKED, not clean); [] when every tool ran.`,
       { agentType: 'cklph-audit:audit-reviewer', label: `review:${job.unit.key}:${job.lens}`, phase: 'Review', schema: REVIEW_SCHEMA, ...tier('reviewer') },
     )
   },
@@ -1096,7 +1103,7 @@ if (rulebook.length) log(`rule closure: ${coverageSummary.checked}/${rulebook.le
 // near-misses (T2.2): majority-REFUTED critical/high whose counter-evidence tells the coverage story —
 // "probed X, held because Y". A majority-HELD-but-untraced finding is heldUntraced, NOT a near-miss.
 const nearMisses = dedupeByFingerprint(allVerified
-  .filter(f => !f.confirmed && f.majorityHeld === false && ['critical', 'high'].includes(f.severity) && f.refutedGuards?.length))
+  .filter(f => !f.confirmed && !f.heldUntraced && f.majorityHeld === false && ['critical', 'high'].includes(f.severity) && f.refutedGuards?.length))
   .map(f => ({ file: f.file, severity: f.severity, title: f.title, guard: f.refutedGuards[0].counterEvidence }))
 
 // positive controls (M4): harvest killed-candidate guards + verified-safe rules + recon safeControls,
@@ -1104,7 +1111,7 @@ const nearMisses = dedupeByFingerprint(allVerified
 const ruleIds = new Set(rulebook.map(r => r.id))
 const pcCandidates = []
 for (const f of allVerified) {
-  if (f.confirmed || !['critical', 'high'].includes(f.severity)) continue
+  if (f.confirmed || f.heldUntraced || !['critical', 'high'].includes(f.severity)) continue   // held = not cleared, so no "killed" guard
   for (const g of f.refutedGuards ?? []) {
     pcCandidates.push({ label: 'killed-candidate', file: f.file, line: f.line, rule: f.rule, evidence: g.counterEvidence, note: `guard that refuted ${f.severity} candidate: ${f.title}` })
   }
@@ -1141,12 +1148,13 @@ if (pcMax > 0) {
 // coverage totals (M3): recon denominators verbatim + summed reviewer coverage, per lens
 const coverageTotals = {}
 for (const lens of lenses) {
-  const sum = { seedsVerified: 0, seedsGiven: 0, toolCandidatesJudged: 0 }
+  const sum = { seedsVerified: 0, seedsGiven: 0, toolCandidatesJudged: 0, toolFailures: [] }
   for (const r of results) {
     if (r.lens !== lens) continue
     sum.seedsVerified += r.coverage?.seedsVerified ?? 0
     sum.seedsGiven += r.coverage?.seedsGiven ?? 0
     sum.toolCandidatesJudged += r.coverage?.toolCandidatesJudged ?? 0
+    for (const t of (Array.isArray(r.coverage?.toolFailures) ? r.coverage.toolFailures : [])) sum.toolFailures.push(`${r.unit}: ${t}`)
   }
   coverageTotals[lens] = { denominators: reconByLens[lens]?.denominators ?? [], reviewed: sum }
 }
@@ -1292,8 +1300,9 @@ let report = await agent(
   `non-empty, render the "Held-untraced (needs owner review)" section listing each (file, severity, title, rule, ` +
   `heldReason) — critical/high the panel could neither confirm nor cleanly refute. Render each one's heldReason ` +
   `plainly: "majority-held-no-trace" = held by the majority but no VOTER supplied an independent trace; ` +
-  `"refuted-without-guard" = the majority refuted it but no voter cited a guard; "no-quorum" = too few voters ` +
-  `returned to decide. Never call a refuted-without-guard or no-quorum entry "majority-held". Surface them for ` +
+  `"refuted-without-guard" = the majority refuted it but no voter cited a guard; "split-vote" = neither side ` +
+  `had a majority (a tie after a voter died, or held short of a unanimous threshold); "no-quorum" = too few ` +
+  `voters returned to decide. Never call a refuted-without-guard, split-vote or no-quorum entry "majority-held". Surface them for ` +
   `owner review, do NOT drop them and do NOT treat them as confirmed. When ` +
   `DEFERRED is non-empty, render a "Deferred — UNVERIFIED (verifier budget exhausted)" subsection listing each ` +
   `(file, severity, title, rule): the verifier budget (RUN_META.verifierBudget) ran out before these could be ` +
