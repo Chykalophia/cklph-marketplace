@@ -11,8 +11,8 @@ overview, the phase table and the hook list; this file is the inventory.
 /plugin install cklph-os@cklph
 ```
 
-Restart the CLI afterwards. Skills, commands and agents also load in Claude Desktop; hooks are
-CLI-only.
+Restart the CLI afterwards. Hooks are CLI-only. Skills, commands and agents are expected to load in
+Claude Desktop through the marketplace too; STANDARD.md §3 tracks that as still to be verified.
 
 ## What's inside
 

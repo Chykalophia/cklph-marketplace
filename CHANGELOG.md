@@ -20,7 +20,7 @@ Format: [Keep a Changelog](https://keepachangelog.com).
   wrappers and engine, vuln-intel-ext (including a check that the committed `dist/` matches
   `src/`) and the regression-watch engine and self-test.
 - `docs/ideas/cklph-os.md` is marked historical.
-- Cleanup across every plugin in PRs #35–#40: see each plugin's CHANGELOG for 2026-10-27.
+- Cleanup across the plugins touched in PRs #35–#40: see each affected plugin's CHANGELOG for 2026-10-27.
 
 ## 2026-10-26
 

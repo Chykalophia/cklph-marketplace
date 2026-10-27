@@ -13,9 +13,10 @@ jobs:
         run: sudo apt-get update && sudo apt-get install -y bats jq
       - name: Validate shell scripts (syntax)
         run: |
+          shopt -s nullglob   # an empty glob is skipped; a named file that is missing fails
           for f in plugins/*/hooks/*.sh plugins/*/tools/*.sh plugins/*/tests/*.sh plugins/*/scripts/*.sh \
                    plugins/cklph-wp/scripts/cwp plugins/cklph-visual-qa/scripts/shot; do
-            [ -f "$f" ] && bash -n "$f"
+            bash -n "$f"
           done
       - name: Run cklph-os hook tests (includes the destructive-command gate suite)
         # Shared runners are slower than the machine the timing limits were tuned on.
@@ -44,6 +45,7 @@ jobs:
           npm ci
           npm test
           git diff --exit-code -- dist/
+          test -z "$(git ls-files --others --exclude-standard -- dist/)" || { echo 'untracked files in dist/'; exit 1; }
       - name: cklph-regression-watch (engine tests + fixture self-test, headless Chromium)
         working-directory: plugins/cklph-regression-watch
         run: |
