@@ -19,10 +19,19 @@ description: Peter's Supabase auth flows for Next.js — sign-in, OAuth callback
 OAuth providers redirect to `app/auth/callback/route.ts`, which exchanges the code for a session and redirects.
 
 ```ts
+// `next` is attacker-controlled. Accept only a same-origin relative path: one leading "/",
+// never "//" or "/\" (browsers read both as a new host), and re-check the resolved origin.
+// Without this, `?next=@evil.example` redirects to https://app.example@evil.example.
+function safeNext(raw: string | null, origin: string): string {
+  if (!raw || !raw.startsWith("/") || raw.startsWith("//") || raw.startsWith("/\\")) return "/dashboard";
+  const url = new URL(raw, origin);
+  return url.origin === origin ? `${url.pathname}${url.search}${url.hash}` : "/dashboard";
+}
+
 export async function GET(request: Request) {
   const { searchParams, origin } = new URL(request.url);
   const code = searchParams.get("code");
-  const next = searchParams.get("next") ?? "/dashboard";
+  const next = safeNext(searchParams.get("next"), origin);
   if (code) {
     const supabase = await createServerSupabaseClient();
     const { error } = await supabase.auth.exchangeCodeForSession(code);
@@ -58,6 +67,7 @@ RLS predicates include both `auth.uid()` AND `organization_id`. Verify membershi
 - RLS policy missing the `auth.uid()` predicate.
 - Password reset that doesn't invalidate other sessions.
 - OAuth code exchange running on the client.
+- Redirecting to an unvalidated `next` parameter (open redirect).
 - Trusting `organization_id` from the request body.
 
 Pair with **security** for the mutation checklist, **data-layer** for `authFetcher`'s 401 handling, **api-routes** for `requireAuth`.

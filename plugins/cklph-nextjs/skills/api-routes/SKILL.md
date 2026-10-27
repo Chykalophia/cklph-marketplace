@@ -13,6 +13,7 @@ Routes parse HTTP, validate input, delegate to a service, and return JSON. Nothi
 import { NextResponse } from "next/server";
 import {
   compose,
+  csrfValidate,
   requireAuth,
   rateLimit,
   getUserIdentifier,
@@ -27,10 +28,16 @@ const CreateItemSchema = z.object({
   enabled: z.boolean().default(true),
 }).strict();
 
+// Order is owned by the security skill: IP rate-limit -> CSRF -> auth -> per-user limit -> Zod.
+const limitByIp = (request: MiddlewareRequest) =>
+  rateLimit(request, getUserIdentifier(request), "ip"); // no user yet, so this keys on IP
+
 export const POST = compose(
+  limitByIp,
+  csrfValidate,
   requireAuth,
   async (request: MiddlewareRequest) => {
-    // Rate-limit AFTER auth so we have a stable identifier.
+    // Per-user limit, now that there is a stable identifier.
     const id = getUserIdentifier(request, request.user!.id);
     const limited = await rateLimit(request, id, "default");
     if (limited) return limited;
@@ -60,9 +67,9 @@ export const POST = compose(
 
 - `requireAuth` — gates the route; attaches `request.user`.
 - `optionalAuth` — for read paths that work signed-in or anonymous.
-- `rateLimit(request, identifier, bucket)` — buckets like `default`, `ai`, `email`.
+- `rateLimit(request, identifier, bucket)` — buckets like `ip`, `default`, `ai`, `email`. `getUserIdentifier(request)` falls back to the client IP when no user ID is passed.
+- `csrfValidate` — rejects a state-changing request without a valid CSRF token (403). Leave it out only on the exempt paths **security** lists (OAuth callback, signed webhooks, cron).
 - `APIErrors` — `badRequest`, `unauthorized`, `forbidden`, `notFound`, `internal`.
-- CSRF is handled at the framework edge; see **security**.
 
 ## Services return ServiceResult, routes translate to HTTP
 
@@ -76,8 +83,8 @@ Services return `{ success, data }` or `{ success, error, code }`. The route map
 
 ## Route review checklist
 
-- Uses `compose()` with at minimum `requireAuth`.
-- Rate-limit applied with a bucket appropriate to cost.
+- Uses `compose()` in the **security** order: IP rate-limit, `csrfValidate`, `requireAuth`.
+- Per-user rate-limit applied with a bucket appropriate to cost.
 - Zod schema with `.strict()`.
 - All DB work delegated to a service.
 - Error responses don't leak stack traces or PostgREST internals.

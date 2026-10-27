@@ -1,20 +1,19 @@
 ---
 name: conversion-copywriting
 description: >
-  This skill should be used when writing or rewriting customer-facing copy: product pages, landing
-  pages, hero/headline sections, CTAs and button microcopy, email bodies, and ad copy. Trigger
-  phrases include "write copy for", "rewrite this", "make this punchier/clearer", "headline for",
-  "CTA for", "hero section", "product description", "ad copy", or "this copy is weak". Use it
-  whenever copy quality affects conversion, even if the user does not name a framework.
+  Writes and rewrites conversion copy: product pages, landing pages, headlines, CTAs, emails and
+  ads. Use when asked to write, rewrite or punch up customer-facing copy, or when weak copy is
+  hurting conversion, before drafting any headline, CTA or product description.
 license: MIT
 metadata:
   author: Chykalophia
-  version: "0.2.0"
 ---
 
 # Conversion Copywriting
 
 Write copy that earns the next scroll, the next click, the sale. Clarity over cleverness; desire first, proof second; every word earns its place.
+
+**Trigger phrases:** "write copy for", "rewrite this", "make this punchier/clearer", "headline for", "CTA for", "hero section", "product description", "ad copy", or "this copy is weak".
 
 ## Principles
 1. **Clarity is the conversion lever.** A reader who has to decode a sentence leaves. Simple words, short sentences, one idea per line.

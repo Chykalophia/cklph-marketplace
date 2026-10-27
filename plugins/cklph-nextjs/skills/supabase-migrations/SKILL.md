@@ -14,7 +14,7 @@ supabase migration new add_tracking_labels   # creates supabase/migrations/<ts>_
 # edit the SQL, then:
 supabase db reset                            # test locally (reset + replay)
 supabase db push                             # apply to remote
-supabase gen types typescript --local > lib/supabase/types.ts
+supabase gen types typescript --linked > lib/types/database.ts   # same file as data-model
 ```
 
 If `db push` fails on remote, **don't edit the committed migration** — write a follow-up that fixes the state.
@@ -65,4 +65,4 @@ The Supabase MCP is **read-only** here. Use it for `execute_sql` (SELECTs only),
 - Foreign key without an index — every join does a sequential scan.
 - Missing `UNIQUE` on app-unique columns (slug, email-per-workspace) — RLS won't save you from duplicates.
 
-Pair with **security** for how RLS plays with the right Supabase client, **architecture** for where services consume the new schema, and **discipline** for the review tier that catches migration mistakes pre-merge.
+Pair with **security** for how RLS plays with the right Supabase client, **architecture** for where services consume the new schema, and **data-model** for how the regenerated types are consumed. For pre-merge review use `cklph-os:review`.

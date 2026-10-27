@@ -10,17 +10,17 @@ These rules apply to every cklph-stack project. They are not suggestions. Most a
 ## Styling
 
 - **Tailwind + ShadCN only.** No WebAwesome (`wa-*` classes, `var(--wa-*)` variables). If you see them, they're being removed.
-- Use the project's MP component library (`components/mp/atoms/`, `molecules/`, `organisms/`, `templates/`) and form wrappers in `components/ui/forms/`.
+- Use the project's own component library (e.g. `components/<prefix>/atoms/`, `molecules/`, `organisms/`, `templates/`) and its form wrappers (e.g. `components/ui/forms/`).
 
 ## Reuse over creation
 
-- **Search before creating.** Every project has 50+ MP components and 50+ services. Duplicating one is the most common review-catch.
+- **Search before creating.** A mature project already has dozens of components and services. Duplicating one is the most common review-catch.
 - Extend an existing component with new optional props before forking a new one.
 - Three-strike rule — same logic in 3+ files extracts NOW, not "TODO later".
 
 ## Security on ALL mutations
 
-Five steps, in order — rate-limit → CSRF → `getUser()` (NEVER `getSession()`) → Zod → correct Supabase client. See **security** for the full mutation checklist.
+Five steps, in order — rate-limit (by IP; per user again after auth) → CSRF → `getUser()` (NEVER `getSession()`) → Zod → correct Supabase client. See **security** for the full mutation checklist.
 
 ## Supabase client by intent
 
@@ -38,7 +38,7 @@ Read from a DB table (e.g. `pricing_tiers`; pick the right name per project) for
 
 ## DRY at three
 
-One copy is fine. Two is a watch-list. Three is an extraction. Extract to `lib/utils/`, `lib/services/`, `lib/hooks/`, or `components/mp/` depending on type.
+One copy is fine. Two is a watch-list. Three is an extraction. Extract to `lib/utils/`, `lib/services/`, `lib/hooks/`, or the component library depending on type.
 
 ## Branch safety
 

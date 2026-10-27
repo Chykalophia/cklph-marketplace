@@ -13,7 +13,7 @@ Two audiences: the **user** (needs an actionable message) and the **logs** (need
 export async function getRule(userId: string, ruleId: string): Promise<ServiceResult<Rule>> {
   if (!validateUUID(ruleId)) return failure("INVALID_ID", "Invalid rule ID");
   const { data, error } = await supabase.from("rules")
-    .select("*").eq("id", ruleId).eq("user_id", userId).single();
+    .select("*").eq("id", ruleId).eq("user_id", userId).maybeSingle(); // zero rows -> data: null, not an error
   if (error) {
     logger.error("rule_fetch_failed", { errorId: "RULE_FETCH", userId, ruleId, cause: error.message });
     return failure("DATABASE_ERROR", "Could not load rule");

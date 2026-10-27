@@ -72,6 +72,6 @@ Run the primary flow through VoiceOver (Cmd+F5) or NVDA before shipping. **Can a
 - Skeletons using bright light-mode grays in dark mode.
 - Skipping heading levels (h1 → h3 with no h2).
 
-Pair with **discipline** for the rule it extends, **component-standards** for the underlying primitives.
+Pair with **discipline** for the rule it extends and the component-library rules (search before creating, extend before forking), and `cklph-os:frontend-ui` for the underlying primitives.
 
 React/Next.js **performance** (waterfalls, bundle size, RSC serialization, re-renders, hydration) is not covered here: use `vercel:react-best-practices`, which carries the full Vercel rule set.

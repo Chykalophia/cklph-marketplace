@@ -3,6 +3,25 @@
 All notable changes to `cro-research-reporting` are documented here.
 Format: [Keep a Changelog](https://keepachangelog.com); versioning follows [SemVer](https://semver.org).
 
+## [0.3.2] — 2026-10-27
+
+### Fixed
+- **Attribution:** the README said MIT-licensed repos were "adapted with attribution", but the
+  plugin shipped no notice. Added `NOTICE.md` crediting coreyhaines31/marketingskills,
+  wshobson/agents, stanford-oval/storm, langchain-ai/open_deep_research and Shopify/theme-tools,
+  with the MIT license text, and listing the sources used only as influences. The license block
+  carries each project's own copyright line, copied from its LICENSE file, not a placeholder.
+- **`report-information-design`:** the folded description split "self-contained" across a line,
+  which published as "self- contained".
+- **Skill descriptions:** the six descriptions ran 446–584 characters and carried inline
+  trigger-phrase lists (five opened "This skill should be used…", `getting-started` opened "This is
+  the front door…"). Each is now a "Use when…, before…" trigger under 300 characters, as STANDARD.md §5
+  requires. The full trigger-phrase lists moved into each skill's body.
+- **Version drift:** removed the per-skill `metadata.version` stamps (0.2.0/0.3.0) and the README's
+  "Version 0.3.0" footer; `plugin.json` and this CHANGELOG own the version.
+- Adapted from: coreyhaines31/marketingskills, wshobson/agents, stanford-oval/storm,
+  langchain-ai/open_deep_research, Shopify/theme-tools (all MIT; notices in `NOTICE.md`).
+
 ## [0.3.1] — 2026-10-26
 
 ### Security

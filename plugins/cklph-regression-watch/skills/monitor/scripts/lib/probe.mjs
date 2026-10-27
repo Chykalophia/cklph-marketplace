@@ -50,8 +50,9 @@ export async function probeUrl(page, url, { masks = [], screenshotPath = null } 
     if (box) maskBoxes.push({ sel, x: box.x, y: box.y, width: box.width, height: box.height });
   }
 
+  let shot = null;
   if (screenshotPath && !error) {
-    await page.screenshot({ path: screenshotPath, fullPage: true }).catch(() => {});
+    shot = await page.screenshot({ path: screenshotPath, fullPage: true }).then(() => screenshotPath, () => null);
   }
 
   page.off('request', onReq);
@@ -63,7 +64,7 @@ export async function probeUrl(page, url, { masks = [], screenshotPath = null } 
     robots: dom.robots, h1Count: dom.h1s.length, h1: dom.h1s[0] || null,
     jsonLdCount: dom.jsonLdCount, analytics, requestCount: requests.length,
     consoleErrors: consoleErrors.length,
-    screenshotPath: (screenshotPath && !error) ? screenshotPath : null,
+    screenshotPath: shot, // null when the screenshot failed: evaluate reports it on re-check, capture.mjs fails on it
     maskBoxes,
   };
 }

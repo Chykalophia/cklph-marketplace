@@ -1,20 +1,19 @@
 ---
 name: deep-research-synthesis
 description: >
-  This skill should be used for thorough, multi-source research that must be credible and well-sourced,
-  and for turning that research into a synthesis. Trigger phrases: "deep research", "comprehensive
-  research", "research report", "investigate X thoroughly", "find best practices with sources",
-  "market/competitive research", "synthesize these findings", "fact-check this", "is this claim
-  actually true?". Use it whenever a question needs rigorous, cited research rather than a quick answer.
+  Thorough, multi-source, cited research and synthesis. Use when asked for deep or comprehensive
+  research, best practices with sources, market or competitive research, or a fact-check, before
+  answering a question that needs rigorous citations, not a quick reply.
 license: MIT
 metadata:
   author: Chykalophia
-  version: "0.2.0"
 ---
 
 # Deep Research & Synthesis
 
 Produce research a skeptical expert would trust: every load-bearing claim sourced, reliability labeled, conflicts surfaced, and the synthesis honest about what's known vs. estimated.
+
+**Trigger phrases:** "deep research", "comprehensive research", "research report", "investigate X thoroughly", "find best practices with sources", "market/competitive research", "synthesize these findings", "fact-check this", "is this claim actually true?".
 
 ## Principles
 1. **Scope before searching.** Pin down the question, audience, deliverable, and depth. For research, start an initial recon search immediately rather than gating everything on a clarifying question.

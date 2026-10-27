@@ -1,21 +1,20 @@
 ---
 name: ecommerce-cro-audit
 description: >
-  This skill should be used when auditing or improving conversion on an ecommerce/DTC product page
-  (PDP), collection, cart, or checkout funnel, and extends to any conversion surface (landing page,
-  lead-gen form, SaaS signup). Trigger phrases: "CRO audit", "conversion audit", "why isn't my
-  product page converting", "improve conversion rate", "optimize this PDP / funnel / landing page",
-  "low add-to-cart rate", "reduce cart abandonment", "Shopify conversion", "make this page convert".
-  Use it whenever conversion of a page or funnel is in question, even if the user does not say "CRO".
+  Conversion (CRO) audit for ecommerce and Shopify PDPs, collections, carts and checkouts, and for
+  landing, lead-gen and SaaS signup pages. Use when a page or funnel underconverts (low add-to-cart,
+  cart abandonment, "why isn't this converting"), even if nobody says CRO, before recommending
+  fixes.
 license: MIT
 metadata:
   author: Chykalophia
-  version: "0.2.0"
 ---
 
 # Ecommerce & Conversion CRO Audit
 
 Diagnose why a page or funnel underconverts, then prescribe prioritized, evidence-backed fixes. Built for product pages first; the same method applies to collection/cart/checkout and to non-ecommerce surfaces.
+
+**Trigger phrases:** "CRO audit", "conversion audit", "why isn't my product page converting", "improve conversion rate", "optimize this PDP / funnel / landing page", "low add-to-cart rate", "reduce cart abandonment", "Shopify conversion", "make this page convert".
 
 ## Operating principles
 1. **Ground in first-party data before opinion.** Pull the real funnel before theorizing. "This hurts conversion" is far stronger paired with "and your add-to-cart rate is 0.8% vs a ~7.5% norm."

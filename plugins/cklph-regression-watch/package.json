@@ -1,12 +1,14 @@
 {
   "name": "cklph-regression-watch",
-  "version": "0.1.0",
+  "version": "0.1.2",
   "type": "module",
   "private": true,
   "description": "Agentic regression monitor for live/staging sites — capture a baseline, re-check on a schedule, alert only on confirmed regressions with evidence.",
   "scripts": {
     "capture": "node skills/monitor/scripts/capture.mjs",
-    "check": "node skills/monitor/scripts/run_checks.mjs"
+    "check": "node skills/monitor/scripts/run_checks.mjs",
+    "test": "node --test tests/*.test.mjs",
+    "self-test": "node skills/monitor/scripts/self_test.mjs"
   },
   "dependencies": {
     "playwright": "^1.49.0",

@@ -2,10 +2,32 @@
 // A finding = { id, url, severity, status: pass|changed|regressed, message, evidence }.
 // "regressed" = something good in the baseline is now broken/absent. "changed" = differs but not clearly worse (FYI).
 import fs from 'fs';
+import path from 'path';
 import { PNG } from 'pngjs';
 import pixelmatch from 'pixelmatch';
 
 const SEV = { critical: 'Critical', high: 'High', medium: 'Medium', low: 'Low' };
+
+// Scheduler contract for run_checks.mjs, kept in a dependency-free module.
+export { EXIT, exitCodeFor } from './exit.mjs';
+
+// Baselines store screenshot paths relative to the baseline dir, so a baseline can be moved and
+// run_checks can run from any cwd. Older baselines stored cwd-relative paths; fall back to those.
+export function resolveShot(p, baseDir) {
+  if (!p) return null;
+  if (path.isAbsolute(p)) return p;
+  const candidates = baseDir
+    ? [path.resolve(baseDir, p), path.resolve(baseDir, 'screens', path.basename(p)), path.resolve(p)]
+    : [path.resolve(p)];
+  return candidates.find((c) => fs.existsSync(c)) || candidates[0];
+}
+
+function crop(png, width, height) {
+  if (png.width === width && png.height === height) return png;
+  const out = new PNG({ width, height });
+  PNG.bitblt(png, out, 0, 0, width, height, 0, 0);
+  return out;
+}
 
 function fillRect(png, box) {
   const x0 = Math.max(0, Math.floor(box.x)), y0 = Math.max(0, Math.floor(box.y));
@@ -18,16 +40,21 @@ function fillRect(png, box) {
 
 export function visualDiff(baseShot, curShot, maskBoxes = [], outDiffPath = null) {
   if (!baseShot || !curShot || !fs.existsSync(baseShot) || !fs.existsSync(curShot)) return null;
-  const a = PNG.sync.read(fs.readFileSync(baseShot));
-  const b = PNG.sync.read(fs.readFileSync(curShot));
-  if (a.width !== b.width || a.height !== b.height) {
-    return { diffPct: 100, sizeMismatch: true, base: [a.width, a.height], cur: [b.width, b.height] };
-  }
+  const a0 = PNG.sync.read(fs.readFileSync(baseShot));
+  const b0 = PNG.sync.read(fs.readFileSync(curShot));
+  // Full-page screenshots change height whenever content grows. Diff the overlapping region and
+  // report the size change separately, instead of calling every height change a 100% diff.
+  const sizeMismatch = a0.width !== b0.width || a0.height !== b0.height;
+  const width = Math.min(a0.width, b0.width), height = Math.min(a0.height, b0.height);
+  const a = crop(a0, width, height), b = crop(b0, width, height);
   for (const m of maskBoxes) { fillRect(a, m); fillRect(b, m); }
-  const diff = new PNG({ width: a.width, height: a.height });
-  const n = pixelmatch(a.data, b.data, diff.data, a.width, a.height, { threshold: 0.1 });
+  const diff = new PNG({ width, height });
+  const n = pixelmatch(a.data, b.data, diff.data, width, height, { threshold: 0.1 });
   if (outDiffPath) fs.writeFileSync(outDiffPath, PNG.sync.write(diff));
-  return { diffPct: (n / (a.width * a.height)) * 100, changedPixels: n, maskedRegions: maskBoxes.length, diffImage: outDiffPath };
+  return {
+    diffPct: (n / (width * height)) * 100, changedPixels: n, maskedRegions: maskBoxes.length, diffImage: outDiffPath,
+    sizeMismatch, base: [a0.width, a0.height], cur: [b0.width, b0.height],
+  };
 }
 
 export function evaluate(base, cur, opts = {}) {
@@ -72,11 +99,23 @@ export function evaluate(base, cur, opts = {}) {
   if (base.analytics?.gtm && !cur.analytics?.gtm) add('TR2', SEV.high, 'regressed', 'GTM container stopped loading', { baseline: true, current: false });
 
   // VR1 — visual regression (mask dynamic regions first)
-  if (cfg.visual?.enabled !== false && base.screenshotPath && cur.screenshotPath) {
-    const vd = visualDiff(base.screenshotPath, cur.screenshotPath, cur.maskBoxes || [], opts.diffOut || null);
-    if (vd) {
-      if (vd.diffPct > tol) add('VR1', SEV.high, 'regressed', `Visual diff ${vd.diffPct.toFixed(2)}% > ${tol}% tolerance`, { diffPct: +vd.diffPct.toFixed(2), tolerance: tol, maskedRegions: vd.maskedRegions, sizeMismatch: !!vd.sizeMismatch, diffImage: vd.diffImage });
-      else add('VR1', SEV.high, 'pass', `Visual diff ${vd.diffPct.toFixed(2)}% within ${tol}% (masked ${vd.maskedRegions} region[s])`, { diffPct: +vd.diffPct.toFixed(2), tolerance: tol, maskedRegions: vd.maskedRegions });
+  // A page that failed to load is already AV1; otherwise a missing current screenshot must not pass.
+  if (cfg.visual?.enabled !== false && base.screenshotPath && !cur.error) {
+    const baseShot = resolveShot(base.screenshotPath, opts.baseDir);
+    if (!fs.existsSync(baseShot)) {
+      add('VR1', SEV.high, 'changed', 'Baseline screenshot not found; visual check skipped (re-run capture.mjs)', { baseline: baseShot });
+    } else if (!cur.screenshotPath || !fs.existsSync(cur.screenshotPath)) {
+      add('VR1', SEV.high, 'regressed', 'Current screenshot missing; visual check could not run', { baseline: baseShot, current: cur.screenshotPath || null });
+    } else {
+      // Mask each capture's dynamic regions in both images: a block that moved is masked where it was and where it is.
+      const masks = (base.maskBoxes || []).concat(cur.maskBoxes || []);
+      const vd = visualDiff(baseShot, cur.screenshotPath, masks, opts.diffOut || null);
+      if (vd) {
+        const scope = vd.sizeMismatch ? ' of the overlapping area' : '';
+        if (vd.diffPct > tol) add('VR1', SEV.high, 'regressed', `Visual diff ${vd.diffPct.toFixed(2)}%${scope} > ${tol}% tolerance`, { diffPct: +vd.diffPct.toFixed(2), tolerance: tol, maskedRegions: vd.maskedRegions, sizeMismatch: vd.sizeMismatch, diffImage: vd.diffImage });
+        else add('VR1', SEV.high, 'pass', `Visual diff ${vd.diffPct.toFixed(2)}%${scope} within ${tol}% (masked ${vd.maskedRegions} region[s])`, { diffPct: +vd.diffPct.toFixed(2), tolerance: tol, maskedRegions: vd.maskedRegions });
+        if (vd.sizeMismatch) add('VR1-size', SEV.low, 'changed', `Page size ${vd.base.join('x')} → ${vd.cur.join('x')}`, { baseline: vd.base.join('x'), current: vd.cur.join('x') });
+      }
     }
   }
   return f;
