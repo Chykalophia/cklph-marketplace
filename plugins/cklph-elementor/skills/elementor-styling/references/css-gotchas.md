@@ -42,13 +42,8 @@ horizontal padding across the subtree:
 `.e-con` = Elementor container class; accordion items (`.elementor-accordion-item`) are **not** `.e-con`,
 so their card border + inner padding are preserved.
 
-## Reading control names from source
-The fastest way to get an exact setting key (and its CSS selector) is the widget PHP:
-```
-ssh host "sed -n '190,345p' /www/wp-content/plugins/elementor-pro/modules/woocommerce/widgets/product-add-to-cart.php"
-ssh host "grep -nE \"add_control\(|'name' =>\" .../widgets/<widget>.php"
-```
-Examples found this way: add-to-cart button is `button_bg_color` (+`button_text_color`,
+## Control names found in widget source
+How to read them: the `version-docs` skill (cklph-wp), section 2. Keys found that way: add-to-cart button is `button_bg_color` (+`button_text_color`,
 `button_bg_color_hover`), layout is `layout: stacked` + `alignment: justify`; nav-menu collapse is
 `dropdown: 'tablet'|'none'`; accordion toggle side is `icon_align: 'right'`, icons `icon_color`.
 

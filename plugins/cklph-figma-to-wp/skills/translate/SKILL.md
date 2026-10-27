@@ -7,6 +7,9 @@ description: Run the end-to-end Figma-to-Elementor translation of a specific fra
 
 Execute the build as a gated loop. Don't generate the whole page and hope — build the section, write
 it, **look at it**, fix, move on. Invoke the focused skills by name at each step (see `start-here`).
+`cwp`, `el-tools.py` and `shot` come from cklph-wp, cklph-elementor and cklph-visual-qa. This plugin's
+`${CLAUDE_PLUGIN_ROOT}` points here, not at them, so they must be on PATH (this plugin's README,
+"Scripts on PATH").
 
 ## Steps
 
@@ -20,14 +23,17 @@ it, **look at it**, fix, move on. Invoke the focused skills by name at each step
 
 3. **Safe copy.** Duplicate the target template to a **draft with no display conditions**
    (`elementor-templates`). All building happens here — the live site is untouched until it matches.
+   Plan how you'll see it: `shot` is logged out and can't load a draft. On **staging**, with the user's
+   go-ahead, publish the copy scoped to one throwaway test page/product ("Seeing the safe copy" in
+   `elementor-templates`). Without a staging site, stop and ask how the user wants to preview.
 
 4. **Generate / patch.** Build `_elementor_data` for the section, reusing the existing structure where
    possible (patch the read-back JSON rather than authoring from scratch). Bind colors/type to Kit
    globals via `__globals__`. Apply gaps/alignment/responsive via the **html-widget `<style>`** channel
    (`elementor-styling`). `el-tools.py validate`, then `cwp meta-write`, then `cwp wp elementor flush-css`.
 
-5. **Verify (gate).** `visual-verify`: screenshot the draft against the Figma frame, crop the section,
-   compare concretely (presence/order → alignment → spacing → type → color → radius → icons). Fix the
+5. **Verify (gate).** `visual-verify`: screenshot the test URL from step 3 (cache-busted) against the
+   Figma frame, crop the section, compare concretely (presence/order → alignment → spacing → type → color → radius → icons). Fix the
    deltas and re-capture. **Do not advance while a delta remains.** For a hard match, run the
    `visual-reviewer` agent.
 
@@ -35,8 +41,11 @@ it, **look at it**, fix, move on. Invoke the focused skills by name at each step
    open/closed nav states. Apply `elementor-responsive` fixes (stacking, `min-width:0`, gallery, nav
    collapse). Re-verify each breakpoint.
 
-7. **Ship.** Once every breakpoint matches, publish and move the display condition onto the new
-   template (or write the layout onto the live one). Confirm on the real front-end URL, cache-busted.
+7. **Ship.** Once every breakpoint matches, move the real display condition onto the new template
+   (or write the layout onto the live one), then **regenerate the conditions cache** (the
+   `elementor-templates` "Display conditions + cache" command) so the new routing takes effect.
+   Confirm on the real front-end URL, cache-busted, with the `data-elementor-id` check from
+   `elementor-templates`. Only then delete the test page/product.
 
 ## Guardrails
 - **A live template controls every matching page** — never edit it blind; use the safe copy, confirm,

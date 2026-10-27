@@ -3,6 +3,29 @@
 All notable changes to `cklph-elementor` are documented here.
 Format: [Keep a Changelog](https://keepachangelog.com); versioning follows [SemVer](https://semver.org).
 
+## [0.1.2] — 2026-10-27
+
+### Fixed
+- `el-tools.py add-style` is idempotent: it removes every existing `elcss01` style widget from the
+  whole tree before attaching, so re-runs and moving between `@root` / `@id:<id>` no longer duplicate
+  the widget (and its element id). A target other than `@root` or `@id:<id>` is rejected with a clear
+  message. The usage example passed `'@id'`, which always failed; it now uses `'@root'`.
+- `elementor-styling`: removed the dead `cwp wp eval 'echo "";'` + raw `ssh host` command; control-name
+  lookup now points at `version-docs` (cklph-wp) instead of restating it here and in `css-gotchas.md`.
+- `elementor-templates`: the conditions-cache example uses `cwp eval`; added "Seeing the safe copy",
+  since a draft can't be screenshotted logged out (publish scoped to one test object, staging only).
+- Scripts are referenced as `"${CLAUDE_PLUGIN_ROOT}/scripts/el-tools.py"`; the README says how to put
+  `el-tools.py` and cklph-wp's `cwp` on PATH. README heading no longer carries a stale version number.
+- `add-style` removes only its own style widget (id `elcss01` AND `elType` widget AND `widgetType`
+  html). If any other element already uses that id it refuses and writes nothing, since the style's
+  `display:none` would hide it. Fixture checks: `bash tests/el-tools.test.sh` (including where the
+  style widget lands after a moved target, and that it carries the new CSS, not the old).
+- `elementor-data` / `elementor-styling`: runnable examples call
+  `"${CLAUDE_PLUGIN_ROOT}/scripts/el-tools.py"` (quoted, so an install path with spaces works).
+  `elementor-data` and `elementor-templates` state up front that `cwp` (cklph-wp) needs PATH.
+- `elementor-templates`: shipping the safe copy now regenerates the conditions cache again after moving the real condition,
+  and checks the real URL, before the test object is deleted.
+
 ## [0.1.1] — 2026-10-26
 
 ### Changed

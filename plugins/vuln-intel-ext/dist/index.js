@@ -3,11 +3,12 @@ import { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import { StdioServerTransport } from "@modelcontextprotocol/sdk/server/stdio.js";
 import { registerTools } from "./tools.js";
 import { getDb } from "./db.js";
+import { serverVersion } from "./version.js";
 async function main() {
     getDb();
     const server = new McpServer({
         name: "vuln-intel-ext",
-        version: "1.0.0",
+        version: serverVersion(),
     });
     registerTools(server);
     const transport = new StdioServerTransport();

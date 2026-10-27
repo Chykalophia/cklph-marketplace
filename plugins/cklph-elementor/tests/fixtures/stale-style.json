@@ -1,0 +1,9 @@
+[
+  {"id": "root001", "elType": "container", "settings": {}, "elements": [
+    {"id": "heading1", "elType": "widget", "widgetType": "heading", "settings": {"title": "Hi"}, "elements": []},
+    {"id": "inner01", "elType": "container", "settings": {}, "elements": [
+      {"id": "elcss01", "elType": "widget", "widgetType": "html",
+       "settings": {"html": "<style>.old{gap:0}</style>"}, "elements": []}
+    ]}
+  ]}
+]

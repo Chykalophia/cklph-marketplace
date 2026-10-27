@@ -22,7 +22,8 @@ updates everywhere, for free.
 
 ## 2. Mirror existing-page conventions
 
-`el-tools.py tree` / `widgets` two or three existing pages before authoring. Match **their** choices:
+`el-tools.py tree` / `widgets` (cklph-elementor's script; on PATH per this plugin's README, "Scripts on
+PATH") two or three existing pages before authoring. Match **their** choices:
 which widget renders a button (theme widget vs Pro widget), how containers nest, which dynamic
 WooCommerce/ACF widgets they use. **Patch the read-back JSON** of a comparable section rather than
 writing a fresh tree — you inherit the conventions automatically.
@@ -37,8 +38,9 @@ If a section appears on multiple pages (a CTA band, a card grid, a newsletter bl
 
 These plugins mirror this principle — `cklph-wp` / `cklph-elementor` / `cklph-figma` / `cklph-visual-qa`
 are each reusable on their own and bind together by name. Build site-specific glue (the `cwp`
-connection alias, a project token map) **once per project**, in `./.cklph-wp` and a short notes file,
-so the next page on the same site starts from reuse, not rediscovery.
+connection alias, a project token map) **once per project**, in the `./.cklph-wp` config file and
+`./.cklph-wp.d/site-profile.md` (`site-profile`), so the next page on the same site starts from
+reuse, not rediscovery.
 
 ## The test
 Before writing a value or a layout block, ask: *does this already exist somewhere I can reference?*

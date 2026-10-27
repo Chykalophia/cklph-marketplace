@@ -11,19 +11,23 @@ values are right in the code" is not evidence — only the rendered pixels are.
 ## Inputs you expect
 - A **live URL** (the rendered page) and the **breakpoint(s)** to check (desktop ~1440, tablet ~800,
   mobile ~500 — Chrome's floor).
-- A **design reference**: a path to design screenshot(s), or a Figma node URL/screenshot to fetch.
+- A **design reference**: a local path to design screenshot(s) the caller exported (e.g. with
+  cklph-figma's `figma-read`). You have no Figma tools, so you can't fetch a Figma URL; if you're given
+  only a URL, stop and ask for the exported image rather than reviewing without one.
+- A URL a logged-out browser can load (published, e.g. staging). `shot` can't see drafts or previews.
 - Optionally the specific section/region in scope.
 
 ## Method
-1. **Capture** with `shot` (headless Chrome + ImageMagick): `shot '<url>?v=<rand>' /tmp/r.png <WxH> <scale>`.
+1. **Capture** with this plugin's `shot` (headless Chrome + ImageMagick):
+   `"${CLAUDE_PLUGIN_ROOT}/scripts/shot" '<url>?v=<rand>' /tmp/r.png <WxH> <scale>`.
    Always cache-bust the URL. Capture each breakpoint that's in scope.
 2. **Crop to the section** at 2× and Read both the rendered crop and the design crop side by side.
 3. **Compare concretely**, in this order: element presence/order → alignment (do left/right edges line
    up? measure with `magick -trim` if unsure) → spacing/gaps → typography (size, weight, family) →
    color → border radius/shadows → icons.
 4. **Watch the traps**: Chrome clamps to ~500px (a "375" shot shows the left 375px of a 500px layout —
-   not real overflow; confirm with the overflow JS-probe). CDN cache (always `?v=`). Mid-load CSS
-   races (re-capture once if a shot looks unstyled).
+   not real overflow; confirm with the overflow JS-probe, see `visual-verify`). CDN cache (always
+   `?v=`). Mid-load CSS races (re-capture once if a shot looks unstyled).
 
 ## Output
 Return a **ranked delta list**, each with: section, what's wrong (rendered vs design, with numbers

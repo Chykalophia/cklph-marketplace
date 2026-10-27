@@ -15,8 +15,9 @@ forced-command shell** in front of wp-cli. Each one cost real debugging time —
   `/tmp` on connection A is **gone** on connection B. Symptom: you `cat > /tmp/x` then a later
   `wp eval-file /tmp/x` says *File doesn't exist*.
 - The **webroot (`/www` on Flywheel) is shared storage** across backends. Write helper files there:
-  `/www/wp-content/uploads/…`. ControlMaster multiplexing also pins calls to one backend, which is why
-  consecutive `cwp` calls work — but don't rely on it across long gaps (the master expires).
+  `/www/wp-content/uploads/…`. By default every `cwp` call is its own SSH connection, so two
+  consecutive calls can land on different backends. With `CKLPH_WP_MUX=1` calls share one connection
+  (one backend) only until the master closes (90s idle, 600s hard cap), so don't rely on that either.
 - **Best:** avoid temp files entirely. Stream the payload over **stdin** into `wp eval` and read
   `php://stdin` server-side (what `cwp meta-write` does). No temp file, no sharing problem.
 
@@ -34,7 +35,8 @@ forced-command shell** in front of wp-cli. Each one cost real debugging time —
   widget `src`. Host a real file and reference its URL.
 - Write the file into the shared webroot, then reference the public URL:
   - Generate a PHP file locally with the bytes base64-embedded, `cwp put` it to
-    `/www/wp-content/uploads/x.php`, then `cwp wp eval-file /www/wp-content/uploads/x.php` to
+    `/www/wp-content/uploads/x.php`, then
+    `"${CLAUDE_PLUGIN_ROOT}/scripts/cwp" wp eval-file /www/wp-content/uploads/x.php` to
     `file_put_contents()` the decoded bytes next to it. Reference `https://site/wp-content/uploads/icon.png`.
   - `wp media import` from a **separate** SSH connection often fails because the source temp file
     landed on a different backend — do upload+import in one connection, or write straight to the webroot.
