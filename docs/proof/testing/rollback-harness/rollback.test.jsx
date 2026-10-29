@@ -196,16 +196,17 @@ for (const [name, v] of Object.entries(VARIANTS)) {
         it(`${shape}: ${order}`, async () => {
           const r = await runCase(v.mount, order, shape);
           (results[name] ??= []).push({ shape, order, ...r });
-          // Pinned: the exact in-flight list and final list, in displayed order.
-          if (process.env.PIN_DUMP) return;
-          const [pre, final] = EXPECTED[name][shape][order];
-          expect(r.pre, 'pinned precondition').toBe(pre);
-          expect(r.final, 'pinned final').toBe(final);
+          // Checked before the pins, so a broken fix cannot be dumped as a new pin.
           if (v.fix) {
             expect(r.pre, 'precondition').toBe('c');
             // Order matters: the fix re-inserts B's item where it was, not at the end.
             expect(r.final.split(',')).toEqual(ORDERS[order].want);
           }
+          // Pinned: the exact in-flight list and final list, in displayed order.
+          if (process.env.PIN_DUMP) return;
+          const [pre, final] = EXPECTED[name][shape][order];
+          expect(r.pre, 'pinned precondition').toBe(pre);
+          expect(r.final, 'pinned final').toBe(final);
         });
       }
     }
