@@ -47,8 +47,7 @@ For service tests, mock the **repo or Supabase client factory**, not the Supabas
 Self-review shares the author's blind spots. Run the suite and the build **before** reviewing, write
 the regression test for each bug found, and prove it fails on the old code. The five patterns AI
 changes get wrong (parallel paths drifting, `select()` omissions, stale state on error, optimistic
-updates with no rollback, nulls hidden by a cast) and how to test each (optimistic rollback: fix
-rules and test constraints only): `@ai-regression.md`.
+updates with no rollback, nulls hidden by a cast) and how to test each: `@ai-regression.md`.
 
 ## When to skip
 

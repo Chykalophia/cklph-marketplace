@@ -3,6 +3,23 @@
 All notable changes to `cklph-nextjs` are documented here.
 Format: [Keep a Changelog](https://keepachangelog.com); versioning follows [SemVer](https://semver.org).
 
+## [0.3.1] — 2026-10-29
+
+### Added
+- **`testing/ai-regression.md`**: "The concurrent-rollback test", the optimistic-rollback recipe 0.3.0
+  left out. Verified on a real `lib/data` built on TanStack Query: it fails on the standard
+  snapshot-restore `onError` (a server-deleted item reappears) and passes on an item-only rollback.
+
+### Changed
+- `testing` no longer says rollback has fix rules only; the 0.3.0 note below is superseded.
+- The recipe is engine-neutral steps plus a fix for TanStack Query v5 and for SWR 2.x
+  `useSWRMutation`. Its delete results come from `docs/proof/testing/rollback-harness/` (real hooks;
+  11 variants × 8 cases, each pinned to its exact in-flight and final list, in order; CI runs it). A precondition assertion
+  (cache is `[c]` before anything settles) stops a vacuous pass. Updates add a same-row case whose
+  fix is a compare-and-swap; that part was verified on a real `lib/data`, not in the harness. The
+  case where both overlapping updates fail is stated as unsolved. The
+  table row asks for the in-flight list, then the final list.
+
 ## [0.3.0] — 2026-10-29
 
 ### Added
