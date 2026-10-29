@@ -62,13 +62,19 @@ starts and succeeds, B fails: B's rollback writes back `[a, b, c]` and the item 
 deleted reappears. On a real `lib/data` that uses this recipe, the test below failed with exactly
 `[a, b, c]`, and passed once the rollback re-inserted only B's item.
 
-**First, read the repo's `lib/data`.** The steps are written for TanStack Query (v5 mutations run
-in parallel unless given a `scope`). If the mutation hook is built on something else, such as SWR's
-`optimisticData` / `rollbackOnError` (the shape `data-layer` documents: `trigger`, `invalidates`),
-find out how *its* rollback behaves when two mutations overlap on one key, then run the same
-scenario and the same final-state assertion in its terms; there, "no `invalidates`" means
-`revalidate: false`. If mutations on the key are serialized (a TanStack `scope`, a queue), the race
-cannot happen and there is nothing to test.
+**First, read the repo's `lib/data`.** The steps are written for TanStack Query v5. If the mutation
+hook is built on something else, such as SWR (`data-layer`'s `trigger` / `isMutating` shape, whose
+optimistic rollback is `optimisticData` + `rollbackOnError`), find out how *its* rollback behaves
+when two mutations overlap on one key, then run the same scenario and the same final-state
+assertion in its terms. SWR 2.x skips an earlier mutation's rollback once a later one has started
+on the key, so there the failure to expect is `b` missing, not `a` back. "No `invalidates`" means
+`revalidate: false`, and SWR's `populateCache` is one way a response lands in the cache (step 1).
+
+A TanStack `scope` does **not** remove the race: it queues the requests, but `onMutate` and
+`onError` still run outside the queue, so B's snapshot restore still wipes A's optimistic write
+(checked on query-core 5.105). Under a scope, A's request cannot start until B settles, so in step 4
+reject B first, then resolve A. Only a queue that holds the optimistic write and its rollback
+together removes the race.
 
 1. **Real cache, real hooks.** A fresh test `QueryClient` (retries off), the real mutation hook and
    its optimistic helper. Control only the request: the `mutationFn` (or the mocked `authFetcher`
@@ -84,8 +90,9 @@ cannot happen and there is nothing to test.
    what this test is about; add an order assertion only if the UI promises one.
 6. Prove it both ways: it fails on the snapshot restore and passes on an item-only rollback
    (re-insert B's item from the snapshot only if it is missing from the current list). The rollback
-   has to live in the hook-level `onError`: TanStack runs per-`mutate()` callbacks only for an
-   observer's latest mutation, so B's would never fire.
+   has to live in the hook-level `onError`: TanStack runs per-`mutate()` callbacks only for that
+   hook instance's latest `mutate()` call, and only while it is mounted, so when one hook issues
+   both deletes, B's would never fire.
 
 ## Don't
 

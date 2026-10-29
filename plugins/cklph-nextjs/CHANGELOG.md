@@ -12,6 +12,10 @@ Format: [Keep a Changelog](https://keepachangelog.com); versioning follows [SemV
 
 ### Changed
 - `testing` no longer says rollback has fix rules only; the 0.3.0 note below is superseded.
+- The recipe says it is written for TanStack Query v5 and how to translate it to SWR (whose
+  overlap failure is `b` missing, not `a` back); that a TanStack `scope` does not remove the race;
+  and that the rollback must be in the hook-level `onError`. The table row asks only for the final
+  list.
 
 ## [0.3.0] — 2026-10-29
 
