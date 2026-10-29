@@ -3,10 +3,10 @@ name: harness-limits
 description: How the Claude Code auto-mode classifier and care rules constrain in-session actions and how to route around each cleanly. Use when a tool call is denied, when planning shared-state or destructive operations, or when scoping a session that might need user-side terminal steps.
 ---
 
-# harness-limits — the two layers between you and the action
+# harness-limits — the layers between you and the action
 
 Two different mechanisms restrict what auto-mode can do. They feel similar; they require **different
-responses**.
+responses**. A third, opt-in per project, is the GateGuard hook (Layer C, below).
 
 ## Layer A — hard classifier blocks (model literally cannot proceed)
 
@@ -53,12 +53,22 @@ Examples:
 Once confirmed *in this scope*, proceed. Authorization for one action does **not** generalize to all
 similar actions in the session.
 
-## What does not help (for either layer)
+## What does not help (for Layers A and B)
 
 - **`git commit --no-verify`** — skips *git's* hooks; the Claude harness hook is a layer above.
 - **Disabling the gate from in-session** — Layer A blocks that too.
 - **Pretending the failure was something else** — be specific in your report so future-you (and the
   next session) recognizes the pattern instantly.
+
+## Layer C — GateGuard first-touch denials (opt-in, CLI only)
+
+When `CKLPH_GATEGUARD` is set for a project (`sensitive` or `all`, under `env` in
+`.claude/settings.local.json`), `hooks/gateguard.sh` denies the **first** Write/Edit to each file in
+a session and lists facts to gather: importers or callers, affected exports, the data's real shape,
+the user's instruction quoted verbatim. This is not a refusal. **Route:** run the searches, put the
+answers in your reply, then retry the same call; it goes through. Never answer from memory, and
+never resend dependent edits to an untouched file in one parallel batch: the first is denied while
+the rest may land. Turning it off (`CKLPH_GATEGUARD=off`) is Peter's call, not a workaround.
 
 ## Capture recurring blocks
 

@@ -53,6 +53,15 @@
             "command": "bash \"${CLAUDE_PLUGIN_ROOT}/hooks/pre-commit-gate.sh\""
           }
         ]
+      },
+      {
+        "matcher": "Write|Edit|MultiEdit|NotebookEdit",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "bash \"${CLAUDE_PLUGIN_ROOT}/hooks/gateguard.sh\""
+          }
+        ]
       }
     ],
     "UserPromptSubmit": [

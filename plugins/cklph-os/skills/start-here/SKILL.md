@@ -71,6 +71,7 @@ Situation → skill. Every cklph-os skill except this one has a row here (STANDA
 | Corrected, or an error disproved an assumption | `learn` |
 | Context filling up, or session ending | `handoff` |
 | A tool call was denied | `harness-limits` |
+| First edit to a file denied with "GateGuard: before editing …, present these facts" | `harness-limits` (Layer C) |
 | Proposal, spec, PRD, decision doc, release notes | `writing` |
 | New or changed skill | `authoring` |
 | Multi-step, status or error reply on Desktop/Cowork (the CLI hook already injects it) | `reply-shape` |

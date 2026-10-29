@@ -32,6 +32,13 @@ and recommend nothing gets deleted on a provisional list.
 - **Phase skills that `flow` calls** count only when invoked through the Skill tool. If `flow` ran
   and a phase shows zero, check whether `flow` loaded it some other way before calling it dead.
 - **A collision score is a hint**, not a verdict. Read both descriptions before calling it a duplicate.
+- **GateGuard** (opt-in hook) logs each denial to `gateguard.jsonl` in the same usage dir as the
+  skills log (`$CKLPH_USAGE_DIR`, default `~/.claude/cklph-usage`). If the
+  file exists, count denials per repo and class for the window
+  (`jq -r --arg since 2026-10-01 'select(.ts >= $since) | "\(.repo) \(.class)"'
+  "${CKLPH_USAGE_DIR:-$HOME/.claude/cklph-usage}/gateguard.jsonl" | sort | uniq -c`, with `since` set to the window's start). Denials
+  are its cost; ask Peter whether any of them caught something. Recommend turning it off for a
+  repo where he says it never has, or narrowing `all` to `sensitive`.
 
 ## 3. Report
 Keep it to one screen:

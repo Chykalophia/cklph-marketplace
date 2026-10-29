@@ -3,6 +3,26 @@
 All notable changes to `cklph-nextjs` are documented here.
 Format: [Keep a Changelog](https://keepachangelog.com); versioning follows [SemVer](https://semver.org).
 
+## [0.3.0] — 2026-10-29
+
+### Added
+- **`testing/ai-regression.md`**: testing when the same model wrote the change and reviewed it.
+  Tests and the build before the review, a regression test per bug proved by reinjecting it, and the
+  five patterns AI changes get wrong: parallel paths drifting (mock vs production, flag on vs off,
+  paired branches), `select()` omissions, stale state on error, optimistic updates with no
+  rollback, nulls hidden by a cast. Each has a test that catches it, except optimistic rollback:
+  its fix rules point to `click-path-audit`, and its test is to be written against a real repo's
+  `lib/data` (three review passes showed a recipe written blind gets the cache wrong).
+- `testing/trigger-tests.md`.
+- **`testing`**: one exception to the must-mock rule: a cache or optimistic-rollback regression
+  test needs the real `lib/data` hooks.
+
+### Changed
+- **`testing`** description also fires when adding the regression test for a bug fix or locking
+  down code an AI wrote and self-reviewed; a new section points to `ai-regression.md`.
+
+Adapted from: ECC `skills/ai-regression-testing` (MIT), commit 25278e7 → `testing/ai-regression.md` (see `testing/NOTICE.md`).
+
 ## [0.2.4] — 2026-10-27
 
 ### Fixed
