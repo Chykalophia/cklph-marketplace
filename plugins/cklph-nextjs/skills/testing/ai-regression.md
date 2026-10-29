@@ -75,7 +75,8 @@ from `rollback.test.jsx`. The TanStack fix also ran on a real `lib/data`.
    front, each with a no-op `.catch` (a rejection that lands before the request starts is otherwise
    an unhandled rejection that fails the run). Mock at the module the hook imports its fetcher from;
    `vi.mock` does not reach a call inside the same module. Resolve with what the real endpoint
-   returns, in case the hook writes the response into the cache.
+   returns, in case the hook writes the response into the cache. (The `vi.mock` point is Vitest
+   behaviour, not something the harness exercises.)
 3. **No refetch.** Leave out the house `invalidates`, and on SWR set `revalidate: false`. A refetch
    can hide the race for a moment and has its own ordering problem (`click-path-audit`).
 4. Seed `[a, b, c]`. Start delete B and let its optimistic write land (its own `act`); start
@@ -99,10 +100,11 @@ It passes all 8 cases, with and without a mutation `scope`. What fails, and why 
 **SWR 2.x (`useSWRMutation` with the list as its key): the fix.** Pass
 `optimisticData: (_, displayed) => displayed.filter(...)`, `rollbackOnError: false` and
 `populateCache: false`. In the fetcher (it runs before the optimistic write, so capture the list and
-the item there), catch the failure, read the displayed list from
+the item synchronously, before its first `await`), catch the failure, read the displayed list from
 `useSWRConfig().cache.get(key)?.data`, re-insert the item, write it with
-`mutate(key, list, { revalidate: false })`, and rethrow so the caller still sees the error. It passes
-all 8 cases. What fails:
+`mutate(key, list, { revalidate: false })`, then rethrow so SWR records the failure (with one
+shared hook, only the latest call's caller receives it, so don't hang an error toast on an earlier
+`trigger`). It passes all 8 cases. What fails:
 - `optimisticData: (current) => …` gets the *committed* list and undoes B's removal mid-flight (the
   step-4 precondition fails at `[b, c]`).
 - `(_, displayed) => …` with SWR's own rollback: B failing leaves `b` lost (`[c]`), A failing
