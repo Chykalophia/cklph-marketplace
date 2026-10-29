@@ -26,7 +26,7 @@ Fix 4 came with a test, which caught the bug on its first run.
 | **Parallel paths drift** | A field or rule lands in one branch only: production but not the mock/sandbox/demo path, the flag-on branch but not flag-off, the confirmed path but not the unconfirmed one. The most common AI regression upstream (3 of 4). | Assert the **same contract on every path**: one `REQUIRED_FIELDS` list, one test per path. Pin paired branches against each other. |
 | **`select()` omission** | A column is added to the response or the type but not to the Supabase `.select('…')`, so it is always `undefined`. A cast (`as Profile`) hides it from tsc. | Assert every required field is defined: `expect(data.field).not.toBeUndefined()` (null still passes). `'field' in data` is enough only on a parsed JSON response; on a service's return value a key spread as `undefined` still exists. Regenerate types after the migration; never cast a partial select to the full entity (`pitfalls`: cast to `Pick<…>`). |
 | **Error state leakage** | The catch sets an error but keeps the previous data, so the UI shows the last tab's rows under an error banner. | Mock `useAuthQuery` to return `{ data: oldRows, error }` (a hook returns an error, it doesn't throw), or, in a component that calls `authFetcher` itself, have the mock resolve then reject (`mockResolvedValueOnce(rows).mockRejectedValueOnce(err)`) and switch tab or key between the two. Assert the old rows are not rendered under the error. A mock that only rejects never loads old rows, so it passes on the bug. |
-| **Optimistic update, no rollback** | The UI removes the item, the request fails, the item is still in the DB. Or the rollback restores a whole-list snapshot and wipes a newer write. | The fix rules are `click-path-audit`'s (async races): roll back only the item you changed, no refetch racing the optimistic write, invalidate only after the last related mutation settles (with `lib/data`'s declarative `invalidates`, that may mean not declaring it on this mutation). This test is the deliberate exception to `SKILL.md`'s must-mock rule: it has to run on the real hooks' cache, with what each refetch returns made explicit, and assert the exact rendered list. See [the concurrent-rollback test](#the-concurrent-rollback-test) below; it was verified on a real `lib/data`. |
+| **Optimistic update, no rollback** | The UI removes the item, the request fails, the item is still in the DB. Or the rollback restores a whole-list snapshot and wipes a newer write. | The fix rules are `click-path-audit`'s (async races): roll back only the item you changed, no refetch racing the optimistic write, invalidate only after the last related mutation settles (with `lib/data`'s declarative `invalidates`, that may mean not declaring it on this mutation). This test is the deliberate exception to `SKILL.md`'s must-mock rule: it has to run on the real hooks' cache and assert the final list. See [the concurrent-rollback test](#the-concurrent-rollback-test) below; it was verified on a real `lib/data`. |
 | **Null masked by a cast** | `data.x as string` where `x` can be null; tsc is satisfied, and the code calls a string method on it (crash) or interpolates it (the UI shows "null"). | Feed a row with `x: null`; assert the rendered fallback text appears, no literal "null", no crash. |
 
 ## How it fits the house tiers
@@ -62,17 +62,30 @@ starts and succeeds, B fails: B's rollback writes back `[a, b, c]` and the item 
 deleted reappears. On a real `lib/data` that uses this recipe, the test below failed with exactly
 `[a, b, c]`, and passed once the rollback re-inserted only B's item.
 
+**First, read the repo's `lib/data`.** The steps are written for TanStack Query (v5 mutations run
+in parallel unless given a `scope`). If the mutation hook is built on something else, such as SWR's
+`optimisticData` / `rollbackOnError` (the shape `data-layer` documents: `trigger`, `invalidates`),
+find out how *its* rollback behaves when two mutations overlap on one key, then run the same
+scenario and the same final-state assertion in its terms; there, "no `invalidates`" means
+`revalidate: false`. If mutations on the key are serialized (a TanStack `scope`, a queue), the race
+cannot happen and there is nothing to test.
+
 1. **Real cache, real hooks.** A fresh test `QueryClient` (retries off), the real mutation hook and
    its optimistic helper. Control only the request: the `mutationFn` (or the mocked `authFetcher`
-   it calls) returns a deferred promise per call, so the test decides when each one settles.
+   it calls, keyed by the id in the URL or body) returns a deferred promise per call, so the test
+   decides when each one settles. Resolve it with what the real endpoint returns, in case the hook
+   writes the response into the cache.
 2. **No `invalidates`** in this test. The race is in the rollback itself; a refetch can hide it
    for a moment, and has its own ordering problem (`click-path-audit`).
 3. Seed `[a, b, c]` with `setQueryData`.
-4. Start delete B and leave it pending. Start delete A, then resolve A. Then reject B.
+4. Start delete B and let its optimistic write land (its own `act`), leaving the request pending.
+   Start delete A, then resolve A. Then reject B.
 5. Assert on the cache: `a` absent, `b` present exactly once, sorted ids equal `[b, c]`. Order is not
    what this test is about; add an order assertion only if the UI promises one.
 6. Prove it both ways: it fails on the snapshot restore and passes on an item-only rollback
-   (re-insert B's item from the snapshot only if it is missing from the current list).
+   (re-insert B's item from the snapshot only if it is missing from the current list). The rollback
+   has to live in the hook-level `onError`: TanStack runs per-`mutate()` callbacks only for an
+   observer's latest mutation, so B's would never fire.
 
 ## Don't
 
