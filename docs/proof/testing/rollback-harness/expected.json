@@ -1,0 +1,420 @@
+{
+  "TanStack, snapshot restore": {
+    "one shared hook": {
+      "B fails after A succeeds": [
+        "c",
+        "a,b,c"
+      ],
+      "B fails while A pending": [
+        "c",
+        "a,b,c"
+      ],
+      "A fails after B succeeds": [
+        "c",
+        "a,c"
+      ],
+      "A fails while B pending": [
+        "c",
+        "a,c"
+      ]
+    },
+    "a hook per delete": {
+      "B fails after A succeeds": [
+        "c",
+        "a,b,c"
+      ],
+      "B fails while A pending": [
+        "c",
+        "a,b,c"
+      ],
+      "A fails after B succeeds": [
+        "c",
+        "a,c"
+      ],
+      "A fails while B pending": [
+        "c",
+        "a,c"
+      ]
+    }
+  },
+  "TanStack, item-only rollback": {
+    "one shared hook": {
+      "B fails after A succeeds": [
+        "c",
+        "b,c"
+      ],
+      "B fails while A pending": [
+        "c",
+        "b,c"
+      ],
+      "A fails after B succeeds": [
+        "c",
+        "a,c"
+      ],
+      "A fails while B pending": [
+        "c",
+        "a,c"
+      ]
+    },
+    "a hook per delete": {
+      "B fails after A succeeds": [
+        "c",
+        "b,c"
+      ],
+      "B fails while A pending": [
+        "c",
+        "b,c"
+      ],
+      "A fails after B succeeds": [
+        "c",
+        "a,c"
+      ],
+      "A fails while B pending": [
+        "c",
+        "a,c"
+      ]
+    }
+  },
+  "TanStack + scope, snapshot restore": {
+    "one shared hook": {
+      "B fails after A succeeds": [
+        "c",
+        "a,b,c"
+      ],
+      "B fails while A pending": [
+        "c",
+        "a,b,c"
+      ],
+      "A fails after B succeeds": [
+        "c",
+        "a,c"
+      ],
+      "A fails while B pending": [
+        "c",
+        "a,c"
+      ]
+    },
+    "a hook per delete": {
+      "B fails after A succeeds": [
+        "c",
+        "a,b,c"
+      ],
+      "B fails while A pending": [
+        "c",
+        "a,b,c"
+      ],
+      "A fails after B succeeds": [
+        "c",
+        "a,c"
+      ],
+      "A fails while B pending": [
+        "c",
+        "a,c"
+      ]
+    }
+  },
+  "TanStack + scope, item-only rollback": {
+    "one shared hook": {
+      "B fails after A succeeds": [
+        "c",
+        "b,c"
+      ],
+      "B fails while A pending": [
+        "c",
+        "b,c"
+      ],
+      "A fails after B succeeds": [
+        "c",
+        "a,c"
+      ],
+      "A fails while B pending": [
+        "c",
+        "a,c"
+      ]
+    },
+    "a hook per delete": {
+      "B fails after A succeeds": [
+        "c",
+        "b,c"
+      ],
+      "B fails while A pending": [
+        "c",
+        "b,c"
+      ],
+      "A fails after B succeeds": [
+        "c",
+        "a,c"
+      ],
+      "A fails while B pending": [
+        "c",
+        "a,c"
+      ]
+    }
+  },
+  "TanStack, item-only rollback in a per-mutate() onError": {
+    "one shared hook": {
+      "B fails after A succeeds": [
+        "c",
+        "c"
+      ],
+      "B fails while A pending": [
+        "c",
+        "c"
+      ],
+      "A fails after B succeeds": [
+        "c",
+        "a,c"
+      ],
+      "A fails while B pending": [
+        "c",
+        "a,c"
+      ]
+    },
+    "a hook per delete": {
+      "B fails after A succeeds": [
+        "c",
+        "b,c"
+      ],
+      "B fails while A pending": [
+        "c",
+        "b,c"
+      ],
+      "A fails after B succeeds": [
+        "c",
+        "a,c"
+      ],
+      "A fails while B pending": [
+        "c",
+        "a,c"
+      ]
+    }
+  },
+  "SWR, optimisticData (current)": {
+    "one shared hook": {
+      "B fails after A succeeds": [
+        "b,c",
+        "b,c"
+      ],
+      "B fails while A pending": [
+        "b,c",
+        "b,c"
+      ],
+      "A fails after B succeeds": [
+        "b,c",
+        "a,b,c"
+      ],
+      "A fails while B pending": [
+        "b,c",
+        "a,b,c"
+      ]
+    },
+    "a hook per delete": {
+      "B fails after A succeeds": [
+        "b,c",
+        "b,c"
+      ],
+      "B fails while A pending": [
+        "b,c",
+        "b,c"
+      ],
+      "A fails after B succeeds": [
+        "b,c",
+        "a,b,c"
+      ],
+      "A fails while B pending": [
+        "b,c",
+        "a,b,c"
+      ]
+    }
+  },
+  "SWR, optimisticData (_, displayed)": {
+    "one shared hook": {
+      "B fails after A succeeds": [
+        "c",
+        "c"
+      ],
+      "B fails while A pending": [
+        "c",
+        "c"
+      ],
+      "A fails after B succeeds": [
+        "c",
+        "a,b,c"
+      ],
+      "A fails while B pending": [
+        "c",
+        "a,b,c"
+      ]
+    },
+    "a hook per delete": {
+      "B fails after A succeeds": [
+        "c",
+        "c"
+      ],
+      "B fails while A pending": [
+        "c",
+        "c"
+      ],
+      "A fails after B succeeds": [
+        "c",
+        "a,b,c"
+      ],
+      "A fails while B pending": [
+        "c",
+        "a,b,c"
+      ]
+    }
+  },
+  "SWR, re-insert via mutate(updater)": {
+    "one shared hook": {
+      "B fails after A succeeds": [
+        "c",
+        "b,c"
+      ],
+      "B fails while A pending": [
+        "c",
+        "a,b,c"
+      ],
+      "A fails after B succeeds": [
+        "c",
+        "a,b,c"
+      ],
+      "A fails while B pending": [
+        "c",
+        "a,b,c"
+      ]
+    },
+    "a hook per delete": {
+      "B fails after A succeeds": [
+        "c",
+        "b,c"
+      ],
+      "B fails while A pending": [
+        "c",
+        "a,b,c"
+      ],
+      "A fails after B succeeds": [
+        "c",
+        "a,b,c"
+      ],
+      "A fails while B pending": [
+        "c",
+        "a,b,c"
+      ]
+    }
+  },
+  "SWR, re-insert in a catch around trigger": {
+    "one shared hook": {
+      "B fails after A succeeds": [
+        "c",
+        "c"
+      ],
+      "B fails while A pending": [
+        "c",
+        "c"
+      ],
+      "A fails after B succeeds": [
+        "c",
+        "a,c"
+      ],
+      "A fails while B pending": [
+        "c",
+        "a,c"
+      ]
+    },
+    "a hook per delete": {
+      "B fails after A succeeds": [
+        "c",
+        "b,c"
+      ],
+      "B fails while A pending": [
+        "c",
+        "b,c"
+      ],
+      "A fails after B succeeds": [
+        "c",
+        "a,c"
+      ],
+      "A fails while B pending": [
+        "c",
+        "a,c"
+      ]
+    }
+  },
+  "SWR, re-insert from displayed in the fetcher": {
+    "one shared hook": {
+      "B fails after A succeeds": [
+        "c",
+        "b,c"
+      ],
+      "B fails while A pending": [
+        "c",
+        "b,c"
+      ],
+      "A fails after B succeeds": [
+        "c",
+        "a,c"
+      ],
+      "A fails while B pending": [
+        "c",
+        "a,c"
+      ]
+    },
+    "a hook per delete": {
+      "B fails after A succeeds": [
+        "c",
+        "b,c"
+      ],
+      "B fails while A pending": [
+        "c",
+        "b,c"
+      ],
+      "A fails after B succeeds": [
+        "c",
+        "a,c"
+      ],
+      "A fails while B pending": [
+        "c",
+        "a,c"
+      ]
+    }
+  },
+  "SWR, same fix but rollbackOnError left on": {
+    "one shared hook": {
+      "B fails after A succeeds": [
+        "c",
+        "b,c"
+      ],
+      "B fails while A pending": [
+        "c",
+        "b,c"
+      ],
+      "A fails after B succeeds": [
+        "c",
+        "a,c"
+      ],
+      "A fails while B pending": [
+        "c",
+        "a,c"
+      ]
+    },
+    "a hook per delete": {
+      "B fails after A succeeds": [
+        "c",
+        "b,c"
+      ],
+      "B fails while A pending": [
+        "c",
+        "b,c"
+      ],
+      "A fails after B succeeds": [
+        "c",
+        "a,c"
+      ],
+      "A fails while B pending": [
+        "c",
+        "a,c"
+      ]
+    }
+  }
+}

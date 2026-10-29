@@ -4,13 +4,16 @@
 // precondition [c]; then settle in one of four orders. Correct final list:
 //   B fails, A succeeds -> [b, c]     B succeeds, A fails -> [a, c]
 // Each variant runs with ONE shared hook instance issuing both deletes and with one hook per
-// delete. Variants marked `fix` must pass every case; the others must fail at least one.
+// delete. Variants marked `fix` must pass every case; the others must fail at least one. Every
+// case is also pinned to its exact results in expected.json, so a library bump that changes a
+// number the doc states turns this suite red.
 import { act, render } from '@testing-library/react';
 import { QueryClient, QueryClientProvider, useMutation, useQueryClient } from '@tanstack/react-query';
 import { SWRConfig, useSWRConfig } from 'swr';
 import useSWRMutation from 'swr/mutation';
 import { afterEach, describe, expect, it } from 'vitest';
 import { cleanup } from '@testing-library/react';
+import EXPECTED from './expected.json' with { type: 'json' };
 
 afterEach(cleanup);
 
@@ -20,6 +23,9 @@ const SEED = ['a', 'b', 'c'];
 function deferred() {
   let resolve, reject;
   const promise = new Promise((res, rej) => { resolve = res; reject = rej; });
+  // Under a TanStack scope a deferred can be rejected before its queued mutationFn attaches;
+  // without this no-op catch Vitest reports an unhandled rejection and exits 1.
+  promise.catch(() => {});
   return { promise, resolve, reject };
 }
 
@@ -38,7 +44,7 @@ function reinsert(current, before, id) {
 
 // ─── TanStack adapters ───────────────────────────────────────────────
 
-function tanstack(rollback, { scoped = false } = {}) {
+function tanstack(rollback, { scoped = false, perMutate = false } = {}) {
   return function mount(hookCount, pending) {
     const client = new QueryClient({ defaultOptions: { queries: { retry: false }, mutations: { retry: false } } });
     client.setQueryData([KEY], SEED);
@@ -54,12 +60,18 @@ function tanstack(rollback, { scoped = false } = {}) {
           qc.setQueryData([KEY], (old) => old.filter((x) => x !== id));
           return { previous };
         },
-        onError: (_e, id, ctx) => {
-          if (rollback === 'snapshot') qc.setQueryData([KEY], ctx.previous);
-          else qc.setQueryData([KEY], (cur) => reinsert(cur, ctx.previous, id));
-        },
+        onError: perMutate
+          ? undefined
+          : (_e, id, ctx) => {
+              if (rollback === 'snapshot') qc.setQueryData([KEY], ctx.previous);
+              else qc.setQueryData([KEY], (cur) => reinsert(cur, ctx.previous, id));
+            },
       });
-      api[i] = (id) => m.mutateAsync(id).catch(() => undefined);
+      // perMutate: the same item-only rollback, but passed to mutateAsync() instead of the hook.
+      const perCall = perMutate
+        ? { onError: (_e, id, ctx) => qc.setQueryData([KEY], (cur) => reinsert(cur, ctx.previous, id)) }
+        : undefined;
+      api[i] = (id) => m.mutateAsync(id, perCall).catch(() => undefined);
       return null;
     }
     render(
@@ -73,26 +85,29 @@ function tanstack(rollback, { scoped = false } = {}) {
 
 // ─── SWR adapters ────────────────────────────────────────────────────
 
-// variant: 'naive-current' | 'naive-displayed' | 'reinsert-committed' | 'fix'
+// variant: 'naive-current' | 'naive-displayed' | 'reinsert-committed' | 'fix' | 'fix-rollback-on' |
+//          'catch-around-trigger'
 function swr(variant) {
   return function mount(hookCount, pending) {
     const cache = new Map([[KEY, { data: SEED }]]);
     const api = [];
     function Hook({ i }) {
       const { mutate, cache: swrCache } = useSWRConfig();
-      const ownRollback = variant === 'naive-current' || variant === 'naive-displayed';
+      const ownRollback = ['naive-current', 'naive-displayed', 'fix-rollback-on'].includes(variant);
       const fetcher = async (_key, { arg: id }) => {
-        const before = swrCache.get(KEY).data; // displayed list at trigger time
+        // The fetcher runs before useSWRMutation applies optimisticData, so this is the list
+        // (and the item) as it was before this delete.
+        const before = swrCache.get(KEY).data;
         try {
           return await pending[id].promise;
         } catch (err) {
           if (variant === 'reinsert-committed') {
             // The idiomatic form: mutate with an updater. It receives COMMITTED data.
             await mutate(KEY, (cur) => reinsert(cur, SEED, id), { revalidate: false });
-          } else if (variant === 'fix') {
+          } else if (variant === 'fix' || variant === 'fix-rollback-on') {
             // Read what is displayed now, re-insert B's item, write it back.
             const shown = swrCache.get(KEY)?.data;
-            await mutate(KEY, reinsert(shown, before.includes(id) ? before : SEED, id), { revalidate: false });
+            await mutate(KEY, reinsert(shown, before, id), { revalidate: false });
           }
           throw err;
         }
@@ -102,13 +117,20 @@ function swr(variant) {
         revalidate: false,
         rollbackOnError: ownRollback,
       });
-      api[i] = (id) =>
-        trigger(id, {
+      api[i] = (id) => {
+        const before = swrCache.get(KEY).data;
+        return trigger(id, {
           optimisticData:
             variant === 'naive-current'
               ? (current) => current.filter((x) => x !== id)
               : (_current, displayed) => displayed.filter((x) => x !== id),
-        }).catch(() => undefined);
+        }).catch(async () => {
+          // catch-around-trigger: the same displayed-list re-insert, but at the call site.
+          if (variant !== 'catch-around-trigger') return;
+          const shown = swrCache.get(KEY)?.data;
+          await mutate(KEY, reinsert(shown, before, id), { revalidate: false });
+        });
+      };
       return null;
     }
     render(
@@ -157,10 +179,13 @@ const VARIANTS = {
   'TanStack, item-only rollback': { mount: tanstack('item-only'), fix: true },
   'TanStack + scope, snapshot restore': { mount: tanstack('snapshot', { scoped: true }), fix: false },
   'TanStack + scope, item-only rollback': { mount: tanstack('item-only', { scoped: true }), fix: true },
+  'TanStack, item-only rollback in a per-mutate() onError': { mount: tanstack('item-only', { perMutate: true }), fix: false },
   'SWR, optimisticData (current)': { mount: swr('naive-current'), fix: false },
   'SWR, optimisticData (_, displayed)': { mount: swr('naive-displayed'), fix: false },
   'SWR, re-insert via mutate(updater)': { mount: swr('reinsert-committed'), fix: false },
+  'SWR, re-insert in a catch around trigger': { mount: swr('catch-around-trigger'), fix: false },
   'SWR, re-insert from displayed in the fetcher': { mount: swr('fix'), fix: true },
+  'SWR, same fix but rollbackOnError left on': { mount: swr('fix-rollback-on'), fix: true },
 };
 
 const results = {};
@@ -171,6 +196,10 @@ for (const [name, v] of Object.entries(VARIANTS)) {
         it(`${shape}: ${order}`, async () => {
           const r = await runCase(v.mount, order, shape);
           (results[name] ??= []).push({ shape, order, ...r });
+          // Pinned: the exact in-flight list and sorted final list the doc states for this case.
+          const [pre, final] = EXPECTED[name][shape][order];
+          expect(r.pre, 'pinned precondition').toBe(pre);
+          expect([...r.final.split(',')].sort().join(','), 'pinned final').toBe(final);
           if (v.fix) {
             expect(r.pre, 'precondition').toBe('c');
             expect([...r.final.split(',')].sort()).toEqual(ORDERS[order].want);

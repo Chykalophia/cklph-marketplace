@@ -12,12 +12,12 @@ Format: [Keep a Changelog](https://keepachangelog.com); versioning follows [SemV
 
 ### Changed
 - `testing` no longer says rollback has fix rules only; the 0.3.0 note below is superseded.
-- The recipe is engine-neutral steps plus TanStack Query v5 and SWR 2.x sections, every claim
-  backed by `docs/proof/testing/rollback-harness/` (real hooks, 70 cases: both settle directions,
-  both orders, one shared hook and one per delete, with and without a TanStack `scope`). A
-  precondition assertion (cache is `[c]` before anything settles) stops a vacuous pass. SWR's
-  built-in rollbacks all fail it; the SWR fix that passes is spelled out. The table row asks only
-  for the final list.
+- The recipe is engine-neutral steps plus a fix for TanStack Query v5 and for SWR 2.x
+  `useSWRMutation`. Its delete results come from `docs/proof/testing/rollback-harness/` (real hooks;
+  11 variants × 8 cases, each pinned to its exact result; CI runs it). A precondition assertion
+  (cache is `[c]` before anything settles) stops a vacuous pass. Updates add a same-row case whose
+  fix is a compare-and-swap; that part was verified on a real `lib/data`, not in the harness. The
+  table row asks for the in-flight list, then the final list.
 
 ## [0.3.0] — 2026-10-29
 
