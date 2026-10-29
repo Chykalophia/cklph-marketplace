@@ -64,13 +64,15 @@ already deleted, or lose one that failed to delete. The results below are from r
 (TanStack Query 5.90 `useMutation`, SWR 2.3.7 `useSWRMutation`) in the cklph-marketplace repo's
 [`docs/proof/testing/rollback-harness/`](https://github.com/Chykalophia/cklph-marketplace/tree/main/docs/proof/testing/rollback-harness),
 where every case is pinned to its exact result; copy `reinsert`, `runCase` and the fix adapters
-from `rollback.test.jsx`. The TanStack fix also ran on a real `lib/data`.
+from `rollback.test.jsx`. The harness uses string ids; for row objects, capture the deleted row
+and compare by `id` (`current.some((r) => r.id === row.id)`), or `reinsert` will put a bare id in
+the list. The TanStack fix also ran on a real `lib/data`.
 
 **Steps** (engine-neutral):
 1. **Find the engine** from what `lib/data` imports (`@tanstack/react-query` or `swr`), not from the
    hook's shape: a TanStack wrapper can return `trigger` too.
 2. **Real cache, real hooks.** A fresh cache per test (a new `QueryClient`, or
-   `<SWRConfig value={{ provider: () => new Map([[key, { data: seed }]]), dedupingInterval: 0 }}>`)
+   `<SWRConfig value={{ provider: () => new Map([['/api/items', { data: ['a', 'b', 'c'] }]]), dedupingInterval: 0 }}>`)
    and the real mutation hook. Control only the request: create one deferred promise per delete up
    front, each with a no-op `.catch` (a rejection that lands before the request starts is otherwise
    an unhandled rejection that fails the run). Mock at the module the hook imports its fetcher from;
@@ -82,9 +84,10 @@ from `rollback.test.jsx`. The TanStack fix also ran on a real `lib/data`.
 4. Seed `[a, b, c]`. Start delete B and let its optimistic write land (its own `act`); start
    delete A and let its write land. **Assert the cache is `[c]`** before settling anything: without
    it, an engine that undoes B's removal mid-flight can end at the right list on buggy code.
-5. **Settle both ways**, as separate cases: B fails and A succeeds (expect sorted `[b, c]`), and B
-   succeeds and A fails (expect `[a, c]`). Run each with A settling before B and after it, with one
-   shared hook issuing both deletes and with one hook per delete: 4 orders × 2 hook shapes.
+5. **Settle both ways**, as separate cases: B fails and A succeeds (expect `[b, c]`), and B
+   succeeds and A fails (expect `[a, c]`), in that order: the fix puts the item back where it was.
+   Run each with A settling before B and after it, with one shared hook issuing both deletes and
+   with one hook per delete: 4 orders × 2 hook shapes.
 6. **Prove it both ways:** the test fails on the repo's current rollback and passes on the fix.
 
 **TanStack Query v5: the fix.** In the hook-level `onError`, re-insert only B's item, after its
@@ -97,7 +100,7 @@ It passes all 8 cases, with and without a mutation `scope`. What fails, and why 
 - A `scope` changes nothing: it queues the requests, but A's `onMutate` still writes before B's
   `onError` runs.
 
-**SWR 2.x (`useSWRMutation` with the list as its key): the fix.** Pass
+**SWR 2.x (`useSWRMutation` with the list as its string key): the fix.** Pass
 `optimisticData: (_, displayed) => displayed.filter(...)`, `rollbackOnError: false` and
 `populateCache: false`. In the fetcher (it runs before the optimistic write, so capture the list and
 the item synchronously, before its first `await`), catch the failure, read the displayed list from
@@ -115,13 +118,21 @@ shared hook, only the latest call's caller receives it, so don't hang an error t
 With the fix above, `rollbackOnError: true` also passed (the re-insert's own `mutate` makes SWR skip
 its rollback); set it to `false` so the fix does not depend on that. A house hook shaped
 `useAuthMutation(url, …)`, with an item URL as its key and no optimistic options, needs its API
-changed before this fix fits; that design is not covered here.
+changed before this fix fits; that design is not covered here. Nor is a non-string key: SWR stores
+an array or object key under its serialized form, so read the cache with `unstable_serialize(key)`
+(the harness uses a string key only).
 
 **Updates** race the same way, plus one case deletes do not have: two updates to the *same* row
 (b1 → b2, then b2 → b3) where the first fails. Restoring "the prior version" puts b1 back over b3.
 The fix is a compare-and-swap: revert the row only if it is still the object this mutation wrote,
 else leave it. Verified on the real TanStack `lib/data` (both failure directions, both settle
 orders), not in the harness.
+
+**Unsolved: both updates fail.** If the first fails while the second is pending, compare-and-swap
+correctly leaves b3; when the second then fails, it restores *its* prior value, b2, which was the
+first update's rejected write. The server still has b1. If the second fails first, both rollbacks
+run and end at b1. (Both read from the code, found in review; not run.) A likely fix is to refetch the list once the last overlapping mutation on the key settles, whenever a
+rollback was skipped; it has not been built or tested.
 
 ## Don't
 

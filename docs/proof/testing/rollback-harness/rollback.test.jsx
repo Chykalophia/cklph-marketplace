@@ -170,7 +170,7 @@ async function runCase(mount, order, shape) {
   }
   await act(async () => { await Promise.all(promises); });
   const final = [...h.read()];
-  const ok = pre.join() === 'c' && [...final].sort().join() === ORDERS[order].want.join();
+  const ok = pre.join() === 'c' && final.join() === ORDERS[order].want.join();
   return { pre: pre.join(','), final: final.join(','), ok };
 }
 
@@ -196,13 +196,15 @@ for (const [name, v] of Object.entries(VARIANTS)) {
         it(`${shape}: ${order}`, async () => {
           const r = await runCase(v.mount, order, shape);
           (results[name] ??= []).push({ shape, order, ...r });
-          // Pinned: the exact in-flight list and sorted final list the doc states for this case.
+          // Pinned: the exact in-flight list and final list, in displayed order.
+          if (process.env.PIN_DUMP) return;
           const [pre, final] = EXPECTED[name][shape][order];
           expect(r.pre, 'pinned precondition').toBe(pre);
-          expect([...r.final.split(',')].sort().join(','), 'pinned final').toBe(final);
+          expect(r.final, 'pinned final').toBe(final);
           if (v.fix) {
             expect(r.pre, 'precondition').toBe('c');
-            expect([...r.final.split(',')].sort()).toEqual(ORDERS[order].want);
+            // Order matters: the fix re-inserts B's item where it was, not at the end.
+            expect(r.final.split(',')).toEqual(ORDERS[order].want);
           }
         });
       }
@@ -224,5 +226,6 @@ describe('matrix', () => {
       }
     }
     console.log(`\n${lines.join('\n')}\n`);
+    if (process.env.PIN_DUMP) console.log('PINS' + JSON.stringify(results));
   });
 });
