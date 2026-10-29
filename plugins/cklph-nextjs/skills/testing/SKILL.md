@@ -1,6 +1,6 @@
 ---
 name: testing
-description: Peter's testing tiers for Next.js + Supabase apps with Vitest and Playwright. Use when writing tests, adding coverage, wiring vitest or playwright, or touching any *.test.ts file.
+description: Peter's testing tiers for Next.js + Supabase apps with Vitest and Playwright. Use when writing tests, adding coverage, wiring vitest or playwright, touching any *.test.ts file, adding the regression test for a bug fix, or locking down code an AI wrote and self-reviewed.
 ---
 
 # testing — what to test, what to skip
@@ -25,7 +25,7 @@ Coverage is a budget, not a goal. Spend it where bugs actually hide — services
 
 ## Mock the data layer, not the network
 
-Components and hooks must mock `authFetcher`, `useAuthQuery`, and `useAuthMutation` from `lib/data/`. Never mock `fetch` directly — that bypasses the abstraction described in **data-layer** and couples tests to transport details that change.
+Components and hooks must mock `authFetcher`, `useAuthQuery`, and `useAuthMutation` from `lib/data/`. Exception: a regression test for cache or optimistic-rollback behaviour needs the real hooks, since a mocked hook has no cache (`ai-regression.md`). Never mock `fetch` directly — that bypasses the abstraction described in **data-layer** and couples tests to transport details that change.
 
 For service tests, mock the **repo or Supabase client factory**, not the Supabase SDK internals.
 
@@ -41,6 +41,14 @@ For service tests, mock the **repo or Supabase client factory**, not the Supabas
 - New route → smoke test (200, 401, 429) at minimum.
 - Bug fix → regression test that fails on the old code.
 - New hook with non-trivial state → test it.
+
+## When the same session wrote it and reviews it
+
+Self-review shares the author's blind spots. Run the suite and the build **before** reviewing, write
+the regression test for each bug found, and prove it fails on the old code. The five patterns AI
+changes get wrong (parallel paths drifting, `select()` omissions, stale state on error, optimistic
+updates with no rollback, nulls hidden by a cast) and how to test each (optimistic rollback: fix
+rules and test constraints only): `@ai-regression.md`.
 
 ## When to skip
 

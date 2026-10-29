@@ -306,6 +306,16 @@ print("ok")' "$TMP/usage/skills.jsonl"
   [ "$status" -eq 0 ]
 }
 
+@test "gateguard: off unless CKLPH_GATEGUARD is set (exit 0)" {
+  run env -u CKLPH_GATEGUARD bash "$HOOKS/gateguard.sh" <<< '{"tool_name":"Edit","tool_input":{"file_path":"/p/a.ts"},"session_id":"s","cwd":"/p"}'
+  [ "$status" -eq 0 ]
+}
+
+@test "gateguard: full case suite passes" {
+  run bash "$HOOKS/tests/gateguard.test.sh"
+  [ "$status" -eq 0 ]
+}
+
 # A command named like a skill hides the skill's description, so each command must carry its skill's
 # trigger text verbatim and point at the skill file.
 @test "commands: each shares its skill's description and loads that skill's SKILL.md" {

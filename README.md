@@ -115,6 +115,7 @@ invoke the `cklph-os:survey` skill yourself between `refine` and `spec` when the
 - **`pre-commit-gate`** — TypeScript + ESLint + Semgrep on every `git commit`. Skips merge commits and bulk stages (>500 files). Lints `SKILL.md` descriptions for the YAML colon-space trap. Configurable warning budget via `CKLPH_ESLINT_MAX_WARNINGS`.
 - **`nextjs-quality-check`** — App Router patterns and `'use client'` discipline on Next.js file edits.
 - **`security-check`** — advisory secret scanning on every edit (gitleaks + bandit if installed).
+- **`gateguard`** (opt-in, off by default) — denies the first Write/Edit to each file in a session and asks the agent to state what the edit depends on (importers, affected exports, the data's real shape, your instruction quoted verbatim); the retry goes through regardless, so it prompts the investigation rather than checking it. `CKLPH_GATEGUARD=sensitive` (money, auth, migrations, secrets, CI) or `all`, set per project under `env` in `.claude/settings.local.json`.
 - **`destructive-command-gate`** — blocks Bash calls that destroy work or data (`rm -rf` on a root, force push, `git reset --hard`, DROP/TRUNCATE through a SQL client, `docker system prune` and more) and names the safer form. User-approved bypass: the `CKLPH_ALLOW_DESTRUCTIVE=1 ` prefix, which exempts the whole Bash call.
 - **`skill-usage-log`** — logs skill invocations locally to `~/.claude/cklph-usage/skills.jsonl` for `stocktake`. Nothing leaves the machine.
 - **`reply-shape-context`** — at session start, adds the `reply-shape` rules (answer first, short steps, one next action) to the context. `CKLPH_REPLY_SHAPE=off` disables it.
@@ -146,7 +147,7 @@ cklph-marketplace/
 │   │   ├── agents/                   # cklph-implementer · cklph-reviewer · red-team
 │   │   ├── commands/                 # /cklph-os:flow + per-phase commands
 │   │   ├── CHANGELOG.md              # cklph-os version history
-│   │   └── hooks/                    # pre-commit-gate · nextjs-quality-check · security-check · destructive-command-gate · skill-usage-log · reply-shape-context
+│   │   └── hooks/                    # pre-commit-gate · nextjs-quality-check · security-check · destructive-command-gate · gateguard · skill-usage-log · reply-shape-context
 │   ├── cklph-nextjs/                 # Next.js + Supabase house style (17 skills)
 │   └── …                             # one directory per plugin in marketplace.json
 ├── templates/                        # AGENTS.md · CLAUDE.md · STATE.md starters

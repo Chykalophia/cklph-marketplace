@@ -5,6 +5,33 @@ Format: [Keep a Changelog](https://keepachangelog.com); versioning follows [SemV
 Moved here from the repo root on 2026-10-27; marketplace and repo-level events (repo rename, sibling
 plugins, the marketplace manifest) live in the root CHANGELOG.
 
+## [0.13.0] — 2026-10-29
+
+### Added — GateGuard, an opt-in fact-forcing gate
+- **`hooks/gateguard.sh`** (PreToolUse on `Write|Edit|MultiEdit|NotebookEdit`). Denies the first
+  write to each file in a session with a list of facts to gather first, chosen by the file's class
+  (code, test, instruction, prose, config) and always ending in "quote the user's instruction
+  verbatim". The retry goes through. **Off by default**: `CKLPH_GATEGUARD=sensitive` gates money,
+  auth, migration, secret and CI paths only; `all` gates every file in the project. Files outside
+  the project, exempt globs (`CKLPH_GATEGUARD_EXEMPT`) and subagent calls on ordinary files pass.
+  Claude's settings files are never gated. Paths are compared by real location (`pwd -P` on the
+  root and the target's nearest existing directory), so `/tmp` vs `/private/tmp`, symlinked dirs and
+  `..` don't hide a file. Fails open with no JSON parser, no session id or unwritable state; the
+  prune touches only its own top-level state files. ~9 ms off, ~50 ms for an allowed call, ~85 ms for a denial.
+- Denials log to `~/.claude/cklph-usage/gateguard.jsonl` (no paths); `stocktake` reads it, so the
+  weekly review can judge whether the gate earns its friction.
+- 55-case suite (`hooks/tests/gateguard.test.sh`, wired into `test/hooks.bats`); sixteen injected
+  bug shapes each fail it. Two-reviewer gate: see the proof. Proof: `docs/proof/gateguard/2026-10-29.md`.
+- `harness-limits` Layer C says how to answer a denial; `start-here` routes to it; both READMEs
+  show how to turn it on.
+
+### Changed
+- **`review`**: when this session wrote the change, run the tests and the build before dispatching
+  the reviewer and hand it the output, and give each bug found a regression test. Points to
+  `cklph-nextjs:testing` (`ai-regression.md`) for the Next.js + Supabase patterns.
+
+Adapted from: ECC `skills/gateguard` + `scripts/hooks/gateguard-fact-force.js` (MIT), commit 25278e7 → `hooks/gateguard.sh` (core only; see `hooks/NOTICE-gateguard.md` for what was left out).
+
 ## [0.12.3] — 2026-10-27
 
 Fixes from a quality survey of the plugin.

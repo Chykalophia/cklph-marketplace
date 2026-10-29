@@ -52,7 +52,7 @@ Use both — they are layered, not competing:
 - `pubsub` — Google Pub/Sub webhooks (always 200, JWT verification, atomic dedup, BigInt comparison).
 
 ### Quality
-- `testing` — Vitest + Playwright coverage tiers; mock the data-layer, not the network.
+- `testing` — Vitest + Playwright coverage tiers; mock the data-layer, not the network; `ai-regression.md` for code an AI wrote and self-reviewed.
 - `ui-quality` — dark mode + WCAG AA deep dive: `dark:` variants, contrast thresholds, `:focus-visible`, keyboard nav, ARIA, screen-reader smoke tests.
 - `error-handling` — `ServiceResult` returns, user-surface vs log-only, Sentry capture-at-boundary.
 - `config` — typed env vars (Zod / `@t3-oss/env-nextjs`) + graceful degradation (missing env = feature off, not error).

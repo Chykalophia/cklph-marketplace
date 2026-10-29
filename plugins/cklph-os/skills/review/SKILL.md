@@ -14,6 +14,12 @@ Pick the **intensity** for the change under review:
   2 fix rounds, then escalate to Peter. **Only** for client-facing deliverables, security-sensitive
   diffs, and anything published publicly (this marketplace included). Procedure: `@two-reviewer-gate.md`.
 
+**Did this session write the change?** Then run the test suite and the build *before* dispatching
+the reviewer and hand it the output: a self-review shares the author's blind spots, a failing test
+does not. Each bug the review finds gets a regression test that fails on the old code. On a
+Next.js + Supabase repo, `cklph-nextjs:testing` (`ai-regression.md`) lists the patterns AI changes
+get wrong and how to test each.
+
 **Shared client state in the diff?** If it touches a store action, a TanStack Query mutation or
 query key, a context provider, or an effect that syncs state, also run `click-path-audit` on the
 touchpoints that reach it.
