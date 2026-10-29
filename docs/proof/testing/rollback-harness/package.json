@@ -1,0 +1,17 @@
+{
+  "name": "rollback-harness",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "test": "vitest run"
+  },
+  "devDependencies": {
+    "@tanstack/react-query": "5.90.2",
+    "@testing-library/react": "16.3.0",
+    "jsdom": "26.1.0",
+    "react": "19.1.0",
+    "react-dom": "19.1.0",
+    "swr": "2.3.7",
+    "vitest": "3.2.4"
+  }
+}

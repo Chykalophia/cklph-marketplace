@@ -56,50 +56,62 @@ Fix 4 came with a test, which caught the bug on its first run.
 
 ## The concurrent-rollback test
 
-The bug it catches: the standard TanStack recipe (`onMutate` snapshots the list, `onError` restores
-the snapshot) restores *its* snapshot, taken before any later write. Delete B starts, delete A
-starts and succeeds, B fails: B's rollback writes back `[a, b, c]` and the item the server already
-deleted reappears. On a real `lib/data` that uses this recipe, the test below failed with exactly
-`[a, b, c]`, and passed once the rollback re-inserted only B's item.
+Two optimistic deletes on one cached list, overlapping: delete B starts, delete A starts, then one
+of them fails. A rollback that writes back a whole-list snapshot can resurrect an item the server
+already deleted, or lose one that failed to delete. Every result below comes from running real
+hooks (TanStack Query 5.90 `useMutation`, SWR 2.3.7 `useSWRMutation`) in
+`docs/proof/testing/rollback-harness/` (`npm ci && npm test` there); the TanStack case also ran on
+a real `lib/data`.
 
-**First, read the repo's `lib/data`.** The steps are written for TanStack Query v5. If the mutation
-hook is built on something else, such as SWR (`data-layer`'s `trigger` / `isMutating` shape, whose
-optimistic rollback is `optimisticData` + `rollbackOnError`), find out how *its* rollback behaves
-when two mutations overlap on one key, then run the same scenario and the same assertions in its
-terms. SWR 2.x never restores a whole-list snapshot here, but it has its own traps (checked in
-swr 2.3.7 source): an earlier mutation's `rollbackOnError` is skipped once a later one has started
-on the key, and `optimisticData(current, displayed)` gets the *committed* data first. Written as
-`(current) => …`, A's optimistic list is built from `[a, b, c]` and undoes B's removal mid-flight
-(the precondition in step 4 catches it); written as `(_, displayed) => …`, B's failure leaves `b`
-missing (`[c]`). The item-only fix there is `rollbackOnError: false` plus re-inserting B's item in
-the `trigger` catch. "No `invalidates`" means `revalidate: false`, and SWR's `populateCache` is one
-way a response lands in the cache (step 1).
+**Steps** (engine-neutral):
+1. **Find the engine** from what `lib/data` imports (`@tanstack/react-query` or `swr`), not from the
+   hook's shape: a TanStack wrapper can return `trigger` too.
+2. **Real cache, real hooks.** A fresh cache per test (a new `QueryClient`, or
+   `<SWRConfig value={{ provider: () => new Map() }}>`), the real mutation hook. Control only the
+   request: each call returns a deferred promise, so the test decides when it settles. Mock at the
+   module the hook imports its fetcher from; if the fetcher lives in the hook's own module,
+   `vi.mock` will not intercept it, so inject through the hook's `mutationFn` or fetcher. Resolve
+   with what the real endpoint returns, in case the hook writes the response into the cache.
+3. **No refetch.** Leave out the house `invalidates`, and on SWR set `revalidate: false`. A refetch
+   can hide the race for a moment and has its own ordering problem (`click-path-audit`).
+4. Seed `[a, b, c]`. Start delete B and let its optimistic write land (its own `act`); start
+   delete A and let its write land. **Assert the cache is `[c]`** before settling anything. Without
+   it, an engine that undoes B's removal mid-flight, or a rollback that runs before A's write, can
+   end at the right list on buggy code.
+5. **Settle in both directions**, as separate tests:
+   - B fails, A succeeds: expect sorted `[b, c]`;
+   - B succeeds, A fails: expect sorted `[a, c]`.
+   Run each with A settling before B and after it, and with one shared hook issuing both deletes as
+   well as one hook per delete. Assert `a` and `b` exactly as expected, each at most once; add an
+   order assertion only if the UI promises one.
+6. **Prove it both ways:** the test fails on the repo's current rollback and passes on the fix.
 
-A TanStack `scope` does **not** remove the race: it queues the requests, but `onMutate` and
-`onError` still run outside the queue, so B's snapshot restore still wipes A's optimistic write
-(checked on query-core 5.105). Under a scope, A's request cannot start until B settles, so in step 4
-reject B first, then resolve A. Only a queue that holds the optimistic write and its rollback
-together removes the race.
+**TanStack Query v5.** The standard recipe (`onMutate` snapshots, `onError` restores the snapshot)
+fails only when the *earlier* mutation fails: B's snapshot predates A's write, so `a` comes back as
+`[a, b, c]`. When the later one fails its snapshot already lacks `b`, so that direction passes;
+test both anyway. The fix: in the hook-level `onError`, re-insert only B's item, after its nearest
+earlier neighbour still in the list, and only if it is missing. It passes all eight cases. Keep it
+in the hook-level `onError`: per-`mutate()` callbacks fire only for a hook instance's latest call,
+so with one shared hook B's would never run. A mutation `scope` does not remove the race (same
+results with and without one): it queues the requests, but A's `onMutate` still writes before B's
+`onError` restores B's snapshot. Under a scope A's request cannot start until B settles, so create
+the deferreds up front.
 
-1. **Real cache, real hooks.** A fresh test `QueryClient` (retries off), the real mutation hook and
-   its optimistic helper. Control only the request: the `mutationFn` (or the mocked `authFetcher`
-   it calls, keyed by the id in the URL or body) returns a deferred promise per call, so the test
-   decides when each one settles. Resolve it with what the real endpoint returns, in case the hook
-   writes the response into the cache.
-2. **No `invalidates`** in this test. The race is in the rollback itself; a refetch can hide it
-   for a moment, and has its own ordering problem (`click-path-audit`).
-3. Seed `[a, b, c]` with `setQueryData`.
-4. Start delete B and let its optimistic write land (its own `act`), leaving the request pending.
-   Start delete A and let its write land too. **Assert the cache is `[c]`** before settling
-   anything: without this precondition, a B rollback that runs before A's optimistic write ends at
-   `[b, c]` on buggy code and the test passes for nothing. Then resolve A, then reject B.
-5. Assert on the cache: `a` absent, `b` present exactly once, sorted ids equal `[b, c]`. Order is not
-   what this test is about; add an order assertion only if the UI promises one.
-6. Prove it both ways: it fails on the snapshot restore and passes on an item-only rollback
-   (re-insert B's item from the snapshot only if it is missing from the current list). The rollback
-   has to live in the hook-level `onError`: TanStack runs per-`mutate()` callbacks only for that
-   hook instance's latest `mutate()` call, and only while it is mounted, so when one hook issues
-   both deletes, B's would never fire.
+**SWR 2.x.** None of the built-in rollbacks pass. `optimisticData(current, displayed)` receives the
+*committed* list first: written as `(current) => …` it undoes B's removal mid-flight (the step-4
+precondition fails at `[b, c]`). Written as `(_, displayed) => …`, B failing leaves `b` lost (`[c]`),
+because SWR skips an earlier mutation's rollback once a later one has started, and A failing
+restores the whole committed snapshot (`[a, b, c]`). Re-inserting through
+`mutate(key, (cur) => …)` also receives committed data and passes only one order of the four. What
+passes all eight: `rollbackOnError: false`, `optimisticData: (_, displayed) => …`, and, inside the
+fetcher (not around `trigger`, whose errors SWR drops for all but a hook's latest call), catch the
+failure, read the displayed list from `useSWRConfig().cache.get(key)?.data`, re-insert the item
+there and write it with `mutate(key, list, { revalidate: false })`, then rethrow. The optimistic
+write has to target the list key, so the `useSWRMutation` key is the list and the item URL goes
+in the fetcher.
+
+**Updates** race the same way. The fix is the same shape: on failure, restore only that item's prior
+version in the current list (verified on the real TanStack `lib/data`, not in the harness).
 
 ## Don't
 
