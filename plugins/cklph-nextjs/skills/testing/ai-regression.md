@@ -65,8 +65,9 @@ already deleted, or lose one that failed to delete. The results below are from r
 [`docs/proof/testing/rollback-harness/`](https://github.com/Chykalophia/cklph-marketplace/tree/main/docs/proof/testing/rollback-harness),
 where every case is pinned to its exact result; copy `reinsert`, `runCase` and the fix adapters
 from `rollback.test.jsx`. The harness uses string ids; for row objects, capture the deleted row
-and compare by `id` (`current.some((r) => r.id === row.id)`), or `reinsert` will put a bare id in
-the list. The TanStack fix also ran on a real `lib/data`.
+and match by `id` everywhere in `reinsert`: the presence check
+(`current.some((r) => r.id === row.id)`), the row's and each neighbour's position, and insert the
+captured `row`, not its id. Changing only the presence check still leaves a bare id in the list. The TanStack fix also ran on a real `lib/data`.
 
 **Steps** (engine-neutral):
 1. **Find the engine** from what `lib/data` imports (`@tanstack/react-query` or `swr`), not from the

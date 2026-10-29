@@ -3,6 +3,15 @@
 All notable changes to `cklph-nextjs` are documented here.
 Format: [Keep a Changelog](https://keepachangelog.com); versioning follows [SemVer](https://semver.org).
 
+## [0.3.2] — 2026-10-29
+
+### Fixed
+- `testing/ai-regression.md`: the row-object note now says to match by `id` throughout `reinsert`
+  (presence, row and neighbour positions) and insert the captured row. Changing only the presence
+  check, as the 0.3.1 wording implied, still inserted a bare id.
+- The rollback harness checks each fix's precondition and final list before the `PIN_DUMP` exit,
+  so regenerating pins cannot record a broken fix's results.
+
 ## [0.3.1] — 2026-10-29
 
 ### Added
