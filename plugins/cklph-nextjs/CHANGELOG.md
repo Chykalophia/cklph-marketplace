@@ -3,6 +3,16 @@
 All notable changes to `cklph-nextjs` are documented here.
 Format: [Keep a Changelog](https://keepachangelog.com); versioning follows [SemVer](https://semver.org).
 
+## [0.3.1] — 2026-10-29
+
+### Added
+- **`testing/ai-regression.md`**: "The concurrent-rollback test", the optimistic-rollback recipe 0.3.0
+  left out. Verified on a real `lib/data` built on TanStack Query: it fails on the standard
+  snapshot-restore `onError` (a server-deleted item reappears) and passes on an item-only rollback.
+
+### Changed
+- `testing` no longer says rollback has fix rules only; the 0.3.0 note below is superseded.
+
 ## [0.3.0] — 2026-10-29
 
 ### Added
