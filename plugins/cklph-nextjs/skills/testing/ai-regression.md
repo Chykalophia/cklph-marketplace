@@ -65,10 +65,15 @@ deleted reappears. On a real `lib/data` that uses this recipe, the test below fa
 **First, read the repo's `lib/data`.** The steps are written for TanStack Query v5. If the mutation
 hook is built on something else, such as SWR (`data-layer`'s `trigger` / `isMutating` shape, whose
 optimistic rollback is `optimisticData` + `rollbackOnError`), find out how *its* rollback behaves
-when two mutations overlap on one key, then run the same scenario and the same final-state
-assertion in its terms. SWR 2.x skips an earlier mutation's rollback once a later one has started
-on the key, so there the failure to expect is `b` missing, not `a` back. "No `invalidates`" means
-`revalidate: false`, and SWR's `populateCache` is one way a response lands in the cache (step 1).
+when two mutations overlap on one key, then run the same scenario and the same assertions in its
+terms. SWR 2.x never restores a whole-list snapshot here, but it has its own traps (checked in
+swr 2.3.7 source): an earlier mutation's `rollbackOnError` is skipped once a later one has started
+on the key, and `optimisticData(current, displayed)` gets the *committed* data first. Written as
+`(current) => …`, A's optimistic list is built from `[a, b, c]` and undoes B's removal mid-flight
+(the precondition in step 4 catches it); written as `(_, displayed) => …`, B's failure leaves `b`
+missing (`[c]`). The item-only fix there is `rollbackOnError: false` plus re-inserting B's item in
+the `trigger` catch. "No `invalidates`" means `revalidate: false`, and SWR's `populateCache` is one
+way a response lands in the cache (step 1).
 
 A TanStack `scope` does **not** remove the race: it queues the requests, but `onMutate` and
 `onError` still run outside the queue, so B's snapshot restore still wipes A's optimistic write
@@ -85,7 +90,9 @@ together removes the race.
    for a moment, and has its own ordering problem (`click-path-audit`).
 3. Seed `[a, b, c]` with `setQueryData`.
 4. Start delete B and let its optimistic write land (its own `act`), leaving the request pending.
-   Start delete A, then resolve A. Then reject B.
+   Start delete A and let its write land too. **Assert the cache is `[c]`** before settling
+   anything: without this precondition, a B rollback that runs before A's optimistic write ends at
+   `[b, c]` on buggy code and the test passes for nothing. Then resolve A, then reject B.
 5. Assert on the cache: `a` absent, `b` present exactly once, sorted ids equal `[b, c]`. Order is not
    what this test is about; add an order assertion only if the UI promises one.
 6. Prove it both ways: it fails on the snapshot restore and passes on an item-only rollback
