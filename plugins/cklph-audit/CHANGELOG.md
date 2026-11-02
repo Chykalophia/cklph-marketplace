@@ -26,6 +26,11 @@ All notable changes to `cklph-audit` are documented here. This project adheres t
 - Tests: the monorepo `tsconfig` search, the typed fallback (and that it stays off when the repo
   already enables the rule), the CodeQL auto build, its cache reuse, path scoping, `CODEQL_AUTO=0`
   and the missing-codeql warning.
+- The CodeQL build lock is released when a run is interrupted (INT/TERM), so a killed reviewer
+  no longer blocks the others. A target with no JS/TS or Python sources no longer creates a cache
+  directory. The fallback ESLint config embeds paths as JSON strings, so a project path with a
+  double quote or backslash no longer produces a broken config. Each has a test that fails on the
+  previous code.
 
 ## 1.2.4 — 2026-10-27
 

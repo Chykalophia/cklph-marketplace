@@ -109,7 +109,19 @@ for PROJ in "${PROJECTS[@]}"; do
     continue
   fi
   CFG="$WORK/eslint-promises-$RANDOM.config.mjs"
-  cat > "$CFG" <<EOF
+  # Paths go in as JSON strings, so quotes, $ or backticks in them can't break the module.
+  node -e '
+    const [cfg, tse, proj] = process.argv.slice(1);
+    require("fs").writeFileSync(cfg, [
+      "import tseslint from " + JSON.stringify(tse) + ";",
+      "export default [{",
+      "  files: [\"**/*.{ts,tsx,mts,cts}\"],",
+      "  ignores: [\"**/*.test.*\", \"**/*.spec.*\", \"**/__tests__/**\", \"**/*.d.ts\"],",
+      "  languageOptions: { parser: tseslint.parser, parserOptions: { projectService: true, tsconfigRootDir: " + JSON.stringify(proj) + " } },",
+      "  plugins: { \"@typescript-eslint\": tseslint.plugin },",
+      "  linterOptions: { reportUnusedDisableDirectives: \"off\" },",
+      "  rules: { \"@typescript-eslint/no-floating-promises\": \"error\", \"@typescript-eslint/no-misused-promises\": \"error\" },",
+      "}];", ""].join("\n"));' "$CFG" "$TSE" "$PROJ"
 import tseslint from "$TSE";
 export default [{
   files: ["**/*.{ts,tsx,mts,cts}"],

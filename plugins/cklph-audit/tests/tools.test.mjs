@@ -486,6 +486,48 @@ console.log('sast.sh codeql auto');
   const sb2 = sandbox({ semgrep: 'echo \'{"results":[],"errors":[]}\'' });
   ok(/tool not installed: codeql/.test(sb2.run('sast.sh', ['.']).stderr), 'codeql missing → stderr says no dataflow pass ran');
   sb2.done();
+
+  // A reviewer killed mid-build must not leave the lock behind (it would block the others).
+  const sb3 = sandbox({ semgrep: 'echo \'{"results":[],"errors":[]}\'', codeql: 'sleep 2; exit 1' });
+  fs.mkdirSync(path.join(sb3.root, 'src')); fs.writeFileSync(path.join(sb3.root, 'src', 'a.js'), 'x\n');
+  const g3 = (...a) => spawnSync('git', a, { cwd: sb3.root, env: { PATH: '/usr/bin:/bin', HOME: sb3.root, GIT_AUTHOR_NAME: 't', GIT_AUTHOR_EMAIL: 't@t', GIT_COMMITTER_NAME: 't', GIT_COMMITTER_EMAIL: 't@t' } });
+  g3('init', '-q'); g3('add', 'src'); g3('commit', '-qm', 'init');
+  spawnSync('/bin/bash', ['-c', `bash "${path.join(TOOLS, 'sast.sh')}" src & p=$!; sleep 1; kill -TERM $p; wait $p`], {
+    cwd: sb3.root, encoding: 'utf8', env: { PATH: `${sb3.bin}:/usr/bin:/bin`, HOME: sb3.root, TMPDIR: sb3.tmp } });
+  const cacheDir = path.join(sb3.root, '.cache', 'cklph-audit', 'codeql');
+  const locks = fs.existsSync(cacheDir) ? fs.readdirSync(cacheDir).filter(n => n.endsWith('.lock')) : [];
+  ok(fs.existsSync(cacheDir) && locks.length === 0, `TERM during the build → lock released (${locks.join(',') || 'none left'})`);
+  sb3.done();
+
+  // No JS/TS or Python under the target → no cache directory is created at all.
+  const sb4 = sandbox({ semgrep: 'echo \'{"results":[],"errors":[]}\'', codeql: 'echo "$@" >> "$HOME/codeql.log"; exit 0' });
+  fs.mkdirSync(path.join(sb4.root, 'docs')); fs.writeFileSync(path.join(sb4.root, 'docs', 'a.md'), '# x\n');
+  const g4 = (...a) => spawnSync('git', a, { cwd: sb4.root, env: { PATH: '/usr/bin:/bin', HOME: sb4.root, GIT_AUTHOR_NAME: 't', GIT_AUTHOR_EMAIL: 't@t', GIT_COMMITTER_NAME: 't', GIT_COMMITTER_EMAIL: 't@t' } });
+  g4('init', '-q'); g4('add', 'docs'); g4('commit', '-qm', 'init');
+  const r4 = sb4.run('sast.sh', ['docs']);
+  ok(/auto mode skipped/.test(r4.stderr) && !fs.existsSync(path.join(sb4.root, '.cache')) && !fs.existsSync(path.join(sb4.root, 'codeql.log')),
+    'no supported sources → codeql skipped, nothing built, no cache dir');
+  sb4.done();
+}
+{
+  // Paths with a space, $, a double quote, a backslash and a backtick still produce a config that parses.
+  const sb = sandbox({ npx: [
+    'case "$*" in *--print-config*) echo \'{"rules":{}}\';; *" -c "*) cfg=""; prev=""; for a in "$@"; do [ "$prev" = "-c" ] && cfg="$a"; prev="$a"; done; cp "$cfg" "$HOME/used.config.mjs"; echo "[]";; esac',
+    'exit 0'].join('\n') });
+  const proj = path.join(sb.root, 'my $proj "q" \\ `x`');
+  fs.mkdirSync(path.join(proj, 'src'), { recursive: true });
+  fs.writeFileSync(path.join(proj, 'tsconfig.json'), '{}');
+  fs.writeFileSync(path.join(proj, 'src', 'a.ts'), 'export const a = 1\n');
+  const tse = path.join(proj, 'node_modules', 'typescript-eslint');
+  fs.mkdirSync(tse, { recursive: true });
+  fs.writeFileSync(path.join(tse, 'package.json'), '{"name":"typescript-eslint","main":"index.js"}');
+  fs.writeFileSync(path.join(tse, 'index.js'), 'module.exports = {}\n');
+  sb.run('await.sh', ['src'], { cwd: proj });
+  const used = path.join(sb.root, 'used.config.mjs');
+  const check = fs.existsSync(used) ? spawnSync(process.execPath, ['--check', used], { encoding: 'utf8' }) : { status: 1, stderr: 'no config written' };
+  const cfg = fs.existsSync(used) ? fs.readFileSync(used, 'utf8') : '';
+  ok(check.status === 0 && cfg.includes(JSON.stringify(fs.realpathSync(proj))), `special characters in the project path → generated config still parses (${check.stderr.split('\n')[0]})`);
+  sb.done();
 }
 
 // ── 16. deadcode.sh: nested-package findings point at the repo-relative file ─

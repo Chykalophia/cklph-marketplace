@@ -19,7 +19,9 @@ cd "$TARGET" || exit 0
 
 # Private scratch dir (0700), removed on any exit.
 WORK="$(mktemp -d "${TMPDIR:-/tmp}/cklph-sast.XXXXXX")" || { echo "sast.sh: mktemp failed — nothing scanned." >&2; exit 0; }
-trap 'rm -rf "$WORK"' EXIT
+CURRENT_LOCK=""
+# INT/TERM exit through here too, so a killed run never leaves a CodeQL build lock behind.
+trap 'rm -rf "$WORK"; [ -n "$CURRENT_LOCK" ] && rmdir "$CURRENT_LOCK" 2>/dev/null' EXIT
 trap 'exit 130' INT
 trap 'exit 143' TERM
 
@@ -148,7 +150,7 @@ elif [ "${CODEQL_AUTO:-1}" != "0" ]; then
     grep -qE '\.py$' <<<"$FILES" && LANGS+=(python)
     if [ "${#LANGS[@]}" -eq 0 ]; then
       echo "sast.sh: no JS/TS or Python sources under the target — codeql auto mode skipped (other languages need CODEQL_DATABASE)." >&2
-    fi
+    else
     HEAD_SHA="$(git -C "$ROOT" rev-parse HEAD 2>/dev/null || echo nohead)"
     # Uncommitted edits and new source files change the key; logs and other untracked files don't.
     DIRTY="$( { git -C "$ROOT" diff HEAD 2>/dev/null; git -C "$ROOT" ls-files --others --exclude-standard 2>/dev/null | grep -E '\.(ts|tsx|mts|cts|js|jsx|mjs|cjs|py)$' | while IFS= read -r f; do cksum "$ROOT/$f" 2>/dev/null; done; } | cksum | cut -d' ' -f1)"
@@ -162,7 +164,7 @@ elif [ "${CODEQL_AUTO:-1}" != "0" ]; then
       waited=0
       LOCKED=0
       while :; do
-        if mkdir "$LOCK" 2>/dev/null; then LOCKED=1; break; fi
+        if mkdir "$LOCK" 2>/dev/null; then LOCKED=1; CURRENT_LOCK="$LOCK"; break; fi
         # a lock older than an hour is from a run that died
         if [ -n "$(find "$LOCK" -maxdepth 0 -mmin +60 2>/dev/null)" ]; then rmdir "$LOCK" 2>/dev/null; continue; fi
         [ "$waited" -ge "${CODEQL_LOCK_WAIT:-1800}" ] && break
@@ -183,8 +185,10 @@ elif [ "${CODEQL_AUTO:-1}" != "0" ]; then
         fi
       fi
       rmdir "$LOCK" 2>/dev/null
+      CURRENT_LOCK=""
       [ -s "$DIR/results.sarif" ] && parse_codeql "$DIR/results.sarif" "$PREFIX"
     done
+    fi
   fi
 fi
 exit 0
