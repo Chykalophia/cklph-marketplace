@@ -3,6 +3,30 @@
 All notable changes to `cklph-audit` are documented here. This project adheres to
 [Semantic Versioning](https://semver.org/).
 
+## 1.2.5 — 2026-11-01
+
+### Fixed
+- **CodeQL never ran in an audit.** `tools/sast.sh` only used CodeQL when `CODEQL_DATABASE`
+  pointed at a prebuilt database, which no reviewer ever set, so every run reported "no dataflow
+  pass". With `codeql` installed it now builds the repo's database itself (JS/TS and Python, the
+  languages that need no build step), once per commit and working-tree state, cached under
+  `~/.cache/cklph-audit/codeql` (`CKLPH_CODEQL_CACHE`) behind a lock so parallel reviewers share one
+  build. It runs the `security-extended` suite and returns only results under the caller's path.
+  `CODEQL_AUTO=0` turns it off; `CODEQL_DATABASE` still wins when set. A missing `codeql` is now
+  reported on stderr instead of passing silently. Rule metadata is also read from SARIF
+  `tool.extensions`, where current CodeQL puts it, so severities and CWEs are no longer blank.
+- **`tools/await.sh` checked nothing in a monorepo.** From a root with no `tsconfig.json` it ran
+  no `tsc`, and it relied on the repo's ESLint config enabling `no-floating-promises`, which most
+  don't. It now runs `tsc --noEmit` in every project below the target (up to
+  `AWAIT_MAX_PROJECTS`, default 6, skipping `node_modules`, `.next`, `dist`, `build`), and when the
+  repo config leaves the rule off it runs a typed fallback lint with only
+  `no-floating-promises` and `no-misused-promises`, using the project's own typescript-eslint
+  (resolved through its ESLint dependencies, so pnpm's unhoisted layout works).
+  `AWAIT_TYPED_FALLBACK=0` turns the fallback off. `no-misused-promises` hits are now medium.
+- Tests: the monorepo `tsconfig` search, the typed fallback (and that it stays off when the repo
+  already enables the rule), the CodeQL auto build, its cache reuse, path scoping, `CODEQL_AUTO=0`
+  and the missing-codeql warning.
+
 ## 1.2.4 — 2026-10-27
 
 ### Fixed

@@ -403,6 +403,91 @@ console.log('await.sh');
   sb.done();
 }
 
+// ── 15b. await.sh: monorepo root and the typed fallback lint ─────────────────
+{
+  // A monorepo root has no tsconfig of its own: tsc must still run in the package below it.
+  const sb = sandbox({ npx: 'echo "$PWD $*" >> "$HOME/npx.log"; exit 0' });
+  const app = path.join(sb.root, 'apps', 'web');
+  fs.mkdirSync(path.join(app, 'src'), { recursive: true });
+  fs.writeFileSync(path.join(app, 'tsconfig.json'), '{}');
+  fs.writeFileSync(path.join(app, 'src', 'a.ts'), 'export const a = 1\n');
+  fs.mkdirSync(path.join(sb.root, 'node_modules', 'x'), { recursive: true });
+  fs.writeFileSync(path.join(sb.root, 'node_modules', 'x', 'tsconfig.json'), '{}');
+  sb.run('await.sh', ['.']);
+  const log = fs.readFileSync(path.join(sb.root, 'npx.log'), 'utf8').split('\n');
+  ok(log.some(l => l.startsWith(fs.realpathSync(app) + ' ') && /tsc --noEmit/.test(l)), 'repo root without a tsconfig → tsc runs in apps/web below it');
+  ok(!log.some(l => /node_modules/.test(l.split(' ')[0]) && /tsc/.test(l)), 'tsconfigs inside node_modules are not treated as projects');
+  sb.done();
+}
+{
+  // The repo config leaves no-floating-promises off: a typed lint runs with the project's
+  // own typescript-eslint, and its hits come back as findings.
+  const HIT = JSON.stringify([{ filePath: '/x/src/a.ts', messages: [
+    { ruleId: '@typescript-eslint/no-floating-promises', line: 4, message: 'Promises must be awaited' },
+    { ruleId: '@typescript-eslint/no-misused-promises', line: 9, message: 'Promise-returning function provided to attribute' },
+    { ruleId: 'react-hooks/exhaustive-deps', line: 2, message: 'Definition for rule was not found' }] }]);
+  const npx = (enabled) => [
+    'echo "$PWD $*" >> "$HOME/npx.log"',
+    `case "$*" in *--print-config*) echo '{"rules":{${enabled ? '"@typescript-eslint/no-floating-promises":["error"]' : ''}}}';; *" -c "*) cfg=""; prev=""; for a in "$@"; do [ "$prev" = "-c" ] && cfg="$a"; prev="$a"; done; cp "$cfg" "$HOME/used.config.mjs"; cat <<'EOF'\n${HIT}\nEOF\n;; esac`,
+    'exit 0',
+  ].join('\n');
+  const mk = (enabled) => {
+    const sb = sandbox({ npx: npx(enabled) });
+    fs.mkdirSync(path.join(sb.root, 'src'));
+    fs.writeFileSync(path.join(sb.root, 'tsconfig.json'), '{}');
+    fs.writeFileSync(path.join(sb.root, 'src', 'a.ts'), 'export const a = 1\n');
+    const tse = path.join(sb.root, 'node_modules', 'typescript-eslint');
+    fs.mkdirSync(tse, { recursive: true });
+    fs.writeFileSync(path.join(tse, 'package.json'), '{"name":"typescript-eslint","main":"index.js"}');
+    fs.writeFileSync(path.join(tse, 'index.js'), 'module.exports = {}\n');
+    return sb;
+  };
+  const sb = mk(false);
+  const r = sb.run('await.sh', ['src']);
+  const out = lines(r.stdout);
+  ok(out.length === 2 && out.every(f => f.tool === 'eslint-typed') && out[0].severity === 'high' && out[1].severity === 'medium',
+    `rule off in repo config → typed fallback reports floating (high) + misused (medium), drops other rules (${out.map(f => f.rule).join(',')})`);
+  const cfg = fs.existsSync(path.join(sb.root, 'used.config.mjs')) ? fs.readFileSync(path.join(sb.root, 'used.config.mjs'), 'utf8') : '';
+  ok(/node_modules\/typescript-eslint\/index\.js/.test(cfg) && /no-floating-promises": "error"/.test(cfg), 'fallback config imports the project\'s own typescript-eslint and enables the rule');
+  ok(/typed fallback lint/.test(r.stderr), 'stderr says the fallback ran');
+  sb.done();
+  const sb2 = mk(true);
+  const r2 = sb2.run('await.sh', ['src']);
+  ok(!lines(r2.stdout).some(f => f.tool === 'eslint-typed') && !fs.existsSync(path.join(sb2.root, 'used.config.mjs')), 'rule already on in repo config → no fallback run');
+  sb2.done();
+}
+
+// ── 15c. sast.sh: automatic CodeQL build, cached and scoped to the target ───
+console.log('sast.sh codeql auto');
+{
+  const SARIF = JSON.stringify({ runs: [{ tool: { driver: { rules: [] }, extensions: [{ rules: [{ id: 'js/xss', properties: { 'security-severity': '6.1', tags: ['external/cwe/cwe-079'] } }] }] },
+    results: [
+      { ruleId: 'js/xss', level: 'error', message: { text: 'in scope' }, locations: [{ physicalLocation: { artifactLocation: { uri: 'src/a.js' }, region: { startLine: 3 } } }] },
+      { ruleId: 'js/xss', level: 'error', message: { text: 'out of scope' }, locations: [{ physicalLocation: { artifactLocation: { uri: 'other/b.js' }, region: { startLine: 7 } } }] }] }] });
+  const sb = sandbox({ semgrep: 'echo \'{"results":[],"errors":[]}\'',
+    codeql: [
+      'echo "$1 $2" >> "$HOME/codeql.log"',
+      'if [ "$2" = "create" ]; then mkdir -p "$3"; exit 0; fi',
+      `out=""; for a in "$@"; do case "$a" in --output=*) out="\${a#--output=}";; esac; done\ncat > "$out" <<'EOF'\n${SARIF}\nEOF`,
+    ].join('\n') });
+  for (const d of ['src', 'other']) { fs.mkdirSync(path.join(sb.root, d)); fs.writeFileSync(path.join(sb.root, d, d === 'src' ? 'a.js' : 'b.js'), 'x\n'); }
+  const git = (...a) => spawnSync('git', a, { cwd: sb.root, env: { PATH: '/usr/bin:/bin', HOME: sb.root, GIT_AUTHOR_NAME: 't', GIT_AUTHOR_EMAIL: 't@t', GIT_COMMITTER_NAME: 't', GIT_COMMITTER_EMAIL: 't@t' } });
+  git('init', '-q'); git('add', 'src', 'other'); git('commit', '-qm', 'init');
+  const first = sb.run('sast.sh', ['src']);
+  const cq = lines(first.stdout).filter(f => f.tool === 'codeql');
+  ok(cq.length === 1 && cq[0].file === 'src/a.js' && cq[0].severity === 'medium' && /cwe-079/.test(cq[0].cwe),
+    `no CODEQL_DATABASE → database built, results limited to the target, severity from extension rules (${JSON.stringify(cq)})`);
+  sb.run('sast.sh', ['src']);
+  const creates = fs.readFileSync(path.join(sb.root, 'codeql.log'), 'utf8').split('\n').filter(l => / create$/.test(l)).length;
+  ok(creates === 1, `a second call on the same commit reuses the cached database (${creates} create)`);
+  const off = sb.run('sast.sh', ['src'], { env: { CODEQL_AUTO: '0' } });
+  ok(!lines(off.stdout).some(f => f.tool === 'codeql'), 'CODEQL_AUTO=0 → no codeql pass');
+  sb.done();
+  const sb2 = sandbox({ semgrep: 'echo \'{"results":[],"errors":[]}\'' });
+  ok(/tool not installed: codeql/.test(sb2.run('sast.sh', ['.']).stderr), 'codeql missing → stderr says no dataflow pass ran');
+  sb2.done();
+}
+
 // ── 16. deadcode.sh: nested-package findings point at the repo-relative file ─
 console.log('deadcode.sh');
 {
