@@ -450,11 +450,36 @@ console.log('await.sh');
   const cfg = fs.existsSync(path.join(sb.root, 'used.config.mjs')) ? fs.readFileSync(path.join(sb.root, 'used.config.mjs'), 'utf8') : '';
   ok(/node_modules\/typescript-eslint\/index\.js/.test(cfg) && /no-floating-promises": "error"/.test(cfg), 'fallback config imports the project\'s own typescript-eslint and enables the rule');
   ok(/typed fallback lint/.test(r.stderr), 'stderr says the fallback ran');
+  ok(!/command not found|syntax error/.test(r.stderr), `no stray shell errors while building the fallback (${(r.stderr.match(/.*(command not found|syntax error).*/) || [''])[0].slice(0, 80)})`);
   sb.done();
   const sb2 = mk(true);
   const r2 = sb2.run('await.sh', ['src']);
   ok(!lines(r2.stdout).some(f => f.tool === 'eslint-typed') && !fs.existsSync(path.join(sb2.root, 'used.config.mjs')), 'rule already on in repo config → no fallback run');
   sb2.done();
+
+  // Split packages: @typescript-eslint/parser + @typescript-eslint/eslint-plugin, no unified one.
+  const sb3 = mk(false);
+  fs.rmSync(path.join(sb3.root, 'node_modules', 'typescript-eslint'), { recursive: true });
+  for (const n of ['parser', 'eslint-plugin']) {
+    const d = path.join(sb3.root, 'node_modules', '@typescript-eslint', n);
+    fs.mkdirSync(d, { recursive: true });
+    fs.writeFileSync(path.join(d, 'package.json'), `{"name":"@typescript-eslint/${n}","main":"index.js"}`);
+    fs.writeFileSync(path.join(d, 'index.js'), 'module.exports = {}\n');
+  }
+  const r3 = sb3.run('await.sh', ['src']);
+  const cfg3 = fs.existsSync(path.join(sb3.root, 'used.config.mjs')) ? fs.readFileSync(path.join(sb3.root, 'used.config.mjs'), 'utf8') : '';
+  ok(lines(r3.stdout).length === 2 && /@typescript-eslint\/parser\/index\.js/.test(cfg3) && /@typescript-eslint\/eslint-plugin\/index\.js/.test(cfg3),
+    'split parser + plugin packages → typed fallback still runs');
+  sb3.done();
+
+  // A target that resolves to nothing never walks up to / and type-checks unrelated projects.
+  const sb4 = sandbox({ npx: 'echo "$PWD $*" >> "$HOME/npx.log"; exit 0' });
+  const r4 = sb4.run('await.sh', ['/no/such/dir/a.ts']);
+  const log4 = fs.existsSync(path.join(sb4.root, 'npx.log')) ? fs.readFileSync(path.join(sb4.root, 'npx.log'), 'utf8') : '';
+  ok(/does not resolve/.test(r4.stderr) && !/tsc/.test(log4), 'nonexistent absolute target → nothing checked, no tsc from /');
+  const r5 = sb4.run('await.sh', ['.'], { env: { AWAIT_MAX_PROJECTS: 'foo' } });
+  ok(/not a whole number/.test(r5.stderr) && !/integer expression/.test(r5.stderr), 'AWAIT_MAX_PROJECTS=foo → warned and defaulted, no shell error');
+  sb4.done();
 }
 
 // ── 15c. sast.sh: automatic CodeQL build, cached and scoped to the target ───
@@ -492,8 +517,11 @@ console.log('sast.sh codeql auto');
   fs.mkdirSync(path.join(sb3.root, 'src')); fs.writeFileSync(path.join(sb3.root, 'src', 'a.js'), 'x\n');
   const g3 = (...a) => spawnSync('git', a, { cwd: sb3.root, env: { PATH: '/usr/bin:/bin', HOME: sb3.root, GIT_AUTHOR_NAME: 't', GIT_AUTHOR_EMAIL: 't@t', GIT_COMMITTER_NAME: 't', GIT_COMMITTER_EMAIL: 't@t' } });
   g3('init', '-q'); g3('add', 'src'); g3('commit', '-qm', 'init');
+  const tTerm = Date.now();
   spawnSync('/bin/bash', ['-c', `bash "${path.join(TOOLS, 'sast.sh')}" src & p=$!; sleep 1; kill -TERM $p; wait $p`], {
-    cwd: sb3.root, encoding: 'utf8', env: { PATH: `${sb3.bin}:/usr/bin:/bin`, HOME: sb3.root, TMPDIR: sb3.tmp } });
+    cwd: sb3.root, encoding: 'utf8', timeout: 90000, env: { PATH: `${sb3.bin}:/usr/bin:/bin`, HOME: sb3.root, TMPDIR: sb3.tmp } });
+  const termMs = Date.now() - tTerm;
+  ok(termMs < 20000, `an interrupted run releases its output pipes at once; the lock heartbeat doesn't hold them open (${termMs}ms)`);
   const cacheDir = path.join(sb3.root, '.cache', 'cklph-audit', 'codeql');
   const locks = fs.existsSync(cacheDir) ? fs.readdirSync(cacheDir).filter(n => n.endsWith('.lock')) : [];
   ok(fs.existsSync(cacheDir) && locks.length === 0, `TERM during the build → lock released (${locks.join(',') || 'none left'})`);
@@ -505,9 +533,47 @@ console.log('sast.sh codeql auto');
   const g4 = (...a) => spawnSync('git', a, { cwd: sb4.root, env: { PATH: '/usr/bin:/bin', HOME: sb4.root, GIT_AUTHOR_NAME: 't', GIT_AUTHOR_EMAIL: 't@t', GIT_COMMITTER_NAME: 't', GIT_COMMITTER_EMAIL: 't@t' } });
   g4('init', '-q'); g4('add', 'docs'); g4('commit', '-qm', 'init');
   const r4 = sb4.run('sast.sh', ['docs']);
-  ok(/auto mode skipped/.test(r4.stderr) && !fs.existsSync(path.join(sb4.root, '.cache')) && !fs.existsSync(path.join(sb4.root, 'codeql.log')),
-    'no supported sources → codeql skipped, nothing built, no cache dir');
+  ok(/auto mode skipped/.test(r4.stderr) && !fs.existsSync(path.join(sb4.root, 'codeql.log')),
+    'no supported sources → codeql skipped, nothing built');
   sb4.done();
+
+  // Partial SARIF (analyze exits non-zero) is used for this call but never cached; an untracked
+  // source file counts for language detection; a symlinked path to the target still scopes.
+  const SARIF2 = JSON.stringify({ runs: [{ tool: { driver: { rules: [] } }, results: [
+    { ruleId: 'js/x', level: 'warning', message: { text: 'hit' }, locations: [{ physicalLocation: { artifactLocation: { uri: 'src/new.js' }, region: { startLine: 1 } } }] },
+    { ruleId: 'js/x', level: 'warning', message: { text: 'elsewhere' }, locations: [{ physicalLocation: { artifactLocation: { uri: 'other/z.js' }, region: { startLine: 1 } } }] }] }] });
+  const sb5 = sandbox({ semgrep: 'echo \'{"results":[],"errors":[]}\'',
+    codeql: [
+      'echo "$1 $2" >> "$HOME/codeql.log"',
+      'if [ "$2" = "create" ]; then mkdir -p "$3"; exit 0; fi',
+      `out=""; for a in "$@"; do case "$a" in --output=*) out="\${a#--output=}";; esac; done\ncat > "$out" <<'EOF'\n${SARIF2}\nEOF\nexit 3`,
+    ].join('\n') });
+  fs.mkdirSync(path.join(sb5.root, 'src')); fs.writeFileSync(path.join(sb5.root, 'README.md'), 'x\n');
+  const g5 = (...a) => spawnSync('git', a, { cwd: sb5.root, env: { PATH: '/usr/bin:/bin', HOME: sb5.root, GIT_AUTHOR_NAME: 't', GIT_AUTHOR_EMAIL: 't@t', GIT_COMMITTER_NAME: 't', GIT_COMMITTER_EMAIL: 't@t' } });
+  g5('init', '-q'); g5('add', 'README.md'); g5('commit', '-qm', 'init');
+  fs.writeFileSync(path.join(sb5.root, 'src', 'new.js'), 'x\n'); // untracked
+  const link = path.join(sb5.tmp, 'linked');
+  fs.symlinkSync(sb5.root, link);
+  const p1 = sb5.run('sast.sh', [path.join(link, 'src')]);
+  const got = lines(p1.stdout).filter(f => f.tool === 'codeql');
+  ok(got.length === 1 && got[0].file === 'src/new.js', `untracked source detected; target reached through a symlink still scopes results (${got.map(f => f.file).join(',')})`);
+  ok(/may be incomplete/.test(p1.stderr), 'non-zero analyze with SARIF → stderr says results may be incomplete');
+  sb5.run('sast.sh', ['src']);
+  const creates5 = fs.readFileSync(path.join(sb5.root, 'codeql.log'), 'utf8').split('\n').filter(l => / create$/.test(l)).length;
+  ok(creates5 === 2, `partial SARIF is never cached, so the next call rebuilds (${creates5} creates)`);
+  sb5.done();
+
+  // An unwritable cache location fails fast instead of waiting out the lock timeout.
+  const sb6c = sandbox({ semgrep: 'echo \'{"results":[],"errors":[]}\'', codeql: 'echo "$@" >> "$HOME/codeql.log"; exit 0' });
+  fs.mkdirSync(path.join(sb6c.root, 'src')); fs.writeFileSync(path.join(sb6c.root, 'src', 'a.js'), 'x\n');
+  const g6 = (...a) => spawnSync('git', a, { cwd: sb6c.root, env: { PATH: '/usr/bin:/bin', HOME: sb6c.root, GIT_AUTHOR_NAME: 't', GIT_AUTHOR_EMAIL: 't@t', GIT_COMMITTER_NAME: 't', GIT_COMMITTER_EMAIL: 't@t' } });
+  g6('init', '-q'); g6('add', 'src'); g6('commit', '-qm', 'init');
+  const ro = path.join(sb6c.root, 'ro'); fs.mkdirSync(ro, { mode: 0o500 });
+  const t0 = Date.now();
+  const r6 = sb6c.run('sast.sh', ['src'], { env: { CKLPH_CODEQL_CACHE: path.join(ro, 'cache') } });
+  ok(/not writable/.test(r6.stderr) && Date.now() - t0 < 15000, `unwritable cache → reported at once (${Date.now() - t0}ms)`);
+  fs.chmodSync(ro, 0o700);
+  sb6c.done();
 }
 {
   // Paths with a space, $, a double quote, a backslash and a backtick still produce a config that parses.

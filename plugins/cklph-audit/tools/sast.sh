@@ -20,8 +20,9 @@ cd "$TARGET" || exit 0
 # Private scratch dir (0700), removed on any exit.
 WORK="$(mktemp -d "${TMPDIR:-/tmp}/cklph-sast.XXXXXX")" || { echo "sast.sh: mktemp failed — nothing scanned." >&2; exit 0; }
 CURRENT_LOCK=""
+HEARTBEAT_PID=""
 # INT/TERM exit through here too, so a killed run never leaves a CodeQL build lock behind.
-trap 'rm -rf "$WORK"; [ -n "$CURRENT_LOCK" ] && rmdir "$CURRENT_LOCK" 2>/dev/null' EXIT
+trap 'rm -rf "$WORK"; [ -n "$HEARTBEAT_PID" ] && kill "$HEARTBEAT_PID" 2>/dev/null; [ -n "$CURRENT_LOCK" ] && rmdir "$CURRENT_LOCK" 2>/dev/null' EXIT
 trap 'exit 130' INT
 trap 'exit 143' TERM
 
@@ -117,7 +118,7 @@ parse_codeql() { # $1 = SARIF path, $2 = repo-relative prefix to keep ("" = ever
     }' "$1" "$2"
 }
 
-run_codeql_db() { # $1 = database, $2 = SARIF out, rest = query args
+run_codeql_db() { # $1 = database, $2 = SARIF out, rest = query args. 0 = clean, 2 = partial SARIF, 1 = none
   local db="$1" out="$2"; shift 2
   # shellcheck disable=SC2068  # query args may be empty or several packs
   codeql database analyze "$db" $@ --format=sarif-latest --output="$out" > /dev/null 2> "$WORK/codeql.err"
@@ -126,9 +127,22 @@ run_codeql_db() { # $1 = database, $2 = SARIF out, rest = query args
     echo "sast.sh: codeql failed (exit $rc, no SARIF): $(head -c 300 "$WORK/codeql.err") — zero codeql findings means it did not run." >&2
     return 1
   fi
-  [ "$rc" -eq 0 ] || echo "sast.sh: codeql exited $rc but wrote SARIF: $(head -c 300 "$WORK/codeql.err") — codeql findings may be incomplete." >&2
+  if [ "$rc" -ne 0 ]; then
+    echo "sast.sh: codeql exited $rc but wrote SARIF: $(head -c 300 "$WORK/codeql.err") — codeql findings may be incomplete." >&2
+    return 2
+  fi
   return 0
 }
+
+# The target's path relative to its git root, compared as physical paths (macOS /tmp is a
+# symlink to /private/tmp, and git reports the physical root).
+TARGET_P="$(pwd -P)"
+ROOT="$(git -C "$TARGET" rev-parse --show-toplevel 2>/dev/null)"
+[ -n "$ROOT" ] && ROOT="$(cd "$ROOT" && pwd -P)"
+PREFIX=""
+if [ -n "$ROOT" ]; then
+  case "$TARGET_P" in "$ROOT"/*) PREFIX="${TARGET_P#"$ROOT"/}" ;; esac
+fi
 
 if ! command -v codeql >/dev/null 2>&1; then
   echo "tool not installed: codeql ('brew install --cask codeql') — no dataflow SAST pass; zero codeql findings means it did not run." >&2
@@ -136,58 +150,73 @@ elif ! command -v node >/dev/null 2>&1; then
   echo "sast.sh: node not found — cannot parse the codeql SARIF; codeql findings NOT collected." >&2
 elif [ -n "${CODEQL_DATABASE:-}" ]; then
   # shellcheck disable=SC2086
-  run_codeql_db "$CODEQL_DATABASE" "$WORK/codeql.sarif" ${CODEQL_QUERIES:-} && parse_codeql "$WORK/codeql.sarif" ""
+  run_codeql_db "$CODEQL_DATABASE" "$WORK/codeql.sarif" ${CODEQL_QUERIES:-}
+  [ $? -ne 1 ] && parse_codeql "$WORK/codeql.sarif" "$PREFIX"
 elif [ "${CODEQL_AUTO:-1}" != "0" ]; then
-  ROOT="$(git -C "$TARGET" rev-parse --show-toplevel 2>/dev/null)"
+  CACHE_BASE="${CKLPH_CODEQL_CACHE:-${XDG_CACHE_HOME:-$HOME/.cache}/cklph-audit/codeql}"
   if [ -z "$ROOT" ]; then
     echo "sast.sh: target is not in a git repo and CODEQL_DATABASE is unset — codeql NOT run." >&2
+  elif ! mkdir -p "$CACHE_BASE" 2>/dev/null || ! { mkdir "$CACHE_BASE/.probe.$$" 2>/dev/null && rmdir "$CACHE_BASE/.probe.$$"; }; then
+    echo "sast.sh: codeql cache dir $CACHE_BASE is not writable (set CKLPH_CODEQL_CACHE) — codeql NOT run." >&2
   else
-    ROOT="$(cd "$ROOT" && pwd)"
-    case "$TARGET" in "$ROOT") PREFIX="" ;; "$ROOT"/*) PREFIX="${TARGET#"$ROOT"/}" ;; *) PREFIX="" ;; esac
-    FILES="$(git -C "$ROOT" ls-files -- "${PREFIX:-.}" 2>/dev/null)"
+    FILES="$( { git -C "$ROOT" ls-files -- "${PREFIX:-.}"; git -C "$ROOT" ls-files --others --exclude-standard -- "${PREFIX:-.}"; } 2>/dev/null)"
     LANGS=()
     grep -qE '\.(ts|tsx|mts|cts|js|jsx|mjs|cjs)$' <<<"$FILES" && LANGS+=(javascript-typescript)
     grep -qE '\.py$' <<<"$FILES" && LANGS+=(python)
     if [ "${#LANGS[@]}" -eq 0 ]; then
       echo "sast.sh: no JS/TS or Python sources under the target — codeql auto mode skipped (other languages need CODEQL_DATABASE)." >&2
     else
-    HEAD_SHA="$(git -C "$ROOT" rev-parse HEAD 2>/dev/null || echo nohead)"
-    # Uncommitted edits and new source files change the key; logs and other untracked files don't.
-    DIRTY="$( { git -C "$ROOT" diff HEAD 2>/dev/null; git -C "$ROOT" ls-files --others --exclude-standard 2>/dev/null | grep -E '\.(ts|tsx|mts|cts|js|jsx|mjs|cjs|py)$' | while IFS= read -r f; do cksum "$ROOT/$f" 2>/dev/null; done; } | cksum | cut -d' ' -f1)"
-    REPO_KEY="$(printf '%s' "$ROOT" | cksum | cut -d' ' -f1)"
-    CACHE_BASE="${CKLPH_CODEQL_CACHE:-${XDG_CACHE_HOME:-$HOME/.cache}/cklph-audit/codeql}"
-    mkdir -p "$CACHE_BASE" 2>/dev/null
-    for CQ_LANG in ${LANGS[@]+"${LANGS[@]}"}; do
-      case "$CQ_LANG" in javascript-typescript) PACK=javascript ;; *) PACK="$CQ_LANG" ;; esac
-      DIR="$CACHE_BASE/$REPO_KEY-${HEAD_SHA:0:12}-$DIRTY-$CQ_LANG"
-      LOCK="$DIR.lock"
-      waited=0
-      LOCKED=0
-      while :; do
-        if mkdir "$LOCK" 2>/dev/null; then LOCKED=1; CURRENT_LOCK="$LOCK"; break; fi
-        # a lock older than an hour is from a run that died
-        if [ -n "$(find "$LOCK" -maxdepth 0 -mmin +60 2>/dev/null)" ]; then rmdir "$LOCK" 2>/dev/null; continue; fi
-        [ "$waited" -ge "${CODEQL_LOCK_WAIT:-1800}" ] && break
-        sleep 5; waited=$((waited + 5))
-      done
-      if [ "$LOCKED" != "1" ]; then
-        echo "sast.sh: timed out waiting for another codeql build of this repo ($LOCK) — codeql NOT run." >&2
-        continue
-      fi
-      if [ ! -s "$DIR/results.sarif" ]; then
-        mkdir -p "$DIR"
-        echo "sast.sh: building a codeql $CQ_LANG database for $ROOT (once per commit; cached in $DIR)." >&2
-        if codeql database create "$DIR/db" --language="$CQ_LANG" --source-root="$ROOT" --overwrite --threads=0 > "$DIR/create.log" 2>&1; then
-          run_codeql_db "$DIR/db" "$DIR/results.sarif.tmp" "codeql/$PACK-queries:codeql-suites/$PACK-security-extended.qls" --download --threads=0 \
-            && mv "$DIR/results.sarif.tmp" "$DIR/results.sarif"
-        else
-          echo "sast.sh: codeql database create failed for $CQ_LANG: $(tail -c 300 "$DIR/create.log") — codeql NOT run." >&2
+      HEAD_SHA="$(git -C "$ROOT" rev-parse HEAD 2>/dev/null || echo nohead)"
+      # Uncommitted edits and new source files change the key; logs and other untracked files don't.
+      DIRTY="$( { git -C "$ROOT" diff HEAD 2>/dev/null; git -C "$ROOT" ls-files --others --exclude-standard 2>/dev/null | grep -E '\.(ts|tsx|mts|cts|js|jsx|mjs|cjs|py)$' | while IFS= read -r f; do cksum "$ROOT/$f" 2>/dev/null; done; } | cksum | cut -d' ' -f1)"
+      REPO_KEY="$(printf '%s' "$ROOT" | cksum | cut -d' ' -f1)"
+      for CQ_LANG in "${LANGS[@]}"; do
+        case "$CQ_LANG" in javascript-typescript) PACK=javascript ;; *) PACK="$CQ_LANG" ;; esac
+        DIR="$CACHE_BASE/$REPO_KEY-${HEAD_SHA:0:12}-$DIRTY-$CQ_LANG"
+        LOCK="$DIR.lock"
+        waited=0
+        LOCKED=0
+        while :; do
+          if mkdir "$LOCK" 2>/dev/null; then LOCKED=1; CURRENT_LOCK="$LOCK"; break; fi
+          # A live build touches its lock every minute, so one untouched for 10 minutes is dead.
+          if [ -n "$(find "$LOCK" -maxdepth 0 -mmin +10 2>/dev/null)" ] && rmdir "$LOCK" 2>/dev/null; then continue; fi
+          [ "$waited" -ge "${CODEQL_LOCK_WAIT:-1800}" ] && break
+          sleep 5; waited=$((waited + 5))
+        done
+        if [ "$LOCKED" != "1" ]; then
+          echo "sast.sh: timed out waiting for another codeql build of this repo ($LOCK) — codeql NOT run." >&2
+          continue
         fi
-      fi
-      rmdir "$LOCK" 2>/dev/null
-      CURRENT_LOCK=""
-      [ -s "$DIR/results.sarif" ] && parse_codeql "$DIR/results.sarif" "$PREFIX"
-    done
+        SARIF="$DIR/results.sarif"
+        if [ ! -s "$SARIF" ]; then
+          # Heartbeat: keeps the lock fresh while the build runs. It detaches from stdout/stderr
+          # (so callers waiting on those pipes aren't held open) and stops once this script or
+          # the lock is gone.
+          OWNER=$$
+          ( trap 'kill $! 2>/dev/null; exit 0' TERM
+            while :; do
+              sleep 60 & wait $!
+              kill -0 "$OWNER" 2>/dev/null && [ -d "$LOCK" ] || exit 0
+              touch "$LOCK"
+            done ) </dev/null >/dev/null 2>&1 &
+          HEARTBEAT_PID=$!
+          mkdir -p "$DIR"
+          echo "sast.sh: building a codeql $CQ_LANG database for $ROOT (once per commit; cached in $DIR)." >&2
+          if codeql database create "$DIR/db" --language="$CQ_LANG" --source-root="$ROOT" --overwrite --threads=0 > "$DIR/create.log" 2>&1; then
+            run_codeql_db "$DIR/db" "$DIR/results.sarif.tmp" "codeql/$PACK-queries:codeql-suites/$PACK-security-extended.qls" --download --threads=0
+            case $? in
+              0) mv "$DIR/results.sarif.tmp" "$SARIF" ;;
+              2) SARIF="$WORK/codeql-partial-$CQ_LANG.sarif"; mv "$DIR/results.sarif.tmp" "$SARIF" ;; # used now, never cached
+            esac
+          else
+            echo "sast.sh: codeql database create failed for $CQ_LANG: $(tail -c 300 "$DIR/create.log") — codeql NOT run." >&2
+          fi
+          kill "$HEARTBEAT_PID" 2>/dev/null; HEARTBEAT_PID=""
+        fi
+        rmdir "$LOCK" 2>/dev/null
+        CURRENT_LOCK=""
+        [ -s "$SARIF" ] && parse_codeql "$SARIF" "$PREFIX"
+      done
     fi
   fi
 fi

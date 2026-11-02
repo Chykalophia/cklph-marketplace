@@ -31,6 +31,16 @@ All notable changes to `cklph-audit` are documented here. This project adheres t
   directory. The fallback ESLint config embeds paths as JSON strings, so a project path with a
   double quote or backslash no longer produces a broken config. Each has a test that fails on the
   previous code.
+- From review: CodeQL results are scoped by physical path (a target reached through a symlink,
+  such as macOS `/tmp`, kept its scope), a supplied `CODEQL_DATABASE` is scoped too, untracked
+  source files count for language detection, partial SARIF from a failed analysis is used once
+  but never cached, and an unwritable cache dir is reported at once instead of waiting out the
+  lock. A live build refreshes its lock every minute (a lock untouched for 10 minutes is dead),
+  and that heartbeat detaches from the script's output so it can't hold a caller's pipes open.
+  `await.sh` no longer walks up to `/` for a target that doesn't exist, validates
+  `AWAIT_MAX_PROJECTS`, checks the rule against a file in the target, supports the split
+  `@typescript-eslint/parser` + `eslint-plugin` packages, sets `ESLINT_USE_FLAT_CONFIG` for
+  ESLint 8, and says when the repo's own ESLint produced nothing.
 
 ## 1.2.4 — 2026-10-27
 
