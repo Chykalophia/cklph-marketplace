@@ -9,7 +9,7 @@ Make accepting tech debt a **deliberate, annotated act**. This skill turns the f
 
 ## Inputs
 
-- The latest report under `<report.dir>/AUDIT-<date>.md` (default `audits/`), OR the confirmed-fresh findings from a just-completed `:run`.
+- The latest report under `<report.dir>/AUDIT-<date>.md` (default `audits/`), OR the confirmed-fresh findings from a just-completed `:run`. "Latest" means the most recently modified `AUDIT-*.md` whose front-matter is not `result: clean`: a clean-run record (`AUDIT-<date>-clean.md`) has no findings to baseline, and same-day reruns are written as `-2`, `-3`, so never pick by file name alone.
 - The existing `.audit-baseline.json` (created empty by `:init`).
 
 ## Procedure

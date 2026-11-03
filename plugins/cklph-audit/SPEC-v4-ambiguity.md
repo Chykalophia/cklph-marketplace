@@ -1599,3 +1599,24 @@ pins in `tests/tools.test.mjs` ("review-round fixes and teeth"), fixture pins in
   `closeRule` fold that returns `unchecked`, and the verifier's contract-mismatch refutations add "the
   doc describes a derived output and code in the package produces V". The 2026-11-02 gate score stands
   as recorded; the next gate run measures the fixed fixture.
+- **SCRIPTPATH** (1.3.1, audit-run). Workflow loads a `scriptPath` only from the working directory or a
+  session-added directory; the installed plugin cache is neither, so every `:run`/`:quick` failed and
+  the model inlined the 100 KB engine. Decision: audit-run copies the engine to the session scratchpad
+  and runs the copy; inlining is forbidden. Pin: `tests/audit-run-skill.test.mjs`.
+- **PROSE-MAP** (1.3.1, Map). A run whose lenses are all `ambiguity`/`docs-drift` spawned the modeler
+  for a threat model no prose reviewer reads. Decision: skip Map with `skipReason: 'prose-only'`
+  (`quick` and `disabled` are the other reasons). Pin: engine-flow PROSE-MAP cases.
+- **RULE-SCOPE** (1.3.1, §7.5 closure). Closure folded every rule no job was handed into `unchecked`,
+  so an ambiguity-only run reported 90 of 96 rules NOT CHECKED. Decision: one `ruleForLens` routing
+  function serves the reviewer hand-off and closure; a rule no job in the run can receive is
+  `outOfScope`, counted apart from checked/unchecked and listed under the matrix. Pin: engine-flow
+  RULE-SCOPE cases.
+- **CLEAN-RECORD** (1.3.1, Synthesize). A clean run returned `report: null` and wrote nothing, so the
+  refuted candidates and their reasons were lost. Decision: `report` stays null (the clean signal);
+  the engine adds `cleanReport`, built in plain code (no agent), with placeholders `__AUDIT_DATE__`
+  and `__REPO_SHA__` that audit-run fills before writing. Pin: engine-flow CLEAN-RECORD cases.
+  Amended (review round 1): only a majority refutation is "refuted"; inconclusive panels and
+  below-floor confirmations get their own sections; the record is written to `AUDIT-<date>-clean.md`
+  and no report overwrites another. RULE-SCOPE amended: scope is by REQUESTED lens; a requested lens
+  with no job leaves its rules NOT CHECKED. PROSE-MAP amended: `ambiguity` with `code: true` is not
+  prose-only.

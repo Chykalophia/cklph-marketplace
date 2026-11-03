@@ -805,6 +805,132 @@ console.log('\n=== SCENARIO E: ambiguity lens ===');
   // paired: a truly clean run still short-circuits, and its result says nothing was dropped
   if (!r0.logs.some(l => /Clean run/.test(l)) || r0.res?.report !== null || !Array.isArray(r0.res?.proofContractDropped) || r0.res.proofContractDropped.length) fail(`truly clean run: report ${JSON.stringify(r0.res?.report)}, proofContractDropped ${JSON.stringify(r0.res?.proofContractDropped)} (want null and [])`);
   else ok('a truly clean ambiguity run still short-circuits, with proofContractDropped: []');
+
+  // §15 PROSE-MAP — kills: an ambiguity-only run on OOOhm spawned the threat modeler (15 trust
+  // boundaries no prose reviewer reads). Paired: a run with a code lens still maps.
+  if (r0.labels.includes('map:model') || r0.res?.map?.ran !== false || r0.res?.map?.skipReason !== 'prose-only') fail(`ambiguity-only run: map:model spawned=${r0.labels.includes('map:model')}, map ${JSON.stringify(r0.res?.map)} (want skipped, skipReason prose-only)`);
+  else ok('an ambiguity-only run skips the Map phase (skipReason prose-only, no modeler spawned)');
+  const rDD = await runE({ lenses: ['docs-drift'] });
+  if (rDD.labels.includes('map:model')) fail('a docs-drift-only run still spawned the threat modeler');
+  else ok('a docs-drift-only run skips the Map phase too');
+  const rMix = await runE({ lenses: ['ambiguity', 'security'] });
+  if (!rMix.labels.includes('map:model') || rMix.res?.map?.ran !== true || rMix.res?.map?.skipReason) fail(`ambiguity+security run: map ${JSON.stringify(rMix.res?.map)} (want ran, no skipReason)`);
+  else ok('paired: ambiguity + security still runs the Map phase');
+
+  // §15 RULE-SCOPE — kills: the same run reported "6 of 96 checked, 90 NOT CHECKED" for code rules no
+  // ambiguity job could receive. The base rulebook is 5 security rules; add one 'any' and one
+  // 'ambiguity' rule, which ARE handed to ambiguity jobs and so stay in scope.
+  const RS = { 'discover:rulebook': { rules: [...RULES, { id: 'docs:any-1', source: 'AGENTS.md:30', text: 'any rule', lensHint: 'any' }, { id: 'docs:amb-1', source: 'AGENTS.md:31', text: 'prose rule', lensHint: 'ambiguity' }] } };
+  const rRS = await runE({ over: RS });
+  const cRS = rRS.res?.coverage || {};
+  if (cRS.rulebookSize !== 7 || cRS.outOfScope !== 5 || JSON.stringify(cRS.outOfScopeByLens) !== '{"security":5}' || JSON.stringify([...(cRS.uncheckedRuleIds || [])].sort()) !== '["docs:amb-1","docs:any-1"]' || cRS.checked !== 0)
+    fail(`ambiguity-only closure: ${JSON.stringify(cRS)} (want 7 rules, 5 out of scope {security:5}, unchecked = the any + ambiguity rules, checked 0)`);
+  else ok('ambiguity-only closure: 5 security rules out of scope, not NOT CHECKED; the any + ambiguity rules stay in scope');
+  const rRSmix = await runE({ lenses: ['ambiguity', 'security'], over: RS });
+  if (rRSmix.res?.coverage?.outOfScope !== 0 || rRSmix.res?.coverage?.uncheckedRuleIds?.length !== 7) fail(`ambiguity+security closure: ${JSON.stringify(rRSmix.res?.coverage)} (want 0 out of scope, all 7 unchecked by the empty stubs)`);
+  else ok('paired: with a security job in the run, the security rules are in scope again');
+  // the synthesizer is told about out-of-scope rows only when there are some (other prompts unchanged)
+  const DROP = { [POL]: { findings: [mkF('OS1', 'low', { line: 5 })], ruleChecks: [], coverage: { seedsVerified: 0, seedsGiven: 0, toolCandidatesJudged: 0 } }, verify: () => ({ refuted: false, reason: 'held, no trace' }) };
+  const sOut = (await runE({ over: { ...RS, ...DROP } })).prompt('synthesize:report');
+  const sIn = (await runE({ lenses: ['ambiguity', 'security'], over: { ...RS, ...DROP } })).prompt('synthesize:report');
+  if (!/outOfScope: true are NOT rows/.test(sOut) || /outOfScope: true/.test(sIn)) fail(`synth out-of-scope clause: present with out-of-scope rules=${/outOfScope: true are NOT rows/.test(sOut)}, present without=${/outOfScope: true/.test(sIn)}`);
+  else ok('the synthesizer gets the out-of-scope rendering rule only when the run has out-of-scope rules');
+
+  // §15 CLEAN-RECORD — kills: a clean run that refuted 6 candidates (one of them a real doc error)
+  // wrote nothing to disk. report stays null (the clean signal); cleanReport carries the record.
+  const rCR = await runE({
+    over: {
+      ...RS,
+      [POL]: { findings: [mkF('RF1', 'low', { line: 5 }), mkF('RF2', 'medium', { line: 6 })], ruleChecks: [], coverage: { seedsVerified: 0, seedsGiven: 0, toolCandidatesJudged: 0 } },
+      verify: () => ({ refuted: true, reason: 'one reading only: the clause names its subject' }),
+    },
+  });
+  const cr = rCR.res?.cleanReport || '';
+  if (rCR.res?.report !== null || rCR.labels.includes('synthesize:report')) fail(`refuted-only run is not clean: report ${JSON.stringify(rCR.res?.report)}, synthesizer spawned=${rCR.labels.includes('synthesize:report')}`);
+  else ok('a refuted-only run is still clean: report null, no synthesizer agent');
+  const want = ['result: clean', 'date: __AUDIT_DATE__', 'repo_sha: __REPO_SHA__', 'out_of_scope: 5', 'refuted_candidates: 2', '## Refuted candidates (2)',
+    '`SECURITY.md:5` low, `ambiguity:scope-clause`', '`SECURITY.md:6` medium', 'Votes: held 0, refuted 1. Why refuted: one reading only: the clause names its subject',
+    'Out of scope for this run\'s lenses: security 5', 'Map: skipped (prose-only lenses'];
+  const missing = want.filter(w => !cr.includes(w));
+  if (missing.length) fail(`cleanReport missing ${JSON.stringify(missing)}`);
+  else ok('cleanReport lists both refuted candidates with tally and reason, scoped closure, and the Map skip');
+  if (!/^---\n[\s\S]*?\n---\n/.test(cr) || !/## Refuted candidates \(0\)\n\nNone: reviewers raised nothing\./.test(r0.res?.cleanReport || '')) fail('cleanReport has no front-matter, or a run with nothing raised does not say so');
+  else ok('cleanReport opens with front-matter; a run with nothing raised says "None: reviewers raised nothing."');
+  if (r13.res?.cleanReport !== undefined) fail('a non-clean run also returned cleanReport');
+  else ok('paired: a run with a report returns no cleanReport');
+
+  // review round 1 on 1.3.1 — each case below passed the first draft of the change.
+  // RULE-SCOPE by REQUESTED lens — kills: scoping by the jobs that existed, so a run whose requested lens
+  // produced no job (no units, no prose groups) read as "out of scope, none NOT CHECKED".
+  const UNH = { id: 'docs:unhinted-1', source: 'AGENTS.md:40', text: 'unhinted rule' };
+  const AMB = { id: 'docs:amb-1', source: 'AGENTS.md:31', text: 'prose rule', lensHint: 'ambiguity' };
+  const CMP = { id: 'docs:cmp-1', source: 'AGENTS.md:41', text: 'compliance rule', lensHint: 'compliance' };
+  const RSD = { 'discover:rulebook': { rules: [...RULES, UNH, AMB, CMP] } };
+  const noUnits = await runE({ lenses: ['security'], cfg: { units: { autoInfer: false, list: [] } }, over: { ...RSD, 'discover:units': { units: [] }, 'discover:unit-mapper': { units: [] } } });
+  const cNU = noUnits.res?.coverage || {};
+  const nuJobs = noUnits.labels.filter(l => l.startsWith('review:')).length;
+  if (nuJobs !== 0) fail(`no-units probe still ran ${nuJobs} review job(s) (${JSON.stringify(noUnits.labels.filter(l => l.startsWith('review:')))}): the degraded path is not exercised`);
+  else if (!(cNU.uncheckedRuleIds || []).includes('agents-md:rule-1') || !(cNU.uncheckedRuleIds || []).includes(UNH.id) || cNU.outOfScopeByLens?.security || 'undefined' in (cNU.outOfScopeByLens || {}))
+    fail(`security run with no review jobs: ${JSON.stringify(cNU)} (want the security + unhinted rules NOT CHECKED, no security/undefined out-of-scope key)`);
+  else ok('a requested lens that produced no review job leaves its rules NOT CHECKED, never out of scope');
+  const noGroups = await runE({ cfg: { ambiguity: { prose: { groups: {} } } }, over: RSD });
+  const cNG = noGroups.res?.coverage || {};
+  if (!(cNG.uncheckedRuleIds || []).includes(AMB.id) || (cNG.outOfScopeByLens || {}).ambiguity)
+    fail(`ambiguity run with no prose groups: ${JSON.stringify(cNG)} (want the ambiguity rule NOT CHECKED, not out of scope)`);
+  else ok('an ambiguity run with no prose groups leaves the ambiguity rule NOT CHECKED');
+  const withCmp = await runE({ lenses: ['ambiguity', 'compliance'], over: RSD });
+  const cWC = withCmp.res?.coverage || {};
+  if ((cWC.outOfScopeByLens || {}).compliance || !(cWC.uncheckedRuleIds || []).includes(CMP.id))
+    fail(`ambiguity+compliance run: ${JSON.stringify(cWC)} (want the compliance rule in scope, NOT CHECKED)`);
+  else ok('a compliance-hinted rule is in scope when the compliance lens runs');
+  if ('undefined' in (rRS.res?.coverage?.outOfScopeByLens || {}) || 'undefined' in (cNG.outOfScopeByLens || {})) fail('an out-of-scope lens key rendered as "undefined"');
+  else ok('no out-of-scope lens key is ever "undefined"');
+
+  // PROSE-MAP with ambiguity.code: true — kills: the code job lost its invariants/boundaries
+  const rCode = await runE({ cfg: { ambiguity: { code: true } } });
+  if (!rCode.labels.includes('map:model') || rCode.res?.map?.skipReason) fail(`ambiguity code mode: map ${JSON.stringify(rCode.res?.map)} (want the Map phase to run)`);
+  else ok('ambiguity with code: true is not prose-only: the Map phase runs');
+
+  // CLEAN-RECORD refuted vs inconclusive — kills: a no-quorum, split or short-of-unanimous panel listed as "refuted"
+  const seen = {};
+  const PANEL = {
+    RF3: ['r', 'r', 'r'],          // majority refuted
+    UN3: ['h', 'h', 'r'],          // held 2/3 but the threshold is unanimous: inconclusive
+    NQ3: [null, null, null],       // every voter died: no quorum
+  };
+  const rPN = await runE({
+    cfg: { verify: { voters: 3, passThreshold: 'unanimous' } },
+    over: {
+      [POL]: { findings: [mkF('RF3', 'low', { line: 5 }), mkF('UN3', 'low', { line: 6 }), mkF('NQ3', 'medium', { line: 7 })], ruleChecks: [], coverage: { seedsVerified: 0, seedsGiven: 0, toolCandidatesJudged: 0 } },
+      verify: (p) => {
+        const id = (findingOf(p).title || '').match(/^\[(\w+)\]/)?.[1];
+        const k = seen[id] = (seen[id] ?? -1) + 1;
+        const v = PANEL[id]?.[k];
+        return v === null ? null : v === 'h' ? { refuted: false, reason: 'two readings' } : { refuted: true, reason: `one reading (${id})` };
+      },
+    },
+  });
+  const pr = rPN.res?.cleanReport || '';
+  const refSec = pr.split('## Refuted candidates')[1]?.split('\n## ')[0] || '';
+  const incSec = pr.split('## Not confirmed: inconclusive panel')[1]?.split('\n## ')[0] || '';
+  if (rPN.res?.report !== null) fail(`panel probe is not a clean run (report ${JSON.stringify(rPN.res?.report)})`);
+  else if (!refSec.includes('[RF3]') || refSec.includes('[UN3]') || refSec.includes('[NQ3]') || !incSec.includes('[UN3]') || !incSec.includes('[NQ3]') || !/refuted_candidates: 1\n/.test(pr) || !/inconclusive_candidates: 2\n/.test(pr))
+    fail(`refuted/inconclusive split wrong:\n${pr.split('## Positive controls')[0]}`);
+  else ok('only a majority refutation is listed as refuted; unanimous-short and no-quorum panels are inconclusive');
+
+  // front-matter is flat YAML a parser can read: top-level keys, flow lists as JSON
+  const fm = (cr.match(/^---\n([\s\S]*?)\n---\n/) || [])[1] || '';
+  const badFm = fm.split('\n').filter(l => !/^([a-z_]+: .+|coverage:|  [a-z_]+: .+)$/.test(l) || (/: \[/.test(l) && (() => { try { JSON.parse(l.split(': ').slice(1).join(': ')); return false; } catch { return true; } })()));
+  if (!fm || badFm.length) fail(`cleanReport front-matter lines that would not parse: ${JSON.stringify(badFm)}`);
+  else ok('cleanReport front-matter is flat key: value YAML with JSON flow lists');
+
+  // panel internals stay internal — kills: dropping the publicFresh / returned-fresh strip
+  const leakKeys = ['votes', 'refuteReason', 'majorityRefuted'];
+  const synthF = block(r14.prompt('synthesize:report'), 'FINDINGS') || [];
+  const leaked = [...synthF, ...(r14.res?.fresh || [])].flatMap(f => leakKeys.filter(k => k in f));
+  if (!synthF.length || !(r14.res?.fresh || []).length) fail('leak probe has no confirmed findings to inspect');
+  else if (leaked.length) fail(`panel internals leaked into synth FINDINGS or returned fresh: ${JSON.stringify([...new Set(leaked)])}`);
+  else ok('votes / refuteReason / majorityRefuted never reach synth FINDINGS or the returned fresh');
 }
 
 // ── SCENARIO F: maxConcurrentAgents (D24, AC-031) — one semaphore over every agent spawn ─

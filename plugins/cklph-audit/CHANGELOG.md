@@ -3,6 +3,56 @@
 All notable changes to `cklph-audit` are documented here. This project adheres to
 [Semantic Versioning](https://semver.org/).
 
+## 1.3.1 — 2026-11-02
+
+### Fixed
+- **`/cklph-audit:run` and `:quick` could not start the engine.** The audit-run skill passed
+  `${CLAUDE_PLUGIN_ROOT}/workflows/audit.workflow.js` as the Workflow `scriptPath`, but Workflow only
+  loads scripts from the working directory or a directory added to the session, and the installed
+  plugin lives under `~/.claude/plugins/cache`. Every run failed with "scriptPath must be a script
+  path this tool returned, or a file you can already read", and the model recovered by pasting the
+  100 KB engine inline, at tens of thousands of output tokens per run. The skill now copies the
+  engine into the session scratchpad and runs the copy, forbids inlining, and tells the user to
+  `/add-dir ~/.claude/plugins/cache` when there is no scratchpad.
+- Tests: `tests/audit-run-skill.test.mjs` pins the copy step and the inline ban, and fails on the
+  1.3.0 skill.
+
+### Changed
+Found by the first real ambiguity run (OOOhm, clean):
+- **Prose-only runs skip the Map phase.** When every lens is `ambiguity` or `docs-drift`, no threat
+  model is built: those lenses read documents, and the modeler's trust boundaries and invariants had no
+  reader. `map.skipReason` says `prose-only`; quick mode and `map.enabled: false` report `quick` and
+  `disabled`.
+- **Rules for lenses not in the run are out of scope, not NOT CHECKED.** An ambiguity-only run reported
+  "6 of 96 checked, 90 NOT CHECKED" for security and architecture rules no ambiguity reviewer is ever
+  handed. Rule closure now uses the same lens routing as the reviewer hand-off: those rules count as
+  `coverage.outOfScope` (with a per-lens breakdown), the report lists them under the matrix instead of
+  as rows, and `checked`/`unchecked` count in-scope rules only. Front-matter gains
+  `coverage.out_of_scope`.
+- **A clean run writes a record.** It used to write nothing, so the candidates the verifier panel
+  refuted (and why) existed only in the chat. The engine now returns `cleanReport` on a clean run,
+  built in plain code with no synthesizer: `result: clean` front-matter, scoped rule closure, every
+  refuted candidate with its vote tally and first refuting reason, positive controls, and which phases
+  ran. `report` stays `null` as the clean signal; audit-run fills the date and SHA and writes it.
+- Tests: engine-flow covers each change with a paired case that must not change (a code lens still
+  maps; with a security job the security rules are back in scope; a run with a report returns no
+  `cleanReport`). Each fails when its change is reverted.
+
+From review of the above, before release:
+- Scope is decided by the lenses **requested**, not the jobs that ran. A requested lens that produced no
+  review job (no units, no prose groups, a dead scout) leaves its rules NOT CHECKED with a note, so a
+  degraded run can never read as fully scoped. Compliance-hinted rules are in scope when compliance runs.
+- The clean record goes to `AUDIT-<date>-clean.md`, and no report ever overwrites an existing one
+  (same-day reruns get `-2`, `-3`). audit-baseline skips `result: clean` records when it looks for the
+  latest report.
+- Only a majority refutation is listed as refuted. Split, no-quorum and short-of-unanimous panels get
+  their own "Not confirmed: inconclusive panel" section; findings confirmed below `severityFloor` are
+  listed too.
+- `ambiguity` with `code: true` is not prose-only, so its code jobs keep the threat model.
+- The synthesizer agent, report format, template and README now describe out-of-scope rules the same
+  way the engine prompt does. Panel internals (`votes`, `refuteReason`, `majorityRefuted`) are stripped
+  from the returned `fresh` and from the synthesizer's FINDINGS.
+
 ## 1.3.0 — 2026-11-02
 
 Released on the fixture gate recorded in the marketplace repo's

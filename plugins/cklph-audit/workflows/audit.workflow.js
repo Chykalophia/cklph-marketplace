@@ -793,7 +793,10 @@ function verifyFindings(findings, unitKey, lens, unitVoters, extraOpts = {}) {
           : majorityRefuted ? 'refuted-without-guard'     // majority refuted, but no voter cited a guard
           : 'split-vote'                                  // neither side has a majority (a tie, or held short of unanimous)
         if (voterTrace) f.reachabilityTrace = voterTrace.reachabilityTrace
-        return { ...f, unit: unitKey, lens, confirmed, heldUntraced, ...(heldReason ? { heldReason } : {}), majorityHeld: pass, refutedGuards }
+        // §15 CLEAN-RECORD: the tally and the first refuting reason, so a clean run can say what it threw out
+        const tally = { held: holds, refuted: v.length - holds }
+        const refuteReason = v.find(x => x.refuted && x.reason)?.reason
+        return { ...f, unit: unitKey, lens, confirmed, heldUntraced, ...(heldReason ? { heldReason } : {}), majorityHeld: pass, majorityRefuted, refutedGuards, votes: tally, ...(refuteReason ? { refuteReason } : {}) }
       })
   }))
 }
@@ -943,13 +946,23 @@ log(`${units.length} unit(s) [${unitSource}${lowConfidence.length ? `, ${lowConf
 // ════════════════════════════════════════════════════════════════════════════
 // 3. MAP — threat model: trust boundaries, data-flows, invariants, crown jewels (T2.1)
 // ════════════════════════════════════════════════════════════════════════════
-const mapEnabled = (config.map?.enabled ?? true) && mode !== 'quick'
+// §15 PROSE-MAP: ambiguity and docs-drift read documents, not attack surface, so a run made only of
+// them has no consumer for a threat model; the modeler agent would be pure cost. Ambiguity with
+// `code: true` reviews code units, whose prompts carry invariants and boundaries, so it is not prose-only.
+const isProseOnlyLens = l => l === 'docs-drift' || (l === 'ambiguity' && !ambCode)
+const mapSkipReason = mode === 'quick' ? 'quick'
+  : config.map?.enabled === false ? 'disabled'
+  : lenses.length && lenses.every(isProseOnlyLens) ? 'prose-only'
+  : null
+const mapEnabled = !mapSkipReason
 let model = { trustBoundaries: [], dataFlows: [], invariants: [], crownJewels: [] }
 let mapRan = false
 if (!mapEnabled) {
-  log(mode === 'quick'
+  log(mapSkipReason === 'quick'
     ? 'quick mode: Map phase SKIPPED — no threat model (boundaries/invariants absent; flagged in appendix)'
-    : 'map disabled by config — no threat model (boundaries/invariants absent; flagged in appendix)')
+    : mapSkipReason === 'prose-only'
+      ? `prose-only lenses (${lenses.join(', ')}): Map phase SKIPPED — no threat model needed (flagged in appendix)`
+      : 'map disabled by config — no threat model (boundaries/invariants absent; flagged in appendix)')
 } else {
   phase('Map')
   const mapOut = await callAgent(
@@ -982,13 +995,17 @@ if (!mapEnabled) {
 // ════════════════════════════════════════════════════════════════════════════
 // 4-5. REVIEW → VERIFY  (pipeline: each finding verifies as soon as its review lands)
 // ════════════════════════════════════════════════════════════════════════════
+// ONE routing rule for the reviewer hand-off AND rule closure (§15 RULE-SCOPE): a rule reaches a job
+// when its lensHint is the job's lens, 'any', or absent. A rule no job in this run can receive is out
+// of scope for the run, not NOT CHECKED.
+const ruleForLens = (r, lens) => r.lensHint === lens || r.lensHint === 'any' || !r.lensHint
 const reviewed = await pipeline(
   jobs,
   // stage 1: review one unit through one lens (tool-augmented, seed- and rule-aware)
   job => {
     // EVERY lens — docs-drift included — gets only its subset (spec M2): lensHint match,
     // 'any', or unhinted. Untouched code rules fold honestly to unchecked → NOT CHECKED.
-    const rules = rulebook.filter(r => r.lensHint === job.lens || r.lensHint === 'any' || !r.lensHint)
+    const rules = rulebook.filter(r => ruleForLens(r, job.lens))
     const recon = reconByLens[job.lens]
     // normalize recon paths (./foo → foo) so glob matching doesn't drop seeds on a prefix
     const inUnit = s => { const nf = s?.file?.replace(/^\.\//, ''); return nf && globMatch(nf, job.unit.globs) }
@@ -1260,6 +1277,7 @@ if (!variantEnabled) {
 // E4: severityFloor — applied ONCE, after the Variant merge, so variant siblings can't bypass it.
 const floorRank = sevRank[config.severityFloor] ?? 1
 const preFloor = fresh.length
+const belowFloor = fresh.filter(f => (sevRank[f.severity] ?? 1) < floorRank)   // named in a clean run's record
 fresh = fresh.filter(f => (sevRank[f.severity] ?? 1) >= floorRank)
 if (preFloor - fresh.length) log(`severityFloor '${config.severityFloor ?? 'low'}': ${preFloor - fresh.length} finding(s) below floor dropped`)
 
@@ -1289,7 +1307,13 @@ if (deferred.length) log(`${deferred.length} finding(s) DEFERRED unverified — 
 const freshIdSet = new Set(fresh.map(f => f.id).filter(Boolean))
 const heldIdSet = new Set(heldUntraced.map(f => f.id).filter(Boolean))
 const deferredIdSet = new Set(deferred.map(f => f.id).filter(Boolean))   // A5b: cited but never verified (budget)
+// §15 RULE-SCOPE: scope is decided by the lenses REQUESTED, never by the jobs that happened to exist.
+// A requested lens that produced no job (no units, no prose groups, a dead scout) leaves its rules
+// NOT CHECKED with a note: a degraded run must never read as fully scoped.
 const ruleClosure = rulebook.map(rule => {
+  if (!lenses.some(l => ruleForLens(rule, l))) return { ...rule, status: 'unchecked', outOfScope: true, note: `no ${rule.lensHint ?? 'unhinted'} lens in this run` }
+  const jobless = !jobs.some(j => ruleForLens(rule, j.lens))
+  if (jobless) return { ...rule, status: 'unchecked', note: `lens requested but produced no review job (no units, no prose groups, or a ${rule.lensHint === 'compliance' ? 'compliance rule, which no review job receives' : 'dead unit scout'})` }
   const checks = checksByRule.get(rule.id) ?? []
   const violations = checks.filter(c => c.status === 'violation')
   if (violations.length) {
@@ -1314,9 +1338,20 @@ const ruleClosure = rulebook.map(rule => {
   if (na) return { ...rule, status: 'not-applicable', evidence: na.evidence }
   return { ...rule, status: 'unchecked' }                    // renders as NOT CHECKED
 })
-const uncheckedRuleIds = ruleClosure.filter(r => r.status === 'unchecked').map(r => r.id)
-const coverageSummary = { rulebookSize: rulebook.length, checked: rulebook.length - uncheckedRuleIds.length, uncheckedRuleIds }
-if (rulebook.length) log(`rule closure: ${coverageSummary.checked}/${rulebook.length} checked${uncheckedRuleIds.length ? `; NOT CHECKED: ${uncheckedRuleIds.join(', ')}` : ''}`)
+const outOfScopeRules = ruleClosure.filter(r => r.outOfScope)
+const uncheckedRuleIds = ruleClosure.filter(r => r.status === 'unchecked' && !r.outOfScope).map(r => r.id)
+const outOfScopeByLens = {}
+for (const r of outOfScopeRules) { const k = r.lensHint ?? 'unhinted'; outOfScopeByLens[k] = (outOfScopeByLens[k] ?? 0) + 1 }
+const coverageSummary = {
+  rulebookSize: rulebook.length,
+  checked: rulebook.length - outOfScopeRules.length - uncheckedRuleIds.length,
+  uncheckedRuleIds,
+  outOfScope: outOfScopeRules.length,             // rules for lenses this run did not include (never handed)
+  outOfScopeByLens,
+}
+if (rulebook.length) log(`rule closure: ${coverageSummary.checked}/${rulebook.length - outOfScopeRules.length} in-scope rule(s) checked` +
+  `${uncheckedRuleIds.length ? `; NOT CHECKED: ${uncheckedRuleIds.join(', ')}` : ''}` +
+  `${outOfScopeRules.length ? `; ${outOfScopeRules.length} out of scope (${Object.entries(outOfScopeByLens).map(([l, n]) => `${l} ${n}`).join(', ')})` : ''}`)
 
 // near-misses (T2.2): majority-REFUTED critical/high whose counter-evidence tells the coverage story —
 // "probed X, held because Y". A majority-HELD-but-untraced finding is heldUntraced, NOT a near-miss.
@@ -1454,8 +1489,93 @@ phase('Synthesize')
 // proof-contract drop: §4.10 lists dropped ids in the report's Coverage summary (§15 CLEAN-DROP).
 if (!fresh.length && !heldUntraced.length && !deferred.length && !proofContractDropped.length) {
   log('No new confirmed findings. Clean run. 🎉')
+  // §15 CLEAN-RECORD: report stays null (the clean signal), but the run's record (what was checked,
+  // what was refuted and why) is built here in plain code, no synthesizer agent. audit-run fills the
+  // two placeholders and writes it, so refuted candidates are not lost when the chat ends.
+  const oneLine = s => String(s ?? '').replace(/\s+/g, ' ').trim().slice(0, 400)
+  const code = s => `\`${String(s ?? '?').replace(/`/g, "'")}\``      // a backtick in a path or id can't break the span
+  const where = f => code(`${f.file ?? '?'}${f.line ? `:${f.line}` : ''}`)
+  // only a MAJORITY refutation is "refuted"; split, no-quorum and short-of-unanimous panels are
+  // inconclusive, never presented as refuted
+  const notConfirmed = dedupeByFingerprint(allVerified.filter(f => !f.confirmed && !f.heldUntraced && !f.deferredUnverified))
+  const refutedCandidates = notConfirmed.filter(f => f.majorityRefuted)
+  const inconclusive = notConfirmed.filter(f => !f.majorityRefuted)
+  const suppressedByBaseline = deduped.filter(f => baseline.has(fingerprint(f))).length
+  const yamlList = xs => `[${xs.map(x => JSON.stringify(String(x))).join(', ')}]`
+  const mapLine = mapRan
+    ? `ran: ${model.trustBoundaries.length} trust boundar(ies), ${model.invariants.length} invariant(s)`
+    : mapSkipReason
+      ? `skipped (${mapSkipReason === 'prose-only' ? 'prose-only lenses, no threat model needed' : mapSkipReason === 'quick' ? 'quick mode' : 'map.enabled: false'})`
+      : 'FAILED (the modeler died or returned nothing; no threat model)'
+  const candLine = f => `- ${where(f)} ${f.severity}${f.rule ? `, ${code(f.rule)}` : ''}: ${oneLine(f.title)}. Votes: held ${f.votes?.held ?? 0}, refuted ${f.votes?.refuted ?? 0}.`
+  const cleanReport = [
+    '---',
+    'date: __AUDIT_DATE__',
+    'repo_sha: __REPO_SHA__',
+    `lenses: ${yamlList(lenses)}`,
+    `mode: ${mode}`,
+    'result: clean',
+    `phases: { map: ${mapRan}, variant: ${variantRan}, dast: ${dastRan}, patch: ${patchRan}, self_review: false }`,
+    `counts: { critical: 0, high: 0, medium: 0, low: 0, info: ${positiveControls.length} }`,
+    'coverage:',
+    `  rulebook_size: ${coverageSummary.rulebookSize}`,
+    `  checked: ${coverageSummary.checked}`,
+    `  unchecked: ${yamlList(coverageSummary.uncheckedRuleIds)}`,
+    `  out_of_scope: ${coverageSummary.outOfScope}`,
+    `positive_controls: ${positiveControls.length}`,
+    'held_untraced: 0',
+    'deferred_unverified: 0',
+    `refuted_candidates: ${refutedCandidates.length}`,
+    `inconclusive_candidates: ${inconclusive.length}`,
+    `below_severity_floor: ${belowFloor.length}`,
+    `suppressed_by_baseline: ${suppressedByBaseline}`,
+    '---',
+    '',
+    `# Audit (${lenses.join(', ')}): clean run`,
+    '',
+    'No new confirmed findings and nothing held for owner review. This file is the run\'s record: what was checked, and what reviewers raised that the verifier panel refuted, so the next run can be compared against it. Self-review does not run on a clean run.',
+    '',
+    '## Rule closure',
+    '',
+    `- In scope: ${coverageSummary.rulebookSize - coverageSummary.outOfScope} of ${coverageSummary.rulebookSize} rulebook rule(s); ${coverageSummary.checked} checked` +
+      `${coverageSummary.uncheckedRuleIds.length ? `, NOT CHECKED: ${coverageSummary.uncheckedRuleIds.join(', ')}` : ', none NOT CHECKED'}.`,
+    ...(coverageSummary.outOfScope
+      ? [`- Out of scope for this run's lenses: ${Object.entries(coverageSummary.outOfScopeByLens).map(([l, n]) => `${l} ${n}`).join(', ')}. Run those lenses to check them.`]
+      : []),
+    '',
+    `## Refuted candidates (${refutedCandidates.length})`,
+    '',
+    ...(refutedCandidates.length
+      ? refutedCandidates.map(f => `${candLine(f)} Why refuted: ${oneLine(f.refuteReason ?? f.refutedGuards?.[0]?.counterEvidence ?? 'no reason given')}`)
+      : [notConfirmed.length ? 'None refuted by a majority.' : 'None: reviewers raised nothing.']),
+    ...(inconclusive.length
+      ? ['', `## Not confirmed: inconclusive panel (${inconclusive.length})`, '',
+          'Neither confirmed nor refuted by a majority (split vote, too few voters returned, or short of a unanimous threshold). Worth a look before treating as clean.', '',
+          ...inconclusive.map(f => `${candLine(f)}${f.refuteReason ? ` A refuting voter said: ${oneLine(f.refuteReason)}` : ''}`)]
+      : []),
+    ...(belowFloor.length
+      ? ['', `## Confirmed below the severity floor (${belowFloor.length})`, '',
+          `Confirmed, but below \`severityFloor: ${config.severityFloor}\`, so not reported as findings.`, '',
+          ...belowFloor.map(f => `- ${where(f)} ${f.severity}${f.rule ? `, ${code(f.rule)}` : ''}: ${oneLine(f.title)}`)]
+      : []),
+    '',
+    `## Positive controls (${positiveControls.length})`,
+    '',
+    ...(positiveControls.length
+      ? positiveControls.map(p => `- ${where(p)}${p.rule ? ` (${code(p.rule)})` : ''}: ${oneLine(p.evidence ?? p.note)}`)
+      : ['None.']),
+    '',
+    '## Phases',
+    '',
+    `- Map: ${mapLine}.`,
+    `- Variant: ${variantRan ? `ran, ${variantsConfirmed} sibling(s) confirmed` : 'skipped (nothing confirmed to hunt around, or quick/disabled)'}.`,
+    `- DAST: ${dastRan ? 'ran' : 'not run'}. Patch: ${patchRan ? 'ran' : 'not run'}. Self-review: not run (clean run).`,
+    `- Suppressed by baseline: ${suppressedByBaseline}.`,
+    '',
+  ].join('\n')
   return {
     report: null, fresh: [],
+    cleanReport,
     proofContractDropped,
     units: { source: unitSource, lowConfidence },
     skipped: mode === 'quick',
@@ -1463,7 +1583,7 @@ if (!fresh.length && !heldUntraced.length && !deferred.length && !proofContractD
     positiveControls: positiveControls.length,
     heldUntraced: 0,
     deferred: 0,
-    map: { ran: mapRan, trustBoundaries: model.trustBoundaries.length, invariants: model.invariants.length },
+    map: { ran: mapRan, trustBoundaries: model.trustBoundaries.length, invariants: model.invariants.length, ...(mapSkipReason ? { skipReason: mapSkipReason } : {}) },
     variants: variantsConfirmed,
     dast: { ran: dastRan, findings: dastFindings.length, exploits: exploitResults.length },
     patch: { ran: patchRan, patches: patchResults.length },
@@ -1480,6 +1600,7 @@ const runMeta = {
   rulebookMissing: !rulebookOut,                 // extraction died — matrix empty for THAT reason
   rulebookSize: rulebook.length,
   mapRan,                                        // Map phase produced a threat model (else empty/flagged)
+  ...(mapSkipReason ? { mapSkipReason } : {}),   // quick | disabled | prose-only (§15 PROSE-MAP)
   variantRan,                                    // E3: true ONLY if the phase actually processed ≥1 seed
   dastRan,                                       // v4: DAST phase ran (opt-in, off by default)
   patchRan,                                      // v4: Patch phase ran (opt-in, auto-on with DAST)
@@ -1500,7 +1621,7 @@ const publicHeldUntraced = heldUntraced.map(f => ({ id: f.id, file: f.file, seve
 const publicDeferred = deferred.map(f => ({ id: f.id, file: f.file, severity: f.severity, title: f.title, rule: f.rule, ...(f.deferredNote ? { note: f.deferredNote } : {}) }))
 // engine-internal fields stay out of the synthesizer's context (confirmed is always true here;
 // refutedGuards were already harvested into positive controls above)
-const publicFresh = fresh.map(({ refutedGuards, confirmed, ...rest }) => rest)
+const publicFresh = fresh.map(({ refutedGuards, confirmed, votes, refuteReason, majorityRefuted, ...rest }) => rest)
 // render the ambiguity sections whenever the proof contract was in play (§4.10, §15)
 const ambSynth = lenses.includes('ambiguity') || proofContractUsed
 let report = await callAgent(
@@ -1513,7 +1634,15 @@ let report = await callAgent(
   `render the diff + test/exploit-closed/judge verdict. ` +
   `Render a Coverage summary (per denominator: examined X of N + the verbatim command; where X < N say ` +
   `"sampled" and give the risk-weighting rationale), a Coverage matrix (EVERY rulebook rule → finding IDs | ` +
-  `verified-safe + citation | not-applicable + reason | NOT CHECKED — no rule silently absent), a Compliance ` +
+  `verified-safe + citation | not-applicable + reason | NOT CHECKED — no rule silently absent), ` +
+  // §15 RULE-SCOPE: only when this run left rules out of scope, so other prompts stay byte for byte
+  (outOfScopeRules.length
+    ? `where RULE_CLOSURE rows with outOfScope: true are NOT rows and NOT "NOT CHECKED": list them under the ` +
+      `matrix as one line per lensHint ("N rule(s) for <lens>: out of scope for this run's lenses", ids in a ` +
+      `collapsed list) and put their count in front-matter coverage.out_of_scope; checked/unchecked count only ` +
+      `in-scope rules (COVERAGE: ${JSON.stringify(coverageSummary)}), `
+    : '') +
+  `a Compliance ` +
   `matrix (when COMPLIANCE_MATRIX is non-empty: one sub-section per framework, each control → met/violation/` +
   `not-applicable/not-checked), a Coverage ` +
   `narrative (positive assurance from NEAR_MISSES + CROWN_JEWELS + COVERAGE_TOTALS: per area, what was probed, ` +
@@ -1646,7 +1775,7 @@ if (report?.markdown) {
 
 return {
   report,
-  fresh,
+  fresh: fresh.map(({ votes, refuteReason, majorityRefuted, ...rest }) => rest),   // panel internals (§15 CLEAN-RECORD) stay internal
   proofContractDropped,
   units: { source: unitSource, lowConfidence },
   skipped: mode === 'quick',
@@ -1654,7 +1783,7 @@ return {
   positiveControls: positiveControls.length,
   heldUntraced: heldUntraced.length,
   deferred: deferred.length,
-  map: { ran: mapRan, trustBoundaries: model.trustBoundaries.length, invariants: model.invariants.length },
+  map: { ran: mapRan, trustBoundaries: model.trustBoundaries.length, invariants: model.invariants.length, ...(mapSkipReason ? { skipReason: mapSkipReason } : {}) },
   variants: variantsConfirmed,
   dast: { ran: dastRan, findings: dastFindings.length, exploits: exploitResults.length },
   patch: { ran: patchRan, patches: patchResults.length },
