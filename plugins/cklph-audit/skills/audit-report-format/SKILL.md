@@ -36,6 +36,7 @@ coverage:
   rulebook_size: 12         # discrete rules extracted from the rulesFrom docs
   checked: 10               # rules with any status other than unchecked
   unchecked: [agents-md:rule-7, claude-md:rule-2]   # NOT CHECKED — mirrored in the matrix
+  out_of_scope: 0           # rules for lenses this run did not include (never handed to a reviewer)
 positive_controls: 4        # entries in the Positive controls (INFO) section
 held_untraced: 1            # critical/high neither confirmed nor cleanly refuted (see Held-untraced)
 deferred_unverified: 0      # reviewer candidates the verifier budget couldn't afford (0 = full coverage)
@@ -46,7 +47,7 @@ skipped:
 ---
 ```
 
-If a field is empty, emit it empty (`[]` / `0`) — never omit it. The reader must be able to tell coverage from the front-matter alone: `coverage.checked` of `coverage.rulebook_size` rules, every `unchecked` rule id named, and whether the Map + Variant + DAST + Patch + SelfReview phases ran (`phases.map` / `phases.variant` / `phases.dast` / `phases.patch` / `phases.self_review` — a skipped phase is expanded in the appendix).
+If a field is empty, emit it empty (`[]` / `0`) — never omit it. The reader must be able to tell coverage from the front-matter alone: `coverage.checked` of the in-scope rules (`coverage.rulebook_size` minus `coverage.out_of_scope`), every `unchecked` rule id named, and whether the Map + Variant + DAST + Patch + SelfReview phases ran (`phases.map` / `phases.variant` / `phases.dast` / `phases.patch` / `phases.self_review` — a skipped phase is expanded in the appendix).
 
 ## 2. Coverage summary
 
@@ -88,7 +89,7 @@ Rules for the summary:
 
 ## 3. Coverage matrix
 
-A `## Coverage matrix` section after the summary: **one row for EVERY rulebook rule** — closure means no rule is silently absent. Statuses are exactly `violation` | `verified-safe` | `not-applicable` | `unchecked` (rendered as **NOT CHECKED**).
+A `## Coverage matrix` section after the summary: **one row for EVERY in-scope rulebook rule**, plus one line per lens for the out-of-scope ones (see the last rule below) — closure means no rule is silently absent. Statuses are exactly `violation` | `verified-safe` | `not-applicable` | `unchecked` (rendered as **NOT CHECKED**).
 
 ```markdown
 ## Coverage matrix
@@ -106,6 +107,9 @@ Rules for the matrix:
 - `verified-safe` rows cite the evidence (`file:line`); `not-applicable` rows give the one-line reason.
 - `unchecked` rows render as **NOT CHECKED** with the **whole row bold** — an honest NOT CHECKED is a feature, not an embarrassment. The same rule ids appear in front-matter `coverage.unchecked`.
 - A `deferredBacked: true` closure row (the reviewer flagged a violation but its cited finding was **deferred — never verified**, budget exhausted) renders as `NOT CHECKED (deferred — unverified)` pointing at the Deferred section. Never label it "refuted" — it was not checked.
+- An `outOfScope: true` closure row is a rule for a lens this run did not include (a security rule in an ambiguity-only run), so no reviewer was ever handed it. It is **not a row and not NOT CHECKED**: under the table, write one line per lens hint, `N rule(s) for <lens>: out of scope for this run's lenses`, with the ids in a collapsed list, and put the count in front-matter `coverage.out_of_scope`. `checked` and `unchecked` count in-scope rules only.
+
+**Clean run.** When nothing is confirmed, held, deferred or proof-contract dropped, no synthesizer runs. The engine builds a short record in plain code (`cleanReport`: front-matter with `result: clean`, scoped rule closure, every refuted candidate with its vote tally and first refuting reason, positive controls, and which phases ran) and audit-run writes it to the usual report path, so refuted candidates are not lost when the session ends.
 
 ## 3b. Compliance matrix (when the compliance lens ran)
 

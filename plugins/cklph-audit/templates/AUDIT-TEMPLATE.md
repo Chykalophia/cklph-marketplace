@@ -17,6 +17,7 @@ coverage:
   rulebook_size: <N>
   checked: <N>
   unchecked: [<rule ids NOT CHECKED — mirrored in the matrix>]
+  out_of_scope: <N>   # rules for lenses this run did not include; listed under the matrix, not as rows
 positive_controls: <N>
 suppressed_by_baseline: <N>
 skipped:
@@ -39,7 +40,7 @@ skipped:
 
 - **New confirmed findings:** <N> (critical <c> / high <h> / medium <m> / low <l>)
 - **Suppressed by baseline:** <N>
-- **Rule closure:** <checked> / <rulebook_size> rules checked — NOT CHECKED: <list or "none">
+- **Rule closure:** <checked> / <rulebook_size - out_of_scope> in-scope rules checked — NOT CHECKED: <list or "none">; out of scope for this run's lenses: <out_of_scope> (<per lens>)
 - **Positive controls:** <N> verified-good patterns (INFO section)
 - **Unit derivation:** <inferred | config | deep-mapped> — low-confidence units flagged: <list or "none">
 - **Headline:** <one or two lines on the most important thing found>

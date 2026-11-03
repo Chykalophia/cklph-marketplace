@@ -22,7 +22,7 @@ It's the productized version of a hand-run **8-agent pre-certification security 
 1. **Scope is mandatory.** You pick lenses. "Audit everything" → noise. There is no unscoped mode.
 2. **Adversarial verify is non-negotiable.** Every finding is attacked by a separate refuter before it reaches you. False positives are the #1 way AI audits lose trust; this is the feature that earns it.
 3. **Delta over re-noise.** A git-able baseline of accepted/known findings means re-runs show only what's **new**. Your "deferred to H-8" decisions never resurface.
-4. **Transparent + git-able.** Config, baseline, and reports are plain files in the repo. No hidden state. Nothing gets silently truncated — what was skipped (sampling, or a hit runtime ceiling) is logged, and every rulebook rule no reviewer touched renders as `NOT CHECKED` in the coverage matrix.
+4. **Transparent + git-able.** Config, baseline, and reports are plain files in the repo. No hidden state. Nothing gets silently truncated — what was skipped (sampling, or a hit runtime ceiling) is logged, and every in-scope rulebook rule no reviewer touched renders as `NOT CHECKED` in the coverage matrix (rules for lenses the run did not include are listed as out of scope).
 5. **Cost-bounded.** Top-risk sampling mode and loop caps are first-class; a config `budget` is **advisory** today — the engine doesn't yet read `budget.total` (the Workflow runtime enforces its own token ceiling).
 
 ---
@@ -138,7 +138,7 @@ Implemented as one deterministic **Workflow** so the fan-out and verify are repr
 v1 is a repeatable engine. v2 is the same engine that can also show what it covered — six mechanics:
 
 1. **Recon with denominators + seeds** — before any review, each lens's concern surface is mechanically enumerated. Denominators are the report's coverage math (`.single()` callsites → 325), recorded with the exact command so you can re-run it. Seeds are pre-qualified leads — hints, not findings; reviewers must re-open every one, because citations drift.
-2. **Rule-closure coverage matrix** — the repo's own rules become a discrete rulebook, and every rule gets a matrix row: finding IDs, a cited `verified-safe`, a `not-applicable` reason, or an honest `NOT CHECKED`. No rule is silently absent.
+2. **Rule-closure coverage matrix** — the repo's own rules become a discrete rulebook, and every rule in scope for the run's lenses gets a matrix row: finding IDs, a cited `verified-safe`, a `not-applicable` reason, or an honest `NOT CHECKED`. Rules for lenses not in the run are listed as out of scope. No rule is silently absent.
 3. **Coverage summary** — `examined X / N` per denominator. Where X < N the report says "sampled" and why (risk-weighting). Arithmetic, not vibes.
 4. **Positive controls (INFO)** — refutations that cite a concrete guard, verified-safe rule checks, and confirmed recon safe-patterns ship as a "checked and clean" section. Noise-gated (must attach to a rulebook rule or have killed a critical/high candidate) and capped (`positiveControls.max`, default 15; 0 disables). This knowledge used to evaporate every run.
 5. **Docs-drift lens** — audits the rulebook against reality (see the lens table above). One job over the `rulesFrom` docs, opt-in.
