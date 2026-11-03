@@ -35,6 +35,7 @@ A mutable selector is a **reproducibility and review signal, not a breach claim*
 - **supply-chain-lens** owns CI/CD (`.github/workflows`, action pinning). This lens owns the agent layer; cite across, don't double-report.
 - **sca-lens** owns CVEs in lockfile dependencies; **security-lens** owns app authz, injection, and secrets in application code.
 - **docs-drift-lens** owns stale paths in `CLAUDE.md` / `AGENTS.md`; this lens owns what those docs tell an agent to *do*.
+- **ambiguity-lens** owns whether an instruction reads two ways or contradicts its schema; this lens owns whether it is unsafe.
 - For hardening advice beyond the finding, point at the cklph-os `security-hardening` skill.
 
 ## Compose with the repo's own rules

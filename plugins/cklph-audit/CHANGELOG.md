@@ -3,6 +3,79 @@
 All notable changes to `cklph-audit` are documented here. This project adheres to
 [Semantic Versioning](https://semver.org/).
 
+## 1.3.0 — 2026-11-02
+
+Released on the fixture gate recorded in the marketplace repo's
+`docs/proof/ambiguity-lens/2026-11-02.md`, whose gate line reads `GATE: PASS`: prose/contract recall
+6/6 = 1.00 and precision 6/7 = 0.86 (bar 0.8 for both), F2 a true positive, N2 clean, GB-1 LLM PASS,
+GB-2 LLM PASS, and code cases 3/3 true positives with 0 false positives (reported, not gated). Design
+record: `SPEC-v4-ambiguity.md`.
+
+### Added
+- **The opt-in `ambiguity` lens** (`skills/ambiguity-lens/`). It flags text a competent reader, caller
+  or agent can take two ways with different outcomes: instructions that prescribe a value their own
+  schema rejects, scope and exclusion clauses with no clear subject, contradictions, vague thresholds
+  and unitless quantities. Rule ids `ambiguity:<kind>`. A finding names both readings and the consumer
+  where they diverge. Two misses motivated it, both caught by CodeRabbit and neither by this suite:
+  the PR #22 agent-config checklist row whose default was the value `info`, which the REVIEW_SCHEMA
+  severity enum rejects, and a SECURITY.md scope clause about admin-level access with no clear subject,
+  so a reporter could not tell whether privilege escalation was out of scope.
+- **Prose groups.** The lens runs one review job per group, by default `policy` (SECURITY.md,
+  CONTRIBUTING.md and the other policy docs) and `instructions` (skills, agents, commands,
+  CLAUDE.md/AGENTS.md, Cursor and Copilot rules). A file belongs to the first group that matches;
+  `ambiguity.prose.groups` and `ambiguity.prose.exclude` replace the defaults.
+- **`ambiguity.code`** (default `false`): when `true`, the lens also crosses with units to look for
+  code-level ambiguity (falsy defaults, sentinels, unitless durations and sizes). Experimental.
+- **`tools/ambiguity.sh`** with `tools/ambiguity/*.mjs`: deterministic recall in three modes.
+  `contract` matches values a doc prescribes against the schema enums in its package, `prose` emits
+  candidate sites by kind, `code` emits the code-level candidates. One JSON array on stdout and a
+  summary line on stderr, so an empty result is never mistaken for a clean one.
+- **Proof contract enforced in code.** An ambiguity finding is confirmed only when a voter supplies a
+  divergence trace, at every severity. An untraced hold is not promoted; it is listed in the report's
+  Coverage summary as `PROOF_CONTRACT_DROPPED`.
+- **Fixtures and labels**: `fixtures/ambiguity/should-flag/` and `should-not-flag/` (nine cases each),
+  with the expected readings in `fixtures/ambiguity/labels.json` instead of in-file headers, since a
+  label comment would itself disambiguate a unit case.
+- **`maxConcurrentAgents`** (optional, default 0 = no cap, today's behaviour): every agent the engine
+  starts goes through one semaphore, so a run can stay under a machine's limit on agents alive at once.
+  The gate ran with 3.
+- **Tests**: scenario E in `tests/engine-flow.test.mjs` (lens-hint list, prose jobs, tool root, proof
+  contract), the `ambiguity.sh` sections of `tests/tools.test.mjs`, `ambiguity-fixtures`,
+  `ambiguity-skill`, `ambiguity-config` and `ambiguity-agents`. `tests/lens-registry.test.mjs` checks
+  that every `skills/*-lens` dir is in the engine's `LENS_HINTS`, the README lens table, line 13 of the
+  example config and the plugin description, that the marketplace description is a verbatim copy, and
+  that every non-legacy lens has should-flag and should-not-flag fixtures.
+  `tests/dogfood-contract.test.mjs` runs the fail-closed contract check over this plugin's own
+  default-group docs (44 docs, no offenders) and proves it still catches the PR #22 row.
+- **Backtests**: `skills/audit-backtest` gains the ambiguity case-dir note, the 0.8 precision gate
+  (deliberately above the usual 0.7) and Mode 2 entries GB-1 (PR #22) and GB-2 (the SECURITY.md scope
+  clause).
+
+### Changed
+- `LENS_HINTS` in `workflows/audit.workflow.js` is the single list of lens hints: `RULEBOOK_SCHEMA`
+  uses it as the `lensHint` enum and the rulebook prompt filters its offered hints from it.
+- `REVIEW_SCHEMA` findings carry an optional `readings { a, b, consumer, divergence }`, and the report
+  renders it for ambiguity findings.
+- Variant analysis does not seed from ambiguity findings: the contract check already enumerates every
+  mismatch repo-wide.
+- The verifier keeps comments in an ambiguity finding's snippet: a comment that defines a unit or a
+  sentinel is the disambiguator, the opposite of the code-only rule other lenses follow.
+
+### Fixed
+- The rulebook prompt and `agents/audit-recon.md` listed 6 of the 16 lens hints, so rules were never
+  routed to `omission`, `sca`, `iac` and the other newer lenses. The rulebook prompt now offers a list
+  filtered from `LENS_HINTS`, and the recon agent takes its values from that dispatch prompt.
+- `agents/audit-exploit-verifier.md` told the agent to answer a destructive exploit with the value
+  `confirmed-destructive-potential`, which the EXPLOIT_SCHEMA confidence enum rejects. It now returns
+  `confirmed: false` with `likely`, and an `exploitResult` that starts `NOT RUN (destructive potential):`.
+- `agents/audit-patcher.md` named the iteration-cap failure `patch-unverified`, while its own status
+  list defines that case as `patch-failed`. It now says `patch-failed`; `patch-unverified` stays for a
+  patch whose checks could not run.
+- Fixture N1 (SPEC-v4-ambiguity §15 N1-FOLD): the gate's one false positive came from a fixture that
+  lacked the rule-closure fold which produces the `unchecked` status. The fixture gained the fold, and
+  the verifier now refutes a contract mismatch when the doc describes derived output that code in the
+  package produces. The recorded gate score stands; the next gate run measures the fixed fixture.
+
 ## 1.2.5 — 2026-11-01
 
 ### Fixed

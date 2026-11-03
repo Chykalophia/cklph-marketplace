@@ -35,3 +35,7 @@ The tool only extracts explicit token forms. Prose-level tech claims (the doc sa
 ## Workflow shape (unlike every other lens)
 
 This lens is **not crossed with units**. When requested, the engine adds exactly **one** job — `{ unit: { key: "docs", globs: rulesFrom }, lens: "docs-drift" }` — so you review all rulebook docs in a single pass; findings then flow through the normal verify → reconcile → report pipeline. Not in the default lens list; enabled explicitly via config/args.
+
+## Compose with sibling lenses
+
+- **ambiguity-lens**: docs-drift checks quoted tokens exist; ambiguity-lens checks meaning and doc-to-schema values. Cite across, don't double-report.

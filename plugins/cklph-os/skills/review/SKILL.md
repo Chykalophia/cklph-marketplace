@@ -25,9 +25,10 @@ query key, a context provider, or an effect that syncs state, also run `click-pa
 touchpoints that reach it.
 
 The reviewer runs in a **fresh context**, **reads the tests first**, and reviews on **three axes —
-standards, spec, and omissions (what wasn't asked) — reported separately**, by severity with
-`file:line` + fixes. Red-team adds burden-of-proof (every reliant claim proven or broken) and a
-failure-injection attack checklist.
+standards, spec, and omissions (what wasn't asked, including text and contracts that read two
+ways) — reported separately**, by severity with `file:line` + fixes. Red-team adds burden-of-proof
+(every reliant claim proven or broken) and a failure-injection attack checklist.
+A whole-repo sweep for text and contracts that read two ways is `/cklph-audit:run ambiguity`.
 
 Triage the findings:
 - **Critical / High** — fix before proceeding (inline, or dispatch a follow-up `cklph-implementer`).

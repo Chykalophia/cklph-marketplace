@@ -8,7 +8,7 @@ is trusted (SPEC §10). These fixtures are that ground truth, run by
 
 ```
 fixtures/
-└── <lens>/                         # security | correctness | architecture | docs-drift | omission | agent-config | …
+└── <lens>/                         # security | correctness | architecture | docs-drift | omission | agent-config | ambiguity | …
     ├── should-flag/                # planted issues the lens MUST catch   → RECALL
     └── should-not-flag/            # clean look-alikes it MUST NOT flag   → PRECISION
 ```
@@ -60,6 +60,34 @@ fixture's commands; the lens is static.
 is newer and still growing, so `fixtures/omission/` may lag the shipped lens — a docs/fixtures
 drift to close over time: add planted omissions (missing validation / error-path / rollback / log /
 test) to `should-flag/`, and clean guarded look-alikes to `should-not-flag/`, as you exercise it.
+
+`ambiguity` (the opt-in lens for text a reader can take two ways, v4) is laid out differently:
+
+- **Each case dir is a mini repo root.** `fixtures/ambiguity/should-flag/<case>/` and
+  `should-not-flag/<case>/` hold the doc(s) plus the schema or consumer they are checked against.
+  The backtest runs `ambiguity.sh` and the engine with the case dir as the root, so a case never
+  sees the plugin's own schemas.
+- **Every file is named `*.example.*`**, so no fixture matches a default prose glob
+  (`SECURITY.example.md` is not `**/SECURITY.md`) and an ordinary audit's walk skips it.
+- **docClass comes from the path.** A file whose expected rule needs the `instruction` class
+  (vague-conditional, overloaded-term, a contradiction between an agent and the skill it loads) lives
+  under `agents/` or `skills/` inside its case dir. `release.example.md` at the case root is a
+  `reference` doc, and the lens could never flag those rules there.
+- **Labels live in the `fixtures/ambiguity/labels.json` sidecar**, not in the files. Each file's
+  first line is an empty comment (`<!-- -->` in md, `//` in js/ts) that only keeps label line
+  numbers stable: no case id (F/N/C is the verdict), no labels path (the answer key) and no
+  `FIXTURE` marker (the lens skips `fixtures/**` as ground truth, which would bias the panel), since
+  the reviewer reads comments as evidence. No fixture sentence may appear in the lens SKILL or an
+  agent def (AC-041 checks 4-word runs). The LLM gate also runs each case from a neutral copy whose
+  path carries no `should-flag` / `should-not-flag` segment, inside a throwaway gate tree with
+  `fixtures/ambiguity/` deleted (see `audit-backtest`). This lens
+  does not use in-file verdict headers because for ambiguity the label *is* the answer: writing the
+  two readings into the file disambiguates it, and a comment naming a unit is itself the
+  disambiguator the reviewer is told to read. So no fixture file says which verdict it expects or
+  spells out its readings. Label line numbers count the header line, and the answer key is derived
+  by hand from the planted text, never copied from the tool's output.
+- **The Acme rule.** Never name a real third-party product in a fixture: the SECURITY.md cases are
+  anonymized to "Acme".
 
 ---
 

@@ -10,7 +10,7 @@ units:
       globs: ["lib/auth/**", "app/api/auth/**", "middleware.ts", "proxy.ts", "src/middleware.ts", "src/proxy.ts"]
     - key: billing
       globs: ["app/api/billing/**", "app/api/payments/**", "lib/stripe/**"]
-lenses: [security, correctness, architecture]   # also: sca, iac, container, k8s, supply-chain, compliance, concurrency, state-machine, economic, docs-drift (audits the rulesFrom docs), agent-config (MCP/settings/hooks/instruction docs, static), omission (negative-space: missing validation/error-path/logging)
+lenses: [security, correctness, architecture]   # also: sca, iac, container, k8s, supply-chain, compliance, concurrency, state-machine, economic, docs-drift (audits the rulesFrom docs), agent-config (MCP/settings/hooks/instruction docs, static), omission (negative-space: missing validation/error-path/logging), ambiguity (text a reader can take two ways: policy docs, instructions, doc-to-schema values; prose groups by default, code opt-in)
 severityFloor: low              # drop findings below this
 verify:
   voters: 3                     # refuters per finding
@@ -19,6 +19,7 @@ verify:
                                 # findings-heavy repo can't blow the runtime's 1000-agent cap. Overflow
                                 # findings are DEFERRED (unverified) and surfaced, never dropped. Raise for
                                 # more coverage on huge repos; lower (or lower `voters`) if you hit the cap.
+# maxConcurrentAgents: 0   # cap on agents alive at once (0 = no cap); e.g. 3 on a laptop during work
 riskRouting:                    # T1.4: verifier depth scales with a unit's riskScore
   enabled: true
   highThreshold: 0.7            # riskScore ≥ this → +highVotersDelta voters (+ effort high)
@@ -80,6 +81,13 @@ compliance:                      # compliance cross-mapping
 #   globs: ['**/.mcp.json', '**/mcp.json', '**/.claude/**', '**/.cursor/**', '**/.vscode/mcp.json',
 #           '**/hooks/hooks.json', '**/.claude/hooks/**', '**/plugins/*/hooks/**', '**/.claude-plugin/*.json',
 #           '**/CLAUDE.md', '**/AGENTS.md', '**/skills/**/SKILL.md', '**/agents/*.md']
+# ambiguity:                     # ambiguity lens (opt-in)
+#   code: false                  # true = ALSO cross with units for code-level ambiguity (experimental)
+#   prose:
+#     groups:                    # REPLACES the defaults; one review job per group; a file belongs to the FIRST group that matches
+#       policy: ['**/SECURITY.md', '**/CONTRIBUTING.md', '**/CODE_OF_CONDUCT.md', '**/PRIVACY*.md', '**/SUPPORT.md', '**/GOVERNANCE.md', 'README.md', '**/security.md', '**/contributing.md', '**/code_of_conduct.md', '**/privacy*.md', '**/support.md', '**/governance.md']
+#       instructions: ['**/.claude/**/*.md', '**/skills/**/*.md', '**/agents/*.md', '**/commands/*.md', '**/.cursor/rules/**', '**/.github/copilot-instructions.md', '**/CLAUDE.md', '**/AGENTS.md']   # + rulesFrom when defaulted
+#     exclude: ['**/CHANGELOG*.md', '**/HISTORY.md', '**/LICENSE*', '**/NOTICE*.md', '**/fixtures/**', '**/node_modules/**', '**/vendor/**']   # REPLACES defaults; `ignore` always added
 ensemble:                        # diverse-model panels for crown-jewel units (T3.4) — NOT yet read by the engine (config stub)
   enabled: false                 # expensive — gate to highest-risk units only
   models: []                     # e.g. ["claude-sonnet", "gpt-4o", "gemini-2.5-flash"]

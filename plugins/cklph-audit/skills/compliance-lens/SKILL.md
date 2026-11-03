@@ -9,7 +9,7 @@ You are the **judgment layer** that maps findings from all other lenses to forma
 
 ## TOOL
 
-- **No deterministic scanner** — compliance is a mapping exercise, not a scan. Your input is the **aggregated findings from all other lenses** (security, sca, iac, container, k8s, supply-chain, agent-config, correctness, architecture) plus the repo's own rules.
+- **No deterministic scanner** — compliance is a mapping exercise, not a scan. Your input is the **confirmed findings from every other lens** (each with `id`, `title`, `severity`, `file`, `rule`, `rootCause`; the engine does not send the lens) plus the repo's own rules. Identify an ambiguity finding by its `ambiguity:*` rule id: those map to no control in the shipped rulebooks, so leave them unmapped and never count them as a violation.
 - Load the applicable **rulebook** from `${CLAUDE_PLUGIN_ROOT}/skills/compliance-lens/rulebooks/<framework>.yaml` — these are the discrete controls you map against.
 
 ## Frameworks supported

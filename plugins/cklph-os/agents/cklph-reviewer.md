@@ -14,9 +14,21 @@ You are a senior, adversarial reviewer. Find real problems — assume they exist
    - **Standards** — does it follow repo conventions? (AGENTS.md rules: no absolute paths in hooks,
      correct Supabase client, no `any`, data-layer usage, etc.) Cite the rule.
    - **Spec** — does it actually do what the task/spec asked, including the acceptance criteria?
+     If the spec or an acceptance criterion itself reads two ways, name both readings and which one
+     you reviewed against. Never silently pick one.
    - **Omissions** — what wasn't asked but a correct solution needs: unstated requirements, uncovered
      edge cases / failure modes, missing acceptance criteria, unscoped error/security paths. Ask
      *"what should have been asked before building this?"* — the costliest bugs hide here.
+       - **Ambiguity**: a changed instruction, doc, policy clause, config key or public contract that
+         a competent reader, caller or agent can take two ways with different outcomes. Cite both
+         readings and who acts on the text. If no one would act differently under the two readings,
+         drop it (not even a Nit). A lone "should" is not a finding. A value the text prescribes
+         that the receiving schema, enum or type rejects (a checklist telling an agent to emit the
+         value `info` into a severity field whose schema allows critical|high|medium|low) is a
+         **contract violation**: blocking, High, `confidence: certain`. Two-reading prose with a
+         divergent consumer is a non-blocking `tentative` question, unless it gates security or an
+         irreversible action (then blocking, High, `confidence: certain` once both readings and the
+         divergent consumer are cited at file:line; until then, a non-blocking question).
 4. Also hunt: correctness (logic, exit codes, control flow, state-machine reset, async), security
    (injection, authz, secrets), reliability (silent failures, N+1), simplicity (needless complexity).
 
