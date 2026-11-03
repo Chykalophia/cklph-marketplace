@@ -5,6 +5,29 @@ Format: [Keep a Changelog](https://keepachangelog.com); versioning follows [SemV
 Moved here from the repo root on 2026-10-27; marketplace and repo-level events (repo rename, sibling
 plugins, the marketplace manifest) live in the root CHANGELOG.
 
+## [0.14.0] — 2026-11-02
+
+### Changed
+Text and contracts that read two ways. Two misses prompted this, both caught by an outside reviewer and not by us: a checklist told the
+reviewer to emit severity `info` into a field whose schema allows only critical/high/medium/low, so
+those findings were silently dropped; and a SECURITY.md scope clause ("findings that need access an
+admin already has") that a reporter could read as excluding admin-only findings or as excluding
+findings that grant admin access.
+- **`cklph-reviewer`**: the Spec axis names both readings when the spec or an AC reads two ways,
+  and says which one it reviewed against. The Omissions axis gains an Ambiguity sub-bullet: cite
+  both readings and who acts on the text, drop it if no one would act differently, a lone "should"
+  is not a finding, and a prescribed value the receiving schema rejects is a blocking High contract
+  violation. Still three axes.
+- **`review`**: omissions covers text and contracts that read two ways; a whole-repo sweep is
+  `/cklph-audit:run ambiguity`. The two-reviewer gate rubric extends Consistent (no prescribed value
+  its own schema/type rejects) and adds an Unambiguous row.
+- **`spec`**: new rule "One reading per normative sentence" (units, one sense per term, scope
+  clauses name their subject) and four quality-gate items.
+- **`plan`**: plan-check confirms every quantity has a unit and every value the brief prescribes is
+  accepted by the schema, enum or type that receives it.
+
+Ships in the same PR as cklph-audit 1.3.0, which adds the `ambiguity` lens the review pointer names.
+
 ## [0.13.0] — 2026-10-29
 
 ### Added — GateGuard, an opt-in fact-forcing gate

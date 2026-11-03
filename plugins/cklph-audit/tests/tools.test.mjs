@@ -11,7 +11,7 @@ import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
 import { spawnSync } from 'node:child_process';
-import { fileURLToPath } from 'node:url';
+import { fileURLToPath, pathToFileURL } from 'node:url';
 
 const PLUGIN = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
 const TOOLS = path.join(PLUGIN, 'tools');
@@ -674,6 +674,935 @@ console.log('supply-chain fixtures');
 {
   for (const d of ['should-flag', 'should-not-flag']) {
     ok(fs.existsSync(path.join(PLUGIN, 'fixtures/supply-chain', d, '.github/workflows/deploy.yml')), `fixtures/supply-chain/${d} keeps its workflow under .github/workflows`);
+  }
+}
+
+// ── ambiguity.sh: CLI + contract (SPEC-v4-ambiguity.md §3, AC-001..AC-007, AC-013, AC-014, AC-016, AC-017) ─
+console.log('ambiguity.sh: CLI + contract');
+{
+  const AMB = path.join(TOOLS, 'ambiguity');
+  const { docClass, DOC_CLASS_RULES, RULE_IDS } = await import(pathToFileURL(path.join(AMB, 'common.mjs')).href);
+  const { runContractCheck } = await import(pathToFileURL(path.join(PLUGIN, 'tests/lib/contract-check.mjs')).href);
+  const { parseProseDefault, parseExcludeDefault, parseLensHints } = await import(pathToFileURL(path.join(PLUGIN, 'tests/lib/engine-source.mjs')).href);
+  const same = (a, b) => JSON.stringify(a) === JSON.stringify(b);
+  const put = (root, files) => {
+    for (const [rel, body] of Object.entries(files)) {
+      fs.mkdirSync(path.dirname(path.join(root, rel)), { recursive: true });
+      fs.writeFileSync(path.join(root, rel), body);
+    }
+  };
+  // a sandbox whose scan root is <sandbox>/r (keeps bin/ and tmp/ out of the walk)
+  const tree = (files, opts) => { const sb = sandbox({}, opts); sb.r = path.join(sb.root, 'r'); fs.mkdirSync(sb.r); put(sb.r, files); return sb; };
+  const amb = (sb, args, opts) => {
+    const r = sb.run('ambiguity.sh', args, opts);
+    let out = null;
+    try { out = JSON.parse(r.stdout); } catch { /* asserted by robust() */ }
+    return { ...r, out };
+  };
+  const robust = (r, label) => ok(r.status === 0 && Array.isArray(r.out), `${label}: exit 0 and stdout is one JSON array`);
+  // stderr summary line → { key: value } (parsed, never substring-matched)
+  const summary = (stderr, mode) => {
+    const l = stderr.split('\n').find(x => x.startsWith(`ambiguity.sh ${mode}: `) && /=/.test(x));
+    if (!l) return null;
+    return Object.fromEntries([...l.slice(`ambiguity.sh ${mode}: `.length).matchAll(/(\w+)=(\[[^\]]*\]|\S+)/g)].map(m => [m[1], m[2]]));
+  };
+  const keys = (out) => (out ?? []).map(x => `${x.line}@${x.value}@${x.via}`).sort();
+
+  // AC-002 inputs. The row below is VERBATIM from `git show 2602aff:plugins/cklph-audit/skills/agent-config-lens/checklist.md`
+  // line 13 (CI checks out depth 1, so the test embeds it instead of calling git).
+  const PRE_ROW = '| `agentcfg:mcp-review` | Local script, unknown binary, editable install, direct URL, VCS ref, shell wrapper, or an invocation you can\'t parse confidently. Record it; never guess. | info, `needs-owner-input` |';
+  const POST_ROW = '| `agentcfg:mcp-review` | Local script, unknown binary, editable install, direct URL, VCS ref, shell wrapper, or an invocation you can\'t parse confidently. Record it; never guess. | low, confidence `needs-owner-input` |';
+  const ENGINE = [
+    'const REVIEW_SCHEMA = {',
+    "  severity: { type: 'string', enum: ['critical', 'high', 'medium', 'low'] },",
+    "  confidence: { type: 'string', enum: ['confirmed', 'likely', 'needs-owner-input'] },",
+    '}', ''].join('\n');
+  const PLUGIN_JSON = '{ "name": "x" }\n';
+  const checklist = (row) => [
+    '## 1. MCP configs',
+    '| Rule id | What | Default |',
+    '|---|---|---|',
+    '| `agentcfg:mcp-unpinned` | Package selector can resolve to different code later: bare name, `@latest`. | medium; high if the server gets credentials or write/shell capability |',
+    '| `agentcfg:mcp-range` | Selector permits a range (`^1.2.0`, `~1.2`, `>=1.2,<2`, `==1.*`). | low |',
+    row,
+    '| `agentcfg:mcp-remote` | Remote server (`url`, `type: http`/`sse`). | medium |',
+    '| `agentcfg:mcp-shell` | Server command is a shell (`bash -c`, `sh -c`). | high |',
+    '| `agentcfg:mcp-secret` | Literal credential in `env`, `headers`, or `args`. | high (critical if a live-looking key) |',
+    ''].join('\n');
+  const ac002 = (row, extra = {}) => tree({ '.claude-plugin/plugin.json': PLUGIN_JSON, 'workflows/engine.js': ENGINE, 'skills/x/checklist.md': checklist(row), ...extra });
+
+  // AC-002 + AC-001 (contract summary). Kills: header-only / near-field detection (0 records: `info`
+  // never sits next to the word severity), every-token-in-cell (2: also `needs-owner-input`), off-by-one line.
+  {
+    const sb = ac002(PRE_ROW);
+    const r = amb(sb, ['contract', sb.r]);
+    robust(r, 'AC-002 pre-fix');
+    const rec = r.out?.[0] ?? {};
+    ok(r.out?.length === 1 && rec.file === 'skills/x/checklist.md' && rec.line === 6 && rec.field === 'severity' && rec.value === 'info'
+      && rec.via === 'table-inferred' && rec.schema === 'workflows/engine.js:2' && rec.kind === 'contract-mismatch' && rec.rule === 'ambiguity:contract-mismatch',
+      `AC-002 verbatim 2602aff row → exactly 1 record at line 6, severity=info via table-inferred (${JSON.stringify(r.out)})`);
+    ok(same(rec.allowed, ['critical', 'high', 'medium', 'low']) && same(rec.alsoValidFor, []) && rec.inFence === false,
+      `AC-002 record carries allowed, empty alsoValidFor, inFence:false (${JSON.stringify(rec.allowed)})`);
+    // AC-001: the summary line is parsed into key=value fields (kills a summary that drifts from §3.3)
+    const s = summary(r.stderr, 'contract');
+    ok(s && s.enums === '2' && s.fields === '[confidence,severity]' && s.docs === '1' && s.emitted === '1',
+      `AC-001 contract summary parses to enums=2 fields=[confidence,severity] docs=1 emitted=1 (${JSON.stringify(s)})`);
+    sb.done();
+    const post = ac002(POST_ROW);
+    const p = amb(post, ['contract', post.r]);
+    robust(p, 'AC-002 post-fix');
+    ok(same(p.out, []) && summary(p.stderr, 'contract')?.emitted === '0', `AC-002 post-fix row (low, confidence \`needs-owner-input\`) → [] (${p.stdout.trim()})`);
+    post.done();
+  }
+
+  // D2 lead token: never a token followed by `:`, `/` or `.`. Kills a lead-token regex without the
+  // follow-set (`CWE-89/x`, `agentcfg:x`, `wontfix/x`, `docs.x` would read as values). Six severities
+  // keep the column bound even when the four junk cells are (wrongly) counted as lead tokens.
+  {
+    const table = ['| Rule | Default |', '|---|---|', '| a | high |', '| b | medium |', '| c | low |', '| d | CWE-89/CWE-564 |', '| e | agentcfg:mcp-x |',
+      '| f | wontfix/maybe |', '| g | docs.example |', '| h | high |', '| i | medium |', '| j | low |', ''].join('\n');
+    const sb = tree({ '.claude-plugin/plugin.json': PLUGIN_JSON, 'workflows/engine.js': ENGINE, 'skills/x/t.md': table });
+    const r = amb(sb, ['contract', sb.r]);
+    robust(r, 'D2 lead token');
+    ok(same(r.out, []), `D2 cells led by CWE-89 / agentcfg:x / wontfix/ / docs. are not values (${keys(r.out).join(', ')})`);
+    sb.done();
+  }
+
+  // AC-001 (CLI shape for the other modes; their summary lines are asserted by the prose/code section):
+  // kills a wrapper that only handles contract or prints nothing for a mode.
+  {
+    const sb = ac002(PRE_ROW);
+    for (const mode of ['prose', 'code']) robust(amb(sb, [mode, sb.r]), `AC-001 ${mode} mode`);
+    sb.done();
+  }
+
+  // AC-003: inline forms and the D21 vocabulary anchor. Kills: the prefix form missing (no line 2),
+  // accepting unquoted words (line 7 `from`), not scanning fences (no line 4), treating `/` lists as
+  // invalid, and an implementation without the anchor (the second run would emit severity records).
+  {
+    const INLINE = [
+      'Severities are `critical`, `high`, `medium` or `low`.',
+      'Record these at severity `info`.',
+      '```json',
+      '{ "severity": "info" }',
+      '```',
+      '`confidence` ("confirmed" | "probable" | "needs-owner-input")',
+      'Pick severity from consequence of the wrong reading.',
+      '`severity` ∈ critical/high/medium/low',
+      'Bash(git status:*)',
+      'Set severity to `info` when unsure.',
+    ];
+    const sb = tree({ '.claude-plugin/plugin.json': PLUGIN_JSON, 'workflows/engine.js': ENGINE, 'skills/x/inline.md': INLINE.join('\n') + '\n' });
+    const r = amb(sb, ['contract', sb.r]);
+    robust(r, 'AC-003');
+    ok(same(keys(r.out), ['10@info@inline-connector', '2@info@inline-connector', '4@info@inline-assign', '6@probable@inline-list']),
+      `AC-003 {line@value@via} is exactly 2/4/6/10 (${keys(r.out).join(', ')})`);
+    ok(r.out?.find(x => x.line === 4)?.inFence === true && r.out?.find(x => x.line === 2)?.inFence === false, 'AC-003 the line-4 record has inFence:true (line 2 false)');
+    fs.writeFileSync(path.join(sb.r, 'skills/x/inline.md'), INLINE.slice(1).join('\n') + '\n');
+    const r2 = amb(sb, ['contract', sb.r]);
+    robust(r2, 'AC-003 anchor removed');
+    ok(same(keys(r2.out), ['5@probable@inline-list']), `AC-003 line 1 deleted → only 5@probable (severity loses its anchor) (${keys(r2.out).join(', ')})`);
+    sb.done();
+  }
+
+  // AC-004: no schema → [] and the loud NOT-run line. Kills a run that reports a clean contract
+  // (an `enums=0 ... emitted=0` summary) when nothing could be checked.
+  {
+    const sb = tree({ 'docs/a.md': '{ "severity": "info" }\n' });
+    const r = amb(sb, ['contract', sb.r]);
+    robust(r, 'AC-004');
+    ok(same(r.out, []) && /no schema enums found .* NOT run/.test(r.stderr) && summary(r.stderr, 'contract') === null,
+      `AC-004 no schema → [] + "no schema enums found … NOT run", no summary line (${r.stderr.trim()})`);
+    sb.done();
+  }
+
+  // AC-005: package-root linking + basename mention. Kills: linking every enum in the repo to every
+  // doc (first run non-empty), and ignoring a basename mention (second run empty).
+  {
+    const DOC = 'Severities are `low` or `high`. Set severity to `info`.\n';
+    const sb = tree({ 'pkgA/package.json': '{}\n', 'pkgA/engine.js': ENGINE, 'pkgB/package.json': '{}\n', 'pkgB/doc.md': DOC });
+    const r = amb(sb, ['contract', sb.r]);
+    robust(r, 'AC-005 unlinked');
+    ok(same(r.out, []), `AC-005 schema in pkgA, doc in pkgB → [] (${r.stdout.trim()})`);
+    fs.writeFileSync(path.join(sb.r, 'pkgB/doc.md'), 'See engine.js. ' + DOC);
+    const r2 = amb(sb, ['contract', sb.r]);
+    robust(r2, 'AC-005 linked by basename');
+    ok(r2.out?.length === 1 && r2.out[0].file === 'pkgB/doc.md' && r2.out[0].schema === 'pkgA/engine.js:2',
+      `AC-005 "See engine.js" links pkgA's schema → 1 record (${JSON.stringify(r2.out)})`);
+    sb.done();
+  }
+
+  // AC-006: union of same-named enums and alsoValidFor. Kills: first-enum-only (refuted would fire),
+  // a different field's enum rescuing a value (likely/info would vanish), no anchor (status-noanchor
+  // fires), GENERIC field names in alsoValidFor (`level` would join logLevel).
+  {
+    const sb = tree({
+      '.claude-plugin/plugin.json': PLUGIN_JSON,
+      'workflows/engine.js': [
+        'const A = {',
+        "  severity: { type: 'string', enum: ['critical', 'high', 'medium', 'low'] },",
+        "  confidence: { type: 'string', enum: ['confirmed', 'likely'] },",
+        "  status: { type: 'string', enum: ['patched', 'met'] },",
+        "  logLevel: { type: 'string', enum: ['info', 'debug'] },",
+        "  level: { type: 'string', enum: ['info', 'warn'] },",
+        '}',
+        'const B = {',
+        "  confidence: { type: 'string', enum: ['confirmed-exploitable', 'likely', 'refuted'] },",
+        '}', ''].join('\n'),
+      'docs/union.md': 'Use `confirmed` or `likely`; set confidence: "refuted" when disproved.\n',
+      'docs/status.md': 'Per engine.js, render the `likely` status.\n',
+      'docs/status-noanchor.md': 'Render the `likely` status.\n',
+      'docs/log.md': 'Use `severity: "info"`; severities are `low` or `high`.\n',
+    });
+    const r = amb(sb, ['contract', sb.r]);
+    robust(r, 'AC-006');
+    const by = f => (r.out ?? []).filter(x => x.file === f);
+    ok(by('docs/union.md').length === 0, `AC-006 confidence: "refuted" is allowed by the union of both confidence enums (${JSON.stringify(by('docs/union.md'))})`);
+    const st = by('docs/status.md');
+    ok(st.length === 1 && st[0].field === 'status' && st[0].value === 'likely' && same(st[0].alsoValidFor, ['confidence']),
+      `AC-006 "Per engine.js, render the \`likely\` status." → status=likely, alsoValidFor [confidence] (${JSON.stringify(st)})`);
+    ok(by('docs/status-noanchor.md').length === 0, 'AC-006 same doc without "Per engine.js, " → [] (no anchor)');
+    const lg = by('docs/log.md');
+    ok(lg.length === 1 && lg[0].field === 'severity' && lg[0].value === 'info' && same(lg[0].alsoValidFor, ['logLevel']),
+      `AC-006 logLevel enum does not rescue severity "info"; alsoValidFor is [logLevel], never GENERIC \`level\` (${JSON.stringify(lg)})`);
+    sb.done();
+  }
+
+  // AC-007: same-file const enum (H5). Kills a harvest without H5 (enums=0 → NOT run, no record).
+  {
+    const sb = tree({
+      '.claude-plugin/plugin.json': PLUGIN_JSON,
+      'workflows/engine.js': "const HINTS = ['a', 'b', 'c']\nconst RULEBOOK = {\n  lensHint: { type: 'string', enum: HINTS },\n}\n",
+      'docs/hints.md': '| lensHint |\n|---|\n| a |\n| zzz |\n',
+    });
+    const r = amb(sb, ['contract', sb.r]);
+    robust(r, 'AC-007');
+    ok(r.out?.length === 1 && r.out[0].field === 'lensHint' && r.out[0].value === 'zzz' && r.out[0].line === 4 && r.out[0].schema === 'workflows/engine.js:3',
+      `AC-007 enum: HINTS (const array) → one lensHint record for zzz (${JSON.stringify(r.out)})`);
+    sb.done();
+  }
+
+  // AC-013: determinism. Kills readdir-order or localeCompare-dependent output.
+  {
+    const files = { '.claude-plugin/plugin.json': PLUGIN_JSON, 'workflows/engine.js': ENGINE, 'skills/x/checklist.md': checklist(PRE_ROW), 'skills/B/other.md': checklist(PRE_ROW), 'skills/a/more.md': checklist(PRE_ROW) };
+    const a = tree(files);
+    const b = tree({});
+    for (const [rel, body] of Object.entries(files).reverse()) put(b.r, { [rel]: body });
+    const ra = amb(a, ['contract', a.r]), rb = amb(b, ['contract', b.r]);
+    ok(ra.out?.length === 3 && ra.stdout === rb.stdout, `AC-013 forward vs reverse creation order → byte-identical stdout (${ra.out?.map(x => x.file).join(',')})`);
+    ok(same(ra.out?.map(x => x.file), ['skills/B/other.md', 'skills/a/more.md', 'skills/x/checklist.md']), 'AC-013 records sorted by file in code-point order (B < a)');
+    a.done(); b.done();
+  }
+
+  // AC-014: robustness. Every case: exit 0 and parseable JSON.
+  {
+    const sb = ac002(PRE_ROW);
+    const miss = amb(sb, ['contract', path.join(sb.root, 'nope')]);
+    robust(miss, 'AC-014 missing root');
+    ok(same(miss.out, []) && /root not found/.test(miss.stderr), 'AC-014 missing root → [] + "root not found"');
+    const bogus = amb(sb, ['bogus', sb.r]);
+    robust(bogus, 'AC-014 bogus mode');
+    ok(same(bogus.out, []) && /unknown mode 'bogus'/.test(bogus.stderr), "AC-014 mode bogus → [] + \"unknown mode 'bogus'\"");
+    const none = amb(sb, [], {});
+    robust(none, 'AC-014 no mode');
+    ok(/unknown mode '' \(code\|prose\|contract\), NOTHING scanned/.test(none.stderr), 'AC-014 missing mode → unknown mode line');
+    // CRLF copy (kills line counting that treats \r\n as two breaks, and \r leaking into values)
+    put(sb.r, { 'skills/x/checklist.md': checklist(PRE_ROW).replace(/\n/g, '\r\n') });
+    const crlf = amb(sb, ['contract', sb.r]);
+    robust(crlf, 'AC-014 CRLF');
+    ok(crlf.out?.length === 1 && crlf.out[0].line === 6 && crlf.out[0].value === 'info' && !/\r/.test(crlf.stdout), `AC-014 CRLF copy of AC-002 → line 6 (${JSON.stringify(crlf.out?.map(x => x.line))})`);
+    // --exclude drops the doc (kills an exclude that is parsed but never applied)
+    const ex = amb(sb, ['contract', sb.r, '--exclude', 'skills/**']);
+    robust(ex, 'AC-014 --exclude');
+    ok(same(ex.out, []) && summary(ex.stderr, 'contract')?.docs === '0', `AC-014 --exclude 'skills/**' → [] and docs=0 (${ex.stderr.trim()})`);
+    // a quote and a tab in the file name (kills hand-built JSON)
+    const weird = 'skills/we"ird\tname.md';
+    put(sb.r, { [weird]: checklist(PRE_ROW) });
+    const w = amb(sb, ['contract', sb.r]);
+    robust(w, 'AC-014 weird file name');
+    ok((w.out ?? []).some(x => x.file === weird && x.line === 6), 'AC-014 doc named we"ird<TAB>name.md → valid JSON whose file round-trips');
+    sb.done();
+    const nn = tree({ 'docs/a.md': 'x\n' }, { noNode: true });
+    const r1 = amb(nn, ['contract', nn.r]);
+    robust(r1, 'AC-014 no node');
+    ok(same(r1.out, []) && /node not found, NOTHING scanned/.test(r1.stderr), 'AC-014 no node on PATH → [] + "node not found, NOTHING scanned"');
+    nn.done();
+    const fake = sandbox({ node: 'exit 3' }, { noNode: true });
+    const r2 = amb(fake, ['contract', fake.root]);
+    robust(r2, 'AC-014 helper exits 3');
+    ok(same(r2.out, []) && /helper failed \(exit 3\), NOTHING scanned/.test(r2.stderr), 'AC-014 helper exits 3 with no output → [] + "helper failed (exit 3)"');
+    fake.done();
+  }
+
+  // main.mjs: the AMBIGUITY_MAX cap is loud and emitted= counts what was kept. Kills a silent
+  // truncation (omissions.sh's head -n 500) and an emitted= that counts pre-cap records.
+  {
+    const sb = ac002(PRE_ROW, { 'skills/y/checklist.md': checklist(PRE_ROW), 'skills/z/checklist.md': checklist(PRE_ROW) });
+    const r = amb(sb, ['contract', sb.r], { env: { AMBIGUITY_MAX: '2' } });
+    robust(r, 'cap');
+    ok(r.out?.length === 2 && /3 record\(s\), truncated to 2/.test(r.stderr) && summary(r.stderr, 'contract')?.emitted === '2',
+      `AMBIGUITY_MAX=2 over 3 records → 2 kept, loud truncation line, emitted=2 (${r.stderr.trim().split('\n').join(' | ')})`);
+    sb.done();
+  }
+
+  // Skips: CHANGELOG/LICENSE docs and fixtures/**/*.example.* are not scanned, but a run rooted AT the
+  // case dir still sees the .example file. Kills a walk without the skips, and a skip that ignores the root.
+  {
+    const sb = ac002(PRE_ROW, {
+      'CHANGELOG.md': checklist(PRE_ROW), 'LICENSE.md': checklist(PRE_ROW),
+      'fixtures/case/.claude-plugin/plugin.json': PLUGIN_JSON, 'fixtures/case/workflows/engine.js': ENGINE,
+      'fixtures/case/skills/x/checklist.example.md': checklist(PRE_ROW),
+    });
+    const r = amb(sb, ['contract', sb.r]);
+    robust(r, 'skips');
+    ok(same(r.out?.map(x => x.file), ['skills/x/checklist.md']) && summary(r.stderr, 'contract')?.docs === '1',
+      `CHANGELOG.md, LICENSE.md and fixtures/**/*.example.md are skipped (${r.out?.map(x => x.file).join(',')})`);
+    const c = amb(sb, ['contract', path.join(sb.r, 'fixtures/case')]);
+    ok(same(c.out?.map(x => `${x.file}:${x.line}`), ['skills/x/checklist.example.md:6']), 'rooted at the case dir, the .example doc is scanned');
+    sb.done();
+  }
+
+  // Dynamic import (D23): a broken prose.mjs cannot break a contract run. Kills a static import of
+  // every mode module in main.mjs.
+  {
+    const sb = ac002(PRE_ROW);
+    const copy = path.join(sb.root, 'toolcopy');
+    fs.mkdirSync(path.join(copy, 'ambiguity'), { recursive: true });
+    fs.copyFileSync(path.join(TOOLS, 'ambiguity.sh'), path.join(copy, 'ambiguity.sh'));
+    for (const f of fs.readdirSync(AMB)) fs.copyFileSync(path.join(AMB, f), path.join(copy, 'ambiguity', f));
+    fs.writeFileSync(path.join(copy, 'ambiguity', 'prose.mjs'), 'export function scanProse( {\n');
+    fs.writeFileSync(path.join(copy, 'ambiguity', 'code.mjs'), "throw new Error('half-edited');\n");
+    const r = spawnSync('/bin/bash', [path.join(copy, 'ambiguity.sh'), 'contract', sb.r], { encoding: 'utf8' });
+    let out = null; try { out = JSON.parse(r.stdout); } catch { /* asserted */ }
+    ok(r.status === 0 && out?.length === 1 && out[0].line === 6, `a syntax error in prose.mjs and a throwing code.mjs leave contract mode working (${r.stderr.trim()})`);
+    const p = spawnSync('/bin/bash', [path.join(copy, 'ambiguity.sh'), 'prose', sb.r], { encoding: 'utf8' });
+    ok(p.status === 0 && p.stdout.trim() === '[]' && /helper failed \(exit 1\), NOTHING scanned/.test(p.stderr), 'the broken mode itself fails loud: [] + helper failed (exit 1)');
+    sb.done();
+  }
+
+  // AC-016: docClass and the rule matrix (pure). Kills: substring matching (`myagents/x.md`), a
+  // leading-`/` requirement (`agents/a.md`), policy checked after instruction (`skills/SECURITY.md`).
+  {
+    const want = {
+      instruction: ['agents/a.md', 'plugins/p/skills/x/checklist.md', 'skills/triage/triage.example.md', '.claude/rules/r.md', 'commands/run.md', 'SKILL.md'],
+      policy: ['SECURITY.md', 'docs/SECURITY.md', 'SECURITY.example.md', 'CONTRIBUTING.md', 'skills/SECURITY.md'],
+      reference: ['release.example.md', 'myagents/x.md', 'README.md', 'docs/agents.md'],
+    };
+    const wrong = Object.entries(want).flatMap(([cls, fs_]) => fs_.filter(f => docClass(f) !== cls).map(f => `${f}→${docClass(f)} (want ${cls})`));
+    ok(wrong.length === 0, `AC-016 docClass over the path table (${wrong.join('; ') || 'all match'})`);
+    ok(same(DOC_CLASS_RULES, {
+      policy: ['scope-clause', 'contradiction', 'unit', 'vague-conditional'],
+      instruction: ['contract-mismatch', 'contradiction', 'vague-conditional', 'unit', 'overloaded-term', 'scope-clause'],
+      reference: ['contract-mismatch', 'unit', 'contradiction'],
+    }), 'AC-016 DOC_CLASS_RULES equals the §2.1 matrix');
+    // the 9 rows of §1 (`ambiguity:unit` is both a prose and a code row)
+    const SPEC_ROWS = ['contract-mismatch', 'scope-clause', 'vague-conditional', 'unit', 'contradiction', 'overloaded-term', 'unit', 'falsy-default', 'sentinel'].map(r => `ambiguity:${r}`);
+    ok(same([...new Set(RULE_IDS)].sort(), [...new Set(SPEC_ROWS)].sort()) && RULE_IDS.length === new Set(RULE_IDS).size, `AC-016 RULE_IDS is set-equal to the §1 rule ids (${RULE_IDS.length} distinct)`);
+  }
+
+  // AC-017: the fail-closed check and the engine-source parsers. Kills: a check that only filters
+  // stdout (passes the no-schema and helper-failed cases), a parser that silently returns {} / [].
+  {
+    const pre = ac002(PRE_ROW);
+    const a = runContractCheck({ root: pre.r, minDocs: 1 });
+    ok(!a.ok && a.offenders.length === 1 && a.offenders[0].line === 6, `AC-017 pre-fix sandbox → !ok with exactly one offender (${a.problems.join(' | ')})`);
+    pre.done();
+    const noSchema = tree({ 'docs/a.md': '{ "severity": "info" }\n' });
+    const b = runContractCheck({ root: noSchema.r, minDocs: 1 });
+    ok(!b.ok && b.problems.some(p => /enums/.test(p)), `AC-017 no-schema sandbox → !ok naming enums (${b.problems.join(' | ')})`);
+    noSchema.done();
+    const post = ac002(POST_ROW);
+    const c = runContractCheck({ root: post.r, minDocs: 5 });
+    ok(!c.ok && c.problems.some(p => /docs/.test(p)) && c.offenders.length === 0, `AC-017 minDocs 5 over 1 doc → !ok naming docs (${c.problems.join(' | ')})`);
+    // the fake prints a VALID summary too, so only the helper-failed rule can catch it
+    const fakeTool = path.join(post.root, 'fake-ambiguity.sh');
+    fs.writeFileSync(fakeTool, "#!/bin/bash\necho '[]'\necho 'ambiguity.sh contract: enums=2 fields=[a,b] docs=5 emitted=0' >&2\necho 'ambiguity.sh: helper failed (exit 3), NOTHING scanned' >&2\n", { mode: 0o755 });
+    const d = runContractCheck({ root: post.r, minDocs: 1, tool: fakeTool });
+    ok(!d.ok && d.problems.some(p => /helper failed/.test(p)), `AC-017 fake tool printing [] + helper failed → !ok naming helper failed (${d.problems.join(' | ')})`);
+    // one fake per rule, each breaking exactly that rule, so the named problem is the only thing that
+    // can fail it. Kills: dropping the missing-summary rule (a bare `[]` passed), the not-JSON rule,
+    // the enums=0 summary branch, the could-not-run rule, first-summary-wins (a forged early line),
+    // and ignoring skipped / truncated lines (a doc or a record silently left out).
+    const fake = (name, out, err) => {
+      const f = path.join(post.root, `${name}.sh`);
+      fs.writeFileSync(f, `#!/bin/bash\nprintf '%s\\n' ${JSON.stringify(out)}\n${err.map(l => `printf '%s\\n' ${JSON.stringify(l)} >&2`).join('\n')}\n`, { mode: 0o755 });
+      return runContractCheck({ root: post.r, minDocs: 1, tool: f });
+    };
+    const GOOD = 'ambiguity.sh contract: enums=2 fields=[a,b] docs=3 emitted=0';
+    const only = (res, re) => !res.ok && res.problems.length === 1 && re.test(res.problems[0]);
+    const g0 = fake('good', '[]', [GOOD]);
+    ok(g0.ok, `AC-017 control: a fake with [] + a valid summary → ok (${g0.problems.join(' | ') || 'no problems'})`);
+    const g1 = fake('nosum', '[]', []);
+    ok(only(g1, /no `ambiguity\.sh contract:/), `AC-017 [] with no stderr → !ok naming the missing summary line (${g1.problems.join(' | ')})`);
+    const g2 = fake('notjson', 'not json', [GOOD]);
+    ok(only(g2, /stdout is not a JSON array/), `AC-017 non-JSON stdout + valid summary → !ok naming it (${g2.problems.join(' | ')})`);
+    const g3 = fake('enums0', '[]', ['ambiguity.sh contract: enums=0 fields=[] docs=3 emitted=0']);
+    ok(only(g3, /enums=0/), `AC-017 summary with enums=0 and no NOT-run line → !ok naming enums=0 (${g3.problems.join(' | ')})`);
+    const g4 = runContractCheck({ root: post.r, minDocs: 1, tool: path.join(post.root, 'does-not-exist.sh') });
+    ok(!g4.ok && g4.problems.some(p => /could not run/.test(p)), `AC-017 a tool path that does not exist → !ok naming could not run (${g4.problems.join(' | ')})`);
+    const g5 = fake('forged', '[]', ['ambiguity.sh contract: enums=2 fields=[a,b] docs=40 emitted=0', 'ambiguity.sh contract: enums=2 fields=[a,b] docs=1 emitted=0']);
+    const g5b = runContractCheck({ root: post.r, minDocs: 5, tool: path.join(post.root, 'forged.sh') });
+    ok(!g5.ok && g5.problems.some(p => /more than one/.test(p)) && g5b.summary.docs === 1 && g5b.problems.some(p => /docs=1 is below/.test(p)),
+      `AC-017 two summary lines → !ok, and the LAST one is the summary (${g5b.problems.join(' | ')})`);
+    const g6 = fake('skipped', '[]', ['ambiguity.sh: skipped docs/x.md: not valid UTF-8', GOOD]);
+    ok(only(g6, /skipped docs\/x\.md/), `AC-017 a skipped doc → !ok naming it (${g6.problems.join(' | ')})`);
+    const g7 = fake('trunc', '[]', ['ambiguity.sh: 900 record(s), truncated to 500', GOOD]);
+    ok(only(g7, /truncated to 500/), `AC-017 a truncated record list → !ok naming it (${g7.problems.join(' | ')})`);
+    const g8 = fake('pruned', '[]', ['ambiguity.sh: pruned dist/ (generated output)', GOOD]);
+    ok(g8.ok, `AC-017 a pruned generated-output dir is not a failure (${g8.problems.join(' | ') || 'no problems'})`);
+    const e = runContractCheck({ root: post.r, minDocs: 1 });
+    ok(e.ok && e.summary.enums === 2 && e.summary.docs === 1, `AC-017 post-fix sandbox → ok (${e.problems.join(' | ') || 'no problems'})`);
+    const cli = spawnSync(process.execPath, [path.join(PLUGIN, 'tests/lib/contract-check.mjs'), '--root', post.r, '--min-docs', '1'], { encoding: 'utf8' });
+    ok(cli.status === 0 && /^contract-check OK: enums=2 docs=1 emitted=0$/m.test(cli.stdout), `AC-017 CLI ok line + exit 0 (${cli.stdout.trim()})`);
+    const cliBad = spawnSync(process.execPath, [path.join(PLUGIN, 'tests/lib/contract-check.mjs'), '--root', post.r, '--min-docs', '9'], { encoding: 'utf8' });
+    ok(cliBad.status === 1 && /docs=1/.test(cliBad.stdout), 'AC-017 CLI exits 1 and prints the problem');
+    post.done();
+
+    const POLICY = ['**/SECURITY.md', '**/CONTRIBUTING.md', '**/CODE_OF_CONDUCT.md', '**/PRIVACY*.md', '**/SUPPORT.md', '**/GOVERNANCE.md', 'README.md'];
+    const INSTR = ['**/.claude/**/*.md', '**/skills/**/*.md', '**/agents/*.md', '**/commands/*.md', '**/.cursor/rules/**', '**/.github/copilot-instructions.md', '**/CLAUDE.md', '**/AGENTS.md'];
+    const EXCL = ['**/CHANGELOG*.md', '**/HISTORY.md', '**/LICENSE*', '**/NOTICE*.md', '**/fixtures/**', '**/node_modules/**', '**/vendor/**'];
+    const HINTS = ['security', 'correctness', 'architecture', 'docs-drift', 'sca', 'iac', 'container', 'k8s', 'supply-chain', 'compliance', 'concurrency', 'state-machine', 'economic', 'omission', 'agent-config', 'ambiguity', 'any'];
+    const q = a_ => a_.map(s => `'${s}'`).join(',');
+    const SRC = [
+      `const LENS_HINTS = [${q(HINTS)}]`,
+      'const scopeGlobs = gs => scopePath ? gs.map(g => `${scopePath}/${g}`) : gs',
+      'const AMBIGUITY_PROSE_DEFAULT = {',
+      `  policy: [${q(POLICY)}],`,
+      `  instructions: [${q(INSTR)}],`,
+      '}',
+      `const AMBIGUITY_EXCLUDE_DEFAULT = [${q(EXCL)}]`,
+      'const ambCfg = config.ambiguity ?? {}', ''].join('\n');
+    ok(same(parseProseDefault(SRC), { policy: POLICY, instructions: INSTR }), 'AC-017 parseProseDefault returns the exact policy + instructions arrays');
+    ok(same(parseExcludeDefault(SRC), EXCL), 'AC-017 parseExcludeDefault returns the exact exclude array');
+    ok(same(parseLensHints(SRC), HINTS), 'AC-017 parseLensHints returns the exact LENS_HINTS array');
+    const throws = fn => { try { fn(); return false; } catch { return true; } };
+    const BARE = 'const config = {}\n';
+    ok(throws(() => parseProseDefault(BARE)) && throws(() => parseExcludeDefault(BARE)) && throws(() => parseLensHints(BARE)),
+      'AC-017 every parser throws on a source without its literal');
+    ok(throws(() => parseLensHints("const LENS_HINTS = ['a', B]")) && throws(() => parseProseDefault('const AMBIGUITY_PROSE_DEFAULT = {\n  policy: [\'a\'],\n}')),
+      'AC-017 parsers throw on an unparseable literal (non-string element, missing instructions)');
+  }
+}
+
+// ── ambiguity.sh: prose + code (SPEC-v4-ambiguity.md §3.4, §3.6, AC-001 prose/code lines, AC-008..AC-012, AC-015) ─
+console.log('ambiguity.sh: prose + code');
+{
+  const same = (a, b) => JSON.stringify(a) === JSON.stringify(b);
+  const put = (root, files) => {
+    for (const [rel, body] of Object.entries(files)) {
+      fs.mkdirSync(path.dirname(path.join(root, rel)), { recursive: true });
+      fs.writeFileSync(path.join(root, rel), body);
+    }
+  };
+  // a sandbox whose scan root is <sandbox>/r (keeps bin/ and tmp/ out of the walk)
+  const tree = (files) => { const sb = sandbox({}); sb.r = path.join(sb.root, 'r'); fs.mkdirSync(sb.r); put(sb.r, files); return sb; };
+  const amb = (sb, args, opts) => {
+    const r = sb.run('ambiguity.sh', args, opts);
+    let out = null;
+    try { out = JSON.parse(r.stdout); } catch { /* asserted by robust() */ }
+    return { ...r, out };
+  };
+  const robust = (r, label) => ok(r.status === 0 && Array.isArray(r.out), `${label}: exit 0 and stdout is one JSON array`);
+  // stderr summary line → { key: value } (parsed, never substring-matched)
+  const summary = (stderr, mode) => {
+    const l = stderr.split('\n').find(x => x.startsWith(`ambiguity.sh ${mode}: `) && /=/.test(x));
+    if (!l) return null;
+    return Object.fromEntries([...l.slice(`ambiguity.sh ${mode}: `.length).matchAll(/(\w+)=(\[[^\]]*\]|\S+)/g)].map(m => [m[1], m[2]]));
+  };
+  const kl = (out) => (out ?? []).map(x => `${x.kind}@${x.line}`).sort();
+  // one run of `ambiguity.sh <mode> <root>` over a fresh tree
+  const scan = (mode, files, opts) => { const sb = tree(files); const r = amb(sb, [mode, sb.r], opts); sb.done(); return r; };
+
+  // AC-008 + AC-001 (code summary). Kills: no `??` distinction (L2), no comment strip (L12), any
+  // loose-match detector (L7), no documented-sentinel exemption (L10 flags), a window that looks at
+  // lines below (L9 exempted by L10's comment), no call-option skip (L6), a unit test on the name's
+  // prefix instead of its ending (L5). L3, L11 and L13 are exempt for other reasons (non-numeric
+  // default, `list` is no limit name, "disables" documents the sentinel), so the string mask and the
+  // indexOf exemption are pinned by the "guards only the guard can save" case below.
+  const AC008 = [
+    'config.retries || 3',
+    'config.retries ?? 3',
+    "user.name || 'anonymous'",
+    'export const CACHE_TTL = 3600;',
+    'export const CACHE_TTL_SECONDS = 3600;',
+    'await page.goto(url, { timeout: 30000 });',
+    "if (origin.startsWith('https://example.com')) allow();",
+    'if (ALLOWED_ORIGINS.includes(origin)) allow();',
+    'const maxRetries = -1;',
+    'const maxRetries2 = -1; // -1 means unlimited',
+    'if (list.indexOf(x) === -1) add(x);',
+    '// const timeout = 30',
+    "log('maxRounds: 0 disables it');",
+  ];
+  {
+    const r = scan('code', { 'src/a.ts': AC008.join('\n') + '\n' });
+    robust(r, 'AC-008');
+    ok(same(kl(r.out), ['falsy-default@1', 'sentinel@9', 'unit@4']), `AC-008 kind@line is exactly falsy-default@1, unit@4, sentinel@9 (${kl(r.out).join(', ')})`);
+    const u = r.out?.find(x => x.kind === 'unit') ?? {};
+    ok(u.file === 'src/a.ts' && u.rule === 'ambiguity:unit' && u.detail === 'CACHE_TTL' && u.signal === 'export const CACHE_TTL = 3600;',
+      `AC-008 unit record carries rule, detail = the name, trimmed code signal (${JSON.stringify(u)})`);
+    ok(r.out?.find(x => x.kind === 'falsy-default')?.rule === 'ambiguity:falsy-default' && r.out?.find(x => x.kind === 'sentinel')?.rule === 'ambiguity:sentinel',
+      'AC-008 falsy-default and sentinel records carry their ambiguity: rule ids');
+    // AC-001: the code summary line parsed into key=value (kills a summary that drifts from §3.3)
+    const s = summary(r.stderr, 'code');
+    ok(s && s.files === '1' && s.skippedTests === '0' && s.emitted === '3', `AC-001 code summary parses to files=1 skippedTests=0 emitted=3 (${JSON.stringify(s)})`);
+    // the documented-sentinel window is line i and line i-1 ONLY. b: the comment above exempts;
+    // c: a comment below never exempts; d: a comment two lines up never exempts.
+    const w = scan('code', {
+      'src/b.ts': '// -1 means unlimited\nconst maxRetries = -1;\n',
+      'src/c.ts': 'const maxRetries = -1;\n// -1 means unlimited\n',
+      'src/d.ts': '// -1 means unlimited\n\nconst maxRetries = -1;\n',
+    });
+    ok(same((w.out ?? []).map(x => `${x.file}:${x.kind}@${x.line}`), ['src/c.ts:sentinel@1', 'src/d.ts:sentinel@3']),
+      `AC-008 sentinel window: line above exempts, line below and two lines up never do (${(w.out ?? []).map(x => `${x.file}:${x.kind}@${x.line}`).join(', ')})`);
+  }
+
+  // AC-009: test paths and globs. Kills: no test-path skip, a skippedTests count that never moves,
+  // an AMBIGUITY_INCLUDE_TESTS that is ignored, and bash-case globbing (`src/**/*.ts` misses `src/a.ts`).
+  {
+    const files = { 'tests/a.test.ts': `${AC008[0]}\n` };
+    const d = scan('code', files);
+    robust(d, 'AC-009 default');
+    const ds = summary(d.stderr, 'code');
+    ok(same(d.out, []) && ds?.skippedTests === '1' && ds?.files === '0', `AC-009 tests/a.test.ts skipped: [] and skippedTests=1 (${JSON.stringify(ds)})`);
+    const inc = scan('code', files, { env: { AMBIGUITY_INCLUDE_TESTS: '1' } });
+    ok(same(kl(inc.out), ['falsy-default@1']) && inc.out?.[0]?.file === 'tests/a.test.ts' && summary(inc.stderr, 'code')?.skippedTests === '0',
+      `AC-009 AMBIGUITY_INCLUDE_TESTS=1 → one record (${kl(inc.out).join(', ')})`);
+    const sb = tree({ 'src/a.ts': `${AC008[0]}\n`, 'lib/b.ts': `${AC008[0]}\n` });
+    const g = amb(sb, ['code', sb.r, 'src/**/*.ts']);
+    ok(same((g.out ?? []).map(x => `${x.file}@${x.line}`), ['src/a.ts@1']), `AC-009 glob src/**/*.ts → only src/a.ts (${(g.out ?? []).map(x => x.file).join(', ')})`);
+    sb.done();
+  }
+
+  // AC-010 + AC-001 (prose summary). Kills: line-by-line scanning (no join: the line-7 signal lacks
+  // line 8), no fence skip (line 14 normative / normative=1), a naive unit regex (line 3 "3 business
+  // days"), flagging every "should" (line 17), a heading stack that never pops (lines 17-18 tagged
+  // scope), headings as units (line 5 or 11), each sentence reporting its unit's first line (unit@17).
+  {
+    const SEC = [
+      '# Security',
+      '',
+      'We reply within 3 business days.',
+      '',
+      '## Out of scope',
+      '',
+      '- Issues in the hosting provider, database or email service you run Acme on, and findings that need',
+      '  access an admin already has.',
+      '- Missing rate limits.',
+      '',
+      '## Notes',
+      '',
+      '```',
+      'You MUST NOT run this.',
+      '```',
+      '',
+      'This should take about a minute.',
+      'Retry after 30.',
+    ];
+    const r = scan('prose', { 'SECURITY.md': SEC.join('\n') + '\n' });
+    robust(r, 'AC-010 SECURITY.md');
+    ok(same(kl(r.out), ['scope@7', 'scope@9', 'unit@18']), `AC-010 record set is exactly scope@7, scope@9, unit@18 (${kl(r.out).join(', ')})`);
+    const s7 = r.out?.find(x => x.kind === 'scope' && x.line === 7) ?? {};
+    ok(s7.docClass === 'policy' && s7.heading === 'Out of scope' && s7.rule === 'ambiguity:scope-clause'
+      && /^Issues in the hosting provider/.test(s7.signal ?? '') && (s7.signal ?? '').includes('admin already has.'),
+      `AC-010 scope@7: policy, heading "Out of scope", signal joins lines 7-8 (${JSON.stringify(s7.signal)})`);
+    ok(r.out?.find(x => x.line === 9)?.heading === 'Out of scope', 'AC-010 scope@9 has heading "Out of scope"');
+    const u = r.out?.find(x => x.kind === 'unit') ?? {};
+    ok(u.rule === 'ambiguity:unit' && u.signal === 'Retry after 30.' && Array.isArray(u.terms) && u.terms.includes('after'),
+      `AC-010 unit@18 is its own sentence with terms (${JSON.stringify(u)})`);
+    // AC-001: the prose summary line parsed into key=value. 5 sentences: L3, L7-8, L9, L17, L18.
+    const s = summary(r.stderr, 'prose');
+    ok(s && s.files === '1' && s.sentences === '5' && s.normative === '0' && s.emitted === '3',
+      `AC-001 prose summary parses to files=1 sentences=5 normative=0 emitted=3 (${JSON.stringify(s)})`);
+    const CFG = ['| Key | Meaning | Default |', '|---|---|---|', '| verify.maxWait | How long a voter may run. | 300 |',
+      '| verify.voters | Voters. | 3 |', '| verify.maxWaitMs | Same, explicit. | 300000 |'];
+    const c = scan('prose', { 'docs/config.md': CFG.join('\n') + '\n' });
+    ok(same(kl(c.out), ['unit@3']) && c.out?.[0]?.docClass === 'reference',
+      `AC-010 docs/config.md → exactly unit@3, docClass reference (kills a table detector that ignores the name test) (${kl(c.out).join(', ')})`);
+  }
+
+  // AC-011: sentence split, vague-conditional, docClass via common.docClass. Kills: no abbreviation
+  // protection (splits inside `e.g.`; `a.b` never splits, code-span masking is pinned by the "guards
+  // only the guard can save" case below), flagging every conditional
+  // ("If the build fails" has no vague term), a `/agents/` substring docClass (root-level agents/x.md
+  // would be `reference`), and the unless-scope form applied outside policy docs.
+  {
+    const r = scan('prose', { 'notes.md': 'Use `a.b` here, e.g. in tests. Merge the PR if the checks are mostly green.\n\nIf the build fails, stop.\n' });
+    robust(r, 'AC-011');
+    ok(same(kl(r.out), ['vague-conditional@1']) && /^Merge the PR/.test(r.out?.[0]?.signal ?? '') && r.out?.[0]?.rule === 'ambiguity:vague-conditional',
+      `AC-011 exactly one vague-conditional@1 whose signal starts "Merge the PR" (${JSON.stringify(r.out)})`);
+    ok(summary(r.stderr, 'prose')?.sentences === '3', `AC-011 3 sentences: no split inside \`a.b\` or e.g. (${JSON.stringify(summary(r.stderr, 'prose'))})`);
+    // abbreviation protection with a capitalised next word, and code spans restored in the signal
+    const eg = scan('prose', { 'notes.md': 'Pick `semgrep.yml`, e.g. Semgrep, when relevant.\n' });
+    ok(same(kl(eg.out), ['vague-conditional@1']) && eg.out?.[0]?.signal === 'Pick `semgrep.yml`, e.g. Semgrep, when relevant.',
+      `AC-011 "e.g. Semgrep" is not a sentence break; signal restores the code span (${JSON.stringify(eg.out?.[0]?.signal)})`);
+    const a = scan('prose', { 'agents/x.md': 'Stop unless the build is mostly green.\n' });
+    ok(a.out?.length === 1 && a.out[0].kind === 'vague-conditional' && a.out[0].docClass === 'instruction' && a.out[0].file === 'agents/x.md',
+      `AC-011 root-level agents/x.md → exactly one vague-conditional, docClass instruction, no scope (${JSON.stringify(a.out)})`);
+  }
+
+  // AC-012: denominator honesty. Kills: N counting only sentences with no other kind (normative=2),
+  // all-sites mode suppressing normative on the overlapping scope sentence (2 records), all-sites mode
+  // dropping the scope record, normative records leaking into a default run.
+  {
+    const files = { 'CONTRIBUTING.md': ['# Contributing', '', 'You must sign your commits.', '', 'Never force-push to main.', '',
+      'You must not report issues that are out of scope.', '', 'Thanks for helping.', ''].join('\n') };
+    const d = scan('prose', files);
+    robust(d, 'AC-012 default');
+    ok(summary(d.stderr, 'prose')?.normative === '3' && same(kl(d.out), ['scope@7']),
+      `AC-012 default: normative=3, zero normative records, exactly one scope record (${kl(d.out).join(', ')}; ${JSON.stringify(summary(d.stderr, 'prose'))})`);
+    const all = scan('prose', files, { env: { AMBIGUITY_ALL_SITES: '1' } });
+    ok(same(kl(all.out), ['normative@3', 'normative@5', 'normative@7', 'scope@7']),
+      `AC-012 AMBIGUITY_ALL_SITES=1: 3 normative records (one on the scope line) + the scope record (${kl(all.out).join(', ')})`);
+    ok(same(all.out?.find(x => x.kind === 'scope'), d.out?.find(x => x.kind === 'scope')) && all.out?.find(x => x.kind === 'normative')?.rule === 'ambiguity:site',
+      'AC-012 the scope record is identical in both runs; normative records use rule ambiguity:site');
+  }
+
+  // AC-015: cap. Kills a silent `head -n 500` (no truncation line) and an uncapped run (600 records).
+  {
+    const r = scan('code', { 'src/many.ts': Array(600).fill('retries || 3').join('\n') + '\n' }, { env: { AMBIGUITY_MAX: '500' } });
+    robust(r, 'AC-015');
+    ok(r.out?.length === 500 && r.out.every(x => x.kind === 'falsy-default') && r.out[499].line === 500,
+      `AC-015 600 records capped to the first 500 (got ${r.out?.length})`);
+    ok(/600 record\(s\), truncated to 500/.test(r.stderr) && summary(r.stderr, 'code')?.emitted === '500',
+      `AC-015 stderr says "600 record(s), truncated to 500" and emitted=500 (${JSON.stringify(summary(r.stderr, 'code'))})`);
+  }
+}
+
+// ── ambiguity.sh: review-round fixes and teeth (SPEC-v4-ambiguity.md §15, 2026-11-02) ─
+// Each case names the broken implementation it kills. Fix cases fail on the pre-review tool; teeth
+// cases pin guards that a mutation could remove with the suite green.
+console.log('ambiguity.sh: review-round fixes and teeth');
+{
+  const { sortRecords, docClass } = await import(pathToFileURL(path.join(TOOLS, 'ambiguity', 'common.mjs')).href);
+  const same = (a, b) => JSON.stringify(a) === JSON.stringify(b);
+  const put = (root, files) => {
+    for (const [rel, body] of Object.entries(files)) {
+      fs.mkdirSync(path.dirname(path.join(root, rel)), { recursive: true });
+      fs.writeFileSync(path.join(root, rel), body);
+    }
+  };
+  const tree = (files) => { const sb = sandbox({}); sb.r = path.join(sb.root, 'r'); fs.mkdirSync(sb.r); put(sb.r, files); return sb; };
+  const amb = (sb, args, opts) => {
+    const r = sb.run('ambiguity.sh', args, opts);
+    let out = null;
+    try { out = JSON.parse(r.stdout); } catch { /* asserted below */ }
+    return { ...r, out };
+  };
+  const summary = (stderr, mode) => {
+    const l = stderr.split('\n').find(x => x.startsWith(`ambiguity.sh ${mode}: `) && /=/.test(x));
+    if (!l) return null;
+    return Object.fromEntries([...l.slice(`ambiguity.sh ${mode}: `.length).matchAll(/(\w+)=(\[[^\]]*\]|\S+)/g)].map(m => [m[1], m[2]]));
+  };
+  const scan = (mode, files, extra = [], opts) => { const sb = tree(files); const r = amb(sb, [mode, sb.r, ...extra], opts); sb.done(); return r; };
+  const kfl = (out) => (out ?? []).map(x => `${x.kind}@${x.file}:${x.line}`).sort();
+  const keys = (out) => (out ?? []).map(x => `${x.line}@${x.field}@${x.value}@${x.via}`).sort();
+  const SCHEMA = [
+    'const REVIEW_SCHEMA = {',
+    "  severity: { type: 'string', enum: ['critical', 'high', 'medium', 'low'] },",
+    "  confidence: { type: 'string', enum: ['confirmed', 'likely', 'needs-owner-input'] },",
+    '}', ''].join('\n');
+  const VAGUE = 'Merge the PR if the checks are mostly green.\n';
+  const table = (header, rows) => [`| Rule | ${header} |`, '|---|---|', ...rows.map((v, i) => `| r${i} | ${v} |`)].join('\n') + '\n';
+
+  // D23 isolation. Kills prose.mjs importing a sibling mode module (a syntax error in code.mjs broke
+  // every prose run as `helper failed`).
+  {
+    const sb = tree({ 'docs/a.md': VAGUE, 'src/a.ts': 'const x = cfg.retries || 3;\n', 'engine.js': SCHEMA });
+    const copy = path.join(sb.root, 'toolcopy');
+    fs.mkdirSync(path.join(copy, 'ambiguity'), { recursive: true });
+    fs.copyFileSync(path.join(TOOLS, 'ambiguity.sh'), path.join(copy, 'ambiguity.sh'));
+    for (const f of fs.readdirSync(path.join(TOOLS, 'ambiguity'))) fs.copyFileSync(path.join(TOOLS, 'ambiguity', f), path.join(copy, 'ambiguity', f));
+    const pristine = Object.fromEntries(['code', 'prose', 'contract'].map(m => [m, fs.readFileSync(path.join(copy, 'ambiguity', `${m}.mjs`), 'utf8')]));
+    for (const mode of ['prose', 'code', 'contract']) {
+      for (const m of Object.keys(pristine)) fs.writeFileSync(path.join(copy, 'ambiguity', `${m}.mjs`), m === mode ? pristine[m] : 'export const broken = ;\n');
+      const r = spawnSync('/bin/bash', [path.join(copy, 'ambiguity.sh'), mode, sb.r], { encoding: 'utf8', env: { PATH: process.env.PATH } });
+      ok(!/helper failed|internal error/.test(r.stderr) && summary(r.stderr, mode) !== null,
+        `D23 ${mode} runs while every sibling mode module is a syntax error (${r.stderr.trim().split('\n').pop()})`);
+    }
+    sb.done();
+  }
+
+  // Generated-dir pruning. Kills pruning `build`/`dist` at any depth (skills/build/SKILL.md, a real
+  // instruction doc in cklph-os, vanished with a clean files=0) and pruning without saying so.
+  {
+    const r = scan('prose', { 'skills/build/SKILL.md': VAGUE, 'build/out.md': VAGUE, 'pkg/dist/x.md': VAGUE });
+    ok(same(kfl(r.out), ['vague-conditional@skills/build/SKILL.md:1']) && summary(r.stderr, 'prose')?.files === '1',
+      `prune: skills/build/SKILL.md is scanned; build/ and pkg/dist/ are not (${kfl(r.out).join(', ')}; ${JSON.stringify(summary(r.stderr, 'prose'))})`);
+    ok(/^ambiguity\.sh: pruned build\/ /m.test(r.stderr) && /^ambiguity\.sh: pruned pkg\/dist\/ /m.test(r.stderr),
+      `prune: each pruned generated-output dir gets a stderr line (${r.stderr.trim()})`);
+  }
+
+  // Empty selection is loud. Kills a prose/contract run that selects 0 docs and prints only a clean
+  // files=0 / docs=0 summary ("not checked" read as "clean").
+  {
+    const p = scan('prose', { 'docs/a.md': VAGUE }, ['nothing/**']);
+    ok(same(p.out, []) && /^ambiguity\.sh prose: 0 docs selected .*NOTHING scanned$/m.test(p.stderr) && summary(p.stderr, 'prose')?.files === '0',
+      `empty prose selection → [] + "0 docs selected … NOTHING scanned" + files=0 (${p.stderr.trim()})`);
+    const c = scan('contract', { 'engine.js': SCHEMA, 'docs/a.md': VAGUE }, ['nothing/**']);
+    ok(same(c.out, []) && /^ambiguity\.sh contract: 0 docs selected .*NOTHING scanned$/m.test(c.stderr),
+      `empty contract selection → [] + "0 docs selected … NOTHING scanned" (${c.stderr.trim()})`);
+    const n = scan('prose', { 'docs/a.md': VAGUE });
+    ok(!/NOTHING scanned/.test(n.stderr), 'a non-empty prose selection prints no NOTHING-scanned line');
+  }
+
+  // Cursor .mdc rules. Kills DOC_EXT = /\.mdx?$/ (the default instructions group's `.cursor/rules/**`
+  // files were dropped before scanning, with a clean files=0).
+  {
+    const MDC = '---\ndescription: release\nglobs: "**/*"\n---\nMerge the PR if the checks are mostly green.\n';
+    const p = scan('prose', { '.cursor/rules/release.mdc': MDC }, ['**/.cursor/rules/**']);
+    ok(same(kfl(p.out), ['vague-conditional@.cursor/rules/release.mdc:5']) && p.out?.[0]?.docClass === 'instruction' && summary(p.stderr, 'prose')?.files === '1',
+      `.mdc prose: one vague-conditional at line 5 (front matter skipped), docClass instruction (${kfl(p.out).join(', ')}; ${p.stderr.trim()})`);
+    const c = scan('contract', { 'engine.js': SCHEMA, '.cursor/rules/sev.mdc': '| severity |\n|---|\n| high |\n| info |\n' }, ['**/.cursor/rules/**']);
+    ok(same(keys(c.out), ['4@severity@info@table-header']) && summary(c.stderr, 'contract')?.docs === '1',
+      `.mdc contract: the rule file is a doc (docs=1) and its table row is checked (${keys(c.out).join(', ')})`);
+  }
+
+  // Thousands separators. Kills NUMBER stopping at the comma, so "5,000 ms" became a unitless `5`.
+  {
+    const r = scan('prose', { 'docs/limits.md': 'Set the timeout to 5,000 ms before retrying.\n\nSet the delay to 5,000 before retrying.\n' });
+    ok(same(kfl(r.out), ['unit@docs/limits.md:3']) && same(r.out?.[0]?.terms, ['delay', '5,000']),
+      `5,000 ms carries its unit; a bare 5,000 is one unitless number (${JSON.stringify(r.out?.map(x => [x.line, x.terms]))})`);
+  }
+
+  // Policy basenames ignore case. Kills a case-sensitive POLICY_BASE (security.md → reference, so the
+  // policy-only except/unless scope check never ran).
+  {
+    const wrong = [['security.md', 'policy'], ['docs/Security.md', 'policy'], ['contributing.md', 'policy'], ['docs/security-notes.txt', 'reference']]
+      .filter(([f, want]) => docClass(f) !== want).map(([f, want]) => `${f}: ${docClass(f)} != ${want}`);
+    ok(wrong.length === 0, `docClass policy basenames are case-insensitive (${wrong.join('; ') || 'all match'})`);
+    // §15 POLICY-CASE amended. Kills a case-insensitive prefix-plus-suffix POLICY_BASE checked before
+    // instruction: a lowercase agent/command/skill doc NAMED for a policy word (security-review.md)
+    // became policy and lost contract-mismatch and overloaded-term, the PR #22 class.
+    const wrong2 = [['.claude/commands/security-review.md', 'instruction'], ['agents/support-triage.md', 'instruction'],
+      ['skills/sast/security-checklist.md', 'instruction'], ['commands/terms-check.md', 'instruction'], ['.claude/agents/privacy-reviewer.md', 'instruction'],
+      ['security.md', 'policy'], ['docs/Security.md', 'policy'], ['SECURITY-advisories.md', 'policy'], ['skills/SECURITY.md', 'policy'],
+      ['docs/security-review.md', 'reference'],
+      // §15 POLICY-SUFFIX: kills an exact-basename-only POLICY_EXACT. The engine's default policy group
+      // globs '**/privacy*.md', yet the usual lowercase privacy/security policy names classed reference
+      // and lost scope-clause and vague-conditional.
+      ['docs/privacy-policy.md', 'policy'], ['privacy_notice.md', 'policy'], ['docs/security-policy.md', 'policy'],
+      ['Security-Policy.md', 'policy'], ['terms-of-service.md', 'policy'], ['.claude/agents/privacy-policy.md', 'instruction']]
+      .filter(([f, want]) => docClass(f) !== want).map(([f, want]) => `${f}: ${docClass(f)} != ${want}`);
+    ok(wrong2.length === 0, `policy-word-led instruction docs stay instruction; exact policy basenames stay policy (${wrong2.join('; ') || 'all match'})`);
+    const r = scan('prose', { 'security.md': '# Scope\n\nAll findings count unless they need admin access.\n' });
+    ok(r.out?.some(x => x.kind === 'scope' && x.docClass === 'policy' && x.terms.includes('unless')),
+      `lowercase security.md gets the policy-only "unless" scope check (${JSON.stringify(r.out)})`);
+  }
+
+  // Unreadable docs are named. Kills a read() that drops a non-UTF-8 doc silently or with an opaque
+  // error code the reviewer cannot act on.
+  {
+    const sb = tree({ 'docs/ok.md': VAGUE });
+    fs.writeFileSync(path.join(sb.r, 'docs/bad.md'), Buffer.from([0xff, 0xfe, 0x41, 0x0a]));
+    const r = amb(sb, ['prose', sb.r]);
+    ok(/^ambiguity\.sh: skipped docs\/bad\.md: not valid UTF-8$/m.test(r.stderr) && summary(r.stderr, 'prose')?.files === '1',
+      `invalid UTF-8 docs/bad.md → "skipped docs/bad.md: not valid UTF-8", files=1 (${r.stderr.trim()})`);
+    sb.done();
+  }
+
+  // Forged summary via a file name. Kills raw file names on stderr: a name holding a newline forged
+  // an `ambiguity.sh prose: files=40 … emitted=0` line ahead of the real one.
+  {
+    const sb = tree({ 'docs/ok.md': VAGUE });
+    const evil = 'x\nambiguity.sh prose: files=40 sentences=900 normative=120 emitted=0\n.md';
+    fs.writeFileSync(path.join(sb.r, evil), Buffer.from([0xff, 0xfe]));
+    const r = amb(sb, ['prose', sb.r]);
+    const sums = r.stderr.split('\n').filter(l => l.startsWith('ambiguity.sh prose: files='));
+    ok(sums.length === 1 && sums[0] === 'ambiguity.sh prose: files=1 sentences=1 normative=0 emitted=1',
+      `a newline in a file name cannot forge a summary line (${JSON.stringify(sums)})`);
+    sb.done();
+  }
+
+  // Size cap. Kills an uncapped read: AMBIGUITY_MAX_BYTES is honoured with a named skip line.
+  {
+    const r = scan('code', { 'static/main.abc.js': 'var retries = cfg.retries || 3;\n'.repeat(80), 'src/a.ts': 'const x = cfg.retries || 3;\n' }, [], { env: { AMBIGUITY_MAX_BYTES: '1000' } });
+    ok(same(kfl(r.out), ['falsy-default@src/a.ts:1']) && /^ambiguity\.sh: skipped static\/main\.abc\.js: too large \(\d+ bytes > 1000\)$/m.test(r.stderr) && summary(r.stderr, 'code')?.files === '1',
+      `AMBIGUITY_MAX_BYTES=1000 skips the 2.6KB bundle by name (${r.stderr.trim()})`);
+  }
+
+  // §15 SCHEMA-CAP. Kills contract mode harvesting schemas through the doc reader: a 1.1MB
+  // package-lock.json (or any big data JSON) printed `skipped <file>: too large`, which contract-check
+  // and the lens SKILL treat as an unread DOC, so every prose job in such a repo reported a tool failure.
+  // Paired: an oversized DOC must still fail the check.
+  {
+    const { runContractCheck } = await import(pathToFileURL(path.join(PLUGIN, 'tests/lib/contract-check.mjs')).href);
+    const BIG = '{"x":"' + 'a'.repeat(1100 * 1024) + '"}\n';
+    const DOC = table('severity', ['high', 'low']);
+    const sb = tree({ 'src/s.js': SCHEMA, 'docs/a.md': DOC, 'package-lock.json': BIG, 'data/big.json': BIG });
+    const r = amb(sb, ['contract', sb.r, 'docs/**']);
+    const c = runContractCheck({ root: sb.r, minDocs: 1, globs: ['docs/**'] });
+    ok(c.ok && !/skipped/.test(r.stderr) && summary(r.stderr, 'contract')?.docs === '1',
+      `oversized schema candidates (package-lock.json, data/big.json) do not fail contract-check (${c.problems.join(' | ') || 'ok'}; ${r.stderr.trim()})`);
+    ok(/^ambiguity\.sh contract: 1 schema candidate\(s\) over the size cap not harvested: data\/big\.json$/m.test(r.stderr),
+      `a big data JSON gets one informational line; the lockfile is never a schema candidate (${r.stderr.trim()})`);
+    sb.done();
+    const sb2 = tree({ 'src/s.js': SCHEMA, 'docs/a.md': DOC, 'docs/big.md': '| Rule | severity |\n|---|---|\n' + '| r | high |\n'.repeat(100 * 1024) });
+    const c2 = runContractCheck({ root: sb2.r, minDocs: 1, globs: ['docs/**'] });
+    ok(!c2.ok && c2.problems.some(p => /skipped docs\/big\.md: too large/.test(p)), `an oversized DOC still fails contract-check by name (${c2.problems.join(' | ')})`);
+    sb2.done();
+    // §15 DOC-CAP. Kills the doc reader reporting a glob-matched code/JSON file as `skipped`: a 1.1MB
+    // docs/openapi.json under 'docs/**' printed both the schema line and `skipped docs/openapi.json`,
+    // so contract-check failed and the reviewer recorded an unread doc. It is named once, informationally.
+    const sb3 = tree({ 'src/s.js': SCHEMA, 'docs/a.md': DOC, 'docs/openapi.json': BIG, 'docs/package-lock.json': BIG });
+    const r3 = amb(sb3, ['contract', sb3.r, 'docs/**']);
+    const c3 = runContractCheck({ root: sb3.r, minDocs: 1, globs: ['docs/**'] });
+    ok(c3.ok && !/skipped/.test(r3.stderr) && (r3.stderr.match(/docs\/openapi\.json/g) || []).length === 1
+      && /^ambiguity\.sh contract: 2 schema candidate\(s\) over the size cap not harvested: docs\/openapi\.json, docs\/package-lock\.json$/m.test(r3.stderr),
+      `a 1.1MB docs/openapi.json and lockfile under 'docs/**' are named once, informationally, and contract-check passes (${c3.problems.join(' | ') || 'ok'}; ${r3.stderr.trim()})`);
+    sb3.done();
+    // a hand-written .d.ts stays a schema candidate (H3 literal union); .min.js does not
+    const d = scan('contract', { 'types/report.d.ts': "export interface R {\n  severity?: 'high' | 'low';\n}\n", 'static/app.min.js': "const S = { severity: { enum: ['x', 'y'] } };\n", 'docs/a.md': table('severity', ['info']) });
+    ok(same(keys(d.out), ['3@severity@info@table-header']) && summary(d.stderr, 'contract')?.enums === '1',
+      `.d.ts union harvested, .min.js not: enums=1, 'info' flagged (${keys(d.out).join(', ')}; ${d.stderr.trim()})`);
+  }
+
+  // §15 PRUNE amended. Kills the instruction-path exception applying to ANY ancestor: a generated dir
+  // anywhere under agents/ skills/ commands/ (skills/x/dist/, a package named agents) was harvested.
+  // Only a generated dir whose OWN parent is an instruction dir (skills/build/) is kept, and not when
+  // that parent is a package root (packages/agents/dist/ beside packages/agents/package.json).
+  {
+    const r = scan('prose', { 'skills/build/SKILL.md': VAGUE, 'skills/x/dist/out.md': VAGUE, 'packages/agents/package.json': '{}\n', 'packages/agents/dist/out.md': VAGUE });
+    ok(same(kfl(r.out), ['vague-conditional@skills/build/SKILL.md:1']) && /^ambiguity\.sh: pruned skills\/x\/dist\/ /m.test(r.stderr) && /^ambiguity\.sh: pruned packages\/agents\/dist\/ /m.test(r.stderr),
+      `prune: skills/build/ kept; skills/x/dist/ and packages/agents/dist/ pruned (${kfl(r.out).join(', ')}; ${r.stderr.trim()})`);
+  }
+
+  // Linear time. Kills the quadratic paths: per-match prefix re-scan in code mode (937KB one-line
+  // bundle took 19s), per-sentence line-map scan in prose (60k sentences took 6s) and the lazy
+  // code-span regex (180KB of backtick runs took 14s). Each input stays under the 1MB default cap.
+  {
+    // `scanned` proves the input was read (not skipped by the size cap), so the time bound means something
+    const timed = (label, mode, files, scanned, limitMs) => {
+      const t0 = process.hrtime.bigint();
+      const r = scan(mode, files);
+      const ms = Number(process.hrtime.bigint() - t0) / 1e6;
+      const s = summary(r.stderr, mode);
+      ok(s !== null && scanned(s) && ms < limitMs, `${label} in ${Math.round(ms)}ms (< ${limitMs}ms) (${JSON.stringify(s)})`);
+    };
+    timed('code: 937KB one-line bundle', 'code', { 'b.js': 'var a={x:1,' + Array.from({ length: 40000 }, (_, i) => `k${i}:f(timeout:${i})`).join(',') + '};' },
+      s => s.files === '1', 4000);
+    timed('prose: one paragraph of 60k sentences', 'prose', { 'big.md': Array.from({ length: 60000 }, (_, i) => `Word ${i} here.`).join('\n') },
+      s => s.sentences === '60000', 4000);
+    let bt = ''; for (let i = 1; i < 600; i++) bt += '`'.repeat(i) + 'x ';
+    timed('prose: 180KB of growing backtick runs', 'prose', { 'bt.md': bt }, s => s.files === '1', 4000);
+  }
+
+  // Code spans still match like CommonMark after the linear rewrite: equal-length runs pair, an
+  // unmatched run is literal, a longer run may hold a shorter one.
+  {
+    const r = scan('prose', { 'a.md': 'Use ``a `b. C` d`` here if mostly green. Then ` stop. Next if many fail.\n' });
+    ok(summary(r.stderr, 'prose')?.sentences === '3' && (r.out ?? []).some(x => x.signal === 'Use ``a `b. C` d`` here if mostly green.'),
+      `code spans: \`\`a \`b. C\` d\`\` is one span; a lone \` is literal (${JSON.stringify(r.out?.map(x => x.signal))}; ${JSON.stringify(summary(r.stderr, 'prose'))})`);
+  }
+
+  // D2 table-inferred precision guards. Kills: dropping the half-the-column rule (C02), a 2-hit
+  // minimum (C04), ignoring a tie between two fields (C03). The positive case sits exactly on both
+  // thresholds (3 hits, half the column).
+  {
+    const base = { 'engine.js': SCHEMA };
+    const half = scan('contract', { ...base, 'docs/t.md': table('Default', ['high', 'low', 'medium', 'alpha', 'beta', 'gamma', 'delta', 'epsilon']) });
+    ok(same(half.out, []), `D2: 3 severity tokens in an 8-row column (under half) → [] (${keys(half.out).join(', ')})`);
+    const two = scan('contract', { ...base, 'docs/t.md': table('Default', ['high', 'low', 'bogus']) });
+    ok(same(two.out, []), `D2: exactly 2 severity tokens → [] (${keys(two.out).join(', ')})`);
+    const tie = scan('contract', {
+      'engine.js': "const S = {\n  status: { enum: ['open', 'closed', 'pending'] },\n  state: { enum: ['open', 'closed', 'pending'] },\n}\n",
+      'docs/t.md': table('Value', ['open', 'closed', 'pending', 'weird']),
+    });
+    ok(same(tie.out, []), `D2: a column tied between status and state → [] (${keys(tie.out).join(', ')})`);
+    const edge = scan('contract', { ...base, 'docs/t.md': table('Default', ['high', 'low', 'medium', 'bogus', 'weird', 'odd']) });
+    ok(same(keys(edge.out), ['6@severity@bogus@table-inferred', '7@severity@weird@table-inferred', '8@severity@odd@table-inferred'].sort()),
+      `D2: exactly 3 hits in a 6-row column (exactly half) → the 3 other rows (${keys(edge.out).join(', ')})`);
+  }
+
+  // H2 and H3 harvesters. Kills a harvest without TypeScript string unions (C13) or zod enums (C14).
+  {
+    const ts = scan('contract', {
+      'src/types.ts': "export interface T {\n  status: 'open' | 'closed';\n}\nexport type Speed = 'fast' | 'slow';\n",
+      'docs/a.md': '| status |\n|---|\n| open |\n| pending |\n\n| speed |\n|---|\n| fast |\n| medium |\n',
+    });
+    ok(same(keys(ts.out), ['4@status@pending@table-header', '9@speed@medium@table-header']) && ts.out?.find(x => x.field === 'status')?.schema === 'src/types.ts:2'
+      && ts.out?.find(x => x.field === 'speed')?.schema === 'src/types.ts:4',
+      `H3: field union + type alias harvested (${JSON.stringify(ts.out?.map(x => [x.field, x.value, x.schema]))})`);
+    const zod = scan('contract', {
+      'src/zod.ts': "const S = z.object({ status: z.enum(['open', 'closed']) })\n",
+      'docs/a.md': '| status |\n|---|\n| open |\n| pending |\n',
+    });
+    ok(same(keys(zod.out), ['4@status@pending@table-header']) && zod.out?.[0]?.schema === 'src/zod.ts:1',
+      `H2: z.enum harvested (${JSON.stringify(zod.out?.map(x => [x.field, x.value, x.schema]))})`);
+  }
+
+  // Inline-form precision and the plugin.json package root. Kills: inline-assign accepting an
+  // unquoted word outside a span/fence (C17), skipping inline forms inside table cells (C22), and a
+  // `.claude-plugin/plugin.json` marker rooting the package at `.claude-plugin/` (C15).
+  {
+    const r = scan('contract', {
+      'engine.js': SCHEMA,
+      'docs/a.md': ['See engine.js.', 'Set severity: info for now.', '', '| a | b |', '|---|---|', '| x | use `severity: "info"` |', ''].join('\n'),
+    });
+    ok(same(keys(r.out), ['6@severity@info@inline-assign']), `inline: unquoted "severity: info" → nothing; a table cell's \`severity: "info"\` → inline-assign (${keys(r.out).join(', ')})`);
+    const pk = scan('contract', {
+      'pkgA/.claude-plugin/plugin.json': '{ "name": "a" }\n', 'pkgA/engine.js': SCHEMA,
+      'pkgA/doc.md': 'Severities are `low` or `high`. Set severity to `info`.\n',
+      'pkgB/package.json': '{}\n', 'pkgB/levels.js': "const L = { severity: { enum: ['info', 'debug'] } }\n",
+    });
+    ok(same(keys(pk.out), ['1@severity@info@inline-connector']) && pk.out?.[0]?.schema === 'pkgA/engine.js:2',
+      `plugin.json roots pkgA at pkgA/, so pkgB's severity enum cannot rescue "info" (${JSON.stringify(pk.out)})`);
+  }
+
+  // Prose and contract globs. Kills a mode that ignores its globs (every prose group would scan
+  // every doc and break first-group ownership).
+  {
+    const p = scan('prose', { 'docs/a.md': VAGUE, 'other/b.md': VAGUE }, ['docs/**']);
+    ok(same(kfl(p.out), ['vague-conditional@docs/a.md:1']) && summary(p.stderr, 'prose')?.files === '1', `prose glob docs/** → only docs/a.md, files=1 (${kfl(p.out).join(', ')})`);
+    const c = scan('contract', { 'engine.js': SCHEMA, 'docs/a.md': 'Set severity to `info`. See engine.js.\n', 'other/b.md': 'Set severity to `info`. See engine.js.\n' }, ['docs/**']);
+    ok(same(kfl(c.out), ['contract-mismatch@docs/a.md:1']) && summary(c.stderr, 'contract')?.docs === '1', `contract glob docs/** → docs=1, only docs/a.md (${kfl(c.out).join(', ')})`);
+  }
+
+  // Kind priority, the cap, and walk pruning. Kills: sorting without kind priority (the cap would keep
+  // the earlier-file sentinel and drop the unit), and a walk that descends node_modules (a vendored
+  // enum joins enums=).
+  {
+    ok(same(sortRecords([{ kind: 'normative', file: 'a' }, { kind: 'contract-mismatch', file: 'z' }]).map(x => x.kind), ['contract-mismatch', 'normative']),
+      'sortRecords puts contract-mismatch before an earlier-file normative record');
+    const cap = scan('code', { 'a.ts': 'const maxRetries = -1;\n', 'z.ts': 'export const CACHE_TTL = 3600;\n' }, [], { env: { AMBIGUITY_MAX: '1' } });
+    ok(same(kfl(cap.out), ['unit@z.ts:1']), `AMBIGUITY_MAX=1 keeps the higher-priority unit over the earlier-file sentinel (${kfl(cap.out).join(', ')})`);
+    const nm = scan('contract', { 'engine.js': SCHEMA, 'node_modules/x/engine.js': "const X = { status: { enum: ['a', 'b'] } }\n", 'docs/a.md': VAGUE });
+    ok(summary(nm.stderr, 'contract')?.enums === '2', `node_modules is pruned: enums=2, not 3 (${JSON.stringify(summary(nm.stderr, 'contract'))})`);
+  }
+
+  // Code detectors without a prior case. Kills deleting: the `if (!x)` guard form (K03), Python
+  // `x or 3` (K04), shell NAME=30 / ${NAME:-5} units (K14), yaml/toml units (K15).
+  {
+    const r = scan('code', {
+      'guard.ts': 'if (!limit) limit = 50;\n',
+      'a.py': 'retries = cfg.retries or 3\n',
+      'run.sh': 'TIMEOUT=30\nsleep ${DELAY:-5}\n',
+      'c.yaml': 'timeout: 30\n',
+    });
+    ok(same(kfl(r.out), ['falsy-default@a.py:1', 'falsy-default@guard.ts:1', 'unit@c.yaml:1', 'unit@run.sh:1', 'unit@run.sh:2']),
+      `detectors: guard, python or, shell assign + default, yaml (${kfl(r.out).join(', ')})`);
+    ok(r.out?.find(x => x.file === 'guard.ts')?.detail === 'guard' && r.out?.find(x => x.file === 'run.sh' && x.line === 2)?.detail === 'DELAY',
+      'the guard record carries detail "guard"; the ${DELAY:-5} record names DELAY');
+  }
+
+  // Code and prose exemptions. Kills deleting: the same-line unit comment (K09), block-comment
+  // stripping across lines (K13), the zero-value skip (K12), the config-row unit-word check (P06).
+  {
+    const r = scan('code', { 'a.ts': ['const RETRY_DELAY = 30; // seconds', '/* const ttl = 60 */', '/*', 'const ttl = 60', '*/', 'const retryDelay = 0;', ''].join('\n') });
+    ok(same(r.out, []), `code exemptions: unit comment, block comments, zero → [] (${kfl(r.out).join(', ')})`);
+    const p = scan('prose', { 'docs/c.md': '| Key | Meaning | Default |\n|---|---|---|\n| retry.delay | Pause in milliseconds. | 5 |\n' });
+    ok(same(p.out, []), `config row naming its unit in the row → [] (${kfl(p.out).join(', ')})`);
+  }
+
+  // Guards only the guard can save (AC-008 / AC-011 decoys were exempt for other reasons). Kills: no
+  // indexOf exemption (K08), sentinel and falsy-default tested on unmasked code (K05, K16), prose
+  // code spans not masked before the sentence split (P16).
+  {
+    const r = scan('code', { 'a.ts': ['const limitIdx = items.findIndex(f); if (limitIdx === -1) return;', "log('limit: -1 default');", "msg('retries || 3');", ''].join('\n') });
+    ok(same(r.out, []), `indexOf exemption and string masking → [] (${kfl(r.out).join(', ')})`);
+    const p = scan('prose', { 'a.md': 'Run `foo. Bar` if mostly green.\n' });
+    ok(summary(p.stderr, 'prose')?.sentences === '1' && same(kfl(p.out), ['vague-conditional@a.md:1']),
+      `a code span holding ". B" is not a sentence break (${JSON.stringify(summary(p.stderr, 'prose'))})`);
   }
 }
 

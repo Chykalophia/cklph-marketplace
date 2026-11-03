@@ -1,0 +1,185 @@
+{
+  "lens": "ambiguity",
+  "cases": [
+    {
+      "id": "F1", "dir": "should-flag/contract-mismatch", "modes": ["contract"],
+      "files": ["agent.example.md", "checklist.example.md", "schema.example.js"],
+      "toolExpect": { "exact": ["contract-mismatch@checklist.example.md:10"] },
+      "expect": [ { "file": "checklist.example.md", "lines": [10, 10], "rules": ["ambiguity:contract-mismatch"], "severity": "medium", "bucket": "quick-win" } ],
+      "lookAlikes": [ { "file": "schema.example.js", "lines": [16, 16], "why": "counts key info is not a severity" } ],
+      "why": "verbatim pre-fix PR #22 row (2602aff checklist.md:13): the Default column is inferred as severity (D2) and its lead token info is outside the severity enum"
+    },
+    {
+      "id": "F2", "dir": "should-flag/scope-clause", "modes": ["prose"],
+      "files": ["SECURITY.example.md"],
+      "toolExpect": { "includes": ["scope@SECURITY.example.md:21", "scope@SECURITY.example.md:22"] },
+      "expect": [ { "file": "SECURITY.example.md", "lines": [22, 24], "rules": ["ambiguity:scope-clause"], "severity": "medium", "bucket": "quick-win" } ],
+      "lookAlikes": [
+        { "file": "SECURITY.example.md", "lines": [11, 11], "why": "within 3 business days carries its unit" },
+        { "file": "SECURITY.example.md", "lines": [16, 16], "why": "self-hosters should update is advice with one reading" },
+        { "file": "SECURITY.example.md", "lines": [21, 21], "why": "the In scope sentence names concrete paths" }
+      ],
+      "why": "OOOhm 1ec208f SECURITY.md anonymized to Acme, same line layout plus the header line: admin-only findings vs findings that grant admin"
+    },
+    {
+      "id": "F3", "dir": "should-flag/vague-conditional", "modes": ["prose"],
+      "files": ["agents/release.example.md"],
+      "toolExpect": { "includes": ["vague-conditional@agents/release.example.md:4"] },
+      "expect": [ { "file": "agents/release.example.md", "lines": [4, 4], "rules": ["ambiguity:vague-conditional"], "severity": "medium", "bucket": "owner-decision" } ],
+      "lookAlikes": [ { "file": "agents/release.example.md", "lines": [6, 6], "why": "crisp sibling: a failed build has one reading" } ],
+      "why": "mostly green gates an irreversible merge and branch delete"
+    },
+    {
+      "id": "F4", "dir": "should-flag/unit-prose", "modes": ["prose"],
+      "files": ["CONFIG.example.md", "config.example.js"],
+      "toolExpect": { "includes": ["unit@CONFIG.example.md:6"] },
+      "expect": [ { "file": "CONFIG.example.md", "lines": [6, 6], "rules": ["ambiguity:unit"], "severity": "medium", "bucket": "quick-win" } ],
+      "lookAlikes": [ { "file": "CONFIG.example.md", "lines": [7, 7], "why": "voters is a count, not a magnitude" } ],
+      "why": "maxWait 300 has no unit; the consumer passes it to setTimeout, so 300 seconds reads as 300 ms (1000x)"
+    },
+    {
+      "id": "F5", "dir": "should-flag/contradiction", "modes": ["prose"],
+      "files": ["agents/reviewer.example.md", "skills/detector/skill.example.md"],
+      "toolExpect": { "includes": ["vague-conditional@skills/detector/skill.example.md:4"] },
+      "expect": [ { "file": "skills/detector/skill.example.md", "lines": [4, 4], "rules": ["ambiguity:contradiction"], "severity": "medium", "bucket": "owner-decision",
+                    "alsoAccept": [ { "file": "agents/reviewer.example.md", "lines": [4, 4] } ] } ],
+      "lookAlikes": [],
+      "why": "the agent says MUST run the detector first; the skill it loads says running it is optional"
+    },
+    {
+      "id": "F6", "dir": "should-flag/overloaded-term", "modes": ["prose"],
+      "files": ["skills/triage/triage.example.md"],
+      "toolExpect": { "includes": [] },
+      "expect": [ { "file": "skills/triage/triage.example.md", "lines": [22, 22], "rules": ["ambiguity:overloaded-term"], "severity": "medium", "bucket": "owner-decision" } ],
+      "lookAlikes": [ { "file": "skills/triage/triage.example.md", "lines": [14, 14], "why": "baseline voters is a defined, separate use; the finding is the instruction that cannot tell them apart" } ],
+      "why": "raise the baseline: suppress more fingerprints vs raise the baseline voter count"
+    },
+    {
+      "id": "C1", "dir": "should-flag/code-unit", "modes": ["code"],
+      "files": ["retry.example.ts"],
+      "toolExpect": { "exact": ["unit@retry.example.ts:2"] },
+      "expect": [ { "file": "retry.example.ts", "lines": [2, 2], "rules": ["ambiguity:unit"], "severity": "medium", "bucket": "targeted-fix",
+                    "alsoAccept": [ { "file": "retry.example.ts", "lines": [9, 9] }, { "file": "retry.example.ts", "lines": [13, 13] } ] } ],
+      "lookAlikes": [],
+      "why": "RETRY_DELAY = 5 is read as ms by setTimeout and as seconds by sleep(RETRY_DELAY * 1000)"
+    },
+    {
+      "id": "C2", "dir": "should-flag/code-falsy-default", "modes": ["code"],
+      "files": ["list.example.ts"],
+      "toolExpect": { "exact": ["falsy-default@list.example.ts:5", "sentinel@list.example.ts:10"] },
+      "expect": [ { "file": "list.example.ts", "lines": [5, 5], "rules": ["ambiguity:falsy-default"], "severity": "medium", "bucket": "targeted-fix" } ],
+      "lookAlikes": [ { "file": "list.example.ts", "lines": [10, 10], "why": "the limit: 0 caller is the evidence for the falsy-default, not a second sentinel finding" } ],
+      "why": "opts.limit || 50 turns the caller's limit: 0 into 50"
+    },
+    {
+      "id": "C3", "dir": "should-flag/code-sentinel", "modes": ["code"],
+      "files": ["quota.example.ts"],
+      "toolExpect": { "exact": ["sentinel@quota.example.ts:18"] },
+      "expect": [ { "file": "quota.example.ts", "lines": [18, 18], "rules": ["ambiguity:sentinel"], "severity": "high", "bucket": "targeted-fix",
+                    "alsoAccept": [ { "file": "quota.example.ts", "lines": [8, 9] } ] } ],
+      "lookAlikes": [],
+      "why": "quotaFor returns -1 for no plan and for unlimited; the consumer allows every -1, so no plan fails open"
+    },
+    {
+      "id": "N1", "dir": "should-not-flag/contract-match", "modes": ["contract"],
+      "files": ["agent.example.md", "checklist.example.md", "engine.example.js", "output-format.example.md"],
+      "toolExpect": { "exact": [] },
+      "expect": [],
+      "lookAlikes": [
+        { "file": "checklist.example.md", "lines": [10, 10], "why": "55868e5 fixed row: low, confidence needs-owner-input" },
+        { "file": "output-format.example.md", "lines": [4, 4], "why": "counts key info, no field binding" },
+        { "file": "output-format.example.md", "lines": [6, 6], "why": "Statuses is not the status field; the closeRule fold in engine.example.js produces unchecked for the matrix" },
+        { "file": "output-format.example.md", "lines": [8, 8], "why": "confirmed-exploitable is allowed by the second confidence enum (union)" }
+      ],
+      "why": "the HEAD precision traps of SPEC-v4 §3.5"
+    },
+    {
+      "id": "N2", "dir": "should-not-flag/clear-scope", "modes": ["prose"],
+      "files": ["SECURITY.example.md"],
+      "toolExpect": { "includes": ["scope@SECURITY.example.md:21", "scope@SECURITY.example.md:24", "scope@SECURITY.example.md:26"] },
+      "expect": [],
+      "lookAlikes": [ { "file": "SECURITY.example.md", "lines": [24, 26], "why": "the fixed clause names the attacker and states that becoming or acting as an admin is in scope" } ],
+      "why": "OOOhm cf98486 SECURITY.md anonymized to Acme: a clear clause is still a tool site"
+    },
+    {
+      "id": "N3", "dir": "should-not-flag/non-normative", "modes": ["prose"],
+      "files": ["GUIDE.example.md"],
+      "toolExpect": { "includes": [] },
+      "expect": [],
+      "lookAlikes": [
+        { "file": "GUIDE.example.md", "lines": [4, 4], "why": "should here is expectation, not an instruction" },
+        { "file": "GUIDE.example.md", "lines": [6, 6], "why": "may is epistemic" },
+        { "file": "GUIDE.example.md", "lines": [8, 8], "why": "usually is descriptive" }
+      ],
+      "why": "non-normative modals and hedges"
+    },
+    {
+      "id": "N4", "dir": "should-not-flag/defined-terms", "modes": ["prose"],
+      "files": ["agents/release.example.md"],
+      "toolExpect": { "includes": ["vague-conditional@agents/release.example.md:6"] },
+      "expect": [],
+      "lookAlikes": [
+        { "file": "agents/release.example.md", "lines": [4, 4], "why": "green is defined inline by checks.required" },
+        { "file": "agents/release.example.md", "lines": [6, 6], "why": "stale is defined in the Definitions section" }
+      ],
+      "why": "same placement as F3; every vague term is defined"
+    },
+    {
+      "id": "N5", "dir": "should-not-flag/unit-explicit", "modes": ["prose"],
+      "files": ["CONFIG.example.md", "retry.example.js"],
+      "toolExpect": { "includes": [] },
+      "expect": [],
+      "lookAlikes": [
+        { "file": "CONFIG.example.md", "lines": [6, 6], "why": "maxWaitMs carries its unit" },
+        { "file": "CONFIG.example.md", "lines": [7, 7], "why": "retry.delay states seconds and the consumer multiplies by 1000" }
+      ],
+      "why": "every quantity has a unit"
+    },
+    {
+      "id": "N6", "dir": "should-not-flag/quoted-antipattern", "modes": ["prose", "contract"],
+      "files": ["schema.example.js", "style.example.md"],
+      "toolExpect": { "includes": [], "exact": [] },
+      "expect": [],
+      "lookAlikes": [
+        { "file": "style.example.md", "lines": [6, 6], "why": "quoted as the anti-pattern under Don't write" },
+        { "file": "style.example.md", "lines": [15, 15], "why": "fenced wrong example; level is a generic field name, no severity binding" }
+      ],
+      "why": "quoted anti-patterns and fenced wrong examples are not findings"
+    },
+    {
+      "id": "N7", "dir": "should-not-flag/consistent-modals", "modes": ["prose"],
+      "files": ["agents/reviewer.example.md", "skills/detector/skill.example.md"],
+      "toolExpect": { "includes": [] },
+      "expect": [],
+      "lookAlikes": [
+        { "file": "skills/detector/skill.example.md", "lines": [4, 4], "why": "agrees with the agent's MUST" },
+        { "file": "skills/detector/skill.example.md", "lines": [8, 8], "why": "should, inside an [INFORMATIONAL] section" }
+      ],
+      "why": "same placement as F5; the modals agree"
+    },
+    {
+      "id": "N8", "dir": "should-not-flag/history", "modes": ["contract"],
+      "files": ["CHANGELOG.example.md", "schema.example.js"],
+      "toolExpect": { "exact": [] },
+      "expect": [],
+      "lookAlikes": [ { "file": "CHANGELOG.example.md", "lines": [6, 6], "why": "history quotes the old value; CHANGELOG* is never in scope" } ],
+      "why": "history docs are skipped"
+    },
+    {
+      "id": "N9", "dir": "should-not-flag/code-clean", "modes": ["code"],
+      "files": ["ok.example.ts"],
+      "toolExpect": { "exact": ["falsy-default@ok.example.ts:29", "sentinel@ok.example.ts:18"] },
+      "expect": [],
+      "lookAlikes": [
+        { "file": "ok.example.ts", "lines": [2, 2], "why": "RETRY_DELAY_MS carries its unit and is used as ms" },
+        { "file": "ok.example.ts", "lines": [14, 14], "why": "?? keeps limit: 0" },
+        { "file": "ok.example.ts", "lines": [18, 18], "why": "limit: 0 means zero items and reaches a ?? default" },
+        { "file": "ok.example.ts", "lines": [22, 22], "why": "string default" },
+        { "file": "ok.example.ts", "lines": [29, 29], "why": "retries is typed 1|2|3|4|5, no caller can pass 0" },
+        { "file": "ok.example.ts", "lines": [33, 33], "why": "indexOf -1 is the standard not-found value" },
+        { "file": "ok.example.ts", "lines": [36, 36], "why": "documented sentinel on the same line" }
+      ],
+      "why": "code look-alikes the LLM must not confirm"
+    }
+  ]
+}

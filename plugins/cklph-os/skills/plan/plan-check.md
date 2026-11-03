@@ -11,5 +11,6 @@ For each task, confirm:
 - [ ] Dependencies are correct; **no two tasks in the same wave edit the same file**.
 - [ ] Sized to land in one focused sub-agent context.
 - [ ] Decision logic in the brief is **explicit (matrices / rules), not ambiguous prose**, and out-of-scope is stated.
+- [ ] Every quantity in the brief has a unit, and every value the brief tells the implementer to emit, write or return is accepted by the schema, enum or type that receives it (cite file:line). An instruction that contradicts its own contract fails silently at runtime.
 
 Marker: end with `## PLAN VERIFIED` (clean) or `## PLAN ISSUES` + the list (BLOCKER / WARNING per task).

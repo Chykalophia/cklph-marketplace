@@ -65,6 +65,17 @@ One table per lens:
 | webhook POST handlers | `grep -rln "async function POST" app/api/webhooks/` | 6 / 9 — **sampled**: risk-weighted to signature-bearing routes |
 
 **Reviewer coverage:** seeds verified 14 / 14 given · tool candidates judged 87
+
+### ambiguity
+
+| Group | Denominator | Command | Examined |
+| --- | --- | --- | --- |
+| policy | normative sentences | `ambiguity.sh prose . '**/SECURITY.md' …` | 31 / 31 |
+| policy | scope sites | `ambiguity.sh prose . '**/SECURITY.md' …` | 4 / 4 |
+| instructions | contract docs / enums | `ambiguity.sh contract . '**/skills/**/*.md' …` | 44 / 44 docs · 18 enums |
+
+**Reviewer coverage:** seeds verified 3 / 3 given · tool candidates judged 12
+Dropped by the ambiguity proof contract (held without a divergence trace): 1 (amb-7)
 ```
 
 Rules for the summary:
@@ -72,6 +83,7 @@ Rules for the summary:
 - Where `X < N`, the row says **sampled** and gives the sampling rationale (risk-weighting) — never leave a shortfall unexplained.
 - Each lens states its reviewer coverage: `seedsVerified / seedsGiven` and `toolCandidatesJudged`.
 - Each lens lists every tool failure its reviewers reported (`COVERAGE_TOTALS.<lens>.reviewed.toolFailures`: a scanner that failed, was missing, or whose output could not be parsed). That recall did NOT run, so its zero candidates mean **not checked**, never clean — say so on the lens line.
+- **ambiguity** (when the lens ran): one row per prose group per denominator, from the tool's stderr summaries: `normative` sentences, scope sites, and for the contract mode the docs scanned and schema enums found, each shown as `examined X / N`. Then the line `Dropped by the ambiguity proof contract (held without a divergence trace): N (<ids>)` from `PROOF_CONTRACT_DROPPED`: low/medium ambiguity findings the panel held but no voter traced, so they were not confirmed. Always write the line, with `0` when the list is empty; those ids never appear in a severity section or a wave.
 - If recon didn't run for a lens (quick mode, config, agent died), say so here in one line — and expand why in the appendix. Never render an empty table silently.
 
 ## 3. Coverage matrix
@@ -174,6 +186,11 @@ One section per severity, highest first: `## Critical` → `## High` → `## Med
 - **Reachability:** <the concrete attacker-input→sink or invariant-violation path the verifier confirmed>
 - **Exploit proof:** <when DAST/exploit ran: the PoC script + sandbox result — "confirmed-exploitable" or "likely (static only)">
 - **Patch:** <when the Patch phase ran: the diff summary + "testsPass: ✓, exploitClosed: ✓, judge: addresses root cause" or "patch-unverified" + why>
+- **Readings:** A: "<reading a>" · B: "<reading b>"            # ambiguity:* only
+- **Diverges for:** <consumer>: A → <outcome>; B → <outcome>   # ambiguity:* only
+- **Proposed wording:**                                        # ambiguity:* only
+  - <old line, quoted>
+  + <new line, quoted>
 
 ```ts
 // the offending code, quoted exactly (a few lines of context)
@@ -193,6 +210,7 @@ Rules for every finding:
 - The **why-real** must explain the impact, and the **verifier note** must state it survived the default-to-refuted vote (this is the plugin's core trust signal — every shipped finding passed it). For `source: "reasoning"` findings with no deterministic tool, label them **candidate for human review**, honestly.
 - The **Confidence / Bucket / Context / Validated by** lines carry the reviewer's `confidence`, `remediationBucket`, `context`, and `validationSteps` — emit all four. Severity was derived from context (real exploitability, not raw pattern match); the Context line shows that work.
 - The **Root cause / Invariant** lines carry the reviewer's `rootCause` and `invariant` — the underlying fault and the violated property, not the symptom; emit both when supplied. **Boundary** carries `boundary` — emit it only when the Map phase ran and the reviewer cited the trust boundary crossed (omit the line otherwise). **Reachability** carries the verifier's `reachabilityTrace` — the concrete attacker-input→sink (or invariant-violation) path. A confirmed `critical`/`high` **always** has one: under the evidence arbiter a critical/high with no trace does not promote, so its presence *is* the promotion proof — render it. `low`/`medium` may omit it.
+- **`ambiguity:*` findings only** carry three more lines. **Readings** quotes reading A and reading B (`readings.a`, `readings.b`). **Diverges for** names the consumer (a caller, schema, agent, or human-reader role such as "a reporter deciding scope") and the outcome under each reading, from `readings` and the verifier's divergence trace in `reachabilityTrace`. **Proposed wording** gives the old line, then the new line, the way a code-review suggestion does; for a contract mismatch the new line uses a value the schema allows. For these the Reachability line is the divergence trace, and an ambiguity finding has one at every severity (the proof contract drops it otherwise). The verifier note reads: *survived adversarial refutation: voters independently reproduced both readings and found no disambiguator.* Omit all three lines for every other lens.
 - Cite the rule id (CWE/ASVS/own-rule). If a repo rule applied, name it.
 - Finding ids are stable per-report (`C-1`, `H-3`, `M-2`, `L-1`) and are what remediation waves and the coverage matrix reference.
 
@@ -265,9 +283,12 @@ A `## Remediation waves` section: ordered groups of findings designed to be hand
 
 ### Owner decisions
 - **[M-4] <title>** — <the question: what looks intentional, what evidence says so, what the owner should confirm>
+
+#### SECURITY.md
+- **[M-3] `SECURITY.md:21` scope clause**: which did you mean, A or B? If A: "<rewrite A>". If B: "<rewrite B>". To keep the text as written, baseline it.
 ```
 
-The waves section closes with an `### Owner decisions` subsection: findings with `remediationBucket: owner-decision` are **questions for the repo owner, not scheduled work** — intentional-but-not-locally-obvious calls only the owner can make. They are NOT placed in a wave. Every confirmed finding belongs to exactly one wave **or** to Owner decisions; waves are ordered, and each rationale explains why the wave is sequenced where it is.
+The waves section closes with an `### Owner decisions` subsection: findings with `remediationBucket: owner-decision` are **questions for the repo owner, not scheduled work** — intentional-but-not-locally-obvious calls only the owner can make. They are NOT placed in a wave. An `owner-decision` **ambiguity** finding is phrased as an A-or-B question in exactly the form above: which did you mean, A or B, one rewrite per reading, and "keep as written" means baseline the fingerprint. Group those entries per document (one `####` heading per doc), so the owner settles one file at a time. Every confirmed finding belongs to exactly one wave **or** to Owner decisions; waves are ordered, and each rationale explains why the wave is sequenced where it is.
 
 ## 9. Appendix — coverage & what was skipped (NO silent truncation)
 

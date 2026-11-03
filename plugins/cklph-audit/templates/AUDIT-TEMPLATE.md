@@ -60,6 +60,9 @@ Where examined < N, the row says **sampled** and gives the risk-weighting ration
 
 **Reviewer coverage:** seeds verified <X> / <N> given · tool candidates judged <N>
 
+<!-- ambiguity lens only: per-group denominators (normative, scope sites, contract docs / enums) as examined X / N, then: -->
+Dropped by the ambiguity proof contract (held without a divergence trace): <N> (<ids>)
+
 ---
 
 ## Coverage matrix
@@ -94,7 +97,7 @@ crown jewels; if none (the Map phase did not run), narrate per lens from the cov
 
 ### C-1: <title>
 - **Where:** `<file>:<line>`
-- **Lens / rule:** <security | correctness | architecture> · `<CWE-… | ASVS-… | own-rule>`
+- **Lens / rule:** <security | correctness | architecture | ambiguity> · `<CWE-… | ASVS-… | own-rule | ambiguity:…>`
 - **Confidence:** <confirmed | likely | needs-owner-input>
 - **Bucket:** <quick-win | targeted-fix | systemic-refactor | owner-decision>
 - **Context:** <server | client | shared> / <prod | test | generated> / <gated | ungated>
@@ -103,6 +106,11 @@ crown jewels; if none (the Map phase did not run), narrate per lens from the cov
 - **Invariant:** <the property the code must guarantee that this finding violates>
 - **Boundary:** <the trust boundary crossed — only when the Map phase supplied one>
 - **Reachability:** <the attacker-input→sink or invariant-violation path the verifier confirmed — a confirmed critical/high always has one>
+- **Readings:** A: "<reading a>" · B: "<reading b>"   <!-- ambiguity:* only; omit for every other lens -->
+- **Diverges for:** <consumer>: A → <outcome>; B → <outcome>
+- **Proposed wording:**
+  - <old line, quoted>
+  + <new line, quoted>
 - **Snippet:**
   ```ts
   <the offending code>
@@ -208,6 +216,11 @@ Questions for the repo owner, not scheduled work — `owner-decision` findings a
 intentional-but-not-locally-obvious calls only the owner can settle.
 
 - **[<id>] <title>** — <the question: what looks intentional, what evidence says so, what to confirm>
+
+Ambiguity owner decisions are A-or-B questions, grouped per document:
+
+#### <doc path>
+- **[<id>] `<file>:<line>` <rule kind>**: which did you mean, A or B? If A: "<rewrite A>". If B: "<rewrite B>". To keep the text as written, baseline it.
 
 ---
 

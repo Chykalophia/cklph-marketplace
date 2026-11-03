@@ -22,10 +22,14 @@
 //                  handed, names root-cause + violated invariant, reports honest
 //                  coverage. docs-drift, agent-config + compliance are NOT crossed
 //                  with units: exactly ONE job each (compliance runs post-reconcile).
+//                  ambiguity: one job per prose group (ambiguity.prose.groups);
+//                  crossed with units only when ambiguity.code is true.
 //   5. VERIFY    — audit-verifier refutes each finding from COMMENT-STRIPPED code
 //                  (default-refuted). Evidence, not vote tally, arbits (T1.3):
 //                  low/medium promote on majority, critical/high require a
 //                  reachabilityTrace. Depth risk-routed per unit (T1.4). Pipelined.
+//                  ambiguity: unstripped snippet, proof contract, a divergence
+//                  trace at EVERY severity (untraced low/medium → PROOF_CONTRACT_DROPPED).
 //   6. DAST      — opt-in (dast.enabled): audit-dast-runner boots the app, runs
 //                  ZAP/Nuclei/ffuf, collects runtime findings → re-enter verify.
 //                  Then audit-exploit-verifier generates PoC exploits for confirmed
@@ -81,6 +85,20 @@ const config = args?.config ?? {}
 const baseline = new Set((args?.baseline?.fingerprints) ?? [])
 const mode = args?.mode ?? 'full'
 const rulesFromList = config.rulesFrom ?? ['CLAUDE.md', 'AGENTS.md']
+// D24: optional cap on agents alive at once (0 = no cap, the default and today's behaviour).
+// Every agent spawn below goes through callAgent; the global is never redeclared.
+const maxConcurrentAgents = Math.max(0, Number(config.maxConcurrentAgents ?? 0) || 0)
+let agentsInFlight = 0
+const agentWaiters = []
+function callAgent(prompt, opts) {
+  if (!maxConcurrentAgents) return agent(prompt, opts)
+  // release() hands the slot straight to the next waiter (no decrement), so a new caller can never
+  // slip in between a release and the waiter's start and push in-flight over the cap.
+  const release = () => { const next = agentWaiters.shift(); if (next) next(); else agentsInFlight-- }
+  const run = () => Promise.resolve().then(() => agent(prompt, opts)).finally(release)
+  if (agentsInFlight < maxConcurrentAgents) { agentsInFlight++; return run() }
+  return new Promise(res => agentWaiters.push(res)).then(run)
+}
 // agent-config lens: the repo's AI-tooling layer (MCP configs, Claude/agent settings, hooks,
 // instruction docs, skills, agent definitions). One job over these globs, never crossed with units.
 // Hook globs are anchored to agent tooling (.claude/hooks, plugin hooks) — a bare '**/hooks/**'
@@ -106,6 +124,60 @@ const agentConfigGlobs = scopePath
     ]
   : agentConfigGlobsBase
 const inScope = f => !scopePath || f === scopePath || f.startsWith(scopePath + '/')
+
+// ambiguity lens (SPEC-v4-ambiguity §4.2): one prose review job per group; the FIRST matching group
+// owns a file. prose.groups / prose.exclude REPLACE the defaults; config.ignore is always added.
+const scopeGlobs = gs => scopePath ? gs.map(g => `${scopePath}/${g}`) : gs
+const AMBIGUITY_PROSE_DEFAULT = {
+  policy: ['**/SECURITY.md','**/CONTRIBUTING.md','**/CODE_OF_CONDUCT.md','**/PRIVACY*.md','**/SUPPORT.md','**/GOVERNANCE.md','README.md','**/security.md','**/contributing.md','**/code_of_conduct.md','**/privacy*.md','**/support.md','**/governance.md'],
+  instructions: ['**/.claude/**/*.md','**/skills/**/*.md','**/agents/*.md','**/commands/*.md','**/.cursor/rules/**','**/.github/copilot-instructions.md','**/CLAUDE.md','**/AGENTS.md'],
+}
+const AMBIGUITY_EXCLUDE_DEFAULT = ['**/CHANGELOG*.md','**/HISTORY.md','**/LICENSE*','**/NOTICE*.md','**/fixtures/**','**/node_modules/**','**/vendor/**']
+// This block runs at load for EVERY run, so config values are normalized first: a YAML string where a
+// list is expected is one glob, anything else is none (a bare string used to crash every lens, §15).
+const asGlobs = v => Array.isArray(v) ? v.filter(g => typeof g === 'string' && g) : (typeof v === 'string' && v ? [v] : [])
+const ignoreGlobs = asGlobs(config.ignore)
+const ambCfg = (config.ambiguity && typeof config.ambiguity === 'object') ? config.ambiguity : {}
+const ambCode = String(ambCfg.code ?? false).toLowerCase() === 'true'
+const ambGroupsCfg = ambCfg.prose?.groups
+// unscoped (tool-root-relative) groups; the engine scopes them for its own seed filtering
+const ambGroupsRaw = Object.entries((ambGroupsCfg && typeof ambGroupsCfg === 'object' && !Array.isArray(ambGroupsCfg)) ? ambGroupsCfg : {
+  ...AMBIGUITY_PROSE_DEFAULT,
+  instructions: [...new Set([...AMBIGUITY_PROSE_DEFAULT.instructions, ...rulesFromList])],
+}).map(([k, g]) => [k, asGlobs(g)]).filter(([, g]) => g.length)
+const ambGroups = ambGroupsRaw.map(([k, g]) => [k, scopeGlobs(g)])
+const ambExcludeRaw = ambCfg.prose?.exclude == null ? AMBIGUITY_EXCLUDE_DEFAULT : asGlobs(ambCfg.prose.exclude)
+const ambExclude = [...scopeGlobs(ambExcludeRaw), ...ignoreGlobs]
+// D25: the reviewer's tool root is the scope path; config.ignore is repo-relative. Under a scope:
+// '**/'-led globs apply at any depth, so they pass unchanged; globs under the scope are rebased; any
+// other glob is anchored elsewhere and cannot match inside it (§15).
+const ambToolRoot = scopePath || '.'
+const ambToolIgnore = ignoreGlobs.flatMap(g => !scopePath || g.startsWith('**/') ? [g] : g.startsWith(scopePath + '/') ? [g.slice(scopePath.length + 1)] : [])
+// tool paths are TOOL-ROOT-relative; seeds and findings must be repo-relative (S2). A path already
+// inside the scope is kept; any other path is a tool path and gets the scope prefix.
+const ambRepoPath = f => (!scopePath || !f || inScope(f)) ? f : `${scopePath}/${f}`
+const ambRepoPathNote = scopePath ? ` Report every file with its repo-relative path: prefix \`${scopePath}/\` to each tool path.` : ''
+// one predicate for "this finding is held to the ambiguity proof contract" (verify AND Variant)
+const isAmbiguityFinding = (f, lens) => lens === 'ambiguity' || f?.lens === 'ambiguity' || /^ambiguity:/.test(String(f?.rule ?? ''))
+const ambAllProse = ambGroups.flatMap(([, g]) => g)
+const isProseFile = f => /\.(md|mdx|markdown|rst|txt)$/i.test(f) || (ambAllProse.length > 0 && globMatch(f, ambAllProse))
+// the literal tool command handed to recon + reviewer (D25: TOOL ROOT + unscoped globs, shell-quoted)
+const shq = s => `'${String(s).replace(/'/g, `'\\''`)}'`
+const ambCmd = (mode, globs = [], exclude = []) => [
+  '${CLAUDE_PLUGIN_ROOT}/tools/ambiguity.sh', mode, /^[\w@%+=:,./-]+$/.test(ambToolRoot) ? ambToolRoot : shq(ambToolRoot),
+  ...exclude.flatMap(g => ['--exclude', shq(g)]), ...globs.map(shq),
+].join(' ')
+// one prose unit per group, built once so recon and review hand the tool identical commands (§4.4)
+const ambProseUnits = []
+{
+  const owned = [], ownedRaw = []                    // the first matching group owns a file
+  for (const [i, [key, globs]] of ambGroups.entries()) {
+    const raw = ambGroupsRaw[i][1]
+    ambProseUnits.push({ key: `prose-${key}`, title: `Prose: ${key}`, globs, exclude: [...ambExclude, ...owned],
+      toolGlobs: raw, toolExclude: [...ambExcludeRaw, ...ambToolIgnore, ...ownedRaw], prose: true, confidence: 1 })
+    owned.push(...globs); ownedRaw.push(...raw)
+  }
+}
 
 // vulnIntel: auto-detect MCP tools (cve-mcp, vuln-intel-ext) when available.
 // 'auto' (default) or true = the SCA reviewer uses them if present and falls back to local tools
@@ -141,6 +213,13 @@ const PLAN_SCHEMA = {
   },
 }
 
+// the ONE lens-hint list: RULEBOOK_SCHEMA's enum and the rulebook prompt both read it (never copy it)
+const LENS_HINTS = ['security','correctness','architecture','docs-drift','sca','iac','container','k8s','supply-chain','compliance','concurrency','state-machine','economic','omission','agent-config','ambiguity','any']
+// The rulebook prompt OFFERS the pre-v4 base hints plus every running lens that has review jobs: a rule
+// hinted for a lens with no reviewer this run closes NOT CHECKED (compliance has none, so it is never
+// offered). Filtered from LENS_HINTS, so the prompt can never drift from the schema enum (§15).
+const RULEBOOK_HINT_BASE = ['security', 'correctness', 'architecture', 'docs-drift', 'agent-config', 'any']
+const rulebookHints = LENS_HINTS.filter(h => RULEBOOK_HINT_BASE.includes(h) || (h !== 'compliance' && lenses.includes(h)))
 const RULEBOOK_SCHEMA = {
   type: 'object',
   required: ['rules'],
@@ -154,7 +233,7 @@ const RULEBOOK_SCHEMA = {
           id: { type: 'string' },                // stable slug, e.g. "agents-md:rule-3"
           source: { type: 'string' },            // file:line
           text: { type: 'string' },              // verbatim or tight paraphrase
-          lensHint: { type: 'string', enum: ['security', 'correctness', 'architecture', 'docs-drift', 'sca', 'iac', 'container', 'k8s', 'supply-chain', 'compliance', 'concurrency', 'state-machine', 'economic', 'omission', 'agent-config', 'any'] },
+          lensHint: { type: 'string', enum: LENS_HINTS },
         },
       },
     },
@@ -237,6 +316,7 @@ const REVIEW_SCHEMA = {
           invariant: { type: 'string' },             // T1.2: the property this violates
           boundary: { type: 'string' },              // T2.1: the trust boundary crossed (filled when Map ran)
           reachabilityTrace: { type: 'string' },     // T1.3: attacker-input→sink / invariant-violation path (from verify)
+          readings: { type: 'object', properties: { a: { type: 'string' }, b: { type: 'string' }, consumer: { type: 'string' }, divergence: { type: 'string' } } },   // ambiguity lens
           context: {                                 // classify BEFORE severity
             type: 'object',
             properties: {
@@ -557,6 +637,75 @@ const SEV_RANK = { critical: 4, high: 3, medium: 2, low: 1 }
 // counter. Default 400 leaves ~600 for everything else — tune down if a huge unit set still nears 1000.
 const maxVerifierAgents = config.verify?.maxVerifierAgents ?? 400
 let verifierSpawns = 0
+// D11: low/medium ambiguity findings held WITHOUT a voter divergence trace — not promoted, never silent
+const proofContractDropped = []
+let proofContractUsed = false        // some finding went through the proof contract (synth renders it)
+
+// §5 trace shape `A → outcome | B → outcome @ consumer`, checked by a LINEAR parse, never a regex over
+// the whole trace: a backtracking regex went super-linear on a long arrow-only trace with no '@'
+// (10KB took 137s on the event loop), and its [^|] sides rejected a trace quoting `x || 3`, the very
+// code ambiguity:falsy-default is about (§15 TRACE-PARSE). Inside code spans only '|' and '@' are
+// masked: a quoted `x || 3` or `user@host` is not structure, but an arrow inside a backticked reading
+// (`A → 3`) still counts (§15 TRACE-SHAPE). Exactly ONE lone '|' in the whole trace, before the last
+// '@' (a pipe after it is a third side); each side needs an arrow (→, ->, ⇒, =>) with real text on both
+// ends: 'n/a', 'none', 'tbd', 'see reason' and bare punctuation are filler, not a reading.
+const TRACE_FILLER = /^[\s\-–—?.…:;,'"`()[\]]*(n\/?a|none|tbd|todo|unknown|see (the )?reason)?[\s\-–—?.…:;,'"`()[\]]*$/i
+function isDivergenceTrace(raw) {
+  const s = String(raw ?? '').slice(0, 4000)       // bounded input: reachabilityTrace has no maxLength
+  let masked = '', inCode = false
+  for (const ch of s) { if (ch === '`') { inCode = !inCode; masked += ' '; } else masked += inCode && (ch === '|' || ch === '@') ? 'x' : ch }
+  if (inCode) masked = s                           // an unclosed backtick masks nothing
+  const at = masked.lastIndexOf('@')
+  if (at < 0 || TRACE_FILLER.test(masked.slice(at + 1))) return false
+  const pipes = []
+  for (let i = 0; i < masked.length; i++) if (masked[i] === '|' && masked[i - 1] !== '|' && masked[i + 1] !== '|') pipes.push(i)
+  if (pipes.length !== 1 || pipes[0] > at) return false
+  const head = masked.slice(0, at)
+  const sideOk = side => {
+    const arrows = [...side.matchAll(/→|->|⇒|=>/g)]
+    if (!arrows.length) return false
+    const first = arrows[0], last = arrows[arrows.length - 1]
+    return !TRACE_FILLER.test(side.slice(0, first.index)) && !TRACE_FILLER.test(side.slice(last.index + last[0].length))
+  }
+  return sideOk(head.slice(0, pipes[0])) && sideOk(head.slice(pipes[0] + 1))
+}
+
+// §15 TRACE-CHAIN: ambiguity:contract-mismatch has no "two readings" — its proof is the load chain
+// doc:line → consumer:line → schema:line → V not in set → loss. Accept that chain as the trace for
+// that rule only: >= 3 arrows and >= 2 file:line cites, over the same bounded, code-span-masked text
+// (an allowed set written as a union `a | b | c` must not break it, so pipes are not inspected here).
+function isContractChainTrace(raw) {
+  const s = String(raw ?? '').slice(0, 4000)
+  const arrows = (s.match(/→|->|⇒/g) || []).length
+  const cites = (s.match(/[\w./-]+\.[A-Za-z0-9]+:\d+/g) || []).length
+  return arrows >= 3 && cites >= 2
+}
+function isAmbiguityTrace(raw, rule) {
+  return isDivergenceTrace(raw) || (rule === 'ambiguity:contract-mismatch' && isContractChainTrace(raw))
+}
+
+// §5: replaces the security-shaped intro for ambiguity findings (lens ambiguity or rule ambiguity:*).
+const AMBIGUITY_PROOF_PROMPT =
+  `AMBIGUITY PROOF CONTRACT: this finding claims the text reads two ways (or, for ` +
+  `ambiguity:contract-mismatch, prescribes a value its contract rejects). Default refuted:true. You are ` +
+  `not asked which reading the author meant; you are asked whether the divergence is real. HOLD only if ` +
+  `you independently establish, each with file:line: (1) reading A and reading B, both ones this ` +
+  `artifact's actual audience would take without asking the author; (2) the consumer (an agent that ` +
+  `loads the doc, a schema its output must match, the reporter a policy addresses, an operator, the ` +
+  `code that reads a value); (3) different outcomes under A and B; (4) no disambiguator on the ` +
+  `consumer's path (same paragraph, a definitions section, a doc the consumer is told to load, a ` +
+  `pinning example, a schema/type/default, a test, an [INFORMATIONAL]/[REFERENCE] marker). Put ` +
+  `"A → outcome | B → outcome @ consumer file:line or reader role" in reachabilityTrace; a hold without ` +
+  `it is discarded. REFUTE with counterEvidence file:line when a disambiguator exists, when reading B ` +
+  `needs a misparse or a hostile reader, when both readings give the same outcome, or when the text is ` +
+  `non-normative (narrative, changelog, quoted anti-pattern, fenced example). Comments and prose ARE ` +
+  `evidence here: read them. For contract-mismatch: hold only with the full chain doc:line prescribes V ` +
+  `for F → consumer:line loads the doc → schema:line allowed set → V not in it → what is lost, and put that chain (each hop's file:line, value sets in backticks) in reachabilityTrace; refute if ` +
+  `V binds to a different field that allows it, if any same-named enum in that package allows V, if the ` +
+  `doc is not on that consumer's path, or if a mapping step converts V first. For code (unit / ` +
+  `falsy-default / sentinel): the code is the arbiter; hold only with a producer and consumer (or a ` +
+  `reachable caller value) that diverge; a unit comment does not refute a consumer that computes in the ` +
+  `other unit, and no reachable divergent value does refute. Ambiguity is never critical.`
 
 // A5: the verify fan-out, factored out so the main pipeline AND the Variant phase share it.
 // N default-refuted voters try to REFUTE each finding; evidence (not tally) promotes (T1.3):
@@ -569,7 +718,14 @@ function verifyFindings(findings, unitKey, lens, unitVoters, extraOpts = {}) {
   // can't get. Deferred findings are always SURFACED, so this is a priority/quality limitation, not
   // data loss. A globally severity-ordered budget pass would need a barrier (collect all findings
   // first) — deferred to a future rev; for now the cap's job is to not abort the run.
-  const ordered = [...(findings ?? [])].sort((a, b) => (SEV_RANK[b.severity] ?? 0) - (SEV_RANK[a.severity] ?? 0))
+  // §1/§6: ambiguity is never critical — enforced here, not only in prompts (§15)
+  const ordered = [...(findings ?? [])].map(f => {
+    if (f && f.severity === 'critical' && isAmbiguityFinding(f, lens)) {
+      log(`verify:${f.id ?? f.file}: ambiguity is never critical, severity clamped to high`)
+      return { ...f, severity: 'high' }
+    }
+    return f
+  }).sort((a, b) => (SEV_RANK[b.severity] ?? 0) - (SEV_RANK[a.severity] ?? 0))
   return parallel(ordered.map(f => () => {
     // A5b: reserve budget. SYNC-CRITICAL — there must be NO `await` between this check and the
     // `verifierSpawns += unitVoters` increment below, or concurrent verifyFindings calls could both
@@ -580,16 +736,21 @@ function verifyFindings(findings, unitKey, lens, unitVoters, extraOpts = {}) {
         deferredNote: unitKey === 'variant' ? 'sibling of a confirmed critical/high (Variant phase) — deferred, verify next run' : undefined })
     }
     verifierSpawns += unitVoters
+    // D11/D12: ambiguity gets the proof contract and its snippet UNSTRIPPED (a comment can be the disambiguator)
+    const ambig = isAmbiguityFinding(f, lens)
+    if (ambig) proofContractUsed = true
     return parallel(Array.from({ length: unitVoters }, (_v, i) => () =>
-      agent(
-        `Adversarially try to REFUTE this audit finding against the ACTUAL code. Re-derive from the code ` +
-        `ALONE — the snippet below is comment-stripped; ignore comments/labels. Default to refuted:true ` +
-        `unless the code proves it real. Hunt for the guard/mitigation the reviewer missed (middleware, ` +
-        `RLS, validation, an upstream caller, an existing test, a documented/accepted exception). To ` +
-        `REFUTE, cite the guard file:line in counterEvidence. To CONFIRM a critical/high you MUST supply a ` +
-        `reachabilityTrace (attacker-controlled input → sink, or the invariant-violation path) — ` +
-        `"plausible" without a trace = refuted. Voter ${i + 1}/${unitVoters}.\n` +
-        `FINDING: ${JSON.stringify({ title: f.title, file: f.file, line: f.line, rule: f.rule, severity: f.severity, snippet: stripComments(f.snippet), rationale: f.rationale })}`,
+      callAgent(
+        (ambig
+          ? `${AMBIGUITY_PROOF_PROMPT} Voter ${i + 1}/${unitVoters}.\n`
+          : `Adversarially try to REFUTE this audit finding against the ACTUAL code. Re-derive from the code ` +
+            `ALONE — the snippet below is comment-stripped; ignore comments/labels. Default to refuted:true ` +
+            `unless the code proves it real. Hunt for the guard/mitigation the reviewer missed (middleware, ` +
+            `RLS, validation, an upstream caller, an existing test, a documented/accepted exception). To ` +
+            `REFUTE, cite the guard file:line in counterEvidence. To CONFIRM a critical/high you MUST supply a ` +
+            `reachabilityTrace (attacker-controlled input → sink, or the invariant-violation path) — ` +
+            `"plausible" without a trace = refuted. Voter ${i + 1}/${unitVoters}.\n`) +
+        `FINDING: ${JSON.stringify({ title: f.title, file: f.file, line: f.line, rule: f.rule, severity: f.severity, snippet: ambig ? f.snippet : stripComments(f.snippet), rationale: f.rationale, ...(ambig && f.readings ? { readings: f.readings } : {}) })}`,
         { agentType: 'cklph-audit:audit-verifier', label: `verify:${f.id ?? f.file}`, phase: 'Verify', schema: VERDICT_SCHEMA, ...tier('verifier'), ...extraOpts },
       )))
       .then(votes => {
@@ -612,9 +773,16 @@ function verifyFindings(findings, unitKey, lens, unitVoters, extraOpts = {}) {
         // votes: a tie, or a lone survivor citing a guard, does not clear a critical/high.
         const majorityRefuted = quorumMet && (v.length - holds) > v.length / 2
         const cleanlyRefuted = majorityRefuted && refutedGuards.length > 0    // majority refuted AND a guard was cited → a real near-miss
-        const voterTrace = v.find(x => !x.refuted && x.reachabilityTrace && x.reachabilityTrace.trim())
+        // D11: an ambiguity trace must have the §5 shape `A → outcome | B → outcome @ consumer`; filler
+        // ('n/a', 'see reason') is not a trace (§15)
+        const voterTrace = v.find(x => !x.refuted && (ambig ? isAmbiguityTrace(x.reachabilityTrace, f.rule) : (x.reachabilityTrace && x.reachabilityTrace.trim())))
         const isHighSev = highSev
-        const confirmed = pass && (!isHighSev || !!voterTrace)
+        // D11: an ambiguity finding needs a voter divergence trace at EVERY severity
+        const confirmed = pass && (!(isHighSev || ambig) || !!voterTrace)
+        if (ambig && pass && !voterTrace && !isHighSev) {
+          log(`verify:${f.id ?? f.file}: ambiguity held without a divergence trace, refuted by the proof contract`)
+          proofContractDropped.push({ id: f.id, file: f.file, line: f.line, rule: f.rule, severity: f.severity })
+        }
         // every high-sev that isn't confirmed and wasn't cleanly refuted is surfaced — no high-sev silent drop.
         // NOT all of these held the majority: heldReason says which case it is, so the report never
         // calls a majority-REFUTED, split or no-quorum finding "majority-held".
@@ -647,7 +815,7 @@ if (!reconEnabled) {
 const wantScout = (config.units?.autoInfer ?? true) && !config.units?.list?.length
 if (!wantScout && !config.units?.list?.length) log('units.autoInfer is false and no units.list supplied — no units will be inferred; supply units.list to audit any unit-lens')
 const discovered = await parallel([
-  ...(wantScout ? [() => agent(
+  ...(wantScout ? [() => callAgent(
     `Decompose this repo into reviewable UNITS for an audit. ${args?.path ? `Scope to: ${args.path}. ` : ''}` +
     `Lenses to be run: ${lenses.join(', ')}. Infer units from top-level dirs, route trees, and ` +
     `service/repository layers. Give each unit a confidence (does this glob set cohere into one ` +
@@ -655,15 +823,15 @@ const discovered = await parallel([
     `needsDeepMap=true if the repo doesn't decompose cleanly. Honor ignore globs: ${JSON.stringify(config.ignore ?? [])}.`,
     { agentType: 'cklph-audit:audit-scout', label: 'discover:scout', schema: PLAN_SCHEMA, ...tier('scout') },
   )] : []),
-  () => agent(
+  () => callAgent(
     `Extract this repo's RULEBOOK: parse ${JSON.stringify(rulesFromList)} into discrete rules ` +
     `(skip files that don't exist). Each rule: stable slug id (e.g. "agents-md:rule-3"), source ` +
     `file:line, text (verbatim or tight paraphrase), lensHint ` +
-    `(security|correctness|architecture|docs-drift|agent-config|any). Split compound rules; skip prose that ` +
+    `(${rulebookHints.join('|')}). Split compound rules; skip prose that ` +
     `isn't a rule. Read-only.`,
     { agentType: 'cklph-audit:audit-recon', label: 'discover:rulebook', schema: RULEBOOK_SCHEMA, ...tier('rulebook') },
   ),
-  ...(reconEnabled ? lenses.filter(l => l !== 'compliance').map(lens => () => agent(
+  ...(reconEnabled ? lenses.filter(l => l !== 'compliance').map(lens => () => callAgent(
     `RECON the **${lens}** lens's concern surface across the whole scoped repo.` +
     `${args?.path ? ` Scope to: ${args.path}.` : ''} Mechanically enumerate — return: denominators ` +
     `(pattern + re-runnable command VERBATIM + honest count), seeds (cited file:line leads worth a ` +
@@ -673,7 +841,18 @@ const discovered = await parallel([
       ? ` The rulebook docs to recon are: ${JSON.stringify(rulesFromList)} — enumerate THEIR references (paths, scripts, packages), not the whole repo.`
       : lens === 'agent-config'
         ? ` Recon the AI-tooling layer only: ${JSON.stringify(agentConfigGlobs)} plus LLM/agent runtime call sites. STATIC ONLY — read config as text, never execute a discovered MCP server, hook, or package runner, never resolve a package over the network.`
-        : ''),
+        : lens === 'ambiguity'
+          ? ` AMBIGUITY RECON: TOOL ROOT: \`${ambToolRoot}\`; tool paths are relative to TOOL ROOT.${ambRepoPathNote} ` +
+            (ambProseUnits.length
+              ? `Per prose group run exactly: ${ambProseUnits.map(u => `${u.key}: \`${ambCmd('prose', u.toolGlobs, u.toolExclude)}\``).join('; ')}. ` +
+                `One denominator per group from its stderr normative= and emitted= counts. Then run exactly ` +
+                `\`${ambCmd('contract', ambGroupsRaw.flatMap(([, g]) => g), [...ambExcludeRaw, ...ambToolIgnore])}\`: one ` +
+                `denominator from enums=/docs=; every contract-mismatch record is a seed. `
+              : 'No prose groups configured: prose NOT reconned (flagged). ') +
+            (ambCode
+              ? `Also run \`${ambCmd('code', [], ambToolIgnore)}\` across the source tree.`
+              : 'code is OUT of scope (ambiguity.code is off).')
+          : ''),
     { agentType: 'cklph-audit:audit-recon', label: `recon:${lens}`, phase: 'Recon', schema: RECON_SCHEMA, ...tier('recon') },
   )) : []),
 ])
@@ -710,7 +889,7 @@ if (!wantScout) {
     log(plan
       ? `unit inference low-confidence (overall ${plan.overallConfidence}) — escalating to audit-unit-mapper`
       : 'scout died — escalating to audit-unit-mapper')
-    const mapped = await agent(
+    const mapped = await callAgent(
       `The fast inference below was low-confidence — produce a better-bounded unit map using the ` +
       `import/dependency graph, CODEOWNERS/ownership signals, and real module boundaries. ` +
       `Lenses: ${lenses.join(', ')}. ${args?.path ? `Scope: ${args.path}. ` : ''}` +
@@ -733,12 +912,20 @@ if (mode === 'quick') {
 // work-list = every (unit × lens) pair. docs-drift, agent-config + compliance are NOT crossed
 // with units — docs-drift is exactly ONE job over the rulesFrom docs (M5); agent-config is exactly
 // ONE job over the AI-tooling globs; compliance is a post-reconcile mapping job that runs AFTER all
-// other findings are confirmed (it maps them to SOC 2/CASA/HIPAA).
+// other findings are confirmed (it maps them to SOC 2/CASA/HIPAA). ambiguity is ONE job per prose
+// group (pushed after quick-mode sampling, so never sampled away), crossed with units only when
+// ambiguity.code is true.
 const SPECIAL_LENS = new Set(['docs-drift', 'agent-config', 'compliance'])
-const unitLenses = lenses.filter(l => !SPECIAL_LENS.has(l))
+const unitLenses = lenses.filter(l => !SPECIAL_LENS.has(l) && !(l === 'ambiguity' && !ambCode))
+const ambProseJobs = lenses.includes('ambiguity') ? ambProseUnits.length : 0
+if (lenses.includes('ambiguity')) {
+  if (!ambProseJobs) log('ambiguity: no prose groups configured, prose NOT reviewed (flagged)')
+  const clash = units.map(u => String(u.key)).filter(k => k.startsWith('prose-'))
+  if (clash.length) log(`WARNING: unit key(s) ${clash.join(', ')} start with 'prose-' and collide with ambiguity prose job labels`)
+}
 if (units.length === 0 && unitLenses.length > 0) {
   log(`WARNING: no units — ${unitLenses.join(', ')} lens(es) have nothing to review; ` +
-      `run degrades to ${lenses.filter(l => SPECIAL_LENS.has(l)).join(', ') || 'an empty report'}`)
+      `run degrades to ${[...lenses.filter(l => SPECIAL_LENS.has(l)), ...(ambProseJobs ? [`${ambProseJobs} ambiguity prose job(s)`] : [])].join(', ') || 'an empty report'}`)
 }
 const jobs = units.flatMap(u => unitLenses.map(lens => ({ unit: u, lens })))
 if (lenses.includes('docs-drift')) {
@@ -747,9 +934,11 @@ if (lenses.includes('docs-drift')) {
 if (lenses.includes('agent-config')) {
   jobs.push({ unit: { key: 'agent-config', title: 'AI tooling layer (MCP, settings, hooks, instructions)', globs: agentConfigGlobs, confidence: 1 }, lens: 'agent-config' })
 }
+if (ambProseJobs) for (const u of ambProseUnits) jobs.push({ unit: u, lens: 'ambiguity' })
 const hasCompliance = lenses.includes('compliance')
 log(`${units.length} unit(s) [${unitSource}${lowConfidence.length ? `, ${lowConfidence.length} low-confidence flagged: ${lowConfidence.join(', ')}` : ''}] × ${unitLenses.length} lens(es)` +
-    `${lenses.includes('docs-drift') ? ' + 1 docs-drift job' : ''}${lenses.includes('agent-config') ? ' + 1 agent-config job' : ''}${hasCompliance ? ' + 1 compliance mapping job (post-reconcile)' : ''}`)
+    `${lenses.includes('docs-drift') ? ' + 1 docs-drift job' : ''}${lenses.includes('agent-config') ? ' + 1 agent-config job' : ''}` +
+    `${ambProseJobs ? ` + ${ambProseJobs} ambiguity prose job(s)` : ''}${hasCompliance ? ' + 1 compliance mapping job (post-reconcile)' : ''}`)
 
 // ════════════════════════════════════════════════════════════════════════════
 // 3. MAP — threat model: trust boundaries, data-flows, invariants, crown jewels (T2.1)
@@ -763,7 +952,7 @@ if (!mapEnabled) {
     : 'map disabled by config — no threat model (boundaries/invariants absent; flagged in appendix)')
 } else {
   phase('Map')
-  const mapOut = await agent(
+  const mapOut = await callAgent(
     `Build a lightweight THREAT MODEL of this repo for the audit that follows. From the UNITS, recon ` +
     `denominators/seeds, and the rulebook docs below, identify: trustBoundaries (where a security control ` +
     `gates a connection — { id, where (a path/glob), note }); dataFlows (external/attacker-reachable ` +
@@ -807,19 +996,27 @@ const reviewed = await pipeline(
     // files OUTSIDE the config globs (LLM/agent runtime call sites in app code, scripts a hook
     // runs). Filtering by the config globs would drop exactly those — keep them, but still
     // honor args.path so out-of-scope files never reach the reviewer.
+    // ambiguity (§4.5): a prose job keeps its own group's files minus the skip list; a code job never
+    // takes prose files (those belong to the prose jobs) nor excluded ones.
+    const nf = s => s?.file?.replace(/^\.\//, '')
     const keep = job.lens === 'agent-config'
-      ? s => { const nf = s?.file?.replace(/^\.\//, ''); return !!nf && inScope(nf) }
+      ? s => { const f = nf(s); return !!f && inScope(f) }
+      : job.unit.prose ? s => { const f = nf(s); return !!f && globMatch(f, job.unit.globs) && !globMatch(f, job.unit.exclude) }
+      : job.lens === 'ambiguity' ? s => { const f = nf(s); return !!f && inUnit(s) && !isProseFile(f) && !globMatch(f, ambExclude) }
       : inUnit
-    const seeds = (recon?.seeds ?? []).filter(keep)
-    const safeControls = (recon?.safeControls ?? []).filter(keep)
+    // ambiguity recon cites TOOL-ROOT-relative paths: rebase onto the repo before filtering (S2)
+    const rebase = xs => job.lens === 'ambiguity' ? xs.map(x => (x?.file ? { ...x, file: ambRepoPath(nf(x)) } : x)) : xs
+    const seeds = rebase(recon?.seeds ?? []).filter(keep)
+    const safeControls = rebase(recon?.safeControls ?? []).filter(keep)
     // T2.1: when the Map ran, hand this unit its invariants + the boundaries whose `where`
     // glob-matches it. Security findings SHOULD cite the boundary; each invariant is checked.
     const unitInvariants = mapRan ? model.invariants.filter(i => i.unit === job.unit.key) : []
     const unitBoundaries = mapRan
       ? model.trustBoundaries.filter(b => b?.where && globMatch(b.where.replace(/^\.\//, ''), job.unit.globs))
       : []
-    return agent(
-      `Audit UNIT "${job.unit.key}" (globs: ${JSON.stringify(job.unit.globs)}) through the **${job.lens}** lens. ` +
+    return callAgent(
+      `Audit UNIT "${job.unit.key}" (globs: ${JSON.stringify(job.unit.globs)})` +
+      `${job.unit.exclude ? ` (skip: ${JSON.stringify(job.unit.exclude)})` : ''} through the **${job.lens}** lens. ` +
       `Load the ${job.lens}-lens skill; the repo's own rules (RULEBOOK below) win on conflict. Run the lens's ` +
       `deterministic tool first for recall, then judge the candidates. Every finding needs a file:line anchor + ` +
       `the offending code quoted + a rule id + normalizedSnippet (whitespace/identifier-normalized). Classify ` +
@@ -835,6 +1032,24 @@ const reviewed = await pipeline(
           `cve_enrich for EPSS/KEV/exploit-availability, cve_prioritize for risk ranking. ` +
           `If the MCP tools are not available, proceed with local tools only. ` +
           `See the sca-lens skill MCP section for details.\n`
+        : '') +
+      // §4.6 / D25: the tool runs from TOOL ROOT with the UNSCOPED globs; spell the commands out so the
+      // reviewer never picks a root.
+      (job.lens === 'ambiguity'
+        ? (job.unit.prose
+            ? `AMBIGUITY PROSE JOB: review ONLY the files matching the globs, skipping the skip list. TOOL ROOT: ` +
+              `\`${ambToolRoot}\`. Run exactly \`${ambCmd('prose', job.unit.toolGlobs, job.unit.toolExclude)}\` and ` +
+              `\`${ambCmd('contract', job.unit.toolGlobs, job.unit.toolExclude)}\`; tool paths are relative to TOOL ROOT; ` +
+              `schema enums come from all of TOOL ROOT.${ambRepoPathNote}\n`
+            : `AMBIGUITY CODE JOB: source files only; prose belongs to the prose jobs. TOOL ROOT: \`${ambToolRoot}\`. Run ` +
+              `\`${ambCmd('code', job.unit.globs.map(g => g.replace(/^\.\//, '')).map(g => scopePath && g.startsWith(scopePath + '/') ? g.slice(scopePath.length + 1) : g))}\`. ` +
+              `A finding needs a cited divergent pair or reachable value.${ambRepoPathNote}\n`) +
+          `Every finding sets \`readings { a, b, consumer, divergence }\`, each with file:line where one exists; consumer = ` +
+          `the caller, parser, schema, agent, or named human-reader role whose outcome differs. No second reasonable ` +
+          `reading, or no divergent outcome: not a finding. Never critical. Bucket: contract-mismatch → ` +
+          `quick-win|targeted-fix (\`source: tool\`, \`confidence: confirmed\`); scope-clause/vague-conditional/` +
+          `overloaded-term/contradiction → quick-win when the repo shows the intended reading, else owner-decision. ` +
+          `Never use confidence needs-owner-input for ambiguity.\n`
         : '') +
       (rules.length
         ? `RULEBOOK — return a ruleCheck for EVERY rule (violation|verified-safe|not-applicable; ` +
@@ -877,7 +1092,9 @@ const reviewed = await pipeline(
     const effortBump = ((rr.enabled ?? true) && score >= (rr.highThreshold ?? 0.7) && !config.models?.verifier?.effort)
       ? { effort: 'high' } : {}
     log(`risk-routing ${job.unit.key}:${job.lens} — riskScore ${score} → ${unitVoters} voter(s)${effortBump.effort ? ', effort high' : ''}`)
-    return verifyFindings(review?.findings ?? [], job.unit.key, job.lens, unitVoters, effortBump)
+    // ambiguity findings filed with a tool path are rebased so the verifier opens the right file (S2)
+    const reviewFindings = (review?.findings ?? []).map(f => (job.lens === 'ambiguity' && f?.file ? { ...f, file: ambRepoPath(String(f.file).replace(/^\.\//, '')) } : f))
+    return verifyFindings(reviewFindings, job.unit.key, job.lens, unitVoters, effortBump)
       .then(verified => ({
         unit: job.unit.key, lens: job.lens,
         findings: verified.filter(Boolean),
@@ -904,7 +1121,7 @@ if (!dastEnabled) {
 } else {
   phase('DAST')
   // 5b.1: boot the app + run ZAP/Nuclei/ffuf → collect runtime findings
-  const dastOut = await agent(
+  const dastOut = await callAgent(
     `DYNAMIC TESTING: boot the app and attack it from the outside. Run ` +
     '`${CLAUDE_PLUGIN_ROOT}/tools/dast.sh`' + ` to boot Docker Compose (or use the provided target URL), ` +
     `then run ZAP/Nuclei/ffuf. Beyond the tools, craft LLM-driven attacks based on the threat model: ` +
@@ -937,7 +1154,7 @@ if (!dastEnabled) {
         .flatMap(r => r.findings.filter(f => f.confirmed && ['critical', 'high'].includes(f.severity) && f.reachabilityTrace))
       if (staticConfirmed.length) {
         log(`exploit verification: generating PoC for ${staticConfirmed.length} confirmed critical/high finding(s)`)
-        const exploitOut = await agent(
+        const exploitOut = await callAgent(
           `EXPLOIT VERIFICATION: for each confirmed critical/high finding with a reachability trace, generate a PoC ` +
           `exploit script, run it in an isolated sandbox, and confirm exploitability. Use ` +
           '`${CLAUDE_PLUGIN_ROOT}/tools/exploit-runner.sh`' + ` to run each PoC. A finding is only ` +
@@ -1003,7 +1220,8 @@ if (!variantEnabled) {
   const maxSeeds = config.variant?.maxSeeds ?? 8
   const maxPerSeed = config.variant?.maxPerSeed ?? 20
   // E3: sort by severity (critical before high) BEFORE slicing, so a critical is never cut for a high.
-  const seeds = fresh.filter(f => ['critical', 'high'].includes(f.severity))
+  // ambiguity never seeds: the contract check already enumerates every mismatch repo-wide (§4.9)
+  const seeds = fresh.filter(f => ['critical', 'high'].includes(f.severity) && !isAmbiguityFinding(f, f.lens))
     .sort((a, b) => (sevRank[b.severity] ?? 0) - (sevRank[a.severity] ?? 0))
     .slice(0, maxSeeds)
   if (!seeds.length) {
@@ -1012,7 +1230,7 @@ if (!variantEnabled) {
     variantRan = true
     phase('Variant')
     log(`Variant phase: hunting siblings of ${seeds.length} confirmed critical/high finding(s)`)
-    const variantOut = await parallel(seeds.map(seed => () => agent(
+    const variantOut = await parallel(seeds.map(seed => () => callAgent(
       `Here is a CONFIRMED bug pattern. Find its SIBLINGS across the repo — the same mistake elsewhere ` +
       `(Project Zero variant analysis). Run ` + '`${CLAUDE_PLUGIN_ROOT}/tools/variant-sweep.sh`' + ` for recall, ` +
       `then judge each candidate against the ACTUAL code. Cap at ${maxPerSeed} siblings. Return candidate ` +
@@ -1165,7 +1383,7 @@ for (const lens of lenses) {
 let complianceMatrix = []
 if (hasCompliance) {
   const frameworks = config.compliance?.frameworks ?? ['soc2', 'casa']
-  const complianceOut = await agent(
+  const complianceOut = await callAgent(
     `COMPLIANCE MAPPING: map the confirmed findings from all other lenses to formal security frameworks. ` +
     `Load the compliance-lens skill and the rulebooks from ` +
     '`${CLAUDE_PLUGIN_ROOT}/skills/compliance-lens/rulebooks/<framework>.yaml`' + `. For each control in each framework ` +
@@ -1203,7 +1421,7 @@ if (!patchEnabled) {
   // patch all confirmed findings (cap at a reasonable number to bound agent spawns)
   const toPatch = fresh.slice(0, 50)
   log(`Patch phase: generating patches for ${toPatch.length} confirmed finding(s)`)
-  const patchOut = await agent(
+  const patchOut = await callAgent(
     `PATCH GENERATION + VALIDATION: for each confirmed finding, generate a code patch addressing the ROOT ` +
     `CAUSE (not the symptom). Apply the patch in a sandbox git worktree, run the test suite, re-run the ` +
     `exploit (if DAST ran — the exploit MUST FAIL), and run an LLM-as-judge pass. Iterate up to ${maxIters} ` +
@@ -1232,11 +1450,13 @@ if (!patchEnabled) {
 // ════════════════════════════════════════════════════════════════════════════
 phase('Synthesize')
 // E2/A5b: only a truly clean run short-circuits — a held-untraced OR a deferred-unverified finding
-// is NOT clean; it still needs an owner-review report so it is never silently gone.
-if (!fresh.length && !heldUntraced.length && !deferred.length) {
+// is NOT clean; it still needs an owner-review report so it is never silently gone. Neither is a
+// proof-contract drop: §4.10 lists dropped ids in the report's Coverage summary (§15 CLEAN-DROP).
+if (!fresh.length && !heldUntraced.length && !deferred.length && !proofContractDropped.length) {
   log('No new confirmed findings. Clean run. 🎉')
   return {
     report: null, fresh: [],
+    proofContractDropped,
     units: { source: unitSource, lowConfidence },
     skipped: mode === 'quick',
     coverage: coverageSummary,
@@ -1281,7 +1501,9 @@ const publicDeferred = deferred.map(f => ({ id: f.id, file: f.file, severity: f.
 // engine-internal fields stay out of the synthesizer's context (confirmed is always true here;
 // refutedGuards were already harvested into positive controls above)
 const publicFresh = fresh.map(({ refutedGuards, confirmed, ...rest }) => rest)
-let report = await agent(
+// render the ambiguity sections whenever the proof contract was in play (§4.10, §15)
+const ambSynth = lenses.includes('ambiguity') || proofContractUsed
+let report = await callAgent(
   `Write the audit report from these CONFIRMED, fresh findings. Load the audit-report-format skill for the ` +
   `AUDIT-<date>.md contract. Bucket by severity (critical/high/medium/low), each with file:line + why-it's-real ` +
   `(it survived adversarial verification) + a concrete fix + its confidence/bucket/context/validation fields. ` +
@@ -1319,7 +1541,16 @@ let report = await agent(
   `its result — write "self_review: false" in the front-matter phases block; the engine rewrites that line and ` +
   `appends the "## Self-review" section itself. Feed freshness was NOT checked (RUN_META.feedFreshnessChecked ` +
   `is false): say so in the appendix and recommend running /cklph-audit:refresh-feeds before the next ` +
-  `SCA/container audit; never state a database age.\n\n` +
+  `SCA/container audit; never state a database age.` +
+  // §4.10/§4.11: only when the proof contract was in play (the ambiguity lens ran, or another lens filed
+  // an ambiguity:* finding); other runs keep the pre-v4 prompt byte for byte (§15)
+  (ambSynth
+    ? ` For \`ambiguity:*\` findings render Readings (A / B), Diverges for (consumer and both outcomes, ` +
+      `from \`readings\` and \`reachabilityTrace\`), and Proposed wording (old line, new line). Phrase each ` +
+      `owner-decision ambiguity in Owner decisions as an A-or-B question with one rewrite per reading, and ` +
+      `group those entries per document. In the Coverage summary, list \`PROOF_CONTRACT_DROPPED\` as ` +
+      `'Dropped by the ambiguity proof contract (held without a divergence trace): N' with their ids.`
+    : '') + `\n\n` +
   `FINDINGS:\n${JSON.stringify(publicFresh, null, 2)}\n\n` +
   `RULE_CLOSURE:\n${JSON.stringify(ruleClosure, null, 2)}\n\n` +
   `COVERAGE_TOTALS:\n${JSON.stringify(coverageTotals, null, 2)}\n\n` +
@@ -1332,6 +1563,7 @@ let report = await agent(
   (exploitResults.length ? `EXPLOIT_RESULTS:\n${JSON.stringify(exploitResults, null, 2)}\n\n` : '') +
   (patchResults.length ? `PATCH_RESULTS:\n${JSON.stringify(patchResults, null, 2)}\n\n` : '') +
   (complianceMatrix.length ? `COMPLIANCE_MATRIX:\n${JSON.stringify(complianceMatrix, null, 2)}\n\n` : '') +
+  (ambSynth ? `PROOF_CONTRACT_DROPPED:\n${JSON.stringify(proofContractDropped, null, 2)}\n\n` : '') +   // [] when empty
   `RUN_META:\n${JSON.stringify(runMeta, null, 2)}`,
   { agentType: 'cklph-audit:audit-synthesizer', label: 'synthesize:report', schema: REPORT_SCHEMA, ...tier('synthesizer') },
 )
@@ -1367,7 +1599,7 @@ if (!report?.markdown) {
   if (selfReviewEnabled) selfReviewNotRun = 'the synthesizer died, so there was no report to review'
 } else if (selfReviewEnabled) {
   phase('SelfReview')
-  const reviewOut = await agent(
+  const reviewOut = await callAgent(
     `ADVERSARIAL SELF-REVIEW: you are reviewing an audit report for GAPS. Read the report below and ` +
     `identify what's missing, under-explored, or inconsistent. Specifically check: ` +
     `(1) did every unit × lens pair get coverage? (2) are crown jewels adequately explored? ` +
@@ -1415,6 +1647,7 @@ if (report?.markdown) {
 return {
   report,
   fresh,
+  proofContractDropped,
   units: { source: unitSource, lowConfidence },
   skipped: mode === 'quick',
   coverage: coverageSummary,

@@ -17,6 +17,10 @@ code lines.** Author for an AI agent to *execute*, not just to read.
   over-generalize without negation.
 - **Pair every example with its anti-pattern.** When you point at code to follow, also name the tempting
   *wrong* approach + why it's wrong — agents learn from negative examples, not just positive ones.
+- **One reading per normative sentence.** Units on every quantity (`timeoutMs: 5000`, not
+  `timeout: 5000`); each term of art defined once and used in one sense; scope and exclusion clauses
+  name their subject. Don't write: "findings that need access an admin already has". Write instead:
+  "findings that require an attacker to already have administrative access".
 - **Required Context (load first):** list the exact files + section ranges the implementer must read
   before starting, so it loads proactively instead of discovering mid-build. (Internal-codebase context;
   Context7 covers external library docs.)
@@ -55,3 +59,7 @@ AC-003  Export downloads the filtered rows
 - [ ] Out-of-scope is explicit per task.
 - [ ] Required-context files are listed.
 - [ ] Boundaries (Always do / Ask first / Never) are set.
+- [ ] Every quantity has a unit, and every range says whether its bounds are inclusive or exclusive.
+- [ ] Each defined term is used in one sense throughout.
+- [ ] Each AC has one reading: two implementations that both satisfy the wording behave the same; if they don't, tighten it.
+- [ ] Every value prescribed from a closed set (enum, schema, type) cites the set's `file:line` and is a member of it.
