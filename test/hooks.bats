@@ -340,6 +340,23 @@ print("\n".join(bad) or "ok")' "$HOOKS/.."
   [ "$output" = "ok" ]
 }
 
+# External orchestrators route on markers, so markers.md must list every one a skill or agent emits.
+# Markers are written in backticks (`## REVIEW CLEAN`); bare "## DRY"-style lines are headings.
+@test "markers: every backticked marker in skills and agents has a row in flow/markers.md" {
+  command -v python3 >/dev/null || skip "python3 required"
+  run python3 -c '
+import pathlib, re, sys
+root = pathlib.Path(sys.argv[1])
+pat = re.compile(r"`## ([A-Z][A-Z-]*(?: [A-Z][A-Z-]+)*)")
+files = list((root / "skills").glob("*/SKILL.md")) + list((root / "agents").glob("*.md"))
+emitted = {m for f in files for m in pat.findall(f.read_text())}
+table = set(re.findall(r"^\|[^|]+\| `## ([A-Z][A-Z-]*(?: [A-Z][A-Z-]+)*)", (root / "skills/flow/markers.md").read_text(), re.M))
+missing = sorted(emitted - table)
+print("missing from markers.md: " + ", ".join(missing) if missing else "ok %d" % len(emitted))' "$HOOKS/.."
+  [ "$status" -eq 0 ]
+  has "ok "
+}
+
 @test "reply-shape-context: prints the rules without frontmatter; CKLPH_REPLY_SHAPE=off disables it" {
   run env CLAUDE_PLUGIN_ROOT="$HOOKS/.." bash "$HOOKS/reply-shape-context.sh"
   [ "$status" -eq 0 ]

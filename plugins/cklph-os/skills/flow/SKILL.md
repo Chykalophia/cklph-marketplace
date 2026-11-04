@@ -26,7 +26,7 @@ You **orchestrate**; the real work happens in the phase skills + sub-agents. Kee
 ## Auto-route on markers + self-correct
 Each phase/agent ends with a **marker** — parse it, don't guess from prose. Every marker, who emits
 it, what it means, the next step and the loop limit: `@markers.md` (the only list; match whole
-strings, since five start with `## TASK`).
+strings, since five share the TASK prefix).
 **Marker hygiene** — sub-agents emit markers only at the very end of their own output, never inside a quoted code block or echoed content. A marker buried in a quote causes false routing.
 Gates and self-correcting loops:
 - `## TASK QUESTIONS` is a **hard gate in every mode, including full-agentic**: put the questions to
