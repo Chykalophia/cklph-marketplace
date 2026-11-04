@@ -42,9 +42,11 @@ Triage the findings:
 ~1000+ must be split (stack the PRs / by-file-group / horizontal / vertical) — flag oversize work as a
 finding, not "review anyway."
 
-**Attack tests.** The reviewer never edits source, but may add tests that reproduce its findings.
-Commit them on the feature branch before the marker and record the commit SHA and the test paths:
-they are **locked** for the fix wave, and `verify` checks them byte-identical.
+**Attack tests.** The reviewer stays read-only. For a **Critical or High** finding it may *propose* an
+attack test: a fenced block in its report, headed by a **new** file path (never an existing test
+file), that fails on the current code. You write each one, confirm `git status --porcelain` shows
+only those paths, and commit them with an `Attack-Tests: <paths>` trailer before routing. They are
+then **locked** (`flow` → Hand-offs); a disputed one goes to Peter.
 
 The `pre-commit-gate` hook is the automatic backstop at commit time — not a substitute for this gate.
 Proceed on `## REVIEW CLEAN` / `## RED-TEAM CLEAR`; loop (fix → re-review) on `## ISSUES FOUND` /

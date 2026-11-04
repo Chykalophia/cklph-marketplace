@@ -8,8 +8,9 @@ description: The VERIFY phase of the cklph-os flow — prove it works. Run build
 1. Run the project's checks (type-check, build, test suite — per `AGENTS.md`). Capture real output.
 2. Run **each task's executable acceptance command** and walk the spec's **acceptance criteria** one by
    one — confirm each is met with captured evidence, not "looks right."
-3. **Attack tests intact.** If `review` committed attack tests, `git diff <review-commit> -- <attack test
-   paths>` must print nothing. Any change is a gap: the fix wave edited the test instead of the code.
+3. **Attack tests intact.** For every commit `git log --format=%H --grep '^Attack-Tests:' <base>..HEAD`
+   lists: `git diff <that commit> -- <its paths>` prints nothing, **and** each path, run on its own, passes.
+   A diff or a failure is a gap: the fix wave touched or skipped the test instead of fixing the code.
 4. Anything failing → emit a **structured gap list** (`@gaps-format.md`): diagnose the **root cause**
    (reproduce it first; `debugging` owns that method, and `browser-debug` covers a UI or console
    failure in the running app), route each `fix_task` back to `build` as a gaps-only wave, then re-verify.

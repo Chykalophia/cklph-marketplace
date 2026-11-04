@@ -22,25 +22,35 @@ has, Claude called it "ready to start" and proposed a new file.
   at most five questions, assumption gate) ending `## TASK READY`, `## TASK QUESTIONS` or
   `## TASK REJECTED`. Trivial tasks get a three-line pass. It never answers its own questions.
 - **`skills/flow/markers.md`**: the one list of every marker a phase or agent emits (phase, meaning,
-  next step, loop limit), with parsing rules for external orchestrators and the `## TASK *`
-  collision note: three strings from `challenge`, two from `cklph-implementer`, all distinct.
+  next step, loop limit), with parsing rules for external orchestrators (one regex, last marker
+  outside code wins, the payload may follow it, which three phases emit none) and the `## TASK *`
+  collision note: three strings from `challenge`, two from `cklph-implementer`, all distinct. A new
+  bats test fails when a skill, reference file or agent emits a marker that has no row.
 - **`skills/review/cross-model.md`**: run the reviewer on a different model from the builder when
   one is available; same prompt, same markers, fresh context, never edits source. Includes the
   Codex CLI invocation.
-- Trigger tests for `challenge` and `refine` (refine had none). Proof: `docs/proof/challenge/2026-11-04.md`.
+- Trigger tests for `challenge` and `refine` (refine had none; its first draft had a "push back on
+  it" prompt that fires `refine` only 3 times in 8 even on 0.14.0, so it was replaced). Proof: `docs/proof/challenge/2026-11-04.md`.
 
 ### Changed
 - **`flow`**: order is now `challenge` → `refine` → … → `ship`, and `challenge` runs on every task
-  unless the user says it was already challenged. `## TASK QUESTIONS` is a hard gate in every mode,
-  full-agentic included; `## TASK REJECTED` stops the flow. New hand-off rules: commit artifacts
-  before emitting the marker, so the next step reads only git; attack tests from review are locked;
-  at most 2 review→build fix rounds per gate, then escalate. The inline marker list moved to `markers.md`.
-- **`review`**, **`build`**, **`verify`**: the reviewer may add attack tests (committed, SHA
-  recorded); the fix wave lists them as out of scope; `verify` checks
-  `git diff <review-commit> -- <attack tests>` is empty. The two-reviewer gate prefers two different models.
+  unless the user says it was already challenged or the flow is resuming work already on the
+  branch. `## TASK QUESTIONS` is a hard gate in every mode, full-agentic included;
+  `## TASK REJECTED` stops the flow. New hand-off rules: commit artifacts before emitting the
+  marker, so the next step reads only git; attack tests are locked; at most 2 review→build fix
+  rounds per gate and 2 gaps rounds, then escalate. The inline marker list moved to `markers.md`.
+- **`review`**, **`build`**, **`verify`**: for a Critical or High finding the reviewer may *propose*
+  an attack test (a new file, in its report); the orchestrator writes it and commits it with an
+  `Attack-Tests:` trailer. The fix wave may not edit, delete or exclude it, and `verify` checks
+  every such commit: no diff since, and each test passes run by path. A disputed one goes to Peter.
+  The two-reviewer gate prefers two different models.
 - **`red-team`**, **`cklph-reviewer`**: runnable by any agent that can read files and run a shell.
-  The plan-check pointer no longer depends on `${CLAUDE_PLUGIN_ROOT}` resolving. Both may add attack
-  tests but never edit source; red-team names cross-model review in its rationale.
+  The plan-check pointer no longer depends on `${CLAUDE_PLUGIN_ROOT}` resolving. Both stay
+  read-only; red-team names cross-model review in its rationale.
+- **Two-reviewer gate on this change** (Claude `red-team` + Codex, per `cross-model.md`) found, among
+  others, that the first draft's reviewer-commits-its-own-tests design had guards that checked
+  nothing (`git diff --stat` after a commit is empty) and a last-line marker rule that contradicted
+  four existing "marker + the list" instructions. Both reworked before merge.
 - **`start-here`** routes "a task arrives and nobody has checked it's workable" to `challenge`;
   `refine` and `survey` point to it. STANDARD.md §5 gains a "Phase hand-offs" subsection.
 

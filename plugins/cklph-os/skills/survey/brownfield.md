@@ -78,7 +78,7 @@ perimeter (paths, entry points, callers) at the top of the register before anyth
   register is evidence for that conversation, not a work order.
 - Backfilled decisions are marked as reconstructed, with today's date. Never present them as if they
   were written when the decision was made.
-- Each actionable row (fix-forward or rewrite) then runs the normal loop: `spec` → `plan` → `build` → `review` → `verify`. For a legacy
+- Each actionable row (fix-forward or rewrite) then runs the normal loop: `challenge` → `spec` → `plan` → `build` → `review` → `verify`. For a legacy
   gap the first test usually encodes the rule that was only in the code. Wont-fix rows skip the
   loop: they close with their reason.
 - The survey itself ends here: `## SURVEY COMPLETE` once every row is triaged and any go-ahead it

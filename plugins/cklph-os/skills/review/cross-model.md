@@ -12,8 +12,8 @@ the review on a **different model** whenever one is available.
   two-reviewer gate, the rubric. Nothing from the builder's conversation.
 - **Same marker contract.** The review ends with the agent's own marker (`../flow/markers.md`); the
   orchestrator routes on it the same way whichever model wrote it.
-- **Never edits source.** It may add attack tests that reproduce its findings, committed on the
-  feature branch before the marker; they are locked for the fix wave (`flow` → Hand-offs).
+- **Read-only.** It edits nothing. It may *propose* attack tests in its report; the orchestrator
+  writes and commits them (`flow` → Hand-offs). So a read-only sandbox is always enough.
 
 ## When
 - **Two-reviewer gate** (`two-reviewer-gate.md`): the two reviewers run on two different models
@@ -25,15 +25,15 @@ the review on a **different model** whenever one is available.
 Any agent that can read files, run a shell and print text can take the step. With Claude Code as
 the builder and the Codex CLI as the reviewer:
 
-1. Write the brief to a file in the scratchpad: the agent file's body, then the spec, then
-   `git diff <base>...HEAD` (or the range to review), then the rubric if the gate applies. End it
-   with the instruction to finish on the agent's marker as the last line.
+1. Write the brief to a file in the scratchpad: the agent file's body, **the full text of every file
+   it points to** (Mode B's `skills/plan/plan-check.md`, say), then the spec, then the review range
+   (`git diff <base>...HEAD`, or tell the reviewer to run it), then the rubric if the gate applies. The
+   reviewer runs in the target project and can't resolve plugin-relative paths, so inline what it needs.
+   End the brief with the instruction to finish on the agent's marker.
 2. Run it read-only from the repo root:
-   `codex exec -s read-only -C "$CLAUDE_PROJECT_DIR" -o <scratchpad>/review.md - < <scratchpad>/brief.md`
-   Reviews that may add attack tests run in a worktree of the feature branch with
-   `-s workspace-write` instead; afterwards `git diff --stat` must show only test paths. A source
-   edit voids the review.
-3. Read the last line of `review.md` for the marker and triage the findings like any other review.
+   `codex exec -s read-only -C "$(git rev-parse --show-toplevel)" -o <scratchpad>/review.md - < <scratchpad>/brief.md`
+3. Parse the marker from `review.md` (`../flow/markers.md`, parsing rules) and triage the findings like
+   any other review. Proposed attack tests go through `review`'s attack-test step.
 
 An external orchestrator does the same thing by assigning the review step to a different agent and
 handing it the same brief file. Paths in the agent files (`skills/…`) are relative to the cklph-os

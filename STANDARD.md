@@ -157,8 +157,9 @@ STATE.md                   # working state
 ### Phase hand-offs
 - **Commit before the marker.** A phase that produces artifacts commits them on the feature branch
   before it emits its marker; the next phase, on any agent or model, reads only git.
-- **Attack tests are locked.** Tests a review adds are not edited or deleted by the following fix
-  wave; `verify` checks them byte-identical.
+- **Attack tests are locked.** Reviewers stay read-only and propose attack tests; the orchestrator
+  commits them with an `Attack-Tests:` trailer. The following fix wave may not edit, delete or
+  exclude them; `verify` checks each one is unchanged and passes when run by path.
 - **Markers have one owner:** `plugins/cklph-os/skills/flow/markers.md`. A new marker gets a row there
   in the same change. Skills name the markers they emit or route on; none keeps a second full list.
 
