@@ -38,7 +38,7 @@ Add the deliverable's own rules (the spec's acceptance criteria, brand voice, th
    miss is exactly the blind spot this gate exists for.
 3. **Fix round.** Merge both lists, fix every failing criterion, change nothing else. Re-run
    **both** reviewers as **new** subagents (no memory of the last round; it anchors them).
-4. **Keep going while rounds make progress** (Rounds, below). On churn or at round 5, stop and
+4. **Keep going while rounds make progress** (Rounds, below). On churn or after round 5, stop and
    escalate to Peter with the remaining failures, both reviewers' notes, and what you tried. Never
    ship on one pass out of two.
 
@@ -49,7 +49,7 @@ re-reviewing with **new** reviewers as long as each round turns up real, new pro
 - a finding that an earlier round already fixed comes back;
 - a fix reverts an earlier round's fix, or redoes the same spot a different way with no new failure
   behind it;
-- **5 fix rounds** done (hard backstop).
+- **5 rounds** done (hard backstop). A round is one fix wave plus one fresh re-review.
 Report the round count either way. The same rule applies to every review→build and verify→build loop.
 
 ## Reviewer prompt

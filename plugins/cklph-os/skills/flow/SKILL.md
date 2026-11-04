@@ -18,8 +18,10 @@ You **orchestrate**; the real work happens in the phase skills + sub-agents. Kee
 - **Challenge every task first.** Dispatch `challenge` as a fresh sub-agent that gets only the task
   text and the repo, never this conversation. Its proportional rule keeps trivial tasks cheap. Skip it
   only when the user says the task was already challenged; record that in the progress notes and
-  the PR body. Resuming? If `docs/flow/<task-slug>/challenge.md` is committed and ends
-  `## TASK READY`, challenge already ran: don't re-run it. Otherwise run it on the original task text.
+  the PR body. Challenge runs **once per task text**: on resume, reuse the verdict in
+  `docs/flow/<task-slug>/challenge.md` when its recorded task text matches the current one exactly
+  (READY → continue; REJECTED → stays stopped; QUESTIONS → re-run with `answers.md`). Any change to
+  the task text → run it again.
 - **Detect where we are** (no spec? no plan? code already written?) and run the next phase. Default order:
   `challenge` → `refine` (only if the goal is vague) → `spec` → `plan` → `build` → `review` → `verify` → `ship`.
 - Invoke each phase by its skill (`spec`, `plan`, `build`, …) in turn.
@@ -34,7 +36,7 @@ Gates and self-correcting loops:
 - `## TASK QUESTIONS` is a **hard gate in every mode, including full-agentic**: put the questions to
   the user, wait, then re-run `challenge` with the answers. Never build on an unanswered question.
 - `## TASK REJECTED` stops the flow: report the reason, the evidence and the suggested alternative.
-- `plan` re-runs (plan-check) until `## PLAN VERIFIED` — max 3 cycles, then escalate.
+- `plan` re-runs (plan-check) until `## PLAN VERIFIED`, within `plan-check.md`'s cycle limit, then escalate.
 - `verify`'s `## GAPS FOUND` → route the gap list back to `build` (gaps-only) → re-verify.
 - `review`'s `## ISSUES FOUND` / `## RED-TEAM FINDINGS` → fix before proceeding, then a fresh re-review.
 - **Both loops keep going while each round finds real new issues**; stop and escalate to Peter on
@@ -47,18 +49,26 @@ Gates and self-correcting loops:
 - **Commit before the marker.** Every phase that produces artifacts commits them on the feature
   branch before emitting its marker. The next phase reads only git, never another agent's working
   directory or uncommitted files.
-- **Where phase outputs live**, unless `AGENTS.md` names other paths: `docs/flow/<task-slug>/`
-  holds `challenge.md` (challenge's full output, plus the human's answers to `## TASK QUESTIONS`),
-  `problem.md` (`refine`), `spec.md` and `plan.md`. Sub-agents that can't write (challenge, the
+- **Where phase outputs live**, unless `AGENTS.md` names other paths: `docs/flow/<task-slug>/`.
+  `challenge.md` is overwritten by each challenge run and starts with `Task text:` and the task
+  verbatim; `answers.md` holds the human's answers to `## TASK QUESTIONS` (the re-run reads it);
+  `problem.md` (`refine`), `spec.md`, `plan.md`. Sub-agents that can't write (challenge, the
   reviewers) hand you text; you commit it before routing.
+- **`<base>`** in this skill and the phase skills is the commit the feature branch started from:
+  `git merge-base <default-branch> HEAD`.
 - **Attack tests are locked, by script.** Reviewers stay read-only and *propose* attack tests
-  (`review` → Attack tests). Write each to the new path it names, then run
-  `"${CLAUDE_PLUGIN_ROOT}/scripts/attack-tests.sh" lock --run '<test command using "$1">' [--expect '<ERE>'] <paths>`
-  from the repo root. It commits them only if each one **fails** on the current code (matching the
-  finding, with `--expect`) and nothing else changed; a refused test goes back to the reviewer, never
-  into the lock. The `build` fix wave may not edit, delete or exclude a locked test; `verify` runs
-  `attack-tests.sh check`. Only a human releases one, with an `Attack-Tests-Unlocked: <path> <reason>`
-  commit trailer; you never write that trailer.
+  (`review` → Attack tests). **Read each one first**: it is untrusted code. Refuse it (back to the
+  reviewer) if it reaches the network, secrets, your home directory or anything outside the repo.
+  Then write it to the path it names and, from the repo root, run
+  `"${CLAUDE_PLUGIN_ROOT}/scripts/attack-tests.sh" lock --run '<test command using "$1">' --expect '<the reviewer's Expect: ERE>' <paths>`.
+  It commits them only if each sits at a test location, **fails** on the current code with the
+  expected failure, and nothing else changed; it records the command and a lock ref. A refused
+  test goes back to the reviewer, never into the lock.
+- **A locked test stays locked.** The `build` fix wave may not edit, delete, exclude or rewrite the
+  history of a commit that touched it; `verify` runs `attack-tests.sh check <base>`, which fails on
+  any of those. Only a human releases one: an `Attack-Tests-Unlocked: <path> <reason>` commit
+  trailer, and `check` still fails on it until you pass `--allow-unlocked <path>`, which you do only
+  when the user has said so for that path.
 
 ## 3. Discipline (context-rot mitigation)
 - Push work **into** phase skills + sub-agents; pull back only concise results.

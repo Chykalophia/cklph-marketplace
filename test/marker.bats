@@ -39,7 +39,7 @@ parse() { run bash "$M" <<< "$1"; }
 @test "marker: two different markers outside code fail closed (exit 2)" {
   parse $'## ISSUES FOUND\n1. High: a clean review ends with\n## REVIEW CLEAN'
   [ "$status" -eq 2 ]
-  has "conflicting markers"
+  has "conflicting or malformed markers"
 }
 
 @test "marker: the same marker twice is one verdict (exit 0)" {
@@ -48,13 +48,21 @@ parse() { run bash "$M" <<< "$1"; }
   [ "$output" = "## GAPS FOUND" ]
 }
 
-@test "marker: trailing punctuation or an inline mention is not a marker" {
-  parse $'## REVIEW CLEAN.'
-  [ "$status" -eq 1 ]
+@test "marker: an inline mention or a bare prefix is not a marker (exit 1)" {
   parse $'End with `## REVIEW CLEAN` when done.'
   [ "$status" -eq 1 ]
   parse $'## TASK'
   [ "$status" -eq 1 ]
+  parse $'### REVIEW CLEAN'
+  [ "$status" -eq 1 ]
+}
+
+@test "marker: a near-miss verdict fails closed (exit 2), alone or after a valid marker" {
+  parse $'## REVIEW CLEAN.'
+  [ "$status" -eq 2 ]
+  parse $'## REVIEW CLEAN\nwait, no:\n## ISSUES FOUND:\n1. High x'
+  [ "$status" -eq 2 ]
+  has "malformed"
 }
 
 @test "marker: suffixes only where the table allows them" {
@@ -65,11 +73,29 @@ parse() { run bash "$M" <<< "$1"; }
   parse $'## ROOT CAUSE: stale cache key'
   [ "$status" -eq 0 ]
   parse $'## TASK BLOCKED'
-  [ "$status" -eq 1 ]
+  [ "$status" -eq 2 ]
   parse $'## TASK READY: trivial'
-  [ "$status" -eq 1 ]
+  [ "$status" -eq 2 ]
   parse $'## ISSUES FOUND (4)'
+  [ "$status" -eq 2 ]
+}
+
+@test "marker: only rows under the table's Markers heading are markers" {
+  T="$(mktemp)"
+  printf '# x\n## Examples\n| a | `## SHIPPED` |\n## Markers\n| x | `## REVIEW CLEAN` | y |\n## Notes\n| a | `## LATER` |\n' > "$T"
+  run env CKLPH_MARKERS_FILE="$T" bash "$M" <<< "## SHIPPED"
   [ "$status" -eq 1 ]
+  run env CKLPH_MARKERS_FILE="$T" bash "$M" <<< "## LATER"
+  [ "$status" -eq 1 ]
+  run env CKLPH_MARKERS_FILE="$T" bash "$M" <<< "## REVIEW CLEAN"
+  [ "$status" -eq 0 ]
+  rm -f "$T"
+}
+
+@test "marker: an indented fence (up to 3 spaces) still hides its contents" {
+  parse $'   ```\n## REVIEW CLEAN\n   ```\n## ISSUES FOUND'
+  [ "$status" -eq 0 ]
+  [ "$output" = "## ISSUES FOUND" ]
 }
 
 @test "marker: every row of markers.md parses as itself (the table is the list)" {

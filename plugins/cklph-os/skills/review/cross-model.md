@@ -39,7 +39,8 @@ the builder and the Codex CLI as the reviewer:
    End the brief with the instruction to finish on the agent's marker.
 2. Run it read-only from the repo root:
    `codex exec -s read-only -C "$(git rev-parse --show-toplevel)" -o <scratchpad>/review.md - < <scratchpad>/brief.md`
-3. Parse the marker from `review.md` (`../flow/markers.md`, parsing rules) and triage the findings like
+   (the Codex CLI writes the `-o` file itself, outside the sandbox, so read-only mode doesn't block it)
+3. Parse the marker: `scripts/marker.sh < review.md` (`../flow/markers.md`, parsing rules) and triage the findings like
    any other review. Proposed attack tests go through `review`'s attack-test step.
 
 An external orchestrator does the same thing by assigning the review step to a different agent and

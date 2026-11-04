@@ -65,7 +65,7 @@ If you'd rather drive your tool's **own** AI (Cursor's Agent, Copilot, Cascade�
 > - **Sub-agent waves** — the `flow` orchestrator's automatic dispatch is Claude-Code-only. The `cklph-reviewer` and `red-team` agent files are plain instructions any model can follow (paste one in as the prompt, or see `plugins/cklph-os/skills/review/cross-model.md`); nothing dispatches them for you.
 > - **Auto-routing** — `start-here` won't auto-pick a skill; you invoke things by hand.
 >
-> What you **keep**: the actual thinking — spec → plan → build → review → verify discipline, the design/security/debugging checklists, the daily-rhythm skills.
+> What you **keep**: the actual thinking — challenge → spec → plan → build → review → verify discipline, the design/security/debugging checklists, the daily-rhythm skills.
 
 ### The universal porting recipe
 

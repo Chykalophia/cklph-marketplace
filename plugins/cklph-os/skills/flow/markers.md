@@ -15,7 +15,11 @@ stays the only list. Exit 0 prints the verdict, 1 = no marker, 2 = conflicting m
   character at least as long) never count.
 - **One verdict.** The payload a marker introduces (findings list, gaps YAML) may follow it, and the
   same marker may repeat. **Two different markers outside code → the step failed; re-run it** (fail
-  closed, so a findings list quoting `## REVIEW CLEAN` can't pass a review).
+  closed, so a findings list quoting `## REVIEW CLEAN` can't pass a review). A **near-miss** (a line
+  starting `## <MARKER>` that doesn't match its row, such as `## ISSUES FOUND:` or a bare
+  `## TASK BLOCKED`) counts as a second, conflicting marker. HTML comments get no special treatment.
+- **Only the table below** (rows under the `## Markers` heading) defines markers; other tables in
+  this file don't.
 - **Mentioning a marker** in prose: keep it inline in backticks, never at the start of a line.
 - **Whole strings.** Five markers share the `TASK` prefix; matching on the prefix routes a build
   report as a challenge verdict.
@@ -29,13 +33,13 @@ stays the only list. Exit 0 prints the verdict, 1 = no marker, 2 = conflicting m
 ## Markers
 | Phase / emitter | Marker | Meaning | Next step | Loop limit |
 |---|---|---|---|---|
-| `challenge` | `## TASK READY` | Premises hold, context present, no blocking question | `refine` if the goal is vague, else `spec` | — |
+| `challenge` | `## TASK READY` | Premises hold, context present, no blocking question (the *how* may still be open) | `refine` if the goal is vague, else `spec` | — |
 | `challenge` | `## TASK QUESTIONS` | Something doubtful, missing or unanswered | **Hard gate in every mode**: a human answers, then re-run `challenge` | Human-gated; no automatic retry |
 | `challenge` | `## TASK REJECTED` | The task's premise is wrong | Stop the flow; report why and the alternative | — |
 | `survey` (by hand, not a `flow` phase) | `## SURVEY COMPLETE` | Scope drilled, decisions made | `spec` | — |
 | `survey` | `## SURVEY OPEN` | Decisions still needed | Human decides, then re-run `survey` | Human-gated |
 | `plan` → `cklph-reviewer` Mode B | `## PLAN VERIFIED` | Plan passes plan-check | `build` | — |
-| `plan` → `cklph-reviewer` Mode B | `## PLAN ISSUES` | BLOCKER/WARNING per task | Revise the plan, re-check | 3 cycles, or stop early when a re-check finds no fewer issues; then escalate |
+| `plan` → `cklph-reviewer` Mode B | `## PLAN ISSUES` | BLOCKER/WARNING per task | Revise the plan, re-check | Per `../plan/plan-check.md` (its cycle limit and no-progress stop), then escalate |
 | `build` → `cklph-implementer` | `## TASK COMPLETE` | One task done (committed when the brief says so; `build` always does) | Next wave, or `review` after the last | — |
 | `build` → `cklph-implementer` | `## TASK BLOCKED: <reason>` | Task could not be done as briefed | Resolve or re-plan before the dependent wave; a disputed attack test goes to Peter instead | — |
 | `review` → `cklph-reviewer` Mode A | `## REVIEW CLEAN` | No blocking findings | `verify` | — |

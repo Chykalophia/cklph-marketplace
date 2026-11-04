@@ -162,7 +162,7 @@ STATE.md                   # working state
   The fix wave may not edit, delete or exclude it; `verify` runs `attack-tests.sh check`. Only a human
   releases one (an `Attack-Tests-Unlocked:` trailer).
 - **Review rounds run on progress, not a count.** Keep fixing and re-reviewing while each round finds
-  real new issues; stop on churn or after 5 rounds (`skills/review/two-reviewer-gate.md`, Rounds).
+  real new issues; stop on churn or after 5 rounds (`plugins/cklph-os/skills/review/two-reviewer-gate.md`, Rounds).
 - **Markers have one owner:** `plugins/cklph-os/skills/flow/markers.md`; `scripts/marker.sh` parses
   by reading it. A new marker gets a row there in the same change. Skills name the markers they emit or route on; none keeps a second full list.
 

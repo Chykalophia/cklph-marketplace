@@ -43,11 +43,14 @@ Triage the findings:
 finding, not "review anyway."
 
 **Attack tests.** The reviewer stays read-only. For a **Critical or High** finding it may *propose* an
-attack test, in exactly this form: a line `` **Attack test:** `<new/file/path>` `` (a new file; letters,
-digits, `. _ / -` only), then one fenced block with the whole file. You write it and lock it with
-`scripts/attack-tests.sh lock` (`flow` → Hand-offs), which refuses any test that doesn't fail on the
-current code. A refused test goes back to the reviewer as "your attack test didn't reproduce the
-finding". A locked test is never edited by the fix wave; a disputed one goes to Peter.
+attack test, in exactly this form: a line `` **Attack test:** `<new/test/path>` `` (a new file at a
+test location; letters, digits, `. _ / -`, no dot-directories), a line `` Expect: `<ERE>` `` matching
+the failure it should print, then one fenced block with the whole file. You read it, then lock it
+with `scripts/attack-tests.sh lock` (`flow` → Hand-offs), which refuses any test that doesn't fail on
+the current code with that failure. A refused test goes back to the reviewer as "your attack test
+didn't reproduce the finding". A locked test is never edited by the fix wave; a disputed one goes
+to Peter. The lock commit is made by the script, so `pre-commit-gate` doesn't see it; it holds only
+the test files.
 
 The `pre-commit-gate` hook is the automatic backstop at commit time — not a substitute for this gate.
 Proceed on `## REVIEW CLEAN` / `## RED-TEAM CLEAR`; loop (fix → re-review) on `## ISSUES FOUND` /
