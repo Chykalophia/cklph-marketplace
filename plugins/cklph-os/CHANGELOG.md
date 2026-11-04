@@ -27,23 +27,29 @@ has, Claude called it "ready to start" and proposed a new file.
   collision note (three strings from `challenge`, two from `cklph-implementer`, all distinct).
 - **`scripts/marker.sh`**: the reference parser. It reads the `markers.md` table at run time, ignores
   fenced code, allows suffixes only where the table does, and **fails closed** on two different
-  markers or a near-miss verdict outside code (so a findings list quoting `## REVIEW CLEAN`, or a
-  malformed `## ISSUES FOUND:`, can't pass a review). POSIX awk with `LC_ALL=C`; tested on macOS awk
+  markers, a near-miss (`## ISSUES FOUND:`) or a formatting variant (`### ISSUES FOUND`,
+  `## Issues Found`) outside code, so a findings list quoting `## REVIEW CLEAN` can't pass a review.
+  `--emitter <phase>` rejects another phase's marker. POSIX awk with `LC_ALL=C`; tested on macOS awk
   and on mawk 1.3.4 (Ubuntu 24.04).
 - **`scripts/attack-tests.sh`** (`lock` / `check` / `list`): a reviewer's proposed attack test is
   locked only if it is a new file at a test location (no dot-paths, no symlinks), **fails on the
   current code with the expected failure** (`--expect` required; exit 126/127 refused), and nothing
-  else changed. The lock records the command and a ref under `refs/attack-tests/<branch>/`. `check
-  <base>` replays the branch oldest first and fails on a lock commit dropped from history, any later
-  commit or working-tree edit to a locked test (even one later restored), a test that doesn't pass
-  under its recorded command, a bad or non-ancestor base, and any unlock a human didn't allow with
-  `--allow-unlocked`.
+  else changed, before or after the run (a test that rewrites itself is refused). The lock records
+  the command and a ref under `refs/attack-tests/<branch>/`. `check <base>` replays the branch oldest
+  first and fails on: a commit carrying lock trailers that isn't a real lock, a second lock of a path
+  still locked, a lock commit dropped from history or outside the base range, a `--require`d test
+  that isn't locked, any later commit to a locked test (even if restored) or bytes that differ from
+  the lock (index flags included), a test that doesn't pass under its recorded command, and any
+  unlock not allowed per unlock commit (`--allow-unlocked <sha>:<path>`). Its header states the
+  threat model: it catches shortcuts and mistakes, not a hostile agent with a shell; enforce in CI.
 - **`skills/review/cross-model.md`**: run the reviewer on a different model from the builder when
   one is available; same prompt, same markers, fresh context, read-only. Includes the Codex CLI
   invocation and a consent check before code goes to a second vendor.
-- Tests: `test/marker.bats` (14), `test/attack-tests.bats` (20), and a hooks.bats case that fails when
-  a skill, reference file or agent emits a marker (backticked or bare) with no row.
-  `test/mutate-scripts.py` reinjects 23 bug shapes into the two scripts; each turns a test red. Trigger tests for `challenge` and `refine`
+- Tests: `test/marker.bats` (18), `test/attack-tests.bats` (27), `test/attack-tests-forgery.bats` (the
+  round 4 red-team's own attack test, locked with the script before the fix and passing after it),
+  and a hooks.bats case that fails when a skill, reference file or agent emits a marker (backticked
+  or bare) with no row. `test/mutate-scripts.py` reinjects 37 bug shapes into the two scripts; each
+  turns a test red. Trigger tests for `challenge` and `refine`
   (refine had none). Proof: `docs/proof/challenge/2026-11-04.md`.
 
 ### Changed
@@ -57,7 +63,7 @@ has, Claude called it "ready to start" and proposed a new file.
   churn (a fixed finding returns, or a fix redoes an earlier fix) or after 5 rounds. Replaces the
   2-round cap everywhere it appeared (`review`, `ship`, `flow`, the verify gaps loop).
 - **`review`**, **`build`**, **`verify`**: attack tests only for Critical/High findings, in a fixed
-  format (`**Attack test:** <path>` + one fenced block), locked and checked by the script above. The
+  format (`**Attack test:** <path>`, `Expect: <ERE>`, one fenced block), locked and checked by the script above. The
   two-reviewer gate prefers two different models.
 - **`red-team`**, **`cklph-reviewer`**: runnable by any agent that can read files and run a shell;
   the plan-check pointer no longer depends on `${CLAUDE_PLUGIN_ROOT}` resolving. Both stay read-only,
@@ -75,8 +81,12 @@ list" instructions. Round 2 found the round 1 fix still locked tests nobody had 
 "last marker wins" failed open. Both became the two scripts above, with tests, instead of more prose.
 Round 3 broke the first version of those scripts (a bad base, a self-written unlock, a rebase or an
 edit-then-restore all passed `check`; `lock` accepted a CI workflow file) and the hardening above
-followed. Each round found new defects rather than old ones returning, so the gate kept going under
-the new Rounds rule.
+followed. Round 4 found a forged lock trailer and a base of `HEAD` passing `check`, among others; its
+red-team proposed an attack test for both, which went through the new lock process (failed on the
+code, was locked, passes after the fix). Round 4 also re-raised round 3's "only a human may unlock"
+in a new form (any caller can pass the flag). That is the churn signal for that class, so instead of
+a fifth patch the script's header now states the threat model. Each round otherwise found new
+defects, so the gate kept going under the new Rounds rule.
 
 ## [0.14.0] — 2026-11-02
 

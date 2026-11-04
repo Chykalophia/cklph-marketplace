@@ -64,7 +64,7 @@ Rubric: <the table>
 For each criterion: PASS, or FAIL with the exact problem and where it is. N/A only for a
 sub-check the rubric allows it for, with the reason; an N/A you disagree with is a FAIL.
 Then: Critical issues (must fix) and Suggestions (optional).
-End with the agent's own marker, last and outside any code block: `## REVIEW CLEAN` (pass) or
+End with the agent's own marker as your one verdict line, outside any code block (nothing after it but its list): `## REVIEW CLEAN` (pass) or
 `## ISSUES FOUND` (fail) for cklph-reviewer; `## RED-TEAM CLEAR` or `## RED-TEAM FINDINGS` for red-team.
 ```
 

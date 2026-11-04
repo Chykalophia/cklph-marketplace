@@ -5,8 +5,10 @@ Lazy depth for `flow`, and the one authoritative list for anything that routes o
 possibly on a different model per step.
 
 ## Parsing rules
-The reference parser is `scripts/marker.sh` (`marker.sh < output`); it reads this table, so this file
-stays the only list. Exit 0 prints the verdict, 1 = no marker, 2 = conflicting markers, 3 = no table.
+The reference parser is `scripts/marker.sh` (`marker.sh [--emitter <name>] < output`); it reads this
+table, so this file stays the only list. Exit 0 prints the verdict, 1 = no marker, 2 = conflicting or
+malformed markers, 3 = no table. Pass `--emitter` (a name from the first column, e.g. `challenge`) so
+a marker from the wrong phase fails the step instead of routing it.
 - **Exact lines.** A marker line is `## <MARKER>` with nothing after it but whitespace. A row written
   `## <MARKER>: <…>` also accepts `## <MARKER>: <text>`; a row written `## <MARKER> (<n>)` also
   accepts `## <MARKER> (<digits>)`. No other suffix: `## REVIEW CLEAN.` and `## TASK READY: x` are
@@ -17,7 +19,9 @@ stays the only list. Exit 0 prints the verdict, 1 = no marker, 2 = conflicting m
   same marker may repeat. **Two different markers outside code → the step failed; re-run it** (fail
   closed, so a findings list quoting `## REVIEW CLEAN` can't pass a review). A **near-miss** (a line
   starting `## <MARKER>` that doesn't match its row, such as `## ISSUES FOUND:` or a bare
-  `## TASK BLOCKED`) counts as a second, conflicting marker. HTML comments get no special treatment.
+  `## TASK BLOCKED`) counts as a second, conflicting marker, and so does a formatting variant of a
+  marker (`### ISSUES FOUND`, `**## ISSUES FOUND**`, `## Issues Found`). Counts start at 1. CRLF
+  line endings are fine. HTML comments get no special treatment.
 - **Only the table below** (rows under the `## Markers` heading) defines markers; other tables in
   this file don't.
 - **Mentioning a marker** in prose: keep it inline in backticks, never at the start of a line.

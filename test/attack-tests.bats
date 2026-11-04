@@ -73,11 +73,23 @@ fix_bug() { printf 'echo 2\n' > src.sh; git commit -qam "fix"; }
   has "didn't run"
 }
 
-@test "lock: refuses when anything else in the tree changed" {
-  printf 'echo 2\n' > src.sh
+@test "lock: refuses when anything else in the tree changed, and commits nothing" {
+  printf 'notes\n' > NOTES.md                      # unrelated, so the test itself still fails as expected
+  before=$(commits)
   run lock "$T"
   [ "$status" -eq 1 ]
   has "other changes"
+  hasnt "running the tests"                         # refused before the test ever ran
+  [ "$(commits)" -eq "$before" ]
+}
+
+@test "lock: refuses a test that changes the working tree while it runs" {
+  printf 'echo x > side_effect.txt; echo want 2; exit 1\n' > "$T"
+  before=$(commits)
+  run lock "$T"
+  [ "$status" -eq 1 ]
+  has "changed the working tree"
+  [ "$(commits)" -eq "$before" ]
 }
 
 @test "lock: refuses tracked files, unsafe names, dot paths, ./ paths, symlinks and non-test locations" {
@@ -142,14 +154,14 @@ fix_bug() { printf 'echo 2\n' > src.sh; git commit -qam "fix"; }
   orig=$(cat "$T")
   printf 'exit 0\n' > "$T"
   check
-  [ "$status" -eq 1 ]; has "edited in the working tree"
+  [ "$status" -eq 1 ]; has "differs from its lock commit"
   git commit -qam "weaken the test"
   check
   [ "$status" -eq 1 ]; has "changed after its lock"
   printf '%s\n' "$orig" > "$T"; git commit -qam "restore it"
   [ -z "$(git diff "$(git log --format=%H -1 --grep='^Attack-Tests: ')" -- "$T")" ]
   check
-  [ "$status" -eq 1 ]; has "changed after its lock"
+  [ "$status" -eq 1 ]; has "changed after its lock"   # restoring the bytes doesn't erase the edit
 }
 
 @test "check: fails when the locked test is deleted" {
@@ -179,6 +191,9 @@ fix_bug() { printf 'echo 2\n' > src.sh; git commit -qam "fix"; }
   git checkout -q main && printf 'x\n' > other && git add other && git commit -qm other && git checkout -q feat
   run bash "$AT" check main
   [ "$status" -eq 1 ]; has "not an ancestor"
+  git checkout -q feat
+  run bash "$AT" check HEAD                           # an ancestor, but it excludes the lock
+  [ "$status" -eq 1 ]; has "outside"
 }
 
 @test "check and list: scoped to <base>..HEAD, so tests merged earlier don't lock later work" {
@@ -196,14 +211,17 @@ fix_bug() { printf 'echo 2\n' > src.sh; git commit -qam "fix"; }
   printf '[ -f nope ] || { echo want 2; exit 1; }\n' > tests/other_test.sh
   lock "$T" tests/other_test.sh >/dev/null
   git rm -q tests/other_test.sh && git commit -qm $'drop disputed test\n\nAttack-Tests-Unlocked: tests/other_test.sh wrong premise'
+  U=$(git rev-parse HEAD)
   fix_bug
   run bash "$AT" list "$BASE"
   [ "$output" = "$T" ]
   check
   [ "$status" -eq 1 ]
-  has "UNLOCKED without --allow-unlocked  tests/other_test.sh"
+  has "UNLOCKED without --allow-unlocked ${U:0:7}:tests/other_test.sh"
   has "wrong premise"
   check --allow-unlocked tests/other_test.sh
+  [ "$status" -eq 1 ]                              # a bare path no longer allows anything
+  check --allow-unlocked "${U:0:7}:tests/other_test.sh"
   [ "$status" -eq 0 ]
   has "UNLOCKED (allowed)"
 }
@@ -211,23 +229,97 @@ fix_bug() { printf 'echo 2\n' > src.sh; git commit -qam "fix"; }
 @test "check: a test re-locked after an unlock is locked again" {
   lock "$T" >/dev/null
   git rm -q "$T" && git commit -qm $'drop\n\nAttack-Tests-Unlocked: tests/attack_test.sh disputed'
+  U=$(git rev-parse HEAD)
   mkdir -p tests
   printf '[ "$(bash src.sh)" = 2 ] || { echo "want 2 again"; exit 1; }\n' > "$T"
   lock "$T" >/dev/null
   run bash "$AT" list "$BASE"
   [ "$output" = "$T" ]
-  check --allow-unlocked "$T"
+  check --allow-unlocked "$U:$T"
   [ "$status" -eq 1 ]; has "still fails"
   fix_bug
-  check --allow-unlocked "$T"
+  check --allow-unlocked "$U:$T"
   [ "$status" -eq 0 ]; has "PASS  $T"
+  # A second, unapproved unlock of the same path is not covered by the first allowance.
+  git rm -q "$T" && git commit -qm $'flaky\n\nAttack-Tests-Unlocked: tests/attack_test.sh flaky'
+  check --allow-unlocked "$U:$T"
+  [ "$status" -eq 1 ]; has "UNLOCKED without --allow-unlocked"
 }
 
-@test "list: trailer paths are never glob-expanded" {
-  printf 'x\n' > tests/a1_test.sh; printf 'x\n' > tests/a2_test.sh
-  git add tests && git commit -qm $'sneaky\n\nAttack-Tests: tests/a*_test.sh\nAttack-Tests-Run: bash "$1"'
+# ---- round 4: forgery, base, index flags, self-modifying tests, --require ------------------------
+
+@test "check: a commit with lock trailers that isn't a real lock fails (edit + trailer in one commit)" {
+  lock "$T" >/dev/null
+  printf 'exit 0\n' > "$T"
+  git commit -qam $'tidy\n\nAttack-Tests: tests/attack_test.sh\nAttack-Tests-Run: true'
+  check
+  [ "$status" -eq 1 ]; has "isn't a lock commit"
+}
+
+@test "check: assume-unchanged or skip-worktree can't hide an edit" {
+  lock "$T" >/dev/null
+  fix_bug
+  git update-index --assume-unchanged "$T"; printf 'exit 0\n' > "$T"
+  check
+  [ "$status" -eq 1 ]; has "differs from its lock commit"
+  git update-index --no-assume-unchanged "$T"; git checkout -q -- "$T"
+  git update-index --skip-worktree "$T"; printf 'exit 0\n' > "$T"
+  check
+  [ "$status" -eq 1 ]; has "differs from its lock commit"
+}
+
+@test "check: --require fails when an expected test isn't locked (refs deleted + lock rewritten)" {
+  lock "$T" >/dev/null
+  for r in $(git for-each-ref --format='%(refname)' refs/attack-tests/); do git update-ref -d "$r"; done
+  git commit -q --amend -m "test: just a test"
+  fix_bug
+  check
+  [ "$status" -eq 0 ]                              # without --require, nothing is known to be missing
+  check --require "$T"
+  [ "$status" -eq 1 ]; has "required attack test is not locked: $T"
+}
+
+@test "check: --branch works on a detached HEAD; NOTE lists changed helpers" {
+  lock "$T" >/dev/null
+  printf 'helper\n' > tests/lib.sh; git add tests/lib.sh; git commit -qm "helper"
+  fix_bug
+  git checkout -q --detach
+  check
+  [ "$status" -eq 1 ]; has "detached HEAD"
+  check --branch feat
+  [ "$status" -eq 0 ]; has "NOTE  tests/lib.sh changed"
+}
+
+@test "lock: refuses a test that rewrites itself, a run command without \$1, and reads --expect-file" {
+  printf 'printf "exit 0\\n" > "$0"; echo want 2; exit 1\n' > "$T"
+  run lock "$T"
+  [ "$status" -eq 1 ]; has "modified itself"
+  printf '[ "$(bash src.sh)" = 2 ] || { echo "want 2"; exit 1; }\n' > "$T"
+  run bash "$AT" lock --run 'bash tests/attack_test.sh' --expect 'want 2' "$T"
+  [ "$status" -eq 1 ]; has 'must pass the test path'
+  printf "want 2\n" > "$TMP/../exp.$$"
+  run bash "$AT" lock --run "$RUN" --expect-file "$TMP/../exp.$$" "$T"
+  rm -f "$TMP/../exp.$$"
+  [ "$status" -eq 0 ]
+}
+
+@test "list: trailer paths are never glob-expanded (a globbed unlock releases nothing)" {
+  printf '[ -f nope ] || { echo want 2; exit 1; }\n' > tests/other_test.sh
+  lock "$T" tests/other_test.sh >/dev/null
+  git commit -q --allow-empty -m $'sneaky\n\nAttack-Tests-Unlocked: tests/*_test.sh all of them'
   run bash "$AT" list "$BASE"
-  hasnt "a1_test.sh"
+  has "$T"; has "tests/other_test.sh"
+}
+
+@test "check: a path deleted without an unlock and then re-locked is a re-lock, and fails" {
+  lock "$T" >/dev/null
+  git rm -q "$T" && git commit -qm "drop it quietly"
+  mkdir -p tests
+  printf 'echo want 2; exit 1\n' > "$T"
+  lock "$T" >/dev/null
+  fix_bug
+  check
+  [ "$status" -eq 1 ]; has "again while it is still locked"
 }
 
 @test "attack-tests: must run from the repository root" {

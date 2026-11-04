@@ -8,11 +8,12 @@ description: The VERIFY phase of the cklph-os flow — prove it works. Run build
 1. Run the project's checks (type-check, build, test suite — per `AGENTS.md`). Capture real output.
 2. Run **each task's executable acceptance command** and walk the spec's **acceptance criteria** one by
    one — confirm each is met with captured evidence, not "looks right."
-3. **Attack tests intact.** From the repo root run `"${CLAUDE_PLUGIN_ROOT}/scripts/attack-tests.sh" check <base>`
-   (`<base>` per `flow` → Hand-offs). It fails if any locked test changed after its lock, was dropped
-   from history, or doesn't pass under the command recorded at lock time, and on any unlock you
-   weren't told to allow. A failure is a gap. It checks the test file only: helpers, fixtures and
-   runner config the test relies on are covered by `review`, not by the script.
+3. **Attack tests intact.** From the repo root run
+   `"${CLAUDE_PLUGIN_ROOT}/scripts/attack-tests.sh" check <base> --require <each locked path>`
+   (`<base>` per `flow` → Hand-offs; add `--branch <name>` on a detached HEAD). It fails if a locked
+   test was touched after its lock, was dropped, forged or re-locked, or doesn't pass under its
+   recorded command, and on any unlock the user didn't approve. A failure is a gap. It checks the
+   test file only: helpers, fixtures and runner config are `review`'s job (read its NOTE lines).
 4. Anything failing → emit a **structured gap list** (`@gaps-format.md`): diagnose the **root cause**
    (reproduce it first; `debugging` owns that method, and `browser-debug` covers a UI or console
    failure in the running app), route each `fix_task` back to `build` as a gaps-only wave, then re-verify.

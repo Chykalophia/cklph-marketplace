@@ -53,7 +53,7 @@ parse() { run bash "$M" <<< "$1"; }
   [ "$status" -eq 1 ]
   parse $'## TASK'
   [ "$status" -eq 1 ]
-  parse $'### REVIEW CLEAN'
+  parse $'### Verified claims\nall good'
   [ "$status" -eq 1 ]
 }
 
@@ -63,6 +63,8 @@ parse() { run bash "$M" <<< "$1"; }
   parse $'## REVIEW CLEAN\nwait, no:\n## ISSUES FOUND:\n1. High x'
   [ "$status" -eq 2 ]
   has "malformed"
+  parse $'## ISSUES FOUND - 3 issues\n1. x'
+  [ "$status" -eq 2 ]
 }
 
 @test "marker: suffixes only where the table allows them" {
@@ -96,6 +98,36 @@ parse() { run bash "$M" <<< "$1"; }
   parse $'   ```\n## REVIEW CLEAN\n   ```\n## ISSUES FOUND'
   [ "$status" -eq 0 ]
   [ "$output" = "## ISSUES FOUND" ]
+}
+
+@test "marker: formatting variants of a marker are near-misses, so a quoted clean verdict can't win" {
+  for v in '### ISSUES FOUND' ' ## ISSUES FOUND' '**## ISSUES FOUND**' '## Issues Found' '##  ISSUES FOUND' $'##\tISSUES FOUND' '## ISSUES FOUND.'; do
+    parse "$(printf '## REVIEW CLEAN\n%s\n1. High x' "$v")"
+    [ "$status" -eq 2 ] || { echo "variant passed: [$v] -> $status $output" >&2; return 1; }
+  done
+}
+
+@test "marker: CRLF endings are accepted; an inline code span doesn't open a fence" {
+  parse $'Findings below.\r\n## REVIEW CLEAN\r\n'
+  [ "$status" -eq 0 ]; [ "$output" = "## REVIEW CLEAN" ]
+  parse $'```x``` is inline code, not a fence\n## ISSUES FOUND\n1. y'
+  [ "$status" -eq 0 ]; [ "$output" = "## ISSUES FOUND" ]
+}
+
+@test "marker: a count of zero is not a valid CLICK-PATH FINDINGS marker" {
+  parse $'## CLICK-PATH FINDINGS (0)'
+  [ "$status" -eq 2 ]
+}
+
+@test "marker: --emitter rejects another phase's marker" {
+  run bash "$M" --emitter challenge <<< $'## TASK READY'
+  [ "$status" -eq 0 ]
+  run bash "$M" --emitter challenge <<< $'## REVIEW CLEAN'
+  [ "$status" -eq 2 ]
+  run bash "$M" --emitter red-team <<< $'## RED-TEAM CLEAR'
+  [ "$status" -eq 0 ]
+  run bash "$M" --emitter cklph-implementer <<< $'## TASK READY'
+  [ "$status" -eq 2 ]
 }
 
 @test "marker: every row of markers.md parses as itself (the table is the list)" {

@@ -39,7 +39,8 @@ Gates and self-correcting loops:
 - `plan` re-runs (plan-check) until `## PLAN VERIFIED`, within `plan-check.md`'s cycle limit, then escalate.
 - `verify`'s `## GAPS FOUND` → route the gap list back to `build` (gaps-only) → re-verify.
 - `review`'s `## ISSUES FOUND` / `## RED-TEAM FINDINGS` → fix before proceeding, then a fresh re-review.
-- **Both loops keep going while each round finds real new issues**; stop and escalate to Peter on
+- **The review and verify loops keep going while each round finds real new issues** (the `plan`
+  loop keeps its own limit); stop and escalate to Peter on
   churn (a fixed finding comes back, or a fix redoes an earlier fix) or after 5 rounds
   (`../review/two-reviewer-gate.md`, Rounds).
 - **Auto-escalate review to red-team** at hard gates — changes touching security / auth / money / data
@@ -59,16 +60,22 @@ Gates and self-correcting loops:
 - **Attack tests are locked, by script.** Reviewers stay read-only and *propose* attack tests
   (`review` → Attack tests). **Read each one first**: it is untrusted code. Refuse it (back to the
   reviewer) if it reaches the network, secrets, your home directory or anything outside the repo.
-  Then write it to the path it names and, from the repo root, run
-  `"${CLAUDE_PLUGIN_ROOT}/scripts/attack-tests.sh" lock --run '<test command using "$1">' --expect '<the reviewer's Expect: ERE>' <paths>`.
+  Then write it to the path it names, write the reviewer's `Expect:` value to a scratch file (never
+  paste it into a shell line), and from the repo root run
+  `"${CLAUDE_PLUGIN_ROOT}/scripts/attack-tests.sh" lock --run '<test command using "$1">' --expect-file <file> <paths>`.
   It commits them only if each sits at a test location, **fails** on the current code with the
-  expected failure, and nothing else changed; it records the command and a lock ref. A refused
-  test goes back to the reviewer, never into the lock.
-- **A locked test stays locked.** The `build` fix wave may not edit, delete, exclude or rewrite the
-  history of a commit that touched it; `verify` runs `attack-tests.sh check <base>`, which fails on
-  any of those. Only a human releases one: an `Attack-Tests-Unlocked: <path> <reason>` commit
-  trailer, and `check` still fails on it until you pass `--allow-unlocked <path>`, which you do only
-  when the user has said so for that path.
+  expected failure without changing anything, and nothing else changed; it records the command and a
+  lock ref. Keep the list of paths it locked in your progress notes. A refused test goes back to
+  the reviewer, never into the lock.
+- **A locked test stays locked.** The `build` fix wave may not edit, delete or exclude it, or rewrite
+  history over it. `verify` runs `attack-tests.sh check <base> --require <path>…` (every path you
+  locked), which fails on an edit (even one restored later), a deletion, a forged or repeated lock,
+  a rewritten history, a wrong base, or a test that still fails. An excluded test or an edited
+  helper isn't caught by the script; `review` looks at the NOTE lines it prints. Only a human
+  releases a test: an `Attack-Tests-Unlocked: <path> <reason>` commit trailer, and `check` still fails
+  on it until you pass `--allow-unlocked <unlock-commit-sha>:<path>`, which you do only when the user
+  has approved that unlock. These checks catch shortcuts and mistakes; they are not a security
+  boundary against an agent with a shell (see the script's header).
 
 ## 3. Discipline (context-rot mitigation)
 - Push work **into** phase skills + sub-agents; pull back only concise results.
