@@ -156,8 +156,8 @@ $(git status --porcelain --untracked-files=all)"
     msg=$(mktemp); trap 'rm -f "$msg"' EXIT
     printf 'test: lock review attack tests\n\nEach fails on the parent commit with the expected failure:%s\n\nAttack-Tests: %s\nAttack-Tests-Run: %s\nAttack-Tests-Expect: %s\n' \
         "$body" "${ARGS[*]}" "$RUN" "$EXPECT" > "$msg"
-    git add -- "${ARGS[@]}" && git commit -q $NOVERIFY -F "$msg" -- "${ARGS[@]}" ||
-        { git reset -q -- "${ARGS[@]}"; die "commit failed (the tests are unstaged again). If a git hook rejected it: a hook that runs the test suite always rejects an attack test, and a commit-message linter may reject the trailer lines. Fix the hook, or re-run lock with --no-verify if a human approves."; }
+    git add -- "${ARGS[@]}" && git commit -q $NOVERIFY --cleanup=verbatim -F "$msg" -- "${ARGS[@]}" ||
+        { git reset -q -- "${ARGS[@]}"; die "commit failed (the tests are unstaged again). If a git hook rejected it: a hook that runs the test suite always rejects an attack test, and a commit-message linter may reject the trailer lines. Fix the hook, or ask the user: re-run lock with --no-verify only if they approve it in so many words."; }
     # The commit must be exactly the lock we built: hooks may have changed, added or rewritten things.
     undo() { git reset -q --soft "$prev"; git reset -q; die "$1; not locked (the commit is undone; the hook's changes are left in the working tree)"; }
     for p in "${ARGS[@]}"; do
@@ -180,9 +180,9 @@ check)
     [ ${#ARGS[@]} -eq 1 ] || usage
     base="${ARGS[0]}"; valid_base "$base"; b=$(cur_branch) || exit 1
     fail=0
-    if [ -n "$(git status --porcelain)" ]; then
-        echo "FAIL  uncommitted changes (tracked or untracked); check judges the committed code, so commit, stash or remove them first:"
-        git status --porcelain | sed 's/^/      /'; fail=1
+    if [ -n "$(git status --porcelain --untracked-files=normal)" ]; then
+        echo "FAIL  uncommitted changes (tracked or untracked); check judges the committed code. Commit the fix, and remove or stash leftovers (a refused attack test is a leftover, never commit it):"
+        git status --porcelain --untracked-files=normal | sed 's/^/      /'; fail=1
     fi
     replay "$base"
     for ref in $(git for-each-ref --format='%(refname)' "refs/attack-tests/$b/"); do

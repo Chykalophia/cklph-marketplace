@@ -299,9 +299,9 @@ fix_bug() { printf 'echo 2\n' > src.sh; git commit -qam "fix"; }
   printf '[ "$(bash src.sh)" = 2 ] || { echo "want 2"; exit 1; }\n' > "$T"
   run bash "$AT" lock --run 'bash tests/attack_test.sh' --expect 'want 2' "$T"
   [ "$status" -eq 1 ]; has 'must pass the test path'
-  printf "want 2\n" > "$TMP/../exp.$$"
-  run bash "$AT" lock --run "$RUN" --expect-file "$TMP/../exp.$$" "$T"
-  rm -f "$TMP/../exp.$$"
+  printf "want 2\n" > "$BATS_TEST_TMPDIR/exp"
+  run bash "$AT" lock --run "$RUN" --expect-file "$BATS_TEST_TMPDIR/exp" "$T"
+  rm -f "$BATS_TEST_TMPDIR/exp"
   [ "$status" -eq 0 ]
 }
 
@@ -456,15 +456,43 @@ fix_bug() { printf 'echo 2\n' > src.sh; git commit -qam "fix"; }
 }
 
 @test "lock: --expect-file takes one line (CRLF ok) and refuses several" {
-  printf 'want 2\r\n' > "$TMP/../exp.$$"
-  run bash "$AT" lock --run "$RUN" --expect-file "$TMP/../exp.$$" "$T"
+  printf 'want 2\r\n' > "$BATS_TEST_TMPDIR/exp"
+  run bash "$AT" lock --run "$RUN" --expect-file "$BATS_TEST_TMPDIR/exp" "$T"
   [ "$status" -eq 0 ]
   run git log -1 --format=%B
   has "Attack-Tests-Expect: want 2"; hasnt $'\r'
   git reset -q --hard HEAD~1; mkdir -p tests
   printf '[ "$(bash src.sh)" = 2 ] || { echo "want 2"; exit 1; }\n' > "$T"
-  printf 'want 2\nexit 0\n' > "$TMP/../exp.$$"
-  run bash "$AT" lock --run "$RUN" --expect-file "$TMP/../exp.$$" "$T"
-  rm -f "$TMP/../exp.$$"
+  printf 'want 2\nexit 0\n' > "$BATS_TEST_TMPDIR/exp"
+  run bash "$AT" lock --run "$RUN" --expect-file "$BATS_TEST_TMPDIR/exp" "$T"
+  rm -f "$BATS_TEST_TMPDIR/exp"
   [ "$status" -eq 1 ]; has "exactly one non-empty line"
+}
+
+# ---- after round 7 -------------------------------------------------------------------------------
+
+@test "check: an untracked fix fails even with status.showUntrackedFiles=no" {
+  git config status.showUntrackedFiles no
+  lock "$T" >/dev/null
+  printf 'bash lib/feature.sh\n' > src.sh; git commit -qam "call the helper"
+  mkdir -p lib && printf 'echo 2\n' > lib/feature.sh
+  check
+  [ "$status" -eq 1 ]; has "uncommitted changes"
+}
+
+@test "lock: a --run or --expect ending in a space is recorded exactly" {
+  run bash "$AT" lock --run 'bash "$1" ' --expect 'want 2, ' "$T"
+  [ "$status" -eq 0 ]
+  [ "$(git log -1 --format=%B | sed -n 's/^Attack-Tests-Expect: //p')" = 'want 2, ' ]
+  fix_bug
+  check
+  [ "$status" -eq 0 ]
+}
+
+@test "lock: refuses in a repo with no commits" {
+  d="$BATS_TEST_TMPDIR/empty"; mkdir -p "$d/tests"; cd "$d"
+  git init -q -b main . && git config user.email t@t && git config user.name t
+  printf 'echo want 2; exit 1\n' > tests/a_test.sh
+  run bash "$AT" lock --run "$RUN" --expect "$EXP" tests/a_test.sh
+  [ "$status" -eq 1 ]; has "no commits yet"
 }

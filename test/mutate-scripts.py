@@ -11,15 +11,17 @@ import os, pathlib, shlex, shutil, subprocess, sys, tempfile
 SRC = pathlib.Path(sys.argv[1]).resolve()
 TMP = pathlib.Path(tempfile.mkdtemp(prefix="cklph-mutate-"))
 ROOT = TMP / "repo"
-shutil.copytree(SRC, ROOT, ignore=shutil.ignore_patterns(".git", "node_modules"))
 AT = ROOT / "plugins/cklph-os/scripts/attack-tests.sh"
 MK = ROOT / "plugins/cklph-os/scripts/marker.sh"
 MUTS = [
     (MK, "test/marker.bats", 'line = $0; key = ""', 'line = $0', "stale key makes a payload line the verdict"),
     (MK, "test/marker.bats", 'if (substr(c, RSTART + 1, RLENGTH - 2) == emitter) own[m] = 1', 'if (index(c, emitter)) own[m] = 1', "--emitter matches substrings"),
     (AT, "test/attack-tests.bats", 'case "$RUN$EXPECT" in', 'case "" in', "multi-line --run accepted"),
-    (AT, "test/attack-tests.bats", 'if [ -n "$(git status --porcelain)" ]; then', 'if false; then', "check passes an uncommitted fix"),
-    (AT, "test/attack-tests.bats", 'if [ -n "$(git status --porcelain)" ]; then', 'if [ -n "$(git status --porcelain --untracked-files=no)" ]; then', "check passes a fix left untracked"),
+    (AT, "test/attack-tests.bats", 'if [ -n "$(git status --porcelain --untracked-files=normal)" ]; then', 'if false; then', "check passes an uncommitted fix"),
+    (AT, "test/attack-tests.bats", 'if [ -n "$(git status --porcelain --untracked-files=normal)" ]; then', 'if [ -n "$(git status --porcelain --untracked-files=no)" ]; then', "check passes a fix left untracked"),
+    (AT, "test/attack-tests.bats", 'if [ -n "$(git status --porcelain --untracked-files=normal)" ]; then', 'if [ -n "$(git status --porcelain)" ]; then', "status config hides untracked files"),
+    (AT, "test/attack-tests.bats", ' --cleanup=verbatim -F', ' -F', "trailing space in a trailer refused"),
+    (AT, "test/attack-tests.bats", '|| die "no commits yet', '|| true "no commits yet', "lock on an empty repo"),
     (AT, "test/attack-tests.bats", '--full-history --no-merges', '--full-history', "a merge of main blamed as an edit"),
     (AT, "test/attack-tests.bats", 'git merge-base --is-ancestor "$c" "$m" && [', 'false && [', "a merge that edits the test hidden"),
     (AT, "test/attack-tests.bats", 'undo "a commit hook added other changes', 'true "a commit hook added other changes', "hook-added files locked"),
@@ -28,7 +30,7 @@ MUTS = [
     (AT, "test/attack-tests.bats", 'elif [[ "$LOCKCOMMITS" != *" $c "* ]]; then', 'elif false; then', "lock ref at a non-lock commit accepted"),
     (AT, "test/attack-tests.bats", '{ sub(/\\r$/, "") } ', '', "CRLF expect file refused"),
     (AT, "test/attack-tests.bats", 'if (n != 1) exit 1', 'if (n < 1) exit 1', "multi-line expect file cut to one line"),
-    (AT, "test/attack-tests.bats", '$NOVERIFY -F', '-F', "--no-verify ignored"),
+    (AT, "test/attack-tests.bats", '$NOVERIFY --cleanup', '--cleanup', "--no-verify ignored"),
     (AT, "test/attack-tests.bats", 'git rev-list --full-history', 'git rev-list', "side-branch edit-then-restore hidden"),
     (AT, "test/attack-tests.bats", '= "$(awk -v p="$p" \'$1 == p { print $2 }\' <<< "$RANLIST")" ]', '= "$(git rev-parse HEAD:"$p")" ]', "hook-rewritten test locked"),
     (AT, "test/attack-tests.bats", '{ git reset -q -- "${ARGS[@]}"; die "commit failed', '{ die "commit failed', "failed commit leaves the test staged"),
@@ -73,13 +75,14 @@ MUTS = [
 bats = shlex.split(os.environ.get("BATS", "bats"))
 
 def main():
+    shutil.copytree(SRC, ROOT, ignore=shutil.ignore_patterns(".git", "node_modules"))
+    for path, suite, old, new, label in MUTS:  # check every pattern before spending time on runs
+        n = path.read_text().count(old)
+        if n != 1: print(f"pattern for '{label}' matches {n} times; update it", flush=True); return 2
     for suite in sorted({m[1] for m in MUTS}):
         r = subprocess.run(bats + [suite], cwd=ROOT, capture_output=True, text=True)
         if r.returncode != 0:
             print(f"baseline is red for {suite}; fix it first:\n{r.stdout[-2000:]}", flush=True); return 2
-    for path, suite, old, new, label in MUTS:  # check every pattern before spending time on runs
-        n = path.read_text().count(old)
-        if n != 1: print(f"pattern for '{label}' matches {n} times; update it", flush=True); return 2
     bad = 0
     for path, suite, old, new, label in MUTS:
         src = path.read_text()

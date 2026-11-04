@@ -49,9 +49,11 @@ the failure it should print, then one fenced block with the whole file. You read
 with `scripts/attack-tests.sh lock` (`flow` → Hand-offs), which refuses any test that doesn't fail on
 the current code with that failure. A refused test goes back to the reviewer as "your attack test
 didn't reproduce the finding". A locked test is never edited by the fix wave; a disputed one goes
-to Peter. The script commits with `--no-verify` (a git hook such as lint-staged could rewrite the
-test between its run and the commit), and the Claude Code `pre-commit-gate` hook only inspects
-commands typed into the Bash tool, so neither runs on the lock commit; it holds only the test files.
+to Peter. The script commits normally, so the repo's git hooks run; a hook that changes the commit
+(rewrites the test, adds a file, strips the trailers, leaves the tree dirty) undoes the lock. It
+skips hooks (`--no-verify`) only when the user approves (`flow` → Hand-offs). The Claude Code
+`pre-commit-gate` hook only inspects commands typed into the Bash tool, so it doesn't run on the
+lock commit; that commit holds only the test files.
 
 The `pre-commit-gate` hook is the automatic backstop at commit time — not a substitute for this gate.
 Proceed on `## REVIEW CLEAN` / `## RED-TEAM CLEAR`; loop (fix → re-review) on `## ISSUES FOUND` /
