@@ -33,7 +33,7 @@ assumptions get flagged explicitly: `UNVERIFIED: relies on <X> — confirm befor
 3. Pull back only the implementers' concise reports. Keep your own context lean (~30–40%); track
    progress with the task tools, not by holding everything in your window.
 4. If an implementer reports a blocker, resolve it (or re-plan that task) before the dependent wave.
-5. **Fix wave after `review`?** The attack tests the review committed are **locked**: list their paths
+5. **Fix wave after `review`?** The attack tests you locked after `review` are **locked**: list their paths
    (`"${CLAUDE_PLUGIN_ROOT}/scripts/attack-tests.sh" list <base>`, run from the repo root; `<base>` per
    `flow` → Hand-offs) under each brief's OUT OF SCOPE. No editing, deleting or excluding them from
    the run (ignore patterns, test-script filters), and no amend, rebase or squash of the branch. An

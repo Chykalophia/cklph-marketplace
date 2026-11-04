@@ -24,7 +24,9 @@ a marker from the wrong phase fails the step instead of routing it.
   line endings are fine. HTML comments get no special treatment.
 - **Only the table below** (rows under the `## Markers` heading) defines markers; other tables in
   this file don't.
-- **Mentioning a marker** in prose: keep it inline in backticks, never at the start of a line.
+- **Mentioning a marker** in prose: keep it inline in backticks, never at the start of a line, and
+  don't title a section with a marker's words (`### Verified`, `**Root cause:** …`): that reads as a
+  formatting variant and fails the step.
 - **Whole strings.** Five markers share the `TASK` prefix; matching on the prefix routes a build
   report as a challenge verdict.
 - **Commit first.** A phase that produces artifacts commits them on the feature branch before it
@@ -44,7 +46,7 @@ a marker from the wrong phase fails the step instead of routing it.
 | `survey` | `## SURVEY OPEN` | Decisions still needed | Human decides, then re-run `survey` | Human-gated |
 | `plan` → `cklph-reviewer` Mode B | `## PLAN VERIFIED` | Plan passes plan-check | `build` | — |
 | `plan` → `cklph-reviewer` Mode B | `## PLAN ISSUES` | BLOCKER/WARNING per task | Revise the plan, re-check | Per `../plan/plan-check.md` (its cycle limit and no-progress stop), then escalate |
-| `build` → `cklph-implementer` | `## TASK COMPLETE` | One task done (committed when the brief says so; `build` always does) | Next wave, or `review` after the last | — |
+| `build` → `cklph-implementer` | `## TASK COMPLETE` | One task done and committed (`build` always tells the implementer to commit) | Next wave, or `review` after the last | — |
 | `build` → `cklph-implementer` | `## TASK BLOCKED: <reason>` | Task could not be done as briefed | Resolve or re-plan before the dependent wave; a disputed attack test goes to Peter instead | — |
 | `review` → `cklph-reviewer` Mode A | `## REVIEW CLEAN` | No blocking findings | `verify` | — |
 | `review` → `cklph-reviewer` Mode A | `## ISSUES FOUND` | Findings by severity | `build` fix wave, then fresh re-review | While rounds find real new issues; stop on churn or 5 rounds (`../review/two-reviewer-gate.md`, Rounds) |

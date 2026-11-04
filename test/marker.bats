@@ -130,6 +130,22 @@ parse() { run bash "$M" <<< "$1"; }
   [ "$status" -eq 2 ]
 }
 
+@test "marker: severity headings and bold bullets in the payload never become the verdict" {
+  parse $'## ISSUES FOUND\n### Critical\n- foo\n**High** bar\n# notes'
+  [ "$status" -eq 0 ]; [ "$output" = "## ISSUES FOUND" ]
+  parse $'## GAPS FOUND\n# gaps yaml\n* item'
+  [ "$status" -eq 0 ]; [ "$output" = "## GAPS FOUND" ]
+}
+
+@test "marker: --emitter matches a whole phase or agent name, not a substring" {
+  run bash "$M" --emitter review <<< $'## PLAN VERIFIED'
+  [ "$status" -eq 2 ]
+  run bash "$M" --emitter plan <<< $'## PLAN VERIFIED'
+  [ "$status" -eq 0 ]
+  run bash "$M" --emitter e <<< $'## REVIEW CLEAN'
+  [ "$status" -eq 2 ]
+}
+
 @test "marker: every row of markers.md parses as itself (the table is the list)" {
   command -v python3 >/dev/null || skip "python3 required"
   rows=$(python3 -c '

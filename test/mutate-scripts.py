@@ -1,14 +1,27 @@
 """Prove the script tests have teeth: reinject one bug at a time into scripts/marker.sh and
-scripts/attack-tests.sh; each must turn at least one bats test red. Restores every file after.
+scripts/attack-tests.sh; each must turn at least one bats test red.
+
+Works on a throwaway copy of the repo (never in place), and first checks both suites are green
+unmutated, so a suite that is already red can't make every mutation look "caught".
 
 Run from the repo root:  python3 test/mutate-scripts.py .     (BATS="npx --yes bats@1.13.0" if bats is missing)
 """
-import os, pathlib, shlex, subprocess, sys
+import os, pathlib, shlex, shutil, subprocess, sys, tempfile
 
-ROOT = pathlib.Path(sys.argv[1])
+SRC = pathlib.Path(sys.argv[1]).resolve()
+TMP = pathlib.Path(tempfile.mkdtemp(prefix="cklph-mutate-"))
+ROOT = TMP / "repo"
+shutil.copytree(SRC, ROOT, ignore=shutil.ignore_patterns(".git", "node_modules"))
 AT = ROOT / "plugins/cklph-os/scripts/attack-tests.sh"
 MK = ROOT / "plugins/cklph-os/scripts/marker.sh"
 MUTS = [
+    (MK, "test/marker.bats", 'line = $0; key = ""', 'line = $0', "stale key makes a payload line the verdict"),
+    (MK, "test/marker.bats", 'if (substr(c, RSTART + 1, RLENGTH - 2) == emitter) own[m] = 1', 'if (index(c, emitter)) own[m] = 1', "--emitter matches substrings"),
+    (AT, "test/attack-tests.bats", 'case "$RUN$EXPECT" in', 'case "" in', "multi-line --run accepted"),
+    (AT, "test/attack-tests.bats", 'if [ -n "$(git status --porcelain --untracked-files=no)" ]; then', 'if false; then', "check passes an uncommitted fix"),
+    (AT, "test/attack-tests.bats", 'git rev-list --full-history', 'git rev-list', "side-branch edit-then-restore hidden"),
+    (AT, "test/attack-tests.bats", '= "$(awk -v p="$p" \'$1 == p { print $2 }\' <<< "$RANLIST")" ]', '= "$(git rev-parse HEAD:"$p")" ]', "hook-rewritten test locked"),
+    (AT, "test/attack-tests.bats", '{ git reset -q -- "${ARGS[@]}"; die "commit failed', '{ die "commit failed', "failed commit leaves the test staged"),
     (AT, "test/attack-tests.bats", 'die "passes on the current code', 'echo "passes on the current code', "lock accepts a passing test"),
     (AT, "test/attack-tests.bats", '<<< "$OUT") || die', '<<< "$OUT") || echo', "lock ignores --expect mismatch"),
     (AT, "test/attack-tests.bats", '= "$expected" ] || die "working tree has other changes', '= "$expected" ] || echo "working tree has other changes', "lock ignores a dirty tree"),
@@ -47,17 +60,23 @@ MUTS = [
     (MK, "test/marker.bats", 'intable = ($0 ~ /^## Markers[ \\t]*$/)', 'intable = 1', "every table in markers.md counts"),
     (MK, "test/marker.bats", 'match(line, /^ ? ? ?(```+|~~~+)/)', 'match(line, /^(```+|~~~+)/)', "indented fences ignored"),
 ]
+bats = shlex.split(os.environ.get("BATS", "bats"))
+for suite in sorted({m[1] for m in MUTS}):
+    r = subprocess.run(bats + [suite], cwd=ROOT, capture_output=True, text=True)
+    if r.returncode != 0:
+        print(f"baseline is red for {suite}; fix it first:\n{r.stdout[-2000:]}"); shutil.rmtree(TMP); sys.exit(2)
 bad = 0
 for path, suite, old, new, label in MUTS:
     src = path.read_text()
     assert src.count(old) == 1, (label, src.count(old))
     path.write_text(src.replace(old, new))
     try:
-        r = subprocess.run(shlex.split(os.environ.get("BATS", "bats")) + [suite], cwd=ROOT, capture_output=True, text=True)
+        r = subprocess.run(bats + [suite], cwd=ROOT, capture_output=True, text=True)
         red = [l for l in r.stdout.splitlines() if l.startswith("not ok")]
         print(("CAUGHT " if red else "MISSED ") + label + (f"  ({len(red)} red, e.g. {red[0][7:60]})" if red else ""))
         bad += 0 if red else 1
     finally:
         path.write_text(src)
+shutil.rmtree(TMP)
 print(f"{len(MUTS) - bad}/{len(MUTS)} mutations caught")
 sys.exit(1 if bad else 0)

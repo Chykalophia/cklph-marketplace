@@ -2,8 +2,9 @@
 # Reference parser for the cklph-os marker contract (skills/flow/markers.md).
 #
 # Usage:  marker.sh [--emitter <name>] < step-output.txt
-#   --emitter  only markers from table rows whose first cell names <name> (e.g. challenge,
-#              cklph-reviewer, red-team) are valid; another row's marker counts as a conflict
+#   --emitter  only markers from table rows whose first cell has <name> as a whole backticked
+#              token (a phase: challenge, review, verify, plan…; or an agent) are valid; another
+#              row's marker counts as a conflict
 #   exit 0  prints the verdict line (e.g. "## REVIEW CLEAN", "## TASK BLOCKED: no access")
 #   exit 1  no marker: the step failed
 #   exit 2  two different markers outside code: the step failed, re-run it (fail closed)
@@ -43,12 +44,13 @@ LC_ALL=C awk -v emitter="$EMITTER" '
     else if (m ~ / \(<n>\)$/)  { sub(/ \(<n>\)$/, "", m);  kind = "count" }
     kinds[m] = kind; n++
     split($0, cell, "|")
-    if (emitter == "" || index(cell[2], emitter) > 0) own[m] = 1
+    if (emitter == "") own[m] = 1
+    else { c = cell[2]; while (match(c, /`[^`]+`/)) { if (substr(c, RSTART + 1, RLENGTH - 2) == emitter) own[m] = 1; c = substr(c, RSTART + RLENGTH) } }
     next
   }
   # Pass 2: the step output.
   {
-    line = $0
+    line = $0; key = ""
     sub(/\r$/, "", line)
     if (fence == "") {
       if (match(line, /^ ? ? ?(```+|~~~+)/)) {

@@ -11,6 +11,7 @@
 # failure it expects. The orchestrator reads it (untrusted code), writes it to disk, then:
 #
 #   attack-tests.sh lock --run '<cmd>' (--expect '<ERE>' | --expect-file <file>) <path>...
+#       (commits normally, so the repo's git hooks run; if a hook changes a test, the lock is undone)
 #       Refuses unless every path is a new, untracked, non-symlink file at a test location; the
 #       working tree has no other change before and after the runs; <cmd> uses "$1"; and each test
 #       FAILS (exit not 0/126/127) with output matching <ERE>, without modifying itself. Commits
@@ -30,10 +31,11 @@
 #   attack-tests.sh list <base>
 #       Prints the currently locked paths in <base>..HEAD, one per line (build's OUT OF SCOPE).
 #
-# <base> is the commit the feature branch started from: `git merge-base <default-branch> HEAD`,
-# taken before any merge of the default branch into the feature branch. <cmd> runs under bash with
-# the test path as "$1", e.g. --run 'bats "$1"'. Run from the repository root. After a legitimate
-# rebase, lock commits change: re-lock the tests and delete the stale refs (git update-ref -d).
+# <base> is `git merge-base <default-branch> HEAD` (cklph-os flow → Hand-offs). <cmd> is one line and
+# runs under bash with the test path as "$1", e.g. --run 'bats "$1"'. Run from the repository root.
+# After a legitimate rebase the lock commits get new SHAs: point a ref at each rebased lock commit
+# (git update-ref refs/attack-tests/<branch>/<new> <new>) and delete the old refs. Don't just delete
+# them: the wrong-base guard needs them. `check` also fails on uncommitted changes to tracked files.
 # Exit 1 = refused/failed, 2 = usage.
 
 set -uo pipefail
@@ -72,7 +74,8 @@ replay() {
         done
         listed=$(sed -n 's/^Attack-Tests: //p' <<< "$body" | tr ' ' '\n' | sed '/^$/d' | sort -u)
         [ -n "$listed" ] || continue
-        run=$(sed -n 's/^Attack-Tests-Run: //p' <<< "$body" | head -n1)
+        run=$(sed -n 's/^Attack-Tests-Run: //p' <<< "$body")
+        [ "$(grep -c '^Attack-Tests-Run: ' <<< "$body")" -le 1 ] || run=""
         added=$(git diff-tree --no-commit-id --root -r --name-status "$c" | awk -F'\t' '$1=="A"{print $2; next} {print "!" $2}' | sort -u)
         if [ "$added" != "$listed" ] || [ -z "$run" ]; then
             ERRORS+=("${c:0:7} carries Attack-Tests trailers but isn't a lock commit (it must only add exactly the listed files, and record a command)")
@@ -114,6 +117,7 @@ case "$cmd" in
 lock)
     [ -n "$RUN" ] && [ -n "$EXPECT" ] && [ ${#ARGS[@]} -gt 0 ] || usage
     [[ "$RUN" == *'$1'* ]] || die "--run must pass the test path as \"\$1\", or it isn't running the test"
+    case "$RUN$EXPECT" in *$'\n'*|*$'\r'*) die "--run and --expect must be one line each" ;; esac
     b=$(cur_branch) || exit 1
     for p in "${ARGS[@]}"; do
         [[ "$p" == ./* ]] && die "write the path without a leading ./: $p"
@@ -126,9 +130,9 @@ lock)
     expected=$(printf '?? %s\n' "${ARGS[@]}" | sort)
     [ "$(git status --porcelain --untracked-files=all | sort)" = "$expected" ] || die "working tree has other changes; commit or stash them first:
 $(git status --porcelain --untracked-files=all)"
-    body=""
+    body=""; RANLIST=""
     for p in "${ARGS[@]}"; do
-        before=$(git hash-object -- "$p")
+        before=$(git hash-object -- "$p"); RANLIST="$RANLIST$p $before"$'\n'
         run_test "$RUN" "$p"
         [ "$(git hash-object -- "$p" 2>/dev/null)" = "$before" ] || die "the test modified itself while running: $p"
         [ "$RC" -ne 0 ] || die "passes on the current code, so it proves nothing; not locked: $p"
@@ -141,7 +145,11 @@ $(git status --porcelain --untracked-files=all)"
     msg=$(mktemp); trap 'rm -f "$msg"' EXIT
     printf 'test: lock review attack tests\n\nEach fails on the parent commit with the expected failure:%s\n\nAttack-Tests: %s\nAttack-Tests-Run: %s\nAttack-Tests-Expect: %s\n' \
         "$body" "${ARGS[*]}" "$RUN" "$EXPECT" > "$msg"
-    git add -- "${ARGS[@]}" && git commit -q --no-verify -F "$msg" -- "${ARGS[@]}" || die "commit failed"
+    git add -- "${ARGS[@]}" && git commit -q -F "$msg" -- "${ARGS[@]}" || { git reset -q -- "${ARGS[@]}"; die "commit failed (the tests are unstaged again; fix the cause and re-run lock)"; }
+    for p in "${ARGS[@]}"; do
+        [ "$(git rev-parse HEAD:"$p")" = "$(awk -v p="$p" '$1 == p { print $2 }' <<< "$RANLIST")" ] ||
+            { git reset -q --soft HEAD~1; git reset -q -- "${ARGS[@]}"; die "a commit hook changed $p after it ran; not locked"; }
+    done
     c=$(git rev-parse HEAD)
     git update-ref "refs/attack-tests/$b/$c" "$c" || die "couldn't record the lock ref"
     echo "$c"
@@ -156,6 +164,9 @@ check)
         if ! git merge-base --is-ancestor "$c" HEAD; then echo "FAIL  lock commit ${c:0:7} is no longer on $b (history rewritten? see the header on rebases)"; fail=1
         elif git merge-base --is-ancestor "$c" "$base"; then echo "FAIL  lock commit ${c:0:7} is outside $base..HEAD; the base is wrong"; fail=1; fi
     done
+    if [ -n "$(git status --porcelain --untracked-files=no)" ]; then
+        echo "FAIL  uncommitted changes to tracked files; check judges the committed code, so commit or stash first"; fail=1
+    fi
     replay "$base"
     for e in "${ERRORS[@]+"${ERRORS[@]}"}"; do echo "FAIL  $e"; fail=1; done
     for u in "${UNLOCKS[@]+"${UNLOCKS[@]}"}"; do
@@ -172,7 +183,7 @@ check)
     for entry in "${LOCKS[@]+"${LOCKS[@]}"}"; do
         p="${entry%%|*}"; rest="${entry#*|}"; c="${rest%%|*}"; run="${rest#*|}"; n=$((n + 1))
         want=$(blob_at "$c" "$p")
-        later=$(git rev-list "$c"..HEAD -- "$p" | head -n1)
+        later=$(git rev-list --full-history "$c"..HEAD -- "$p" | head -n1)
         if [ -n "$later" ]; then echo "FAIL  $p  changed after its lock, in ${later:0:7} (even if restored since)"; fail=1; continue; fi
         if [ -L "$p" ] || [ ! -f "$p" ] || [ "$(git hash-object -- "$p")" != "$want" ] || [ "$(blob_at HEAD "$p")" != "$want" ]; then
             echo "FAIL  $p  differs from its lock commit ${c:0:7} (edited, deleted, or a symlink)"; fail=1; continue

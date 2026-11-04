@@ -65,7 +65,8 @@ Gates and self-correcting loops:
   `"${CLAUDE_PLUGIN_ROOT}/scripts/attack-tests.sh" lock --run '<test command using "$1">' --expect-file <file> <paths>`.
   It commits them only if each sits at a test location, **fails** on the current code with the
   expected failure without changing anything, and nothing else changed; it records the command and a
-  lock ref. Keep the list of paths it locked in your progress notes. A refused test goes back to
+  lock ref. Keep the list of paths it locked in your progress notes; that list, never `attack-tests.sh
+  list`, feeds `check --require` (a lock that vanished from history isn't listed). A refused test goes back to
   the reviewer, never into the lock.
 - **A locked test stays locked.** The `build` fix wave may not edit, delete or exclude it, or rewrite
   history over it. `verify` runs `attack-tests.sh check <base> --require <path>…` (every path you

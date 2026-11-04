@@ -328,3 +328,52 @@ fix_bug() { printf 'echo 2\n' > src.sh; git commit -qam "fix"; }
   [ "$status" -eq 1 ]
   has "repository root"
 }
+
+# ---- after round 5 -------------------------------------------------------------------------------
+
+@test "lock: a multi-line --run or --expect is refused" {
+  run bash "$AT" lock --run $'echo running\nbash "$1"' --expect "$EXP" "$T"
+  [ "$status" -eq 1 ]; has "one line"
+  [ -z "$(git log --format=%H --grep='^Attack-Tests: ' main..HEAD)" ]
+}
+
+@test "check: fails on an uncommitted fix (it judges the committed code)" {
+  lock "$T" >/dev/null
+  printf 'echo 2\n' > src.sh
+  check
+  [ "$status" -eq 1 ]; has "uncommitted changes"
+  git commit -qam fix
+  check
+  [ "$status" -eq 0 ]
+}
+
+@test "check: an edit made and restored on a merged side branch still counts" {
+  lock "$T" >/dev/null
+  fix_bug
+  git checkout -qb side
+  orig=$(cat "$T"); printf 'exit 0\n' > "$T"; git commit -qam weaken
+  printf '%s\n' "$orig" > "$T"; git commit -qam restore
+  git checkout -q feat && git merge -q --no-ff side -m "merge side"
+  check
+  [ "$status" -eq 1 ]; has "changed after its lock"
+}
+
+@test "lock: runs the repo's commit hooks; a hook that rewrites the test undoes the lock" {
+  printf '#!/bin/sh\necho "# touched" >> tests/attack_test.sh\ngit add tests/attack_test.sh\n' > .git/hooks/pre-commit
+  chmod +x .git/hooks/pre-commit
+  before=$(commits)
+  run lock "$T"
+  [ "$status" -eq 1 ]; has "commit hook changed"
+  [ "$(commits)" -eq "$before" ]
+  [ -z "$(git for-each-ref refs/attack-tests)" ]
+}
+
+@test "lock: a failed commit leaves the test unstaged so a retry works" {
+  printf '#!/bin/sh\nexit 1\n' > .git/hooks/pre-commit; chmod +x .git/hooks/pre-commit
+  run lock "$T"
+  [ "$status" -eq 1 ]; has "commit failed"
+  [ "$(git status --porcelain -- "$T")" = "?? $T" ]
+  rm .git/hooks/pre-commit
+  run lock "$T"
+  [ "$status" -eq 0 ]
+}
