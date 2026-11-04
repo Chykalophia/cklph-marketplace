@@ -23,7 +23,8 @@
 #
 #   attack-tests.sh check <base> [--require <path>]... [--allow-unlocked <sha>:<path>]... [--branch <name>]
 #       Replays <base>..HEAD oldest first and FAILS on: any uncommitted change, tracked or untracked
-#       (it judges the committed code); a commit with lock trailers that isn't a real
+#       (it judges the committed code; gitignored files are not seen, so a fix that lives only in an
+#       ignored file still passes: CI from a clean clone catches that); a commit with lock trailers that isn't a real
 #       lock (it must only Add exactly the paths it names); a second lock of a path still locked; a
 #       recorded lock ref that is no longer on the branch, outside <base>..HEAD (wrong base), or
 #       not a valid lock commit; a
@@ -47,7 +48,7 @@ set -uo pipefail
 set -f   # trailer words are paths, never globs
 
 die()   { echo "attack-tests: $*" >&2; exit 1; }
-usage() { sed -n '2,44p' "${BASH_SOURCE[0]}" >&2; exit 2; }
+usage() { sed -n '2,46p' "${BASH_SOURCE[0]}" >&2; exit 2; }
 safe()  { [[ "$1" =~ ^[A-Za-z0-9_][A-Za-z0-9._/-]*$ ]] && [[ "$1" != *..* ]] && [[ "$1" != */.* ]]; }
 is_test_path() {  # a tests/test/__tests__/spec directory, or a test-named file
     [[ "$1" =~ (^|/)(tests?|__tests__|specs?)/ ]] || [[ "$1" =~ (^|/)test_[^/]+$ ]] ||
@@ -181,7 +182,7 @@ check)
     base="${ARGS[0]}"; valid_base "$base"; b=$(cur_branch) || exit 1
     fail=0
     if [ -n "$(git status --porcelain --untracked-files=normal)" ]; then
-        echo "FAIL  uncommitted changes (tracked or untracked); check judges the committed code. Commit the fix, and remove or stash leftovers (a refused attack test is a leftover, never commit it):"
+        echo "FAIL  uncommitted changes (tracked or untracked); check judges the committed code. Commit the fix; set other files aside with 'git stash push --include-untracked' (don't delete what you didn't create, and never commit a refused attack test):"
         git status --porcelain --untracked-files=normal | sed 's/^/      /'; fail=1
     fi
     replay "$base"

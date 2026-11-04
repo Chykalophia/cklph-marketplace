@@ -103,10 +103,15 @@ a test-running pre-commit hook makes `lock` impossible (opt-in `--no-verify`, hu
 those fixes: Codex's one finding didn't reproduce (`check` already fails that case); the red-team
 found that git's default message cleanup made `lock` refuse a `--run`/`--expect` ending in a space
 (now committed verbatim), that `status.showUntrackedFiles=no` hid untracked files from `check` (now
-explicit), and that `review` still said lock commits skip hooks. All fixed with tests; Peter decides
-whether to ship or run another round. Left open for Peter:
+explicit), and that `review` still said lock commits skip hooks. All fixed (the script changes with
+tests). Round 8, on those fixes: Codex was clear; the red-team's one Medium was `verify` wording
+that could lead an agent to delete a user's untracked file (now: undo only what the checks created,
+stash the rest). Its two hook-related Lows are left open below. Left open for Peter:
 `--require` has no committed source (the list lives in the orchestrator's notes), lock refs are
-never pruned after merge, `run_test` has no timeout, and NOTE lines only cover the test's directory.
+never pruned after merge, `run_test` has no timeout, NOTE lines only cover the test's directory, a
+commit-msg hook that re-emits trailers (Gerrit Change-Id, DCO sign-off) trims a `--expect` ending in a
+space so `lock` refuses it (it fails closed with an accurate message), a hook-added `#` comment line
+is now committed after the trailers, and `check` doesn't see gitignored files.
 
 ## [0.14.0] — 2026-11-02
 

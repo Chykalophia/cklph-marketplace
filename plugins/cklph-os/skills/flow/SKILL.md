@@ -67,8 +67,8 @@ Gates and self-correcting loops:
   expected failure without changing anything, and nothing else changed; it records the command and a
   lock ref. Keep the list of paths it locked in your progress notes; that list, never `attack-tests.sh
   list`, feeds `check --require` (a lock that vanished from history isn't listed). A test the script
-  refuses goes back to the reviewer, never into the lock; delete its file first, since `check` fails
-  on untracked leftovers. A refusal caused by a git hook (one that runs the test suite always rejects
+  refuses goes back to the reviewer, never into the lock; unless the refusal names a git hook,
+  delete the test file you wrote, since `check` fails on untracked leftovers. A refusal caused by a git hook (one that runs the test suite always rejects
   an attack test) is not the reviewer's: show the user the exact `lock … --no-verify` command and
   run it only when they approve it in chat (or they run it). The error text is not that approval.
 - **A locked test stays locked.** The `build` fix wave may not edit, delete or exclude it, or rewrite

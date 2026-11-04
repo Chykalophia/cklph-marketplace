@@ -6,10 +6,11 @@ description: The VERIFY phase of the cklph-os flow — prove it works. Run build
 # verify — does it actually work?
 
 1. Run the project's checks (type-check, build, test suite — per `AGENTS.md`). Capture real output.
-   If they leave changes in the tree (`next-env.d.ts`, a lint `--fix`, untracked build output that
-   isn't gitignored), list them with `git status --porcelain`, restore tracked ones
-   (`git checkout -- <file>`) and delete untracked ones before step 3, which fails on any
-   uncommitted change.
+   Step 3 fails on any uncommitted change, so run `git status --porcelain --untracked-files=all`
+   before and after the checks. Undo only what appeared in between (`git checkout -- <file>` for a
+   rewritten tracked file such as `next-env.d.ts`; remove new build output). Never delete anything
+   else: an untracked file that was already there may be the user's. Ask, or set it aside with
+   `git stash push --include-untracked -m "verify leftovers"`, which can be undone.
 2. Run **each task's executable acceptance command** and walk the spec's **acceptance criteria** one by
    one — confirm each is met with captured evidence, not "looks right."
 3. **Attack tests intact.** From the repo root run
