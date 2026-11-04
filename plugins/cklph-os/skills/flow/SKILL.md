@@ -66,8 +66,10 @@ Gates and self-correcting loops:
   It commits them only if each sits at a test location, **fails** on the current code with the
   expected failure without changing anything, and nothing else changed; it records the command and a
   lock ref. Keep the list of paths it locked in your progress notes; that list, never `attack-tests.sh
-  list`, feeds `check --require` (a lock that vanished from history isn't listed). A refused test goes back to
-  the reviewer, never into the lock.
+  list`, feeds `check --require` (a lock that vanished from history isn't listed). A test the script
+  refuses goes back to the reviewer, never into the lock. A refusal caused by a git hook (one that
+  runs the test suite always rejects an attack test) is not the reviewer's: ask the user, and re-run
+  with `--no-verify` only if they approve.
 - **A locked test stays locked.** The `build` fix wave may not edit, delete or exclude it, or rewrite
   history over it. `verify` runs `attack-tests.sh check <base> --require <path>…` (every path you
   locked), which fails on an edit (even one restored later), a deletion, a forged or repeated lock,

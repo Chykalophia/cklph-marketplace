@@ -6,6 +6,8 @@ description: The VERIFY phase of the cklph-os flow — prove it works. Run build
 # verify — does it actually work?
 
 1. Run the project's checks (type-check, build, test suite — per `AGENTS.md`). Capture real output.
+   If they leave generated changes in the tree (`next-env.d.ts`, a lint `--fix`), restore those
+   (`git checkout -- <file>`) before step 3, which fails on any uncommitted change.
 2. Run **each task's executable acceptance command** and walk the spec's **acceptance criteria** one by
    one — confirm each is met with captured evidence, not "looks right."
 3. **Attack tests intact.** From the repo root run

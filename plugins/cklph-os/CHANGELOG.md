@@ -45,10 +45,10 @@ has, Claude called it "ready to start" and proposed a new file.
 - **`skills/review/cross-model.md`**: run the reviewer on a different model from the builder when
   one is available; same prompt, same markers, fresh context, read-only. Includes the Codex CLI
   invocation and a consent check before code goes to a second vendor.
-- Tests: `test/marker.bats` (20), `test/attack-tests.bats` (32), `test/attack-tests-forgery.bats` (the
+- Tests: `test/marker.bats` (20), `test/attack-tests.bats` (39), `test/attack-tests-forgery.bats` (the
   round 4 red-team's own attack test, locked with the script before the fix and passing after it),
   and a hooks.bats case that fails when a skill, reference file or agent emits a marker (backticked
-  or bare) with no row. `test/mutate-scripts.py` reinjects 44 bug shapes into a throwaway copy of the two
+  or bare) with no row. `test/mutate-scripts.py` reinjects 54 bug shapes into a throwaway copy of the two
   scripts, after checking the suites are green unmutated; each turns a test red. Trigger tests for `challenge` and `refine`
   (refine had none). Proof: `docs/proof/challenge/2026-11-04.md`.
 
@@ -89,11 +89,17 @@ a fifth patch the script's header now states the threat model. Each round otherw
 defects, so the gate kept going under the new Rounds rule.
 
 Round 5, the cap, still failed both reviewers. The certain bugs it found were fixed afterwards, each
-with a test and a mutation, but **without a sixth review round**: a round 4 regression that let a
+with a test and a mutation: a round 4 regression that let a
 payload line (`### Critical`) become the verdict, `--emitter` matching substrings, a multi-line
 `--run` running only its first line at check time, `check` passing an uncommitted fix, side-branch
 edit-then-restore, a failed lock commit leaving the test staged, and `--no-verify` (removed: the
-repo's hooks now run, and a hook that rewrites the test undoes the lock). Left open for Peter:
+repo's hooks now run, and a hook that rewrites the test undoes the lock). Peter asked for one more
+round on just that commit. Round 6: Codex was clear; the red-team found that the round 5
+`--full-history` fix blamed every merge of main into the branch as an edit of the locked test (fixed:
+merges are judged by the bytes they record), that running hooks let a hook add files, leave the
+tree dirty or strip the trailers while `lock` still reported success (now each undoes the lock), that
+a test-running pre-commit hook makes `lock` impossible (opt-in `--no-verify`, human-approved), and that
+`check` passed a fix left as an untracked file (now any uncommitted change fails). Left open for Peter:
 `--require` has no committed source (the list lives in the orchestrator's notes), lock refs are
 never pruned after merge, `run_test` has no timeout, and NOTE lines only cover the test's directory.
 

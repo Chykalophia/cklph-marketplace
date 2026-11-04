@@ -25,7 +25,7 @@ a marker from the wrong phase fails the step instead of routing it.
 - **Only the table below** (rows under the `## Markers` heading) defines markers; other tables in
   this file don't.
 - **Mentioning a marker** in prose: keep it inline in backticks, never at the start of a line, and
-  don't title a section with a marker's words (`### Verified`, `**Root cause:** …`): that reads as a
+  don't title a section with a marker's words (`### Verified`, `### Root cause`): that reads as a
   formatting variant and fails the step.
 - **Whole strings.** Five markers share the `TASK` prefix; matching on the prefix routes a build
   report as a challenge verdict.
@@ -42,7 +42,7 @@ a marker from the wrong phase fails the step instead of routing it.
 | `challenge` | `## TASK READY` | Premises hold, context present, no blocking question (the *how* may still be open) | `refine` if the goal is vague, else `spec` | — |
 | `challenge` | `## TASK QUESTIONS` | Something doubtful, missing or unanswered | **Hard gate in every mode**: a human answers, then re-run `challenge` | Human-gated; no automatic retry |
 | `challenge` | `## TASK REJECTED` | The task's premise is wrong | Stop the flow; report why and the alternative | — |
-| `survey` (by hand, not a `flow` phase) | `## SURVEY COMPLETE` | Scope drilled, decisions made | `spec` | — |
+| `survey` (by hand, outside flow) | `## SURVEY COMPLETE` | Scope drilled, decisions made | `spec` | — |
 | `survey` | `## SURVEY OPEN` | Decisions still needed | Human decides, then re-run `survey` | Human-gated |
 | `plan` → `cklph-reviewer` Mode B | `## PLAN VERIFIED` | Plan passes plan-check | `build` | — |
 | `plan` → `cklph-reviewer` Mode B | `## PLAN ISSUES` | BLOCKER/WARNING per task | Revise the plan, re-check | Per `../plan/plan-check.md` (its cycle limit and no-progress stop), then escalate |

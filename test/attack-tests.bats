@@ -38,7 +38,9 @@ fix_bug() { printf 'echo 2\n' > src.sh; git commit -qam "fix"; }
   has "Attack-Tests: $T"
   has "Attack-Tests-Run: $RUN"
   has "Attack-Tests-Expect: $EXP"
-  has "exit 1; matched: want 2, got 1"
+  has "- $T: exit 1"
+  has "  matched: want 2, got 1"
+  [ -z "$(git log -1 --format=%B | awk 'length($0) > 72 && !/^Attack-Tests/')" ]
   [ "$(git rev-parse "refs/attack-tests/feat/$c")" = "$c" ]
   [ -z "$(git status --porcelain)" ]
 }
@@ -88,7 +90,7 @@ fix_bug() { printf 'echo 2\n' > src.sh; git commit -qam "fix"; }
   before=$(commits)
   run lock "$T"
   [ "$status" -eq 1 ]
-  has "changed the working tree"
+  has "running the tests changed the working tree"
   [ "$(commits)" -eq "$before" ]
 }
 
@@ -376,4 +378,93 @@ fix_bug() { printf 'echo 2\n' > src.sh; git commit -qam "fix"; }
   rm .git/hooks/pre-commit
   run lock "$T"
   [ "$status" -eq 0 ]
+}
+
+# ---- after round 6 -------------------------------------------------------------------------------
+
+@test "check: merging main (or any branch without the test) after the lock still passes" {
+  lock "$T" >/dev/null
+  fix_bug
+  git checkout -q main && printf 'x\n' > other.txt && git add other.txt && git commit -qm "main moves"
+  git checkout -q feat && git merge -q --no-ff main -m "merge main"
+  check
+  [ "$status" -eq 0 ]; has "PASS  $T"
+  run bash "$AT" check "$(git merge-base main HEAD)"
+  [ "$status" -eq 0 ]
+}
+
+@test "check: merges that change the locked test and then restore it still count" {
+  lock "$T" >/dev/null
+  fix_bug
+  orig=$(cat "$T")
+  git checkout -q main && printf 'x\n' > a.txt && git add a.txt && git commit -qm "main a"
+  git checkout -q feat && git merge -q --no-ff --no-commit main
+  printf 'exit 0\n' > "$T"; git add "$T"; git commit -qm "merge main (weakens the test)"
+  git checkout -q main && printf 'y\n' > b.txt && git add b.txt && git commit -qm "main b"
+  git checkout -q feat && git merge -q --no-ff --no-commit main
+  printf '%s\n' "$orig" > "$T"; git add "$T"; git commit -qm "merge main (restores it)"
+  [ -z "$(git rev-list --no-merges --full-history "$(git rev-list -n1 --grep='^Attack-Tests: ' HEAD)"..HEAD -- "$T")" ]
+  check
+  [ "$status" -eq 1 ]; has "changed after its lock"
+}
+
+@test "check: an untracked file the fix needs fails (it isn't in the commit)" {
+  lock "$T" >/dev/null
+  printf 'bash lib/feature.sh\n' > src.sh; git commit -qam "call the helper"
+  mkdir -p lib && printf 'echo 2\n' > lib/feature.sh
+  check
+  [ "$status" -eq 1 ]; has "uncommitted changes"; has "lib/"
+  git add lib && git commit -qm "add helper"
+  check
+  [ "$status" -eq 0 ]
+}
+
+@test "lock: a hook that stages another file, rewrites the test unstaged, or strips trailers undoes the lock" {
+  before=$(commits)
+  printf 'x\n' > gen.txt && git add gen.txt && git commit -qm gen && before=$(commits)
+  printf '#!/bin/sh\necho y >> gen.txt\ngit add gen.txt\n' > .git/hooks/pre-commit; chmod +x .git/hooks/pre-commit
+  run lock "$T"
+  [ "$status" -eq 1 ]; has "added other changes"
+  [ "$(commits)" -eq "$before" ]; [ -z "$(git for-each-ref refs/attack-tests)" ]
+  git checkout -q -- gen.txt
+  printf '#!/bin/sh\necho "# fmt" >> tests/attack_test.sh\n' > .git/hooks/pre-commit
+  run lock "$T"
+  [ "$status" -eq 1 ]; has "left changes in the working tree"
+  [ "$(commits)" -eq "$before" ]; [ -z "$(git for-each-ref refs/attack-tests)" ]
+  printf '[ "$(bash src.sh)" = 2 ] || { echo "want 2, got $(bash src.sh)"; exit 1; }\n' > "$T"
+  rm .git/hooks/pre-commit
+  printf '#!/bin/sh\ngrep -v "^Attack-Tests" "$1" > "$1.x"; mv "$1.x" "$1"\n' > .git/hooks/commit-msg; chmod +x .git/hooks/commit-msg
+  run lock "$T"
+  [ "$status" -eq 1 ]; has "rewrote the lock trailers"
+  [ "$(commits)" -eq "$before" ]; [ -z "$(git for-each-ref refs/attack-tests)" ]
+  [ "$(git status --porcelain --untracked-files=all)" = "?? $T" ]
+}
+
+@test "check: a lock ref pointing at a commit that isn't a valid lock fails" {
+  git commit -q --allow-empty -m "not a lock"
+  c=$(git rev-parse HEAD); git update-ref "refs/attack-tests/feat/$c" "$c"
+  check
+  [ "$status" -eq 1 ]; has "isn't a valid lock commit"
+}
+
+@test "lock: --no-verify skips a test-running hook; without it the error names the hook" {
+  printf '#!/bin/sh\nfor t in tests/*.sh; do bash "$t" || exit 1; done\n' > .git/hooks/pre-commit; chmod +x .git/hooks/pre-commit
+  run lock "$T"
+  [ "$status" -eq 1 ]; has "hook that runs the test suite"
+  run bash "$AT" lock --run "$RUN" --expect "$EXP" --no-verify "$T"
+  [ "$status" -eq 0 ]
+}
+
+@test "lock: --expect-file takes one line (CRLF ok) and refuses several" {
+  printf 'want 2\r\n' > "$TMP/../exp.$$"
+  run bash "$AT" lock --run "$RUN" --expect-file "$TMP/../exp.$$" "$T"
+  [ "$status" -eq 0 ]
+  run git log -1 --format=%B
+  has "Attack-Tests-Expect: want 2"; hasnt $'\r'
+  git reset -q --hard HEAD~1; mkdir -p tests
+  printf '[ "$(bash src.sh)" = 2 ] || { echo "want 2"; exit 1; }\n' > "$T"
+  printf 'want 2\nexit 0\n' > "$TMP/../exp.$$"
+  run bash "$AT" lock --run "$RUN" --expect-file "$TMP/../exp.$$" "$T"
+  rm -f "$TMP/../exp.$$"
+  [ "$status" -eq 1 ]; has "exactly one non-empty line"
 }

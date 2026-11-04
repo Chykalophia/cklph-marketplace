@@ -18,18 +18,28 @@ MUTS = [
     (MK, "test/marker.bats", 'line = $0; key = ""', 'line = $0', "stale key makes a payload line the verdict"),
     (MK, "test/marker.bats", 'if (substr(c, RSTART + 1, RLENGTH - 2) == emitter) own[m] = 1', 'if (index(c, emitter)) own[m] = 1', "--emitter matches substrings"),
     (AT, "test/attack-tests.bats", 'case "$RUN$EXPECT" in', 'case "" in', "multi-line --run accepted"),
-    (AT, "test/attack-tests.bats", 'if [ -n "$(git status --porcelain --untracked-files=no)" ]; then', 'if false; then', "check passes an uncommitted fix"),
+    (AT, "test/attack-tests.bats", 'if [ -n "$(git status --porcelain)" ]; then', 'if false; then', "check passes an uncommitted fix"),
+    (AT, "test/attack-tests.bats", 'if [ -n "$(git status --porcelain)" ]; then', 'if [ -n "$(git status --porcelain --untracked-files=no)" ]; then', "check passes a fix left untracked"),
+    (AT, "test/attack-tests.bats", '--full-history --no-merges', '--full-history', "a merge of main blamed as an edit"),
+    (AT, "test/attack-tests.bats", 'git merge-base --is-ancestor "$c" "$m" && [', 'false && [', "a merge that edits the test hidden"),
+    (AT, "test/attack-tests.bats", 'undo "a commit hook added other changes', 'true "a commit hook added other changes', "hook-added files locked"),
+    (AT, "test/attack-tests.bats", 'undo "a commit hook rewrote the lock trailers', 'true "a commit hook rewrote the lock trailers', "hook-stripped trailers locked"),
+    (AT, "test/attack-tests.bats", 'undo "a commit hook left changes', 'true "a commit hook left changes', "hook-dirtied tree locked"),
+    (AT, "test/attack-tests.bats", 'elif [[ "$LOCKCOMMITS" != *" $c "* ]]; then', 'elif false; then', "lock ref at a non-lock commit accepted"),
+    (AT, "test/attack-tests.bats", '{ sub(/\\r$/, "") } ', '', "CRLF expect file refused"),
+    (AT, "test/attack-tests.bats", 'if (n != 1) exit 1', 'if (n < 1) exit 1', "multi-line expect file cut to one line"),
+    (AT, "test/attack-tests.bats", '$NOVERIFY -F', '-F', "--no-verify ignored"),
     (AT, "test/attack-tests.bats", 'git rev-list --full-history', 'git rev-list', "side-branch edit-then-restore hidden"),
     (AT, "test/attack-tests.bats", '= "$(awk -v p="$p" \'$1 == p { print $2 }\' <<< "$RANLIST")" ]', '= "$(git rev-parse HEAD:"$p")" ]', "hook-rewritten test locked"),
     (AT, "test/attack-tests.bats", '{ git reset -q -- "${ARGS[@]}"; die "commit failed', '{ die "commit failed', "failed commit leaves the test staged"),
     (AT, "test/attack-tests.bats", 'die "passes on the current code', 'echo "passes on the current code', "lock accepts a passing test"),
     (AT, "test/attack-tests.bats", '<<< "$OUT") || die', '<<< "$OUT") || echo', "lock ignores --expect mismatch"),
     (AT, "test/attack-tests.bats", '= "$expected" ] || die "working tree has other changes', '= "$expected" ] || echo "working tree has other changes', "lock ignores a dirty tree"),
-    (AT, "test/attack-tests.bats", '= "$expected" ] || die "running the tests changed', '= "$expected" ] || echo "running the tests changed', "lock ignores a test that dirties the tree"),
+    (AT, "test/attack-tests.bats", '= "$expected" ] || die "running the tests changed', '= "$expected" ] || true "running the tests changed', "lock ignores a test that dirties the tree"),
     (AT, "test/attack-tests.bats", '[ "$RC" -ne 126 ] && [ "$RC" -ne 127 ] || die', 'true || die', "lock accepts a test that never ran"),
     (AT, "test/attack-tests.bats", 'is_test_path "$p" || die', 'true || die', "lock accepts non-test paths"),
     (AT, "test/attack-tests.bats", '[ -L "$p" ] && die "symlink', 'false && die "symlink', "lock accepts symlinks"),
-    (AT, "test/attack-tests.bats", 'matched: ${hit:0:200}', 'matched: $OUT', "raw output in the commit"),
+    (AT, "test/attack-tests.bats", 'matched: ${hit:0:60}', 'matched: $OUT', "raw output in the commit"),
     (AT, "test/attack-tests.bats", '--run)            [ $# -ge 2 ] || usage; ', '--run)            ', "missing option value hangs"),
     (AT, "test/attack-tests.bats", 'if [ -n "$later" ]; then', 'if false; then', "check misses later commits to the test"),
     (AT, "test/attack-tests.bats", '[ "$(git hash-object -- "$p")" != "$want" ]', 'false', "check misses working-tree / index-flag edits"),
@@ -61,22 +71,31 @@ MUTS = [
     (MK, "test/marker.bats", 'match(line, /^ ? ? ?(```+|~~~+)/)', 'match(line, /^(```+|~~~+)/)', "indented fences ignored"),
 ]
 bats = shlex.split(os.environ.get("BATS", "bats"))
-for suite in sorted({m[1] for m in MUTS}):
-    r = subprocess.run(bats + [suite], cwd=ROOT, capture_output=True, text=True)
-    if r.returncode != 0:
-        print(f"baseline is red for {suite}; fix it first:\n{r.stdout[-2000:]}"); shutil.rmtree(TMP); sys.exit(2)
-bad = 0
-for path, suite, old, new, label in MUTS:
-    src = path.read_text()
-    assert src.count(old) == 1, (label, src.count(old))
-    path.write_text(src.replace(old, new))
-    try:
+
+def main():
+    for suite in sorted({m[1] for m in MUTS}):
         r = subprocess.run(bats + [suite], cwd=ROOT, capture_output=True, text=True)
-        red = [l for l in r.stdout.splitlines() if l.startswith("not ok")]
-        print(("CAUGHT " if red else "MISSED ") + label + (f"  ({len(red)} red, e.g. {red[0][7:60]})" if red else ""))
-        bad += 0 if red else 1
-    finally:
-        path.write_text(src)
-shutil.rmtree(TMP)
-print(f"{len(MUTS) - bad}/{len(MUTS)} mutations caught")
-sys.exit(1 if bad else 0)
+        if r.returncode != 0:
+            print(f"baseline is red for {suite}; fix it first:\n{r.stdout[-2000:]}", flush=True); return 2
+    for path, suite, old, new, label in MUTS:  # check every pattern before spending time on runs
+        n = path.read_text().count(old)
+        if n != 1: print(f"pattern for '{label}' matches {n} times; update it", flush=True); return 2
+    bad = 0
+    for path, suite, old, new, label in MUTS:
+        src = path.read_text()
+        path.write_text(src.replace(old, new))
+        try:
+            r = subprocess.run(bats + [suite], cwd=ROOT, capture_output=True, text=True)
+            red = [l for l in r.stdout.splitlines() if l.startswith("not ok")]
+            print(("CAUGHT " if red else "MISSED ") + label + (f"  ({len(red)} red, e.g. {red[0][7:60]})" if red else ""), flush=True)
+            bad += 0 if red else 1
+        finally:
+            path.write_text(src)
+    print(f"{len(MUTS) - bad}/{len(MUTS)} mutations caught", flush=True)
+    return 1 if bad else 0
+
+try:
+    code = main()
+finally:
+    shutil.rmtree(TMP, ignore_errors=True)
+sys.exit(code)
