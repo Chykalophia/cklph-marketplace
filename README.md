@@ -27,7 +27,7 @@
 
 | Plugin | What it does | When you want it |
 | --- | --- | --- |
-| **`cklph-os`** | Dev-workflow spine — phase loop (`refine → spec → plan → build → review → verify → ship`, plus `survey` run by hand for scope gaps), three adversarial agents (`cklph-implementer` / `cklph-reviewer` / `red-team`), daily-rhythm primitives (`triage` · `decide` · `daily-frame` · `weekly-review`), self-improvement loop (`learn`), skill hygiene (`stocktake` + a local usage log), and quality-gate hooks, including a destructive-command gate and an opt-in fact-forcing gate (`gateguard`). | **Always.** This is the core. |
+| **`cklph-os`** | Dev-workflow spine — phase loop (`challenge → refine → spec → plan → build → review → verify → ship`, plus `survey` run by hand for scope gaps), three adversarial agents (`cklph-implementer` / `cklph-reviewer` / `red-team`), daily-rhythm primitives (`triage` · `decide` · `daily-frame` · `weekly-review`), self-improvement loop (`learn`), skill hygiene (`stocktake` + a local usage log), and quality-gate hooks, including a destructive-command gate and an opt-in fact-forcing gate (`gateguard`). | **Always.** This is the core. |
 | **`cklph-nextjs`** | Opinionated Next.js + Supabase patterns layered on top of the official `vercel:*` skills — layered `lib/` architecture, mutation security checklist, data-layer abstraction rules, 12 review pitfalls, full stack coverage. | If you work in Next.js + Supabase repos. |
 
 **Auditing and monitoring**
@@ -89,10 +89,11 @@ Restart your CLI after install so the skills load.
 
 ## 🔧 The build flow (`cklph-os`)
 
-Seven composable phases — run one standalone, or chain them with the orchestrator.
+Eight composable phases — run one standalone, or chain them with the orchestrator.
 
 | Phase | Command | Does |
 | --- | --- | --- |
+| challenge | `/cklph-os:challenge` | check the incoming task is right and has what it needs |
 | refine | `/cklph-os:refine` | sharpen a vague idea *(optional)* |
 | spec | `/cklph-os:spec` | requirements + acceptance criteria |
 | plan | `/cklph-os:plan` | decompose into a wave task-graph |

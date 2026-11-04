@@ -31,7 +31,8 @@ Add the deliverable's own rules (the spec's acceptance criteria, brand voice, th
 
 ## Procedure
 1. **Two fresh reviewers in parallel.** Dispatch two subagents (two `cklph-reviewer`, or two
-   `red-team` for security diffs). Each gets the spec, the work, and the rubric. Neither sees the
+   `red-team` for security diffs), **on two different models when one is available**, neither on
+   the builder's model if you can avoid it (`cross-model.md`). Each gets the spec, the work, and the rubric. Neither sees the
    other's review, the conversation, or your opinion of the work.
 2. **Verdict.** Ship only if **both** pass. A flag from one reviewer is real: the other reviewer's
    miss is exactly the blind spot this gate exists for.

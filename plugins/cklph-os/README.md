@@ -18,12 +18,25 @@ Claude Desktop through the marketplace too; STANDARD.md §3 tracks that as still
 
 | Kind | Contents |
 |---|---|
-| Phase loop | `refine` → `spec` → `plan` → `build` → `review` → `verify` → `ship`, chained by `flow` (`/cklph-os:flow <goal>`). `survey` fills scope gaps by hand between `refine` and `spec`. |
+| Phase loop | `challenge` → `refine` → `spec` → `plan` → `build` → `review` → `verify` → `ship`, chained by `flow` (`/cklph-os:flow <goal>`). `survey` fills scope gaps by hand between `refine` and `spec`. Every marker a phase or agent emits is listed in `skills/flow/markers.md`. |
 | Agents | `cklph-implementer` (one task per dispatch), `cklph-reviewer` (code review and plan-check), `red-team` (high-stakes review) |
 | Daily rhythm | `triage`, `decide`, `daily-frame`, `weekly-review`, `learn`, `stocktake` |
 | Engineering | `api-design`, `debugging`, `browser-debug`, `click-path-audit`, `design`, `frontend-ui`, `performance`, `security-hardening`, `simplify` |
 | Working style | `start-here` (read first: instruction priority and routing), `reply-shape`, `writing`, `handoff`, `harness-limits`, `authoring` |
 | Hooks | `pre-commit-gate`, `nextjs-quality-check`, `security-check`, `destructive-command-gate`, `skill-usage-log`, `reply-shape-context`, `gateguard` (opt-in) |
+
+## Challenge and cross-model review
+
+`challenge` is phase 0 of `flow`: a fresh-context check that an incoming task is the right task,
+split into atomic asks, with the context it needs. It runs on every task that enters `flow`; a
+trivial one gets a three-line pass. It ends `## TASK READY`, `## TASK QUESTIONS` (a hard gate in
+every mode, so an unattended agent never builds on an open question) or `## TASK REJECTED` (with
+`file:line` evidence). Run it alone with `/cklph-os:challenge <the task>`.
+
+Review runs on a different model from the builder whenever one is available, with the same prompt
+and the same markers (`skills/review/cross-model.md`). The reviewer and red-team agent files are
+written so any agent that can read files and run a shell can follow them, which lets an external
+orchestrator hand those steps to another model.
 
 ## GateGuard (opt-in)
 

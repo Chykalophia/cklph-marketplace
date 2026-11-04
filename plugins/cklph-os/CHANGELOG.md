@@ -5,6 +5,45 @@ Format: [Keep a Changelog](https://keepachangelog.com); versioning follows [SemV
 Moved here from the repo root on 2026-10-27; marketplace and repo-level events (repo rename, sibling
 plugins, the marketplace manifest) live in the root CHANGELOG.
 
+## [0.15.0] — 2026-11-04
+
+A second model in fresh context catches what the author's model can't. In a local multi-model loop
+(build on Claude, break on Codex with hostile tests, fix on Claude), Codex found a real bug that
+Claude's own 14 tests missed: `parseDuration("5constructor")` returned `NaN`, because the unit
+lookup hit an inherited object property. The same loop showed two other gaps. Nothing checked that a
+task picked off a board was right before an agent built it. And the hand-offs leaked: the breaker
+left its test uncommitted, so the fixer had to read another task's worktree. A no-skill baseline on
+this repo showed the first gap: asked to assess a ticket for a test that `test/hooks.bats` already
+has, Claude called it "ready to start" and proposed a new file.
+
+### Added
+- **`challenge`** (skill + `/cklph-os:challenge`): phase 0 of `flow`. A fresh-context interrogation
+  of the task in five moves (split, premise check with `file:line` evidence, context sufficiency,
+  at most five questions, assumption gate) ending `## TASK READY`, `## TASK QUESTIONS` or
+  `## TASK REJECTED`. Trivial tasks get a three-line pass. It never answers its own questions.
+- **`skills/flow/markers.md`**: the one list of every marker a phase or agent emits (phase, meaning,
+  next step, loop limit), with parsing rules for external orchestrators and the `## TASK *`
+  collision note: three strings from `challenge`, two from `cklph-implementer`, all distinct.
+- **`skills/review/cross-model.md`**: run the reviewer on a different model from the builder when
+  one is available; same prompt, same markers, fresh context, never edits source. Includes the
+  Codex CLI invocation.
+- Trigger tests for `challenge` and `refine` (refine had none). Proof: `docs/proof/challenge/2026-11-04.md`.
+
+### Changed
+- **`flow`**: order is now `challenge` → `refine` → … → `ship`, and `challenge` runs on every task
+  unless the user says it was already challenged. `## TASK QUESTIONS` is a hard gate in every mode,
+  full-agentic included; `## TASK REJECTED` stops the flow. New hand-off rules: commit artifacts
+  before emitting the marker, so the next step reads only git; attack tests from review are locked;
+  at most 2 review→build fix rounds per gate, then escalate. The inline marker list moved to `markers.md`.
+- **`review`**, **`build`**, **`verify`**: the reviewer may add attack tests (committed, SHA
+  recorded); the fix wave lists them as out of scope; `verify` checks
+  `git diff <review-commit> -- <attack tests>` is empty. The two-reviewer gate prefers two different models.
+- **`red-team`**, **`cklph-reviewer`**: runnable by any agent that can read files and run a shell.
+  The plan-check pointer no longer depends on `${CLAUDE_PLUGIN_ROOT}` resolving. Both may add attack
+  tests but never edit source; red-team names cross-model review in its rationale.
+- **`start-here`** routes "a task arrives and nobody has checked it's workable" to `challenge`;
+  `refine` and `survey` point to it. STANDARD.md §5 gains a "Phase hand-offs" subsection.
+
 ## [0.14.0] — 2026-11-02
 
 ### Changed

@@ -24,6 +24,9 @@ get wrong and how to test each.
 query key, a context provider, or an effect that syncs state, also run `click-path-audit` on the
 touchpoints that reach it.
 
+**Run the reviewer on a different model than the builder** whenever one is available — same prompt,
+same markers, fresh context: `@cross-model.md`.
+
 The reviewer runs in a **fresh context**, **reads the tests first**, and reviews on **three axes —
 standards, spec, and omissions (what wasn't asked, including text and contracts that read two
 ways) — reported separately**, by severity with `file:line` + fixes. Red-team adds burden-of-proof
@@ -39,6 +42,11 @@ Triage the findings:
 ~1000+ must be split (stack the PRs / by-file-group / horizontal / vertical) — flag oversize work as a
 finding, not "review anyway."
 
+**Attack tests.** The reviewer never edits source, but may add tests that reproduce its findings.
+Commit them on the feature branch before the marker and record the commit SHA and the test paths:
+they are **locked** for the fix wave, and `verify` checks them byte-identical.
+
 The `pre-commit-gate` hook is the automatic backstop at commit time — not a substitute for this gate.
 Proceed on `## REVIEW CLEAN` / `## RED-TEAM CLEAR`; loop (fix → re-review) on `## ISSUES FOUND` /
-`## RED-TEAM FINDINGS`. Hands off to `verify`.
+`## RED-TEAM FINDINGS`, **at most 2 fix rounds per gate**, then escalate to Peter with the open
+findings. Hands off to `verify`.

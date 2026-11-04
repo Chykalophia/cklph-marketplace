@@ -33,6 +33,9 @@ assumptions get flagged explicitly: `UNVERIFIED: relies on <X> — confirm befor
 3. Pull back only the implementers' concise reports. Keep your own context lean (~30–40%); track
    progress with the task tools, not by holding everything in your window.
 4. If an implementer reports a blocker, resolve it (or re-plan that task) before the dependent wave.
+5. **Fix wave after `review`?** The attack tests the review committed are **locked**: list their paths
+   under each brief's OUT OF SCOPE. An implementer that thinks one is wrong reports `## TASK BLOCKED`,
+   never edits or deletes it (`verify` checks they are byte-identical).
 
 ## Between waves (compaction)
 After each wave, record a one-block **compaction note** — *what shipped · deviations from brief · the
