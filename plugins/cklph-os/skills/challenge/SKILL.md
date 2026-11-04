@@ -8,7 +8,8 @@ description: The CHALLENGE phase of the cklph-os flow — check that an incoming
 Phase 0 of `flow`, before `refine` and `spec`. Interrogate the task; do **not** build, plan or spec.
 *(Fresh context by design: the builder wants to build, the challenger has no stake. Same rationale as
 `red-team`.)* When orchestrated, run as a sub-agent that sees only the task text and the repo, never
-the requester's conversation.
+the requester's conversation. When orchestrated, `flow` commits your output as
+`docs/flow/<task-slug>/challenge.md`.
 
 **Proportional.** A one-line, unambiguous, low-risk task (typo, copy change) gets a three-line pass:
 confirm the target exists (`file:line`), write "trivial — passing" and why, end `## TASK READY`.
@@ -19,7 +20,8 @@ Don't interrogate trivia. Not trivial if the target is missing or the change tou
    with a feature.
 2. **Premise check** — per ask: is this the right task? Check it against the code, the spec,
    `AGENTS.md`, `STATE.md` (including "Removed on purpose") and recorded decisions. Does it already
-   exist? Is there a simpler or existing solution? Is the stated cause actually the cause? Verdict
+   exist **on the base branch**? (Work for this same task already on the feature branch is progress,
+   not a duplicate.) Is there a simpler or existing solution? Is the stated cause actually the cause? Verdict
    **holds / doubtful / wrong**, each with evidence (`file:line` or command output).
 3. **Context sufficiency** — a table of what the work needs (files, decisions, credentials/access,
    data, the acceptance signal), each marked **present / missing / assumed**.
@@ -65,8 +67,8 @@ TASK: <the request, restated in one line>
 3. Context: <table>
 4. Questions: <≤5, or "none">
 5. ASSUMPTIONS I'M MAKING: … — correct me now or I proceed. NOT DOING: …
-<marker>
 ```
+Then the marker on its own line, **outside** any code block (inside one it doesn't count).
 
 ## Not the same as
 - **`challenge`** — is the *task* right and complete enough to start?

@@ -157,11 +157,14 @@ STATE.md                   # working state
 ### Phase hand-offs
 - **Commit before the marker.** A phase that produces artifacts commits them on the feature branch
   before it emits its marker; the next phase, on any agent or model, reads only git.
-- **Attack tests are locked.** Reviewers stay read-only and propose attack tests; the orchestrator
-  commits them with an `Attack-Tests:` trailer. The following fix wave may not edit, delete or
-  exclude them; `verify` checks each one is unchanged and passes when run by path.
-- **Markers have one owner:** `plugins/cklph-os/skills/flow/markers.md`. A new marker gets a row there
-  in the same change. Skills name the markers they emit or route on; none keeps a second full list.
+- **Attack tests are locked, by script.** Reviewers stay read-only and propose attack tests;
+  `plugins/cklph-os/scripts/attack-tests.sh lock` commits one only if it fails on the current code.
+  The fix wave may not edit, delete or exclude it; `verify` runs `attack-tests.sh check`. Only a human
+  releases one (an `Attack-Tests-Unlocked:` trailer).
+- **Review rounds run on progress, not a count.** Keep fixing and re-reviewing while each round finds
+  real new issues; stop on churn or after 5 rounds (`skills/review/two-reviewer-gate.md`, Rounds).
+- **Markers have one owner:** `plugins/cklph-os/skills/flow/markers.md`; `scripts/marker.sh` parses
+  by reading it. A new marker gets a row there in the same change. Skills name the markers they emit or route on; none keeps a second full list.
 
 ### Memory
 - `~/.claude/memory/GLOBAL.md` — cross-project facts, preferences, repo relationships, shared infra.

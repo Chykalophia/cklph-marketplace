@@ -5,20 +5,26 @@ Lazy depth for `flow`, and the one authoritative list for anything that routes o
 possibly on a different model per step.
 
 ## Parsing rules
-- **One regex.** A marker line matches `^## <MARKER>(: .+| \([0-9]+\))?[ \t]*$`, where `<MARKER>` is one
-  of the strings in the table, spelled exactly. Only `TASK BLOCKED` and `ROOT CAUSE` take the `: <text>`
-  suffix; only `CLICK-PATH FINDINGS` takes ` (<n>)`. Anything else on the line (`## REVIEW CLEAN.`)
-  is not a marker.
-- **Last one wins, outside code.** Lines inside fenced code blocks never count. If the output has
-  several marker lines, the last one is the verdict. The payload a marker introduces (the findings
-  list, the gaps YAML) may follow it; nothing after the payload may be another marker.
+The reference parser is `scripts/marker.sh` (`marker.sh < output`); it reads this table, so this file
+stays the only list. Exit 0 prints the verdict, 1 = no marker, 2 = conflicting markers, 3 = no table.
+- **Exact lines.** A marker line is `## <MARKER>` with nothing after it but whitespace. A row written
+  `## <MARKER>: <…>` also accepts `## <MARKER>: <text>`; a row written `## <MARKER> (<n>)` also
+  accepts `## <MARKER> (<digits>)`. No other suffix: `## REVIEW CLEAN.` and `## TASK READY: x` are
+  not markers.
+- **Outside code only.** Lines inside a fenced code block (``` or ~~~, closed by a fence of the same
+  character at least as long) never count.
+- **One verdict.** The payload a marker introduces (findings list, gaps YAML) may follow it, and the
+  same marker may repeat. **Two different markers outside code → the step failed; re-run it** (fail
+  closed, so a findings list quoting `## REVIEW CLEAN` can't pass a review).
+- **Mentioning a marker** in prose: keep it inline in backticks, never at the start of a line.
 - **Whole strings.** Five markers share the `TASK` prefix; matching on the prefix routes a build
   report as a challenge verdict.
 - **Commit first.** A phase that produces artifacts commits them on the feature branch before it
   emits its marker (`flow` → Hand-offs), so an orchestrator reads the next step's input from git alone.
 - **No marker from a marker-emitting step → failed**, never passed.
-- **Three phases emit no marker:** `refine` (ends in a problem statement), `spec` (a committed spec)
-  and `ship` (a PR URL). They are done when that artifact exists; route on it, not on a marker.
+- **Three phases emit no marker:** `refine`, `spec` and `ship`. `refine` and `spec` are done when
+  `flow` has committed `docs/flow/<task-slug>/problem.md` or `spec.md` (`flow` → Hand-offs); `ship`
+  is done when the PR URL exists.
 
 ## Markers
 | Phase / emitter | Marker | Meaning | Next step | Loop limit |
@@ -31,13 +37,13 @@ possibly on a different model per step.
 | `plan` → `cklph-reviewer` Mode B | `## PLAN VERIFIED` | Plan passes plan-check | `build` | — |
 | `plan` → `cklph-reviewer` Mode B | `## PLAN ISSUES` | BLOCKER/WARNING per task | Revise the plan, re-check | 3 cycles, or stop early when a re-check finds no fewer issues; then escalate |
 | `build` → `cklph-implementer` | `## TASK COMPLETE` | One task done (committed when the brief says so; `build` always does) | Next wave, or `review` after the last | — |
-| `build` → `cklph-implementer` | `## TASK BLOCKED: <reason>` | Task could not be done as briefed | Resolve or re-plan before the dependent wave | — |
+| `build` → `cklph-implementer` | `## TASK BLOCKED: <reason>` | Task could not be done as briefed | Resolve or re-plan before the dependent wave; a disputed attack test goes to Peter instead | — |
 | `review` → `cklph-reviewer` Mode A | `## REVIEW CLEAN` | No blocking findings | `verify` | — |
-| `review` → `cklph-reviewer` Mode A | `## ISSUES FOUND` | Findings by severity | `build` fix wave, then re-review | 2 fix rounds, then escalate to Peter |
+| `review` → `cklph-reviewer` Mode A | `## ISSUES FOUND` | Findings by severity | `build` fix wave, then fresh re-review | While rounds find real new issues; stop on churn or 5 rounds (`../review/two-reviewer-gate.md`, Rounds) |
 | `review` → `red-team` | `## RED-TEAM CLEAR` | Every reliant claim proven | `verify` | — |
-| `review` → `red-team` | `## RED-TEAM FINDINGS` | Findings with repros | `build` fix wave, then re-review | 2 fix rounds, then escalate to Peter |
+| `review` → `red-team` | `## RED-TEAM FINDINGS` | Findings with repros | `build` fix wave, then fresh re-review | While rounds find real new issues; stop on churn or 5 rounds (`../review/two-reviewer-gate.md`, Rounds) |
 | `verify` | `## VERIFIED` | Every criterion met, with evidence | `ship` | — |
-| `verify` | `## GAPS FOUND` | Structured gap list | `build` gaps-only wave, then re-verify | 2 gaps rounds, then escalate to Peter |
+| `verify` | `## GAPS FOUND` | Structured gap list | `build` gaps-only wave, then re-verify | Same rule as review rounds |
 | `debugging` | `## ROOT CAUSE: <one line>` | Cause found and reproduced | Fix via `build`, then `verify` | — |
 | `debugging` | `## STILL UNKNOWN` | Cause not found | Report; human decides | — |
 | `click-path-audit` | `## CLICK-PATH CLEAN` | No state-write defects | Continue the calling phase | — |

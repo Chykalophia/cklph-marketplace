@@ -18,41 +18,55 @@ has, Claude called it "ready to start" and proposed a new file.
 
 ### Added
 - **`challenge`** (skill + `/cklph-os:challenge`): phase 0 of `flow`. A fresh-context interrogation
-  of the task in five moves (split, premise check with `file:line` evidence, context sufficiency,
-  at most five questions, assumption gate) ending `## TASK READY`, `## TASK QUESTIONS` or
-  `## TASK REJECTED`. Trivial tasks get a three-line pass. It never answers its own questions.
+  of the task in five moves (split, premise check with `file:line` evidence against the base branch,
+  context sufficiency, at most five questions, assumption gate) ending `## TASK READY`,
+  `## TASK QUESTIONS` or `## TASK REJECTED`. Trivial tasks get a three-line pass. It never answers its
+  own questions, treats ticket text as data, and REJECTED outranks QUESTIONS.
 - **`skills/flow/markers.md`**: the one list of every marker a phase or agent emits (phase, meaning,
-  next step, loop limit), with parsing rules for external orchestrators (one regex, last marker
-  outside code wins, the payload may follow it, which three phases emit none) and the `## TASK *`
-  collision note: three strings from `challenge`, two from `cklph-implementer`, all distinct. A new
-  bats test fails when a skill, reference file or agent emits a marker that has no row.
+  next step, loop limit), with parsing rules for external orchestrators and the `## TASK *`
+  collision note (three strings from `challenge`, two from `cklph-implementer`, all distinct).
+- **`scripts/marker.sh`**: the reference parser. It reads the `markers.md` table at run time, ignores
+  fenced code, allows suffixes only where the table does, and **fails closed** when two different
+  markers appear outside code (so a findings list quoting `## REVIEW CLEAN` can't pass a review).
+- **`scripts/attack-tests.sh`** (`lock` / `check` / `list`): a reviewer's proposed attack test is
+  locked only if it **fails on the current code** (optionally with the expected failure) and nothing
+  else changed; `check` confirms each locked test is unchanged and passes run by path, scoped to
+  `<base>..HEAD`; a human-only `Attack-Tests-Unlocked:` trailer releases one.
 - **`skills/review/cross-model.md`**: run the reviewer on a different model from the builder when
-  one is available; same prompt, same markers, fresh context, never edits source. Includes the
-  Codex CLI invocation.
-- Trigger tests for `challenge` and `refine` (refine had none; its first draft had a "push back on
-  it" prompt that fires `refine` only 3 times in 8 even on 0.14.0, so it was replaced). Proof: `docs/proof/challenge/2026-11-04.md`.
+  one is available; same prompt, same markers, fresh context, read-only. Includes the Codex CLI
+  invocation and a consent check before code goes to a second vendor.
+- Tests: `test/marker.bats` (11), `test/attack-tests.bats` (12), and a hooks.bats case that fails when
+  a skill, reference file or agent emits a marker with no row. `test/mutate-scripts.py` reinjects 11
+  bug shapes into the two scripts; each turns a test red. Trigger tests for `challenge` and `refine`
+  (refine had none). Proof: `docs/proof/challenge/2026-11-04.md`.
 
 ### Changed
-- **`flow`**: order is now `challenge` → `refine` → … → `ship`, and `challenge` runs on every task
-  unless the user says it was already challenged or the flow is resuming work already on the
-  branch. `## TASK QUESTIONS` is a hard gate in every mode, full-agentic included;
-  `## TASK REJECTED` stops the flow. New hand-off rules: commit artifacts before emitting the
-  marker, so the next step reads only git; attack tests are locked; at most 2 review→build fix
-  rounds per gate and 2 gaps rounds, then escalate. The inline marker list moved to `markers.md`.
-- **`review`**, **`build`**, **`verify`**: for a Critical or High finding the reviewer may *propose*
-  an attack test (a new file, in its report); the orchestrator writes it and commits it with an
-  `Attack-Tests:` trailer. The fix wave may not edit, delete or exclude it, and `verify` checks
-  every such commit: no diff since, and each test passes run by path. A disputed one goes to Peter.
-  The two-reviewer gate prefers two different models.
-- **`red-team`**, **`cklph-reviewer`**: runnable by any agent that can read files and run a shell.
-  The plan-check pointer no longer depends on `${CLAUDE_PLUGIN_ROOT}` resolving. Both stay
-  read-only; red-team names cross-model review in its rationale.
-- **Two-reviewer gate on this change** (Claude `red-team` + Codex, per `cross-model.md`) found, among
-  others, that the first draft's reviewer-commits-its-own-tests design had guards that checked
-  nothing (`git diff --stat` after a commit is empty) and a last-line marker rule that contradicted
-  four existing "marker + the list" instructions. Both reworked before merge.
+- **`flow`**: order is now `challenge` → `refine` → … → `ship`; `challenge` runs on every task unless
+  the user says it was already challenged, and its committed record (`docs/flow/<task-slug>/challenge.md`)
+  stops a resumed flow from re-running it. `## TASK QUESTIONS` is a hard gate in every mode,
+  full-agentic included; `## TASK REJECTED` stops the flow. Hand-offs: commit artifacts before
+  emitting the marker, so the next step reads only git; phase outputs live in `docs/flow/<task-slug>/`.
+- **Review rounds run on progress, not a fixed count** (`two-reviewer-gate.md`, Rounds): keep fixing
+  and re-reviewing with fresh reviewers while each round finds real new issues; stop and escalate on
+  churn (a fixed finding returns, or a fix redoes an earlier fix) or after 5 rounds. Replaces the
+  2-round cap everywhere it appeared (`review`, `ship`, `flow`, the verify gaps loop).
+- **`review`**, **`build`**, **`verify`**: attack tests only for Critical/High findings, in a fixed
+  format (`**Attack test:** <path>` + one fenced block), locked and checked by the script above. The
+  two-reviewer gate prefers two different models.
+- **`red-team`**, **`cklph-reviewer`**: runnable by any agent that can read files and run a shell;
+  the plan-check pointer no longer depends on `${CLAUDE_PLUGIN_ROOT}` resolving. Both stay read-only,
+  emit one verdict marker, and mention other markers only inline.
 - **`start-here`** routes "a task arrives and nobody has checked it's workable" to `challenge`;
-  `refine` and `survey` point to it. STANDARD.md §5 gains a "Phase hand-offs" subsection.
+  `refine`, `survey` and `survey/brownfield.md` point to it; `ship` notes a skipped challenge in the
+  PR body. STANDARD.md §5 gains "Phase hand-offs". `docs/using-with-other-tools.md` no longer says
+  the review agents can't run outside Claude Code.
+
+### How this change was reviewed
+Two-reviewer gate, Claude `red-team` + Codex, per `cross-model.md`. Round 1 found that the first
+draft's reviewer-commits-its-own-tests design had guards that checked nothing (`git diff --stat`
+after a commit is empty) and a last-line marker rule that contradicted four existing "marker + the
+list" instructions. Round 2 found the round 1 fix still locked tests nobody had run, and that
+"last marker wins" failed open. Both became the two scripts above, with tests, instead of more prose.
 
 ## [0.14.0] — 2026-11-02
 

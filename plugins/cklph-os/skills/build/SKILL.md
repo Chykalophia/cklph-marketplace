@@ -34,7 +34,8 @@ assumptions get flagged explicitly: `UNVERIFIED: relies on <X> — confirm befor
    progress with the task tools, not by holding everything in your window.
 4. If an implementer reports a blocker, resolve it (or re-plan that task) before the dependent wave.
 5. **Fix wave after `review`?** The attack tests the review committed are **locked**: list their paths
-   (from `git log --grep '^Attack-Tests:'`) under each brief's OUT OF SCOPE. No editing, deleting or
+   (`"${CLAUDE_PLUGIN_ROOT}/scripts/attack-tests.sh" list <base>`, run from the repo root) under each
+   brief's OUT OF SCOPE. No editing, deleting or
    excluding them from the run (ignore patterns, test-script filters). An implementer that thinks one
    is wrong reports `## TASK BLOCKED`; the dispute goes to Peter.
 

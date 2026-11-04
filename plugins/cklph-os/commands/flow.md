@@ -9,5 +9,5 @@ Read `${CLAUDE_PLUGIN_ROOT}/skills/flow/SKILL.md` (the **flow** skill) and follo
 
 First ask which mode — **full-agentic**, **partial**, or **interactive** — unless I already said. Then
 run the phases (detect where we are; start with `challenge` unless I said the task was already
-challenged; skip `refine` if the goal is already clear), keeping your context lean via sub-agent
+challenged or its committed record shows it already ran; skip `refine` if the goal is already clear), keeping your context lean via sub-agent
 waves. Branch first; never commit to dev/main.

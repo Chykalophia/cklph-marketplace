@@ -13,7 +13,14 @@ the review on a **different model** whenever one is available.
 - **Same marker contract.** The review ends with the agent's own marker (`../flow/markers.md`); the
   orchestrator routes on it the same way whichever model wrote it.
 - **Read-only.** It edits nothing. It may *propose* attack tests in its report; the orchestrator
-  writes and commits them (`flow` → Hand-offs). So a read-only sandbox is always enough.
+  writes them and runs them before locking (`flow` → Hand-offs). A read-only sandbox is enough to
+  read and report, but it may not be able to run anything: Codex's `-s read-only` can't create a temp
+  file, so `bats` can't run there. Treat a read-only reviewer's claims about test behavior as
+  unverified until the orchestrator runs them; the lock script does that for attack tests.
+- **Consent before a second vendor.** Sending the diff to a model from another company sends the
+  code there. Before the first cross-vendor review in a repo, look in its `AGENTS.md` for an
+  `Allowed review models:` line. None, on client work or anything under NDA → ask the user once, and
+  with their OK add their answer as that line. A public repo needs no ask: its code is already public.
 
 ## When
 - **Two-reviewer gate** (`two-reviewer-gate.md`): the two reviewers run on two different models

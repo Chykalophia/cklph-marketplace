@@ -10,8 +10,8 @@ Pick the **intensity** for the change under review:
 - **red-team** — dispatch the **`red-team`** agent instead. Use for high-stakes changes: security /
   auth / money / data integrity / irreversible actions, or before a public release. `flow`
   auto-escalates to this at hard gates.
-- **two-reviewer gate** — two fresh reviewers, the same written rubric, **both** must pass, at most
-  2 fix rounds, then escalate to Peter. **Only** for client-facing deliverables, security-sensitive
+- **two-reviewer gate** — two fresh reviewers, the same written rubric, **both** must pass, fix rounds
+  continue while they find real new issues (churn or 5 rounds → escalate to Peter). **Only** for client-facing deliverables, security-sensitive
   diffs, and anything published publicly (this marketplace included). Procedure: `@two-reviewer-gate.md`.
 
 **Did this session write the change?** Then run the test suite and the build *before* dispatching
@@ -43,12 +43,13 @@ Triage the findings:
 finding, not "review anyway."
 
 **Attack tests.** The reviewer stays read-only. For a **Critical or High** finding it may *propose* an
-attack test: a fenced block in its report, headed by a **new** file path (never an existing test
-file), that fails on the current code. You write each one, confirm `git status --porcelain` shows
-only those paths, and commit them with an `Attack-Tests: <paths>` trailer before routing. They are
-then **locked** (`flow` → Hand-offs); a disputed one goes to Peter.
+attack test, in exactly this form: a line `` **Attack test:** `<new/file/path>` `` (a new file; letters,
+digits, `. _ / -` only), then one fenced block with the whole file. You write it and lock it with
+`scripts/attack-tests.sh lock` (`flow` → Hand-offs), which refuses any test that doesn't fail on the
+current code. A refused test goes back to the reviewer as "your attack test didn't reproduce the
+finding". A locked test is never edited by the fix wave; a disputed one goes to Peter.
 
 The `pre-commit-gate` hook is the automatic backstop at commit time — not a substitute for this gate.
 Proceed on `## REVIEW CLEAN` / `## RED-TEAM CLEAR`; loop (fix → re-review) on `## ISSUES FOUND` /
-`## RED-TEAM FINDINGS`, **at most 2 fix rounds per gate**, then escalate to Peter with the open
-findings. Hands off to `verify`.
+`## RED-TEAM FINDINGS` with a **fresh** reviewer each round, for as long as rounds find real new
+issues; stop and escalate to Peter on churn or after 5 rounds (`@two-reviewer-gate.md`, Rounds). Hands off to `verify`.

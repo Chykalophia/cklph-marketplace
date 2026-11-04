@@ -23,6 +23,7 @@ Claude Desktop through the marketplace too; STANDARD.md §3 tracks that as still
 | Daily rhythm | `triage`, `decide`, `daily-frame`, `weekly-review`, `learn`, `stocktake` |
 | Engineering | `api-design`, `debugging`, `browser-debug`, `click-path-audit`, `design`, `frontend-ui`, `performance`, `security-hardening`, `simplify` |
 | Working style | `start-here` (read first: instruction priority and routing), `reply-shape`, `writing`, `handoff`, `harness-limits`, `authoring` |
+| Scripts | `scripts/marker.sh` (reference parser for the marker contract), `scripts/attack-tests.sh` (lock and check review attack tests) |
 | Hooks | `pre-commit-gate`, `nextjs-quality-check`, `security-check`, `destructive-command-gate`, `skill-usage-log`, `reply-shape-context`, `gateguard` (opt-in) |
 
 ## Challenge and cross-model review
@@ -57,7 +58,8 @@ project. `CKLPH_GATEGUARD_EXEMPT="docs/*:*.lock"` skips paths. Denials are logge
 ## Tests
 
 ```bash
-bats test/                                                   # hook tests, from the repo root
+bats test/                                                   # hook and script tests, from the repo root
+python3 test/mutate-scripts.py .                             # reinjects 11 bugs into the scripts; each must turn a test red
 bash plugins/cklph-os/hooks/tests/destructive-command-gate.test.sh   # the gate's own suite
 bash plugins/cklph-os/hooks/tests/gateguard.test.sh                  # GateGuard's suite
 ```
