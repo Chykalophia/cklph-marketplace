@@ -217,6 +217,16 @@ def write(path, text):
     return path
 
 
+class ConfidenceLabelTests(unittest.TestCase):
+    def test_ci_label_is_not_rounded_to_a_whole_percent(self):
+        # Two variants: Bonferroni alpha 0.025, so the interval is 97.5%, which ".0%" printed as "98%".
+        buf = io.StringIO()
+        with contextlib.redirect_stdout(buf):
+            readout.main(["--control", "10000", "300", "--variant", "10000", "330", "--variant", "10000", "310"])
+        self.assertIn("97.5% CI", buf.getvalue())
+        self.assertNotIn("98% CI", buf.getvalue())
+
+
 class ReviewRoundFiveTests(unittest.TestCase):
     """Findings from the automated review of PR #55."""
 

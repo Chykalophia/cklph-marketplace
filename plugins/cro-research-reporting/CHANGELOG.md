@@ -17,7 +17,7 @@ Format: [Keep a Changelog](https://keepachangelog.com); versioning follows [SemV
 - `experiment-design` skill and `/experiment` command (sample size and MDE with CUPED, SRM, readouts with
   guardrails, a per-client test log).
 - `check_citations.py`: mechanical check of every cited URL and load-bearing figure.
-- Unit tests (52, standard library only) in `tests/`, trigger evals and a seeded audit fixture in `evals/`.
+- Unit tests (53, standard library only) in `tests/`, trigger evals and a seeded audit fixture in `evals/`.
 
 ### Changed
 - Copywriting outputs test variants built from customer language; references cleaned of untraceable figures.
@@ -36,7 +36,8 @@ Format: [Keep a Changelog](https://keepachangelog.com); versioning follows [SemV
   `evals/triggers.json` check run in the marketplace CI instead.
 
 ### Review fixes
-From the automated review of the merge. Unit tests now number 52.
+From the automated review of the merge. Unit tests now number 53.
+- `readout.py` labels the interval with its real level (97.5%, not "98%").
 - `power.py` rejects NaN or infinite inputs and a zero or negative `--max-days`.
 - `readout.py` rejects an `--alpha` outside 0 to 1, fractional counts, a zero or negative SD, a bad
   `--mde` or `--days`, and malformed `--weights` with a usage error instead of a traceback.

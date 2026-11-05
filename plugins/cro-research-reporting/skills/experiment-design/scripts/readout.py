@@ -201,7 +201,7 @@ def main(argv=None):
         lo, hi = r["rel_ci"]
         print(f"\n### Variant {i}: {r['decision']}")
         print(f"- Control {fmt(r['control'])} vs variant {fmt(r['variant'])}")
-        print(f"- Relative lift {pct(r['rel_lift'], 1)} ({(1 - alpha):.0%} CI {pct(lo, 1)} to {pct(hi, 1)}), "
+        print(f"- Relative lift {pct(r['rel_lift'], 1)} ({round((1 - alpha) * 100, 2):g}% CI {pct(lo, 1)} to {pct(hi, 1)}), "
               f"p = {r['p_value']:.4f}")
         if "design" in r:
             d = r["design"]
