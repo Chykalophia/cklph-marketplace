@@ -141,7 +141,7 @@ export function registerTools(server) {
                 }
                 allSeverities.push(summary.severity);
                 // Timestamps were validated at the parsing boundary (osv.parseVulnRecord), so an
-                // unreadable date can no longer fall through every comparison as "no change".
+                // unreadable date cannot fall through every comparison as "no change".
                 const publishedDate = enriched.published ? new Date(enriched.published) : null;
                 const modifiedDate = enriched.modified ? new Date(enriched.modified) : null;
                 const withdrawnDate = enriched.withdrawn ? new Date(enriched.withdrawn) : null;

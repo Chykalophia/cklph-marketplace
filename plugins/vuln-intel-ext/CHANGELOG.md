@@ -3,6 +3,12 @@
 All notable changes to `vuln-intel-ext` are documented here. This project adheres to
 [Semantic Versioning](https://semver.org/).
 
+## 1.0.5 — 2026-11-05
+
+### Changed
+- Comments only, no code change. Two comments in `src/wpscan.ts` and `src/tools.ts` are present tense;
+  `dist/` rebuilt so it still matches `src/`.
+
 ## 1.0.4 — 2026-10-27
 
 ### Fixed

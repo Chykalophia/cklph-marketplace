@@ -1,9 +1,7 @@
 import { getWPScanCache, setWPScanCache } from "./db.js";
 
-// NOT api.wpscan.com - that host has no A record at all (DNS returns the zone
-// SOA and nothing else), so every lookup died with ENOTFOUND regardless of
-// whether WPSCAN_TOKEN was set. The missing-token error message made that look
-// like a config problem for as long as nobody checked DNS.
+// NOT api.wpscan.com: that host has no A record (DNS returns only the zone SOA), so every
+// lookup fails with ENOTFOUND, which looks like a missing-token config problem.
 const WPSCAN_API = "https://wpscan.com/api/v3";
 const CACHE_TTL_HOURS = 24;
 const REQUEST_TIMEOUT_MS = 15000;
