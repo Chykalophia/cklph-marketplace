@@ -25,8 +25,8 @@ this forked from.
 - **`scripts/test-brands-dir.py`**, run by `verify.sh`: 21 cases with a
   throwaway HOME. 19 of them fail on 3.6.0.
 - **`scripts/test-skill-name.py`**, run by `verify.sh`: the plugin skill is
-  named `diagram`, and a loose install and the claude.ai bundle are named
-  `cklph-diagram`.
+  named `diagram`, a loose install and the claude.ai bundle are named
+  `cklph-diagram`, and a copy installed before the move still updates.
 
 ### Changed
 
@@ -37,6 +37,10 @@ this forked from.
   it makes. That copy replaces the skill already installed or uploaded.
   The old folder stays git-ignored, because a checkout leaves git-ignored client
   files behind in it.
+- `install.sh` follows the move in git history, so a brand file installed
+  before 3.7.0 is still recognised as an older committed version.
+- `verify.sh` prints a failing test's `FAIL` lines. Under `pipefail` it used to
+  stop before printing them.
 - A brand slug defined both locally and in the bundle is refused, and so are an
   alias claimed by two brands and a `CKLPH_DIAGRAM_BRANDS` that is not a
   directory. None of them falls back.

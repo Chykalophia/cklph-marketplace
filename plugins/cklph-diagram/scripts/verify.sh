@@ -157,17 +157,14 @@ echo " 6. Refusal path (the client-safety guardrail)"
 echo "=============================================="
 # A project marker (.cklph-diagram) that is malformed, hostile, or names a stub
 # must refuse too -- never fall back to the house brand.
-python3 scripts/test-brand-marker.py | tail -1
-python3 scripts/test-brand-marker.py >/dev/null || { python3 scripts/test-brand-marker.py | grep '^FAIL'; fail=1; }
+if out="$(python3 scripts/test-brand-marker.py 2>&1)"; then echo "$out" | tail -1; else echo "$out" | grep -A1 '^FAIL' || true; echo "$out" | tail -1; fail=1; fi
 # Client brands live in a local directory outside the skill, so an update
 # cannot delete them. A brand defined twice, or an override that points
 # nowhere, must refuse rather than pick a file by search order.
-python3 scripts/test-brands-dir.py | tail -1
-python3 scripts/test-brands-dir.py >/dev/null || { python3 scripts/test-brands-dir.py | grep -A1 '^FAIL'; fail=1; }
+if out="$(python3 scripts/test-brands-dir.py 2>&1)"; then echo "$out" | tail -1; else echo "$out" | grep -A1 '^FAIL' || true; echo "$out" | tail -1; fail=1; fi
 # In the plugin the skill is cklph-diagram:diagram; a loose install and the
 # claude.ai bundle keep the full name cklph-diagram.
-python3 scripts/test-skill-name.py | tail -1
-python3 scripts/test-skill-name.py >/dev/null || { python3 scripts/test-skill-name.py | grep -A1 '^FAIL'; fail=1; }
+if out="$(python3 scripts/test-skill-name.py 2>&1)"; then echo "$out" | tail -1; else echo "$out" | grep -A1 '^FAIL' || true; echo "$out" | tail -1; fail=1; fi
 # A stub brand MUST refuse. If one ever renders, a client deliverable is one
 # command away from shipping in house colours — that is a hard failure, and it
 # is why this check asserts the non-zero exit rather than trusting the message.

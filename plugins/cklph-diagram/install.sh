@@ -100,15 +100,19 @@ echo "  registry ok"
 # True when $2 is byte-identical to some committed version of repo path $1:
 # the installed file is just out of date, so the repo's version can replace it.
 # A file matching no committed version was edited in place, and stops the install.
+# --follow walks back through the 3.7.0 move from skills/cklph-diagram/, so a
+# copy installed before the move still counts as an older committed version.
 was_committed() {
   git -C "$(dirname "$1")" rev-parse --is-inside-work-tree >/dev/null 2>&1 || return 1
-  local rel
-  rel="$(git -C "$(dirname "$1")" ls-files --full-name "$(basename "$1")")"
-  [ -n "$rel" ] || return 1
-  local h
-  for h in $(git -C "$(dirname "$1")" log --format=%H -- "$(basename "$1")"); do
-    if git -C "$(dirname "$1")" show "${h}:${rel}" 2>/dev/null | cmp -s - "$2"; then return 0; fi
-  done
+  [ -n "$(git -C "$(dirname "$1")" ls-files "$(basename "$1")")" ] || return 1
+  local line h=""
+  while IFS= read -r line; do
+    case "$line" in
+      '>'*) h="${line#>}" ;;
+      '')   ;;
+      *)    if git -C "$(dirname "$1")" show "${h}:${line}" 2>/dev/null | cmp -s - "$2"; then return 0; fi ;;
+    esac
+  done < <(git -C "$(dirname "$1")" log --follow --format='>%H' --name-only -- "$(basename "$1")")
   return 1
 }
 
@@ -231,7 +235,7 @@ case "$MODE" in
       echo "  \"architecture diagram of the ingest pipeline\""
       echo
       echo "To add a client brand, copy references/brands/_template.md to"
-      echo "~/.config/cklph-diagram/brands/<slug>.md and run brand onboarding."
+      echo "${CKLPH_DIAGRAM_BRANDS:-${XDG_CONFIG_HOME:-$HOME/.config}/cklph-diagram/brands}/<slug>.md and run brand onboarding."
       echo "See references/brand-onboarding.md."
     else
       echo "FAILED: the installed copy cannot load its own registry." >&2

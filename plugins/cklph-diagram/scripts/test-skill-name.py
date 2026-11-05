@@ -13,6 +13,7 @@ the skill already installed or uploaded under that name.
 from __future__ import annotations
 
 import os
+import shutil
 import re
 import subprocess
 import tempfile
@@ -20,6 +21,7 @@ import zipfile
 from pathlib import Path
 
 REPO = Path(__file__).resolve().parent.parent
+PRE_RENAME = "045b4af"  # main before 3.7.0, when the skill lived in skills/cklph-diagram/
 failures: list[str] = []
 
 
@@ -46,7 +48,9 @@ def main() -> int:
         case("SKILL.md says name: diagram, so the plugin skill is cklph-diagram:diagram",
              fm_name(text) == "diagram", f"name is {fm_name(text)!r}")
 
-    env = {**os.environ, "PYTHONDONTWRITEBYTECODE": "1"}
+    env = {k: v for k, v in os.environ.items()
+           if k not in {"CKLPH_DIAGRAM_BRANDS", "XDG_CONFIG_HOME", "CKLPH_FONTS_DIR"}}
+    env["PYTHONDONTWRITEBYTECODE"] = "1"
     with tempfile.TemporaryDirectory() as d:
         home = Path(d) / "home"
         home.mkdir()
@@ -64,12 +68,32 @@ def main() -> int:
             src = plugin_skill.read_text(encoding="utf-8") if plugin_skill.is_file() else ""
             case("only the frontmatter name changes", "\n---\n" in src and body == src.split("\n---\n", 1)[1])
 
-        r = subprocess.run(["bash", str(REPO / "install.sh"), "--bundle"],
-                           capture_output=True, text=True, env=env, cwd=REPO)
+        # A copy installed before the move from skills/cklph-diagram/ holds an
+        # older committed cklph.md. A reinstall must treat it as out of date,
+        # not as a local edit. Needs git history (CI checks out one commit).
+        old = subprocess.run(["git", "show", f"{PRE_RENAME}:skills/cklph-diagram/references/brands/cklph.md"],
+                             capture_output=True, cwd=REPO)
+        target = Path(d) / "skills/cklph-diagram/references/brands/cklph.md"
+        if old.returncode != 0 or not target.is_file():
+            print(f"skip a copy installed before the rename updates cleanly (no {PRE_RENAME} in this checkout)")
+        else:
+            target.write_bytes(old.stdout)
+            r = subprocess.run(["bash", str(REPO / "install.sh"), "--dir", str(Path(d) / "skills")],
+                               capture_output=True, text=True, env=env, cwd=REPO)
+            case("a copy installed before the rename updates cleanly",
+                 r.returncode == 0 and "older committed version" in r.stdout, r.stdout + r.stderr)
+
+        if shutil.which("zip") is None:
+            print("skip the claude.ai bundle cases (install.sh --bundle needs zip)")
+            r = None
+        else:
+            r = subprocess.run(["bash", str(REPO / "install.sh"), "--bundle"],
+                               capture_output=True, text=True, env=env, cwd=REPO)
         bundle = REPO / "cklph-diagram.skill"
         try:
-            ok = r.returncode == 0 and bundle.is_file()
-            case("the claude.ai bundle builds", ok, r.stdout + r.stderr)
+            ok = r is not None and r.returncode == 0 and bundle.is_file()
+            if r is not None:
+                case("the claude.ai bundle builds", ok, r.stdout + r.stderr)
             if ok:
                 with zipfile.ZipFile(bundle) as z:
                     text = z.read("cklph-diagram/SKILL.md").decode("utf-8")
