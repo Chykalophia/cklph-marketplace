@@ -35,6 +35,8 @@ this forked from.
   refusal instead of a traceback.
 - `verify.sh` points `CKLPH_DIAGRAM_BRANDS` at an empty directory, so a machine
   with real client brands gets the same result as CI.
+- Theme files said a client brand keeps the theme's type. SKILL.md says brand
+  typefaces always win. The 23 themes and `build-themes.py` now agree with SKILL.md.
 - CI installs ffmpeg. `test-tools.py` needs it for the GIF and MP4 cases,
   so `verify` was red on the runner (it was on #11 too).
 - The onboarding guide, SKILL.md §0, `cklph.md` and `install.sh` say where

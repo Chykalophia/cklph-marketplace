@@ -37,7 +37,7 @@ These are what the theme actually owns. They apply on top of ANY brand.
 ## Fallback palette
 
 Used **only when no brand is resolved**. When a client brand is set, the brand's
-colours win and only the geometry and type above apply.
+colours and typefaces win, and only the geometry above applies.
 
 | Role | Value |
 |---|---|

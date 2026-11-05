@@ -46,7 +46,7 @@ The palette below holds the **label and outline** colours. Face fills are lighte
 ## Fallback palette
 
 Used **only when no brand is resolved**. With a client brand set, brand colour
-wins and only the geometry and type above apply.
+and typefaces win, and only the geometry above applies.
 
 | Role | Value |
 |---|---|

@@ -18,6 +18,8 @@ A tinted neutral ramp plus at most two accents.
 - **Two accents is the ceiling.** A third is almost always a category that
   should have been a shape.
 - Every text role clears 4.5:1 on its ground; verify with
-  `brand-tokens.py <slug> --check` in both modes rather than by eye.
+  `brand-tokens.py <slug> --check` and `--check --mode dark` rather than by
+  eye. The check measures text on the brand's `paper`, so any other text
+  ground needs its own check.
 - A brand accent that fails as small text gets darkened in the same hue, and the
   substitution gets recorded in the brand file.
