@@ -18,7 +18,7 @@ import re
 import sys
 from pathlib import Path
 
-SKILL_SCRIPTS = Path(__file__).resolve().parent.parent / "skills/cklph-diagram/scripts"
+SKILL_SCRIPTS = Path(__file__).resolve().parent.parent / "skills/diagram/scripts"
 sys.path.insert(0, str(SKILL_SCRIPTS))
 
 import importlib.util  # noqa: E402

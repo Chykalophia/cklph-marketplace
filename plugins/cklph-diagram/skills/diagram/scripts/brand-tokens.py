@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """Resolve a brand from the token registry.
 
-Reads ``skills/cklph-diagram/references/brands/<slug>.md``, validates it, and
+Reads ``skills/diagram/references/brands/<slug>.md``, validates it, and
 emits the tokens as a CSS custom-property block or JSON.
 
 The point of this script is the refusal path. A brand file that is still a stub,
@@ -50,7 +50,7 @@ def _find_brands_dir() -> Path:
     for base in [here.parent, *here.parents]:
         for candidate in (
             base / "references" / "brands",
-            base / "skills" / "cklph-diagram" / "references" / "brands",
+            base / "skills" / "diagram" / "references" / "brands",
         ):
             if candidate.is_dir():
                 return candidate

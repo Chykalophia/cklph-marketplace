@@ -1,5 +1,5 @@
 ---
-name: cklph-diagram
+name: diagram
 description: Create accessible, brand-correct diagrams as standalone HTML with inline SVG, across 41 types, including architecture, flowchart, sequence, state, ER, DB schema, UML, deployment, timeline, swimlane, journey, kanban, org chart, fishbone, Wardley, Sankey, treemap, heatmap, bar, waterfall, line, Gantt, scatter and more. Use this skill whenever a diagram, chart, schematic, flow, architecture drawing, or "can you visualise this" comes up for Chykalophia or any Chykalophia client, even if the user does not say "diagram". Renders in the correct client brand from a multi-brand token registry (CKLPH by default, per-client override by name), and refuses to render a named client whose brand has not been onboarded rather than silently shipping house colours into a client deliverable. Every diagram is WCAG AA at the sizes used, with a non-colour cue for every colour distinction and a prose alternative. Ships SVG, PNG and animated GIF/MP4 for docs, slides and email; imports draw.io, Mermaid, Excalidraw.
 license: MIT
 metadata:

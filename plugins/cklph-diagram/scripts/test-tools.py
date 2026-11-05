@@ -21,7 +21,7 @@ import tempfile
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parent.parent
-SCRIPTS = ROOT / "skills/cklph-diagram/scripts"
+SCRIPTS = ROOT / "skills/diagram/scripts"
 sys.path.insert(0, str(SCRIPTS))
 import diagram_source as ds  # noqa: E402
 import layout  # noqa: E402

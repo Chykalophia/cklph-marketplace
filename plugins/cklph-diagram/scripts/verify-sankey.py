@@ -100,7 +100,7 @@ Pure Python and no browser, like every other gate in this repo.
 
 Usage:
     python3 scripts/verify-sankey.py --all
-    python3 scripts/verify-sankey.py skills/cklph-diagram/assets/example-sankey.html
+    python3 scripts/verify-sankey.py skills/diagram/assets/example-sankey.html
 
 Exit: 0 clean, 1 findings, 2 usage.
 """
@@ -114,7 +114,7 @@ import sys
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parent.parent
-ASSET_DIR = ROOT / "skills/cklph-diagram/assets"
+ASSET_DIR = ROOT / "skills/diagram/assets"
 
 PATH_RE = re.compile(r"<path\b(?P<attrs>[^>]*)>", re.IGNORECASE)
 # Every element that can paint, or be inherited from. One list, because splitting
@@ -1212,7 +1212,7 @@ def geometry(path: Path) -> list[str]:
 
 
 VARIANTS = ("example-sankey.html", "example-sankey-dark.html", "example-sankey-full.html")
-REFERENCE_DOC = ROOT / "skills/cklph-diagram/references/type-sankey.md"
+REFERENCE_DOC = ROOT / "skills/diagram/references/type-sankey.md"
 SVG_BLOCK_RE = re.compile(r"```svg\n(?P<body>.*?)```", re.DOTALL)
 ELEMENT_RE = re.compile(
     r"<(?P<tag>rect|text|path)\b(?P<rest>[^>]*?)(?:/>|>(?P<body>.*?)</(?P=tag)>)",

@@ -27,7 +27,7 @@ Shape heuristics follow the shipped templates:
 
 Usage:
     python3 scripts/verify-geometry.py --all
-    python3 scripts/verify-geometry.py skills/cklph-diagram/assets/example-x.html
+    python3 scripts/verify-geometry.py skills/diagram/assets/example-x.html
 """
 
 from __future__ import annotations
@@ -38,7 +38,7 @@ import sys
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parent.parent
-ASSET_DIR = ROOT / "skills/cklph-diagram/assets"
+ASSET_DIR = ROOT / "skills/diagram/assets"
 
 RECT_RE = re.compile(
     r"<rect\b[^>]*?"

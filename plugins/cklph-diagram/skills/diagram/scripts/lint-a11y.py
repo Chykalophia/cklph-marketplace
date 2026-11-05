@@ -2,7 +2,7 @@
 """Fail the build on accessibility violations in generated diagrams.
 
 Implements the six mechanical rules from
-``skills/cklph-diagram/references/accessibility.md``:
+``skills/diagram/references/accessibility.md``:
 
     A1  no encoding by colour alone (mechanical half)
     A2  AA contrast at the sizes actually used

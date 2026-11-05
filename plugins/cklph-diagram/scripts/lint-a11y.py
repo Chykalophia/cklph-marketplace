@@ -6,6 +6,6 @@ import runpy
 import sys
 from pathlib import Path
 
-_real = Path(__file__).resolve().parent.parent / "skills/cklph-diagram/scripts/lint-a11y.py"
+_real = Path(__file__).resolve().parent.parent / "skills/diagram/scripts/lint-a11y.py"
 sys.path.insert(0, str(_real.parent))
 runpy.run_path(str(_real), run_name="__main__")

@@ -28,7 +28,7 @@ import tempfile
 from pathlib import Path
 
 REPO = Path(__file__).resolve().parent.parent
-SKILL = REPO / "skills/cklph-diagram"
+SKILL = REPO / "skills/diagram"
 TOKENS = SKILL / "scripts/brand-tokens.py"
 LINT = SKILL / "scripts/lint-a11y.py"
 BUNDLED = SKILL / "references/brands"

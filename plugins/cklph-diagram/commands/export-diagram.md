@@ -10,9 +10,9 @@ allowed-tools:
 ---
 
 Export the diagram HTML at `$1` as deliverables by running the packaged helper
-`skills/cklph-diagram/scripts/export.py` (installed: `<skill-dir>/scripts/export.py`; as a plugin:
-`${CLAUDE_PLUGIN_ROOT}/skills/cklph-diagram/scripts/export.py`).
-[`skills/cklph-diagram/references/export.md`](../skills/cklph-diagram/references/export.md)
+`skills/diagram/scripts/export.py` (installed: `<skill-dir>/scripts/export.py`; as a plugin:
+`${CLAUDE_PLUGIN_ROOT}/skills/diagram/scripts/export.py`).
+[`skills/diagram/references/export.md`](../skills/diagram/references/export.md)
 is the source of truth for what each format is for and the sizing rules — don't
 reimplement the logic here.
 
@@ -23,7 +23,7 @@ Full argument string: `$ARGUMENTS`
 - No format flags → `.svg` and `.png` (2x) next to the source.
 - `--all` → SVG, PNG, and GIF + MP4 when the diagram has steps (it skips the
   animation, and says so, when it has none).
-- `--registry` → also follow [`export-registry.md`](../skills/cklph-diagram/references/export-registry.md)
+- `--registry` → also follow [`export-registry.md`](../skills/diagram/references/export-registry.md)
   to emit `<basename>.registry.json`. Given alone, it is the only output and needs
   neither Chrome nor ffmpeg.
 

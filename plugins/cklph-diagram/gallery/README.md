@@ -2,7 +2,7 @@
 
 Every exploration, rendered. These are **reference material**, not templates —
 open them, pick what works, then look up the choices in
-[`../skills/cklph-diagram/references/components/`](../skills/cklph-diagram/references/components/).
+[`../skills/diagram/references/components/`](../skills/diagram/references/components/).
 
 | Folder | What | Count |
 |---|---|---|

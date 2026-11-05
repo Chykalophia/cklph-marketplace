@@ -27,7 +27,7 @@ self-contained HTML page. Imports draw.io, Mermaid and Excalidraw sources.
 | **CI** | — | `./scripts/verify.sh`, run identically in GitHub Actions |
 
 The design tension behind all of it — "vibrant" versus "low sensory load" — is
-resolved once in [`references/design-thesis.md`](skills/cklph-diagram/references/design-thesis.md).
+resolved once in [`references/design-thesis.md`](skills/diagram/references/design-thesis.md).
 Short version: vibrancy means **hue variety inside a controlled warm palette**,
 not saturation, not gradients, not density.
 
@@ -42,6 +42,8 @@ As a Claude Code plugin (the team installs from `cklph-private`):
 ```
 
 Or from the public `cklph` marketplace: `/plugin install cklph-diagram@cklph`.
+In the plugin the skill is `cklph-diagram:diagram`. A loose install and the
+claude.ai bundle keep the name `cklph-diagram`.
 Client brands go in `~/.config/cklph-diagram/brands/` (see "The registry"), so
 a plugin update never touches them.
 
@@ -88,7 +90,7 @@ python3 scripts/lint-a11y.py out/*-cklph-light.html --brand cklph
 ## The registry
 
 ```
-skills/cklph-diagram/references/brands/
+skills/diagram/references/brands/
 ├── _default.md        neutral editorial skin — for unbranded work
 ├── _template.md       copy this to add a client
 ├── _example-stub.md   a synthetic blocked brand, so the refusal path stays tested
@@ -131,12 +133,12 @@ it until the client does. `scripts/verify.sh` asserts the non-zero exit rather
 than trusting the message, and `_example-stub.md` exists so that assertion is
 never checking an empty list.
 
-Adding a client: [`references/brand-onboarding.md`](skills/cklph-diagram/references/brand-onboarding.md).
+Adding a client: [`references/brand-onboarding.md`](skills/diagram/references/brand-onboarding.md).
 
 ## Layout
 
 ```
-skills/cklph-diagram/
+skills/diagram/
 ├── SKILL.md                    entry point — brand gate, type selection, taste gate
 ├── references/
 │   ├── design-thesis.md        what "vibrant" means here

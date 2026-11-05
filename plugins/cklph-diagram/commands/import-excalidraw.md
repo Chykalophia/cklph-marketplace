@@ -9,7 +9,7 @@ allowed-tools:
   - Glob
 ---
 
-Redraw the Excalidraw scene at `$1` in this skill's design system, following [`skills/cklph-diagram/references/import-excalidraw.md`](../skills/cklph-diagram/references/import-excalidraw.md) and [`skills/cklph-diagram/references/output-spec.md`](../skills/cklph-diagram/references/output-spec.md). Treat those references as the source of truth — don't reimplement the logic here.
+Redraw the Excalidraw scene at `$1` in this skill's design system, following [`skills/diagram/references/import-excalidraw.md`](../skills/diagram/references/import-excalidraw.md) and [`skills/diagram/references/output-spec.md`](../skills/diagram/references/output-spec.md). Treat those references as the source of truth — don't reimplement the logic here.
 
 Full argument string: `$ARGUMENTS`
 
@@ -23,7 +23,7 @@ Accepts `.excalidraw` and `.excalidraw.json` scenes. PNG/SVG exports are rejecte
 - `--variant=light` — the minimal light template.
 - An Excalidraw file holds a single scene, so there is no page or diagram selector.
 - Type is chosen from the extracted structure; `--type` forces one of the visual
-  types in [`SKILL.md` §3](../skills/cklph-diagram/SKILL.md).
+  types in [`SKILL.md` §3](../skills/diagram/SKILL.md).
 
 ## Flags
 

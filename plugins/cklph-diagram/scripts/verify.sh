@@ -22,7 +22,7 @@ CKLPH_DIAGRAM_BRANDS="$(mktemp -d)"
 export CKLPH_DIAGRAM_BRANDS
 trap 'rm -rf "$CKLPH_DIAGRAM_BRANDS"' EXIT
 
-BRANDS_DIR="skills/cklph-diagram/references/brands"
+BRANDS_DIR="skills/diagram/references/brands"
 OUT="${OUT:-out}"
 fail=0
 
@@ -123,7 +123,7 @@ echo
 echo "=============================================="
 echo " 5. Shipped templates and inherited examples"
 echo "=============================================="
-ASSETS="skills/cklph-diagram/assets"
+ASSETS="skills/diagram/assets"
 # The templates are the copy path for every new diagram, so they must lint clean
 # in the brand they ship with. template-full.html is excluded: its baked-in
 # sample diagram is the Phase 2 backlog (FORK-NOTES.md), and SKILL.md §10 says
@@ -164,6 +164,10 @@ python3 scripts/test-brand-marker.py >/dev/null || { python3 scripts/test-brand-
 # nowhere, must refuse rather than pick a file by search order.
 python3 scripts/test-brands-dir.py | tail -1
 python3 scripts/test-brands-dir.py >/dev/null || { python3 scripts/test-brands-dir.py | grep -A1 '^FAIL'; fail=1; }
+# In the plugin the skill is cklph-diagram:diagram; a loose install and the
+# claude.ai bundle keep the full name cklph-diagram.
+python3 scripts/test-skill-name.py | tail -1
+python3 scripts/test-skill-name.py >/dev/null || { python3 scripts/test-skill-name.py | grep -A1 '^FAIL'; fail=1; }
 # A stub brand MUST refuse. If one ever renders, a client deliverable is one
 # command away from shipping in house colours — that is a hard failure, and it
 # is why this check asserts the non-zero exit rather than trusting the message.

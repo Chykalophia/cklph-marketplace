@@ -27,8 +27,13 @@ cd "$(dirname "$0")"
 # the cleanup.
 export PYTHONDONTWRITEBYTECODE=1
 
-SRC="skills/cklph-diagram"
+SRC="skills/diagram"
+# In the plugin the skill is cklph-diagram:diagram, so SKILL.md says
+# `name: diagram`. A loose install or a claude.ai upload has no plugin
+# namespace, so it keeps the full name. That way it still replaces the
+# cklph-diagram skill that is already installed or uploaded.
 NAME="cklph-diagram"
+set_name() { sed -i.bak "1,/^---\$/ s/^name: .*/name: ${NAME}/" "$1/SKILL.md" && rm -f "$1/SKILL.md.bak"; }
 DEST="${HOME}/.claude/skills/${NAME}"
 MODE="install"
 BRANDS_FROM=""
@@ -119,6 +124,7 @@ case "$MODE" in
     tmp="$(mktemp -d)"
     cp -R "$SRC" "$tmp/${NAME}"
     find "$tmp" -name '__pycache__' -type d -prune -exec rm -rf {} + 2>/dev/null || true
+    set_name "$tmp/${NAME}"
     # claude.ai rejects an upload with more than 200 files. The inherited
     # example diagrams ship in three variants (light, dark, full) and are layout
     # reading only, never the copy path, so the bundle keeps one per type: the
@@ -189,6 +195,7 @@ case "$MODE" in
     fi
     mkdir -p "$(dirname "$DEST")"
     cp -R "$SRC" "$DEST"
+    set_name "$DEST"
     find "$DEST" -name '__pycache__' -type d -prune -exec rm -rf {} + 2>/dev/null || true
     if [ -n "$keep" ]; then
       for f in "$keep"/*.md; do

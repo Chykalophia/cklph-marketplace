@@ -37,7 +37,7 @@ the scan, CI green as if the file had none.
 
 Usage:
     python3 scripts/verify-block-registry.py --all
-    python3 scripts/verify-block-registry.py skills/cklph-diagram/assets/example-x.html
+    python3 scripts/verify-block-registry.py skills/diagram/assets/example-x.html
 """
 
 from __future__ import annotations
@@ -49,7 +49,7 @@ from html.parser import HTMLParser
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parent.parent
-ASSET_DIR = ROOT / "skills/cklph-diagram/assets"
+ASSET_DIR = ROOT / "skills/diagram/assets"
 
 DATA_BLOCK_PREFIX = "data-block-"
 

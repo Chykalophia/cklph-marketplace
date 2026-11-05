@@ -5,7 +5,7 @@ All notable changes to this project are recorded here. Format follows
 [semantic](https://semver.org/).
 
 The major version tracks the skill's `metadata.version` in
-`skills/cklph-diagram/SKILL.md`, which inherits `3.x` from the upstream skill
+`skills/diagram/SKILL.md`, which inherits `3.x` from the upstream skill
 this forked from.
 
 ## [3.7.0] — 2026-11-05
@@ -24,9 +24,19 @@ this forked from.
   `--list` marks local brands and prints both directories.
 - **`scripts/test-brands-dir.py`**, run by `verify.sh`: 21 cases with a
   throwaway HOME. 19 of them fail on 3.6.0.
+- **`scripts/test-skill-name.py`**, run by `verify.sh`: the plugin skill is
+  named `diagram`, and a loose install and the claude.ai bundle are named
+  `cklph-diagram`.
 
 ### Changed
 
+- The skill moved from `skills/cklph-diagram/` to `skills/diagram/`, and
+  SKILL.md says `name: diagram`. In the plugin it is `cklph-diagram:diagram`,
+  not `cklph-diagram:cklph-diagram`. A loose install and the claude.ai bundle
+  have no namespace, so `install.sh` writes `name: cklph-diagram` into the copy
+  it makes. That copy replaces the skill already installed or uploaded.
+  The old folder stays git-ignored, because a checkout leaves git-ignored client
+  files behind in it.
 - A brand slug defined both locally and in the bundle is refused, and so are an
   alias claimed by two brands and a `CKLPH_DIAGRAM_BRANDS` that is not a
   directory. None of them falls back.

@@ -29,7 +29,7 @@ from datetime import date
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parent.parent
-SKILL_SCRIPTS = ROOT / "skills/cklph-diagram/scripts"
+SKILL_SCRIPTS = ROOT / "skills/diagram/scripts"
 sys.path.insert(0, str(SKILL_SCRIPTS))
 
 _spec = importlib.util.spec_from_file_location("brand_tokens", SKILL_SCRIPTS / "brand-tokens.py")
