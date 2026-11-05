@@ -50,6 +50,10 @@ def main(argv=None):
     ap.add_argument("--sep", default=";")
     ap.add_argument("--min-kappa", type=float, default=0.7)
     args = ap.parse_args(argv)
+    if not math.isfinite(args.min_kappa) or not -1 < args.min_kappa <= 1:
+        ap.error("--min-kappa must be a number above -1 and at most 1")
+    if args.a == args.b:
+        ap.error("--a and --b must name two different coder columns")
     with open(args.csv, newline="") as f:
         rows = list(csv.DictReader(f))
     if not rows or args.a not in rows[0] or args.b not in rows[0]:
@@ -61,6 +65,8 @@ def main(argv=None):
     multi = any(args.sep in x for x in a + b)
     sa = [labels_of(x, args.sep) for x in a]
     sb = [labels_of(x, args.sep) for x in b]
+    if any(not x for x in sa + sb):
+        ap.error(f"coding cells with only '{args.sep}' separators found; code every item")
     labels = sorted(set().union(*sa, *sb))
     print(f"## Coding agreement ({len(rows)} items, {args.a} vs {args.b})")
     weak, unscorable = [], []
@@ -78,7 +84,7 @@ def main(argv=None):
         unscorable.append("(overall)")
     elif k < args.min_kappa:
         weak.append("(overall)")
-    print("\n| code | human count | AI count | kappa (yes/no) |")
+    print(f"\n| code | {args.a} count | {args.b} count | kappa (yes/no) |")
     print("|---|---|---|---|")
     for lab in labels:
         ya = [lab in x for x in sa]

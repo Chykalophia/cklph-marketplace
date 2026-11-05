@@ -29,7 +29,7 @@ _Last updated: <date> · Owner: <name>_
 - Primary goal & metric: (e.g., add-to-cart rate, revenue-per-visitor, lead conversion)
 - Secondary / guardrail metrics: (e.g., return rate, AOV)
 - Known baseline numbers: (pull from analytics if available)
-- Traffic per key template (eligible visitors/day: PDP, cart, checkout, landing): (needed for test sizing)
+- Traffic per key template (eligible visitors/day; one line per template in scope, e.g. PDP, collection, cart, checkout, landing, lead-gen, SaaS signup): (needed for test sizing)
 
 ## Voice & brand
 - Tone: (e.g., confident, warm, non-hype)

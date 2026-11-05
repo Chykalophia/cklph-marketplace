@@ -36,9 +36,9 @@ Find where a funnel leaks and why, and turn that into **evidence-tagged hypothes
 5. **Synthesise hypotheses** using the card below. Combine checklist failures, funnel data and VoC themes; one hypothesis can cite several. Sort each into a bucket:
    - **Instrument** — measurement is broken or missing.
    - **Just do it** — a ★ checklist failure or a bug, cheap and reversible, plus at least one other evidence source. Ship, annotate the date, monitor.
-   - **Test** — 2+ evidence sources and enough traffic (`python3 ${CLAUDE_PLUGIN_ROOT}/skills/experiment-design/scripts/power.py mde`).
+   - **Test** — 2+ evidence sources and enough traffic (`python3 ${CLAUDE_PLUGIN_ROOT}/skills/experiment-design/scripts/power.py mde --baseline <conversion rate> --daily-visitors <eligible visitors/day> --max-days 28`, with the brief's values; use `--mean <m> --sd <s>` instead of `--baseline` for a continuous metric).
    - **Investigate** — single-source or heuristic-only; needs research before testing.
-6. **Prioritise** within Test by evidence strength (number and type of sources), reach (traffic on the page), lever prior from the client's test log (`python3 ${CLAUDE_PLUGIN_ROOT}/skills/experiment-design/scripts/test_log.py prior`), and effort. Prefer PXL-style yes/no criteria over 1–10 gut scores.
+6. **Prioritise** within Test by evidence strength (number and type of sources), reach (traffic on the page), lever prior from the client's test log (`python3 ${CLAUDE_PLUGIN_ROOT}/skills/experiment-design/scripts/test_log.py --log <test-log path from the brief> prior --lever <lever>`), and effort. Prefer PXL-style yes/no criteria over 1–10 gut scores.
 7. **Plan tests** with `experiment-design` (pre-registration template, sizing, low-traffic path).
 8. **Deliver** with `report-information-design`; run `cro-verifier` before it ships.
 

@@ -8,7 +8,7 @@ Apply the `experiment-design` skill and its references in `${CLAUDE_PLUGIN_ROOT}
 
 - **plan** — fill `templates/preregistration.md` for the hypothesis given (pull evidence and lever from the audit if one exists), then size it as below. Save the plan next to the brief.
 - **size** — run `scripts/power.py` (`size` for a target MDE, `mde` for fixed traffic and duration). If the detectable lift is above ~10% or the run exceeds ~8 weeks, present the options in `references/low-traffic.md` instead of a test.
-- **readout** — run `scripts/readout.py` with the arm counts (and the configured split as `--weights` if unequal, guardrails, planned MDE, days). Write the result with `report-information-design/references/experiment-readout.md`. Then offer to log it.
-- **log** — `scripts/test_log.py add ...`; with no details, run `summary` if the log has tests, otherwise say none are logged yet and offer `init`.
+- **readout** — run `scripts/readout.py` with the arm counts (and the configured split as `--weights` if unequal, guardrails, planned MDE, days). Write the result with `${CLAUDE_PLUGIN_ROOT}/skills/report-information-design/references/experiment-readout.md`. Then offer to log it.
+- **log** — `scripts/test_log.py --log <test-log path from the brief> add ...`; with no details, run `summary` (same `--log`) if the log has tests, otherwise say none are logged yet and offer `init`. Without a path in the brief, the default is `./cro-test-log.csv`.
 
 Never compute statistics by hand; always run the scripts and quote their output. Ask only for numbers the scripts need and you can't find.

@@ -91,6 +91,10 @@ def main(argv=None):
     ap.add_argument("--json", action="store_true")
     args = ap.parse_args(argv)
 
+    for name in ("baseline", "mean", "sd", "mde", "alpha", "power", "daily_visitors", "max_days", "cuped_r"):
+        v = getattr(args, name)
+        if v is not None and not math.isfinite(v):
+            ap.error(f"--{name.replace('_', '-')} must be a finite number")
     if (args.baseline is None) == (args.mean is None):
         ap.error("give exactly one of --baseline (conversion) or --mean/--sd (continuous)")
     if args.baseline is not None and not 0 < args.baseline < 1:
@@ -110,6 +114,8 @@ def main(argv=None):
         ap.error("--mde must be positive")
     if args.daily_visitors is not None and args.daily_visitors <= 0:
         ap.error("--daily-visitors must be positive")
+    if args.max_days <= 0:
+        ap.error("--max-days must be positive")
     args.alpha_adj = args.alpha / args.variants
     var_mult = 1 - args.cuped_r ** 2
     arms = args.variants + 1

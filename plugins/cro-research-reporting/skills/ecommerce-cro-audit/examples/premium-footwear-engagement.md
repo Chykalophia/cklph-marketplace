@@ -5,14 +5,14 @@
 The operative model: **lead emotional, justify rational, substantiate sustainably, ration the whimsy, make value (not discount) the price story.**
 
 ## How affluent women (and premium buyers generally) decide
-- Luxury buying is "overwhelmingly emotional" — driven by identity, self-expression, self-reward, and feeling — then rationalized with craft, materials, and logic. (IJFMR review, 2024.)
+- Luxury buying is "overwhelmingly emotional" — driven by identity, self-expression, self-reward, and feeling — then rationalized with craft, materials, and logic. (IJFMR review, 2024) [unverified: no title or URL was recorded].
 - Motivational clusters: identity/self-expression, self-reward/milestone, status/signaling, quality/craftsmanship, comfort (under-rated for footwear), values/sustainability (secondary for most).
 - The most useful segmentation is motivational, not demographic. The "self-actualized affluent" (buying for personal meaning/comfort/values, often not habitual luxury spenders) respond to self-reward + smart-investment framing.
 
 **Apply:** open the page with an emotional, identity-led promise and the visual "wow," not a SKU name. Let craft/materials/value arrive immediately after as the rational permission slip.
 
 ## Price justification at a high tier
-- "Made in Italy"/handcrafted is often described as carrying a price premium [unverified: the "10–30%, up to ~50% for leather" range had no traced source] because it signals craftsmanship — put it in the buy box, not the footer.
+- "Made in Italy"/handcrafted is often described as carrying a price premium [unverified: the "10–30%, up to ~50% for leather" range had no traced source] because it signals craftsmanship. If the client's own evidence (reviews, survey, sales by line) shows provenance matters to this audience, put it in the buy box, not the footer.
 - Map every quality/comfort claim to a macro image (never claim "craftsmanship" without showing it).
 - **Cost-per-wear caveat:** Eckmann & Reisch (*Psychology & Marketing*, 2026) found CPW framing shifts preference toward higher-quality clothing; the idea that it **can cheapen a luxury brand** was this engagement's hypothesis, not a finding of that paper [untested]. For platform/modular products use **value-multiplication** ("one pair → infinite looks / one base → a wardrobe of add-ons"), which keeps the durability/value signal without down-market framing.
 

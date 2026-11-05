@@ -26,6 +26,6 @@ Process:
 3. Build with the render-safe component library. Obey the rules: never put text inside data-width bars (use label|track|value rows); never use absolute-positioned label clouds (use quadrant grids); collapse every grid on mobile; keep prose out of visuals.
 4. Cite with the gapless sequential spec (each unique URL → one number, no gaps; a `### Sources` list, one per line); keep footnote ids and superscripts in sync; tier reliability.
 5. Outline first, write section-by-section passing prior headers in to avoid duplication, then a polish pass (add summary, remove dupes).
-6. QA before delivering (run `${CLAUDE_PLUGIN_ROOT}/skills/report-information-design/references/qa-checklist.md`): tag balance, node --check on any JS, a render check, `scripts/check_citations.py` for links, figures and footnotes, grounding (every load-bearing claim cited; numbers/dates attributed), responsive, print.
+6. QA before delivering (run `${CLAUDE_PLUGIN_ROOT}/skills/report-information-design/references/qa-checklist.md`): tag balance, node --check on any JS, a render check, `scripts/check_citations.py` for links, figures and footnotes (save the load-bearing figures as `<report>.claims.csv` next to the report so `cro-verifier` can re-run it), grounding (every load-bearing claim cited; numbers/dates attributed), responsive, print.
 
 Guardrails: never ship an unverified visual; never fabricate data; preserve every source from the inputs (don't drop citations during merge).

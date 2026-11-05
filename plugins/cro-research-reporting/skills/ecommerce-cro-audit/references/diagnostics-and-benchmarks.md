@@ -1,7 +1,7 @@
 # Diagnostics & Benchmarks
 
 ## Benchmarks are context, not the diagnosis
-Compare the store with its own history (same template, device and source, prior period and last year) before any industry figure. Shopify itself calls a universal conversion benchmark "a fallacy" because rates swing with traffic source, price and how sessions are counted (https://shopify.in/ie/blog/ecommerce-conversion-rate). Use the table below only to say whether a number is wildly off, never to size an opportunity.
+Compare the store with its own history (same template, device and source, prior period and last year) before any industry figure. Shopify itself calls a universal conversion benchmark "a fallacy" because rates swing with traffic source, price and how sessions are counted (https://www.shopify.com/ie/blog/ecommerce-conversion-rate). Use the benchmark rows below only to say whether a number is wildly off, never to size an opportunity; the checkout-lift row is a directional estimate, not a forecast.
 
 As of 2024–2026; platform/vendor figures are directional. Re-verify yearly.
 

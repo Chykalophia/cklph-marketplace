@@ -19,6 +19,7 @@ Outcome is one of: win, loss, flat, invalid (e.g. SRM).
 """
 import argparse
 import csv
+import math
 import os
 import statistics
 import sys
@@ -41,10 +42,15 @@ def usable(row):
         return False
     if row.get("rel_lift"):
         try:
-            float(row["rel_lift"])
+            if not math.isfinite(float(row["rel_lift"])):
+                return False
         except ValueError:
             return False
     return True
+
+
+def missing_or_empty(path):
+    return not os.path.exists(path) or os.path.getsize(path) == 0
 
 
 def outcome(row):
@@ -59,7 +65,7 @@ def read(path):
 
 
 def cmd_init(a):
-    if os.path.exists(a.log):
+    if not missing_or_empty(a.log):
         print(f"{a.log} already exists; not overwriting.")
         return
     with open(a.log, "w", newline="") as f:
@@ -70,7 +76,9 @@ def cmd_init(a):
 def cmd_add(a):
     if a.outcome not in OUTCOMES:
         sys.exit(f"--outcome must be one of {sorted(OUTCOMES)}")
-    if not os.path.exists(a.log):
+    if any(v is not None and not math.isfinite(v) for v in (a.rel_lift, a.ci_low, a.ci_high)):
+        sys.exit("--rel-lift, --ci-low and --ci-high must be finite numbers")
+    if missing_or_empty(a.log):
         cmd_init(a)
     row = {"id": a.id, "date_end": a.date_end or date.today().isoformat(), "page": a.page, "lever": a.lever,
            "hypothesis": a.hypothesis, "evidence": a.evidence, "primary": a.primary, "outcome": a.outcome,
@@ -109,7 +117,7 @@ def cmd_summary(a):
     if valid:
         print(f"- Win rate {wins}/{len(valid)} = {wins / len(valid):.0%} "
               f"(industry reference: roughly 10-33%)")
-    lifts = [float(r["rel_lift"]) for r in valid if outcome(r) == "win" and r["rel_lift"]]
+    lifts = [float(r["rel_lift"]) for r in valid if outcome(r) == "win" and r.get("rel_lift")]
     if lifts:
         print(f"- Median winning lift {statistics.median(lifts):.1%} (expect post-launch lift to be smaller)")
     for key in ("lever", "page"):

@@ -10,6 +10,6 @@ Run `python3 ${CLAUDE_PLUGIN_ROOT}/skills/experiment-design/scripts/power.py mde
 6. **Do qualitative validation instead.** A 5-user test before and after the change catches usability failures without any traffic requirement (Nielsen, https://nngroup.com/articles/why-you-only-need-to-test-with-5-users/).
 
 What not to do:
-- Do not switch to a Bayesian calculator expecting it to need less data. It reports the same evidence differently.
+- Do not switch to a Bayesian calculator expecting it to need less data. With the flat priors most testing tools use, it needs about as much; an informative prior can lower the data needed only if that prior is justified, and the prior, model and decision rule then need checking.
 - Do not peek and stop at the first green number.
 - Do not run a test you already know cannot detect a plausible effect "just to see".

@@ -8,7 +8,7 @@ The evidence-backed way to let an LLM code qualitative data without fooling your
 - High run-to-run consistency does not mean the codes are right. Validate against a human.
 
 ## Steps
-1. **Draft the codebook from data.** Have the model read a random 50–100 items and propose 8–15 codes. A human merges, renames and writes a one-line definition, an include rule, an exclude rule and two real examples per code. Use `codebook-template.md`.
+1. **Draft the codebook from data.** Have the model read a random 50–100 items (all of them if there are fewer than 50) and propose 8–15 codes. A human merges, renames and writes a one-line definition, an include rule, an exclude rule and two real examples per code. Use `codebook-template.md`.
 2. **Code a validation sample.** Draw a fresh random 50–100 items. AI codes them with the codebook in the prompt (one item per line, return code ids only, allow multiple codes with `;`, an explicit `none` code for "no reason", and `skip` for blank or off-topic items). A human codes the same items blind. With under ~100 items in total, skip the separate sample: AI codes everything, a human reviews every code, and the themes are reported as exploratory.
 3. **Measure agreement.** `python3 ${CLAUDE_PLUGIN_ROOT}/skills/voc-research/scripts/agreement.py sample.csv --a human --b ai` (with `;`-separated multi-codes it pools every item x code decision into the overall figure). Target kappa ≥ 0.7 overall and per code.
 4. **Fix weak codes.** Tighten definitions, add counter-examples, merge codes humans also confuse. Re-run on a new sample (not the same one, or you overfit).

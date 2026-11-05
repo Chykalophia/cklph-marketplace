@@ -30,7 +30,7 @@ So: a recommendation is a hypothesis until a sound test confirms it. A monitored
    - `mde` mode: what the available traffic can detect in a fixed window.
    - If the detectable MDE is above ~10% relative, or the run is over ~8 weeks, follow `references/low-traffic.md` instead of launching a test that will end inconclusive.
 3. **Run it** for whole weeks, at least 14 days. Do not stop early on significance unless the design is sequential (`references/test-design.md`).
-4. **Read it out** with `scripts/readout.py`, passing the configured split with `--weights` when arms are not equal (it runs the SRM check, intervals, guardrails, Twyman flag, exaggeration estimate and the decision rule). Present it with `report-information-design/references/experiment-readout.md`.
+4. **Read it out** with `scripts/readout.py`, passing the planned relative MDE (`--mde`), the run length (`--days`), the guardrails (`--guardrail`), and the configured split with `--weights` when arms are not equal (it runs the SRM check, intervals, guardrails, Twyman flag, exaggeration estimate and the decision rule). Present it with `report-information-design/references/experiment-readout.md`.
 5. **Log it** with `scripts/test_log.py add`, win or lose. Use `summary` and `prior` to rank the next round by the client's own lever win rates.
 
 ## Scripts (Python 3 standard library, no installs)

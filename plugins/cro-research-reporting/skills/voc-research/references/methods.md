@@ -25,7 +25,7 @@ Ask buyers about friction and non-buyers (via poll) about objections; the two li
 ## User testing
 - 5 participants per round per distinct segment; 2–3 rounds with fixes in between.
 - Tasks match the funnel: "Find a pair of shoes for a wedding under $200 and get to the payment step."
-- Record time on task, success/fail, and every point of hesitation. Severity = how many participants hit it × whether it blocked them.
+- Record time on task, success/fail, and every point of hesitation. Record how many participants hit each issue, and judge severity separately from its impact, including whether it blocked the task.
 - Remote unmoderated tools are fine for usability; use moderated sessions for motivation and pricing questions.
 - Test on the device most of the traffic uses (usually mobile).
 

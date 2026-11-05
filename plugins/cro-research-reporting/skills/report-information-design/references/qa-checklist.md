@@ -33,9 +33,9 @@ Never present a report or HTML deliverable without running these. A single rende
   (Output should be empty — refs with no definition.)
 - **Links resolve, numbers match (scripted):** run the citation checker on every report.
   ```bash
-  python3 ${CLAUDE_PLUGIN_ROOT}/skills/report-information-design/scripts/check_citations.py "$f" --claims claims.csv
+  python3 ${CLAUDE_PLUGIN_ROOT}/skills/report-information-design/scripts/check_citations.py "$f" --claims "$f.claims.csv"
   ```
-  `claims.csv` lists each load-bearing figure as `url,expect` (e.g. the Baymard URL and `70.22`). Dead links fail the run. "Blocked" or "error" results (paywalls, bot protection, sandboxed network) need a WebFetch or human look; label anything still unconfirmed as unverified.
+  Write a fresh `<report>.claims.csv` next to each report, never a shared `claims.csv`, listing each load-bearing figure in that report as `url,expect` (e.g. the Baymard URL and `70.22`). `cro-verifier` reads the same file. Dead links fail the run. "Blocked" or "error" results (paywalls, bot protection, sandboxed network) need a WebFetch or human look; label anything still unconfirmed as unverified.
 - **Numbers consistent:** the same metric reads the same everywhere (exec summary vs body vs charts).
 - **Brand match:** colors/fonts/logo match the subject's real brand, not a generic default.
 
