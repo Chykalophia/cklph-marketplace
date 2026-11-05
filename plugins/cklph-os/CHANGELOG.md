@@ -5,6 +5,13 @@ Format: [Keep a Changelog](https://keepachangelog.com); versioning follows [SemV
 Moved here from the repo root on 2026-10-27; marketplace and repo-level events (repo rename, sibling
 plugins, the marketplace manifest) live in the root CHANGELOG.
 
+## [0.15.1] — 2026-11-05
+
+### Changed
+- Comments only, no code change. Hook comments state the current reason instead of version history
+  ("before 0.12.3", "the old check"), narration lines are gone from `nextjs-quality-check.sh` and
+  `pre-commit-gate.sh`, and a cut-off comment in the gate test is complete again.
+
 ## [0.15.0] — 2026-11-04
 
 A second model in fresh context catches what the author's model can't. In a local multi-model loop

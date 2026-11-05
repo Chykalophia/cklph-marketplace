@@ -5,10 +5,8 @@
 # Checks: TypeScript, ESLint, Semgrep custom rules — against the CURRENT project.
 # Exit 2 = block the tool call. Exit 0 = allow it.
 #
-# Project-tunable assumptions (kept for parity with the original project gate):
-#   - ESLint --max-warnings budget
-#   - Semgrep config dir (.semgrep/)
-# These degrade gracefully when the tool/config is absent. Parameterize per-repo later.
+# Project-tunable: the ESLint --max-warnings budget (CKLPH_ESLINT_MAX_WARNINGS) and the
+# Semgrep config dir (.semgrep/). Each check skips when its tool or config is absent.
 
 set -uo pipefail
 
@@ -19,15 +17,14 @@ if ! command -v jq >/dev/null 2>&1; then
     exit 0
 fi
 
-# Read the tool input from stdin
 INPUT=$(cat 2>/dev/null || true)
 COMMAND=$(printf '%s' "$INPUT" | jq -r '.tool_input.command // empty' 2>/dev/null)
 
 # Only intercept git commit commands. "git commit" counts when it starts the command or follows a
 # separator (; && || | ( newline), optionally behind VAR=value prefixes, an absolute path to git,
 # and git's global options (-C <dir>, -c <k=v>, --git-dir <dir>, --no-pager, …), whose values may
-# be quoted ("dir with spaces", k="a b"). Before 0.11.1 only a bare leading "git commit" matched,
-# so `cd repo && git commit` and `git -C repo commit` skipped the whole gate.
+# be quoted ("dir with spaces", k="a b"), so `cd repo && git commit` and `git -C repo commit` are
+# gated too.
 #
 # Limits (a matcher, not a shell parser): a "(" or ";" inside a quoted argument still counts as a
 # separator, so `printf '(git commit -m x'` runs the gate needlessly (false run, never a bypass;
@@ -109,7 +106,7 @@ cd "$DIR" 2>/dev/null || unresolved "'$DIR' is not a directory"
 # Skip merge commits — CI is the right gate for release merges (dev -> staging -> main),
 # not this hook. MERGE_HEAD exists during an in-progress merge and is cleared on commit.
 # This avoids the gate failing on the thousands of unchanged-but-restaged files a merge
-# can produce (e.g. after a tree-wide formatter change). Real bug surfaced 2026-05-31.
+# can produce (e.g. after a tree-wide formatter change).
 if git rev-parse -q --verify MERGE_HEAD >/dev/null 2>&1; then
     echo "pre-commit-gate: skipping merge commit — CI is the gate for merges"
     exit 0
@@ -130,9 +127,9 @@ echo "=== PRE-COMMIT QUALITY GATE ==="
 FAILURES=0
 
 # Resolve a locally-installed node binary (this project or a hoisted monorepo root).
-# Prints the path and returns 0 if found; returns non-zero otherwise. Never hits the network —
-# this is the difference between "tool not installed -> skip" and the old "npx tries to install
-# -> prints help -> exits non-zero -> we misreport it as errors and block the commit".
+# Prints the path and returns 0 if found; returns non-zero otherwise. Never hits the network:
+# npx would try to install a missing tool, print help and exit non-zero, which reads as lint
+# errors and blocks the commit. A missing tool must mean skip.
 local_bin() {
     local name="$1" dir="$PWD" i=0
     while [ "$i" -lt 6 ]; do
@@ -213,7 +210,7 @@ else
 fi
 
 # 4. cklph skill description sanity — colon-space inside a frontmatter description value re-parses
-#    as a nested YAML key and breaks plugin loading. Real previously-hit bug; prevent regression.
+#    as a nested YAML key and breaks plugin loading.
 echo "--- Skill Description Sanity ---"
 STAGED_SKILLS=$(git diff --cached --name-only --diff-filter=ACM -- '*SKILL.md' 2>/dev/null || true)
 if [ -n "$STAGED_SKILLS" ]; then

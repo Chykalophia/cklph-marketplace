@@ -78,8 +78,8 @@
 #   normal call; ~0.4 s for a 58 KB one; ~3 s for 2000 chained commands. Not linear in every shape:
 #   each bash -c / eval / env -S string costs one more tokenizer run (~5 ms), so 1000 of them in one
 #   call take several seconds; one word of 100 KB+ or tens of thousands of backticks take 10 s+.
-#   Past Claude Code's hook timeout a hook does not block. Never use ${var//…} on the whole command here (quadratic in
-#   bash 3.2; a 41 KB command once took 164 s), and never fork per word.
+#   Past Claude Code's hook timeout a hook does not block. Never use ${var//…} on the whole
+#   command here (quadratic in bash 3.2; a 41 KB command once took 164 s), and never fork per word.
 
 set -o pipefail
 

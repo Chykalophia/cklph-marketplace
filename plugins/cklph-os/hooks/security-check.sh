@@ -32,7 +32,7 @@ if [[ -z "$FILE_PATH" ]] || [[ ! -f "$FILE_PATH" ]]; then
 fi
 
 # How Claude sees the result. On PostToolUse, exit-0 stdout goes to the debug log and exit-0
-# stderr is never shown, so before 0.12.3 every warning here was invisible to Claude. Warnings are
+# stderr is never shown, so plain output would be invisible to Claude. Warnings are
 # collected in REPORT and returned as JSON hookSpecificOutput.additionalContext (shown to Claude
 # next to the tool result, exit 0, nothing blocked). Without jq (path read via python3 above) the
 # fallback is stderr + exit 2, which PostToolUse also shows to Claude (the tool has already run, so
@@ -42,8 +42,8 @@ REPORT="Security Check: $FILE_PATH"
 warn() { REPORT="$REPORT"$'\n'"$1"; WARNINGS=$((WARNINGS + 1)); }
 
 # Check for hardcoded secrets. Patterns use $'…' quoting so a real single quote can sit in the
-# bracket class: before 0.11.1 they used ["\x27], which neither BSD nor GNU grep reads as a quote,
-# so single-quoted secrets slipped through. [[:space:]] instead of \s for portability.
+# bracket class: neither BSD nor GNU grep reads ["\x27] as a quote, so single-quoted secrets
+# would slip through. [[:space:]] instead of \s for portability.
 # Report LINE NUMBERS only: echoing the matched line would copy the secret into the transcript.
 # -a: without it grep prints "Binary file matches" for a file with a NUL byte, and the line number
 # is lost. Case-insensitive only where the key name varies in case (API_KEY, Password); AKIA and
