@@ -76,7 +76,7 @@ BRANDS_ENV = "CKLPH_DIAGRAM_BRANDS"
 
 def default_local_brands_dir() -> Path:
     """Where client brands go, whether or not the directory exists yet."""
-    raw = os.environ.get(BRANDS_ENV, "")
+    raw = os.environ.get(BRANDS_ENV, "").strip()
     if raw:
         return Path(raw).expanduser()
     config = Path(os.environ.get("XDG_CONFIG_HOME") or Path.home() / ".config")
@@ -87,9 +87,9 @@ def _local_brands_dir() -> Path | None:
     path = default_local_brands_dir()
     if path.is_dir():
         return path.resolve()
-    if os.environ.get(BRANDS_ENV):
+    if os.environ.get(BRANDS_ENV, "").strip():
         raise SystemExit(
-            f"{BRANDS_ENV}={os.environ[BRANDS_ENV]} is not a directory. Create it, "
+            f"{BRANDS_ENV}={path} is not a directory. Create it, "
             f"or unset {BRANDS_ENV} to use the default local brands directory."
         )
     return None
@@ -551,11 +551,12 @@ def main() -> int:
                 continue
             try:
                 b = load(slug)
+                path = brand_file(slug)
             except BrandError as exc:
                 print(f"error: {exc}", file=sys.stderr)
                 return 2
             flag = "live " if b["status"] == "live" else "STUB "
-            where = "  (local)" if LOCAL_BRANDS and brand_file(slug).parent == LOCAL_BRANDS else ""
+            where = "  (local)" if LOCAL_BRANDS and path and path.parent == LOCAL_BRANDS else ""
             print(f"  {flag} {slug:<16} {b['label']}{where}")
         print("\n  _template        (copy this to add a client)")
         print(f"\n  local brands:   {default_local_brands_dir()}"

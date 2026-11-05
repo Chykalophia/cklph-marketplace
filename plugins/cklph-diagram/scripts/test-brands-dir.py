@@ -132,6 +132,9 @@ def run_all(tmp: Path) -> None:
     case("CKLPH_DIAGRAM_BRANDS pointing at nothing is refused, not ignored",
          r.returncode != 0 and "not a directory" in r.stderr, r.stdout + r.stderr)
 
+    r = run(TOKENS, "Acme Co", "--check", env={"HOME": str(tmp / "h1"), "CKLPH_DIAGRAM_BRANDS": "  "})
+    case("a blank CKLPH_DIAGRAM_BRANDS counts as unset", r.returncode == 0, r.stdout + r.stderr)
+
     dup = tmp / "dup-brands"
     dup.mkdir()
     shutil.copy(BUNDLED / "cklph.md", dup / "cklph.md")

@@ -22,7 +22,7 @@ this forked from.
   could live. `brand-tokens.py` searches the local directory first, then the
   bundled registry. Fonts are found in `fonts/<slug>/` beside either one.
   `--list` marks local brands and prints both directories.
-- **`scripts/test-brands-dir.py`**, run by `verify.sh`: 20 cases with a
+- **`scripts/test-brands-dir.py`**, run by `verify.sh`: 21 cases with a
   throwaway HOME. 18 of them fail on 3.6.0.
 
 ### Changed
@@ -35,6 +35,8 @@ this forked from.
   refusal instead of a traceback.
 - `verify.sh` points `CKLPH_DIAGRAM_BRANDS` at an empty directory, so a machine
   with real client brands gets the same result as CI.
+- CI installs ffmpeg. `test-tools.py` needs it for the GIF and MP4 cases,
+  so `verify` was red on the runner (it was on #11 too).
 - The onboarding guide, SKILL.md §0, `cklph.md` and `install.sh` say where
   client brands and fonts go now.
 
