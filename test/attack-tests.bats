@@ -560,11 +560,12 @@ fix_bug() { printf 'echo 2\n' > src.sh; git commit -qam "fix"; }
   lock tests/second_test.sh >/dev/null
   fix_bug
   mkdir -p web/src && printf '{}\n' > package.json && printf '{}\n' > tsconfig.base.json
-  printf 'x\n' > web/src/app.spec.ts && printf 'x\n' > web/src/app.ts
+  printf 'x\n' > web/src/app.spec.ts && printf 'x\n' > web/src/app.ts && printf 'x\n' > 'web/src/a"b.spec.ts'
   git add -A && git commit -qm "config, another test, app code"
   check
   [ "$status" -eq 0 ]
   has "NOTE  package.json changed"; has "NOTE  tsconfig.base.json changed"; has "NOTE  web/src/app.spec.ts changed"
+  has 'NOTE  web/src/a"b.spec.ts changed'
   hasnt "NOTE  web/src/app.ts"; hasnt "NOTE  tests/second_test.sh"
 }
 
@@ -599,16 +600,14 @@ fix_bug() { printf 'echo 2\n' > src.sh; git commit -qam "fix"; }
 
 # ---- round 9 ---------------------------------------------------------------------------------------
 
-@test "check --require-file: a missing manifest passes when nothing is locked, fails when tests are" {
+@test "check --require-file: a missing manifest fails; flow's comment-only manifest passes with no locks" {
   M=docs/flow/t/attack-tests.txt
   mv "$T" "$BATS_TEST_TMPDIR/t.sh"
   check --require-file "$M"
-  [ "$status" -eq 0 ]; has "no $M and no attack tests locked"
-  mv "$BATS_TEST_TMPDIR/t.sh" "$T"
-  lock "$T" >/dev/null
-  fix_bug
+  [ "$status" -eq 1 ]; has "can't read $M"
+  mkdir -p docs/flow/t && printf '# attack tests locked for this task\n' > "$M" && git add "$M" && git commit -qm "start task"
   check --require-file "$M"
-  [ "$status" -eq 1 ]; has "doesn't exist, but attack tests are locked"
+  [ "$status" -eq 0 ]; has "no attack tests locked"
 }
 
 @test "check --require-file: a human-approved unlock releases the manifest line too" {
@@ -630,19 +629,20 @@ fix_bug() { printf 'echo 2\n' > src.sh; git commit -qam "fix"; }
   printf '[ -f nope ] || { echo want 2; exit 1; }\n' > tests/b_test.sh
   printf '#!/bin/sh\ngrep -q "^test: record" "$1" && exit 1; exit 0\n' > .git/hooks/commit-msg; chmod +x .git/hooks/commit-msg
   run bash "$AT" lock --run "$RUN" --expect "$EXP" --manifest "$M" tests/b_test.sh
-  [ "$status" -eq 3 ]; has "ARE locked"
+  [ "$status" -eq 3 ]; has "ARE locked"; has "already holds them and is staged"
+  [ "$(git diff --cached --name-only)" = "$M" ]
   run bash "$AT" list "$BASE"
   has "tests/b_test.sh"
 }
 
-@test "a killed check stops its test and the watchdog" {
+@test "a killed check stops its test (even one ignoring TERM) and the watchdog" {
   lock "$T" >/dev/null
-  printf 'sleep 41; echo 2\n' > src.sh; git commit -qam "slow fix"
+  printf 'trap "" TERM; sleep 41; echo 2\n' > src.sh; git commit -qam "slow fix"
   CKLPH_ATTACK_TIMEOUT=59 bash "$AT" check "$BASE" >/dev/null 2>&1 & k=$!
   for i in 1 2 3 4 5 6 7 8 9 10; do pgrep -f '^sleep 41$' >/dev/null && break; sleep 0.5; done
   pgrep -f '^sleep 41$' >/dev/null
   st=0; kill -TERM "$k"; wait "$k" || st=$?
-  [ "$st" -eq 130 ]
+  [ "$st" -eq 143 ]
   sleep 0.5
   left=$(pgrep -f '^sleep (41|59)$' || true)
   [ -z "$left" ] || { pkill -f '^sleep (41|59)$'; echo "left running: $left" >&2; false; }

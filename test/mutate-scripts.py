@@ -6,7 +6,7 @@ unmutated, so a suite that is already red can't make every mutation look "caught
 
 Run from the repo root:  python3 test/mutate-scripts.py .     (BATS="npx --yes bats@1.13.0" if bats is missing)
 """
-import os, pathlib, shlex, shutil, subprocess, sys, tempfile
+import os, pathlib, shlex, shutil, signal, subprocess, sys, tempfile
 
 SRC = pathlib.Path(sys.argv[1]).resolve()
 TMP = pathlib.Path(tempfile.mkdtemp(prefix="cklph-mutate-"))
@@ -83,9 +83,13 @@ MUTS = [
     (MK, "test/marker.bats", 'length(f) >= length(fence)', '1', "shorter fence closes a longer one"),
     (MK, "test/marker.bats", 'intable = ($0 ~ /^## Markers[ \\t]*$/)', 'intable = 1', "every table in markers.md counts"),
     (MK, "test/marker.bats", 'match(line, /^ ? ? ?(```+|~~~+)/)', 'match(line, /^(```+|~~~+)/)', "indented fences ignored"),
-    (AT, "test/attack-tests.bats", 'if [ ${#LOCKS[@]} -gt 0 ] || [ ${#UNLOCKS[@]} -gt 0 ] || [ -n "$(git for-each-ref "refs/attack-tests/$b/")" ]; then', 'if false; then', "missing manifest ignored while tests are locked"),
+    (AT, "test/attack-tests.bats", '|| die "can\'t read $2 (flow', '|| true "can\'t read $2 (flow', "missing manifest ignored"),
     (AT, "test/attack-tests.bats", ' || [[ "$RELEASED" == *" $r "* ]]', '', "approved unlock still required by the manifest"),
-    (AT, "test/attack-tests.bats", "    trap 'kill -TERM -- -\"$pid\" -\"$dog\" > /dev/null 2>&1; rm -f \"$out\" \"$flag\"; exit 130' INT TERM HUP\n", '', "a killed check leaves its test running"),
+    (AT, "test/attack-tests.bats", "trap 'stop_test 143' TERM; ", '', "a killed check leaves its test running"),
+    (AT, "test/attack-tests.bats", 'sleep 1; kill -KILL -- -"$pid" > /dev/null 2>&1; ', '', "a killed check leaves a TERM-proof test running"),
+    (AT, "test/attack-tests.bats", "trap 'stop_test 143' TERM", "trap 'stop_test 130' TERM", "TERM exits 130"),
+    (AT, "test/attack-tests.bats", 'git diff -z --name-only "$c" HEAD', 'git diff --name-only "$c" HEAD', "NOTE names not NUL-separated"),
+    (AT, "test/attack-tests.bats", 'already holds them and is staged', 'needs them added', "exit 3 hides the staged manifest"),
     (AT, "test/attack-tests.bats", '{ [ ! -s "$MANIFEST" ] || [ -z "$(tail -c 1 "$MANIFEST")" ] || echo >> "$MANIFEST"; } &&', '', "manifest without a final newline gets glued"),
     (AT, "test/attack-tests.bats", 'echo "$c"; exit 3; }', 'exit 1; }', "failed manifest commit looks like a refusal"),
     (AT, "test/attack-tests.bats", 'git -c core.hooksPath=/dev/null worktree add', 'git worktree add', "--clean runs checkout hooks"),
@@ -94,6 +98,19 @@ MUTS = [
     (AT, "test/attack-tests.bats", '|tsconfig*.json|', '|', "NOTE skips tsconfig"),
 ]
 bats = shlex.split(os.environ.get("BATS", "bats"))
+# A mutation that breaks the time limit would make every test wait out the default 600 s; keep each run
+# short, and stop a suite that still hangs (that counts as caught: the bug is visible, just slow).
+ENV = dict(os.environ, CKLPH_ATTACK_TIMEOUT="10")
+SUITE_LIMIT = 900
+
+def run_suite(suite):
+    p = subprocess.Popen(bats + [suite], cwd=ROOT, env=ENV, stdout=subprocess.PIPE, stderr=subprocess.STDOUT,
+                         text=True, start_new_session=True)
+    try:
+        return p.communicate(timeout=SUITE_LIMIT)[0], p.returncode
+    except subprocess.TimeoutExpired:
+        os.killpg(p.pid, signal.SIGKILL); p.communicate()
+        return None, None
 
 def main():
     shutil.copytree(SRC, ROOT, ignore=shutil.ignore_patterns(".git", "node_modules"))
@@ -101,16 +118,18 @@ def main():
         n = path.read_text().count(old)
         if n != 1: print(f"pattern for '{label}' matches {n} times; update it", flush=True); return 2
     for suite in sorted({m[1] for m in MUTS}):
-        r = subprocess.run(bats + [suite], cwd=ROOT, capture_output=True, text=True)
-        if r.returncode != 0:
-            print(f"baseline is red for {suite}; fix it first:\n{r.stdout[-2000:]}", flush=True); return 2
+        out, rc = run_suite(suite)
+        if rc != 0:
+            print(f"baseline is red or hung for {suite}; fix it first:\n{(out or '')[-2000:]}", flush=True); return 2
     bad = 0
     for path, suite, old, new, label in MUTS:
         src = path.read_text()
         path.write_text(src.replace(old, new))
         try:
-            r = subprocess.run(bats + [suite], cwd=ROOT, capture_output=True, text=True)
-            red = [l for l in r.stdout.splitlines() if l.startswith("not ok")]
+            out, rc = run_suite(suite)
+            if out is None:
+                print(f"CAUGHT {label}  (suite hung past {SUITE_LIMIT}s)", flush=True); continue
+            red = [l for l in out.splitlines() if l.startswith("not ok")]
             print(("CAUGHT " if red else "MISSED ") + label + (f"  ({len(red)} red, e.g. {red[0][7:60]})" if red else ""), flush=True)
             bad += 0 if red else 1
         finally:

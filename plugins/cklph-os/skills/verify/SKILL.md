@@ -15,8 +15,9 @@ description: The VERIFY phase of the cklph-os flow — prove it works. Run build
    one — confirm each is met with captured evidence, not "looks right."
 3. **Attack tests intact.** From the repo root run
    `"${CLAUDE_PLUGIN_ROOT}/scripts/attack-tests.sh" check <base> --require-file docs/flow/<task-slug>/attack-tests.txt`
-   (`<base>` per `flow` → Hand-offs; a task that locked nothing has no manifest, which passes with a
-   NOTE as long as no test is locked; add `--branch <name>` on a detached HEAD; add `--clean` when the
+   (`<base>` per `flow` → Hand-offs; `flow` commits that manifest when the task starts, so a missing
+   one means a wrong path or slug, or a task run outside `flow`: then drop `--require-file`, and say
+   so in the report; add `--branch <name>` on a detached HEAD; add `--clean` when the
    test command doesn't need gitignored files such as `node_modules`, so a fix that only exists in
    an ignored file fails too). It fails if a locked test was touched after its lock, was dropped,
    forged or re-locked, or doesn't pass under its recorded command in time, and on any unlock the

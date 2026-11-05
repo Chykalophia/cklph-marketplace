@@ -53,8 +53,10 @@ Gates and self-correcting loops:
 - **Where phase outputs live**, unless `AGENTS.md` names other paths: `docs/flow/<task-slug>/`.
   `challenge.md` is overwritten by each challenge run and starts with `Task text:` and the task
   verbatim; `answers.md` holds the human's answers to `## TASK QUESTIONS` (the re-run reads it);
-  `problem.md` (`refine`), `spec.md`, `plan.md`. Sub-agents that can't write (challenge, the
-  reviewers) hand you text; you commit it before routing.
+  `problem.md` (`refine`), `spec.md`, `plan.md`; `attack-tests.txt`, which you create with one
+  comment line (`# attack tests locked for this task`) and commit with the first `challenge.md`, so
+  `verify` can always read it. Sub-agents that can't write (challenge, the reviewers) hand you text;
+  you commit it before routing.
 - **`<base>`** in this skill and the phase skills is the commit the feature branch started from:
   `git merge-base <default-branch> HEAD`.
 - **Attack tests are locked, by script.** Reviewers stay read-only and *propose* attack tests
@@ -68,7 +70,7 @@ Gates and self-correcting loops:
   600 s), and nothing else changed; it records the command and a lock ref, then commits the paths to
   the manifest. That committed manifest, never `attack-tests.sh list`, feeds `check --require-file`
   (a lock that vanished from history isn't listed). Exit 3 means the tests ARE locked but the
-  manifest commit failed: keep them, add the printed paths to the manifest and commit it. A test the script
+  manifest commit failed: keep them and do what the message says (usually commit the staged manifest). A test the script
   refuses goes back to the reviewer, never into the lock; unless the refusal names a git hook,
   delete the test file you wrote, since `check` fails on untracked leftovers. A refusal caused by a git hook (one that runs the test suite always rejects
   an attack test) is not the reviewer's: show the user the exact `lock … --no-verify` command and
