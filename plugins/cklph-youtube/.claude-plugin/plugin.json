@@ -1,0 +1,8 @@
+{
+  "name": "cklph-youtube",
+  "description": "Get a YouTube video's transcript reliably: a five-method fallback chain (transcript API, watch-page captions, yt-dlp across player clients, optional proxy and cookies), then browser, connector or paste fallbacks when cloud IPs are blocked. Dependencies go in a private virtualenv where one can be created.",
+  "version": "0.1.0",
+  "author": {
+    "name": "Peter Krzyzek"
+  }
+}

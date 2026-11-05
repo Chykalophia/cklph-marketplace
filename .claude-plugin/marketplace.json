@@ -38,7 +38,7 @@
     {
       "name": "cklph-figma",
       "source": "./plugins/cklph-figma",
-      "description": "Read designs from the Figma MCP — design context, screenshots, structure metadata, and design tokens. The design-source layer for any Figma-to-code work.",
+      "description": "Read designs from the Figma MCP (design context, screenshots, structure metadata, design tokens), and preflight and verify Figma writes. The design-source layer for any Figma-to-code work.",
       "category": "design"
     },
     {
@@ -62,7 +62,7 @@
     {
       "name": "cro-research-reporting",
       "source": "./plugins/cro-research-reporting",
-      "description": "A strategist's toolkit: audit ecommerce/conversion funnels, run deep sourced research, write conversion copy, and turn findings into polished render-safe reports and annotated redesign blueprints. Distilled from real CRO engagements and from the best public skills/agents.",
+      "description": "A strategist's toolkit: audit conversion funnels with evidence-tagged hypotheses, run customer (VoC) research, plan and read out A/B tests with real statistics, run deep sourced research, write conversion copy, and turn findings into render-safe reports. Uses AI where the evidence says it is reliable.",
       "category": "marketing"
     },
     {
@@ -70,6 +70,12 @@
       "source": "./plugins/vuln-intel-ext",
       "description": "Sidecar MCP server extending cve-mcp with diff_since (what new CVEs hit my deps since my last scan), dependency snapshots, feed status, and WordPress vulnerability lookup. Powered by OSV.dev (30+ ecosystems, no API key required).",
       "category": "quality"
+    },
+    {
+      "name": "cklph-youtube",
+      "source": "./plugins/cklph-youtube",
+      "description": "Get a YouTube video's transcript reliably: a five-method fallback chain (transcript API, watch-page captions, yt-dlp across player clients, optional proxy and cookies), then browser, connector or paste fallbacks when cloud IPs are blocked. Dependencies go in a private virtualenv where one can be created.",
+      "category": "research"
     }
   ]
 }

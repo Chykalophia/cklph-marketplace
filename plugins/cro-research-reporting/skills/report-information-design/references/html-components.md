@@ -28,7 +28,7 @@ Match the subject's real brand: pull actual tokens from their theme/site (backgr
   <div style="background:var(--surface-2);border:1px solid var(--line);border-radius:9px;padding:14px">
     <div style="font-size:1.6rem;font-weight:800;color:var(--bad)">0.8%</div>
     <div style="font-size:.76rem;color:var(--muted);font-weight:600">Add-to-cart rate</div>
-    <div style="font-size:.72rem;color:#8a979e">~9× below the ~7.5% norm</div>
+    <div style="font-size:.72rem;color:#8a979e">down from 1.9% same period last year</div>
   </div>
   <!-- repeat -->
 </div>
@@ -71,7 +71,7 @@ Match the subject's real brand: pull actual tokens from their theme/site (backgr
 <div class="bc"><div>This store</div><div class="bctrack"><div class="bcfill" style="width:8%;background:var(--bad)"></div></div><div style="text-align:right;font-weight:700">0.8%</div></div>
 ```
 
-## Impact/effort matrix — quadrant grid (RULE 2: NOT absolute positioning)
+## Evidence × effort matrix — quadrant grid (RULE 2: NOT absolute positioning)
 ```css
 .matrix{display:grid;grid-template-columns:1fr 1fr;gap:10px}
 @media(max-width:620px){.matrix{grid-template-columns:1fr}}
@@ -83,12 +83,12 @@ Match the subject's real brand: pull actual tokens from their theme/site (backgr
 ```
 ```html
 <div class="matrix">
-  <div class="quad"><div class="qh">High impact · Low effort — Do first</div>
+  <div class="quad"><div class="qh">Strong evidence · Low effort — Do first</div>
     <span class="chip2 p1">Seed reviews</span><span class="chip2 p1">Add images + video</span></div>
-  <div class="quad"><div class="qh">High impact · Higher effort — Plan</div>
+  <div class="quad"><div class="qh">Strong evidence · Higher effort — Plan</div>
     <span class="chip2 p2">Guided configurator</span></div>
-  <div class="quad"><div class="qh">Lower impact · Low effort — Fillers</div></div>
-  <div class="quad"><div class="qh">Lower impact · Higher effort — Later</div></div>
+  <div class="quad"><div class="qh">Weaker evidence · Low effort — Fillers</div></div>
+  <div class="quad"><div class="qh">Weaker evidence · Higher effort — Later</div></div>
 </div>
 ```
 

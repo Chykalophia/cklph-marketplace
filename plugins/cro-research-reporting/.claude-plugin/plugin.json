@@ -1,7 +1,7 @@
 {
   "name": "cro-research-reporting",
-  "version": "0.3.2",
-  "description": "A strategist's toolkit: audit ecommerce/conversion funnels, run deep sourced research, write conversion copy, and turn findings into polished render-safe reports and annotated redesign blueprints. Distilled from real CRO engagements and from the best public skills/agents.",
+  "version": "0.4.0",
+  "description": "A strategist's toolkit: audit conversion funnels with evidence-tagged hypotheses, run customer (VoC) research, plan and read out A/B tests with real statistics, run deep sourced research, write conversion copy, and turn findings into render-safe reports. Uses AI where the evidence says it is reliable.",
   "author": {
     "name": "Chykalophia"
   },
@@ -19,6 +19,9 @@
     "report",
     "information-design",
     "copywriting",
-    "positioning"
+    "positioning",
+    "voc",
+    "customer-research",
+    "ab-testing"
   ]
 }

@@ -15,7 +15,7 @@
 ---
 
 > [!NOTE]
-> **TL;DR** — One repo, one marketplace (`cklph`), eleven plugins that layer on each other:
+> **TL;DR** — One repo, one marketplace (`cklph`), twelve plugins that layer on each other:
 > a dev-workflow spine, Next.js + Supabase patterns, auditing and monitoring, a WordPress and
 > design pipeline, and CRO research. Install only what you need.
 
@@ -44,15 +44,16 @@
 | --- | --- | --- |
 | **`cklph-wp`** | wp-cli over SSH (`cwp`): managed-host connections, posts/meta/options/media, hosting gotchas. | foundation for the rest |
 | **`cklph-elementor`** | Read and write Elementor data programmatically: the `_elementor_data` model, CSS/responsive gotchas, templates and conditions, the Kit. | `cklph-wp`, `cklph-visual-qa` |
-| **`cklph-figma`** | Read designs and tokens from the Figma MCP. | — |
+| **`cklph-figma`** | Read designs and tokens from the Figma MCP, and preflight and verify Figma writes. | — |
 | **`cklph-visual-qa`** | Headless-Chrome screenshots, crop/compare, overflow probes, and an adversarial visual-reviewer agent. | `cklph-figma` |
 | **`cklph-figma-to-wp`** | Orchestrates design → tokens → Elementor JSON → draft → visual check. | all four above |
 
-**Strategy**
+**Strategy and research**
 
 | Plugin | What it does | Pairs with |
 | --- | --- | --- |
-| **`cro-research-reporting`** | Conversion audits, deep sourced research, conversion copy, and render-safe reports. | — |
+| **`cro-research-reporting`** | Evidence-tagged conversion audits, voice-of-customer research, A/B test sizing and readouts, deep sourced research, conversion copy, and render-safe reports. | — |
+| **`cklph-youtube`** | A YouTube video's transcript through a fallback chain that survives cloud-IP blocks; dependencies stay in a private venv. | `cro-research-reporting` |
 
 Each plugin's `README.md` has the details; `.claude-plugin/marketplace.json` is the catalog.
 
@@ -179,6 +180,8 @@ Each plugin has its own `plugin.json`, `README.md`, and `CHANGELOG.md` inside it
 bats test/                                              # cklph-os hooks, incl. the destructive-command gate
 bash plugins/cklph-wp/tests/cwp.test.sh                 # cwp, against a fake ssh
 bash plugins/cklph-elementor/tests/el-tools.test.sh
+bash plugins/cklph-youtube/tests/get_transcript.test.sh # offline, no network
+(cd plugins/cro-research-reporting && python3 -m unittest discover -s tests)
 node --test plugins/cklph-audit/tests/*.test.mjs        # scanner wrappers against fake scanners
 (cd plugins/vuln-intel-ext && npm ci && npm test)
 (cd plugins/cklph-regression-watch && npm ci && npm test && npm run self-test)   # needs Chromium
