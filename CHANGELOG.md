@@ -7,6 +7,9 @@ Format: [Keep a Changelog](https://keepachangelog.com).
 ## 2026-11-05
 
 ### Added
+- `cklph-diagram` 3.7.0, listed from its own repo (`Chykalophia/cklph-diagram-skill`, a `github`
+  source) rather than copied into `plugins/`. Its tests and CI stay there. Only the four committed
+  brands ship; client brands live in `~/.config/cklph-diagram/brands/`.
 - `cklph-youtube` 0.1.0: the `transcript` skill, ported from a claude.ai upload, with its dependencies
   moved into a private venv and offline tests run in CI.
 
