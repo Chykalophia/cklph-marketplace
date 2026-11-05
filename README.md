@@ -15,7 +15,7 @@
 ---
 
 > [!NOTE]
-> **TL;DR** — One repo, one marketplace (`cklph`), thirteen plugins that layer on each other:
+> **TL;DR** — One marketplace (`cklph`), thirteen plugins that layer on each other:
 > a dev-workflow spine, Next.js + Supabase patterns, auditing and monitoring, a WordPress and
 > design pipeline, diagrams, and CRO research. Install only what you need.
 
