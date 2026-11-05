@@ -3,15 +3,17 @@
 Fetch a YouTube transcript with an automatic fallback chain.
 
 Usage:
-  python3 get_transcript.py <url-or-id> [--lang en,es] [--out transcript.txt] [--timestamps]
+  python3 get_transcript.py <url-or-id> [--lang en,es] [--out FILE] [--timestamps]
+  --out defaults to transcript-<video-id>.txt in the current directory, so transcripts of
+  different videos never overwrite each other.
 
 Fallback order (stops at first success):
   1. youtube-transcript-api (current 1.x instance API)
-  2. youtube-transcript-api via proxy (only if YT_PROXY_HTTP / YT_PROXY_HTTPS set)
+  2. youtube-transcript-api via proxy (only if YT_PROXY_HTTPS or YT_PROXY_HTTP is set)
   3. Watch-page scrape -> captionTracks -> timedtext XML
   4. yt-dlp auto/manual subtitles (system CA certs, several player clients,
      cookies if YT_COOKIES_FILE set)
-  5. yt-dlp via proxy (only if YT_PROXY_HTTPS set)
+  5. yt-dlp via proxy (only if YT_PROXY_HTTPS or YT_PROXY_HTTP is set)
 
 If all fail from the sandbox (cloud IPs get blocked often), the SKILL.md lists
 non-script fallbacks: scraping connectors, browser automation on the user's
@@ -25,7 +27,11 @@ $XDG_CACHE_HOME/cklph-youtube/venv (default ~/.cache/cklph-youtube/venv), never 
 the system Python. Override the location with CKLPH_YT_VENV. Only if a venv can't be
 created (some sandboxes) does it fall back to installing into the running Python.
 """
-import argparse, json, os, re, subprocess, sys, glob, tempfile, urllib.request
+import argparse, json, os, re, shutil, subprocess, sys, glob, tempfile, urllib.request
+
+def proxy_url():
+    """One proxy for both schemes: HTTPS wins, HTTP alone is enough."""
+    return os.environ.get("YT_PROXY_HTTPS") or os.environ.get("YT_PROXY_HTTP")
 
 VENV = os.environ.get("CKLPH_YT_VENV") or os.path.join(
     os.environ.get("XDG_CACHE_HOME") or os.path.expanduser("~/.cache"), "cklph-youtube", "venv")
@@ -88,7 +94,7 @@ def via_api(vid, langs, proxy=False):
     if proxy:
         from youtube_transcript_api.proxies import GenericProxyConfig
         kwargs["proxy_config"] = GenericProxyConfig(
-            http_url=os.environ.get("YT_PROXY_HTTP"), https_url=os.environ.get("YT_PROXY_HTTPS"))
+            http_url=os.environ.get("YT_PROXY_HTTP") or proxy_url(), https_url=proxy_url())
     api = YouTubeTranscriptApi(**kwargs)
     try:
         fetched = api.fetch(vid, languages=langs)
@@ -107,7 +113,7 @@ def via_api(vid, langs, proxy=False):
     return [(s.start, s.text.replace("\n", " ")) for s in fetched]
 
 def parse_vtt(path):
-    segs, seen, start = [], set(), 0.0
+    segs, start = [], 0.0
     with open(path, encoding="utf-8") as f:
         lines = f.read().splitlines()
     for line in lines:
@@ -118,29 +124,50 @@ def parse_vtt(path):
             start = g[0]*3600+g[1]*60+g[2] if len(g) == 3 else g[0]*60+g[1]; continue
         if not line or line.startswith(("WEBVTT", "Kind:", "Language:", "NOTE")) or line.isdigit(): continue
         text = re.sub(r"<[^>]+>", "", line).strip()
-        if text and text not in seen:   # auto-subs repeat rolling lines
-            seen.add(text); segs.append((start, text))
+        # Auto-subs roll: each cue repeats the previous line or two. Drop only those near repeats, so a
+        # line that genuinely recurs later ("Yeah.", a chorus) is kept.
+        if text and text not in [t for _, t in segs[-3:]]:
+            segs.append((start, text))
     return segs
 
+def pick_vtt(files, langs):
+    """The subtitle file for the first --lang that has one: exact code (en), then a variant (en-orig)."""
+    def code(f):
+        parts = os.path.basename(f).rsplit(".", 2)
+        return parts[1] if len(parts) == 3 else ""
+    files = sorted(files)
+    for l in langs:
+        for f in files:
+            if code(f) == l: return f
+        for f in files:
+            if code(f).startswith(l + "-"): return f
+    return files[0]
+
 def via_ytdlp(vid, langs, proxy=False):
+    tmp = tempfile.mkdtemp(prefix="cklph-yt-")
+    try:
+        return _ytdlp_into(tmp, vid, langs, proxy)
+    finally:
+        shutil.rmtree(tmp, ignore_errors=True)
+
+def _ytdlp_into(tmp, vid, langs, proxy):
     pip_install("yt-dlp")
-    tmp = tempfile.mkdtemp()
     # Run as a module of THIS Python: the venv's yt-dlp is not on PATH.
     base = [sys.executable, "-m", "yt_dlp", "--skip-download", "--write-subs", "--write-auto-subs",
             "--sub-langs", ",".join(langs + [l + ".*" for l in langs]), "--sub-format", "vtt",
             "-o", f"{tmp}/%(id)s.%(ext)s", "--no-warnings",
             "--compat-options", "no-certifi"]  # use system CA store (sandbox egress proxies re-sign TLS)
     if os.environ.get("YT_COOKIES_FILE"): base += ["--cookies", os.environ["YT_COOKIES_FILE"]]
-    if proxy: base += ["--proxy", os.environ["YT_PROXY_HTTPS"]]
+    if proxy: base += ["--proxy", proxy_url()]
     last_err = ""
     for client in ["default", "web", "android", "ios", "tv_embedded", "mweb"]:
         args = list(base)
         if client != "default": args += ["--extractor-args", f"youtube:player_client={client}"]
         r = subprocess.run(args + [f"https://www.youtube.com/watch?v={vid}"], capture_output=True, text=True)
-        files = sorted(glob.glob(f"{tmp}/*.vtt"))
+        files = glob.glob(f"{tmp}/*.vtt")
         if files:
             log(f"yt-dlp succeeded with player_client={client}")
-            return parse_vtt(files[0])
+            return parse_vtt(pick_vtt(files, langs))
         last_err = (r.stderr or r.stdout).strip().splitlines()[-1:] or [""]
         last_err = last_err[0]
         if "sign in to confirm" in last_err.lower():
@@ -169,15 +196,15 @@ def via_watchpage(vid, langs):
 def main():
     ap = argparse.ArgumentParser()
     ap.add_argument("video"); ap.add_argument("--lang", default="en")
-    ap.add_argument("--out", default="transcript.txt"); ap.add_argument("--timestamps", action="store_true")
+    ap.add_argument("--out", default=None); ap.add_argument("--timestamps", action="store_true")
     a = ap.parse_args()
-    a.out = os.path.abspath(a.out)  # resolve before any re-exec, against the caller's directory
-    ensure_venv()
     vid, langs = extract_id(a.video), [l.strip() for l in a.lang.split(",") if l.strip()]
+    a.out = os.path.abspath(a.out or f"transcript-{vid}.txt")
+    ensure_venv()
     meta = metadata(vid)
     log(f"video_id={vid} title={meta.get('title')!r} channel={meta.get('channel')!r}")
 
-    has_proxy = bool(os.environ.get("YT_PROXY_HTTPS"))
+    has_proxy = bool(proxy_url())
     methods = [("youtube-transcript-api", lambda: via_api(vid, langs))]
     if has_proxy: methods.append(("youtube-transcript-api+proxy", lambda: via_api(vid, langs, True)))
     methods.append(("watch-page-timedtext", lambda: via_watchpage(vid, langs)))
@@ -197,9 +224,10 @@ def main():
         if not segs:
             tried.append(f"{name}: empty result"); continue
         text = fmt(segs, a.timestamps)
-        open(a.out, "w", encoding="utf-8").write(text)
+        with open(a.out, "w", encoding="utf-8") as fh:
+            fh.write(text)
         print(json.dumps({"status": "ok", "method": name, "video_id": vid, **meta,
-                          "chars": len(text), "segments": len(segs), "out": os.path.abspath(a.out)}))
+                          "chars": len(text), "segments": len(segs), "out": a.out}))
         return 0
 
     status = "no_captions" if no_caption_votes and no_caption_votes == len(tried) else "blocked_or_failed"

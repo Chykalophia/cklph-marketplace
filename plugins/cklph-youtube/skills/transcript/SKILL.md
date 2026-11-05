@@ -14,23 +14,23 @@ YouTube aggressively blocks cloud IPs, and the block changes hour to hour. A met
 ## Step 1: Run the bundled script (needs bash + network)
 
 ```bash
-python3 "${CLAUDE_PLUGIN_ROOT}/skills/transcript/scripts/get_transcript.py" "<url-or-id>" --out transcript.txt
-# options: --lang en,es   --timestamps
+python3 "${CLAUDE_PLUGIN_ROOT}/skills/transcript/scripts/get_transcript.py" "<url-or-id>"
+# writes transcript-<video-id>.txt in the current directory; options: --out FILE  --lang en,es  --timestamps
 # outside Claude Code (no CLAUDE_PLUGIN_ROOT): the script is scripts/get_transcript.py next to this file
 ```
 
-The script installs its own dependencies into a private virtualenv (`~/.cache/cklph-youtube/venv`, never the system Python; first run takes a few seconds longer), pulls title and channel via oEmbed (which rarely gets blocked), then tries these methods in order, stopping at the first success:
+The script installs its own dependencies into a private virtualenv (`~/.cache/cklph-youtube/venv`; first run takes a few seconds longer). Only where a venv can't be created (some sandboxes) does it install into the Python that ran it, and it logs that on stderr; if you see that line on the user's own machine, tell them. It then pulls title and channel via oEmbed (which rarely gets blocked) and tries these methods in order, stopping at the first success:
 
 | # | Method | Notes |
 |---|---|---|
 | 1 | `youtube-transcript-api` | Fastest. Uses the 1.x instance API `YouTubeTranscriptApi().fetch(id)`; old `get_transcript()` tutorials are wrong. Falls back to any available language, translated. |
-| 2 | Same, via proxy | Only if `YT_PROXY_HTTP` / `YT_PROXY_HTTPS` env vars are set. |
+| 2 | Same, via proxy | Only if `YT_PROXY_HTTPS` or `YT_PROXY_HTTP` is set. |
 | 3 | Watch-page scrape | Reads `captionTracks` from the page HTML and pulls the timedtext XML directly. |
 | 4 | `yt-dlp` subtitles | Tries 6 player clients. Uses the system CA store (`--compat-options no-certifi`), because sandbox egress proxies re-sign TLS and certifi rejects them. Uses cookies if `YT_COOKIES_FILE` is set. |
 | 5 | `yt-dlp` via proxy | Only if a proxy is set. |
 
 **Read the JSON on stdout:**
-- `"status": "ok"`: the transcript is in the `out` file. Continue to Step 3.
+- `"status": "ok"`: the transcript is in the file named by `out` (an absolute path; tell the user where it is). Continue to Step 3.
 - `"status": "no_captions"` (exit 2): the video has no captions. Go to Step 2, option C or D.
 - `"status": "blocked_or_failed"` (exit 3): the sandbox is blocked. Go to Step 2.
 
@@ -66,5 +66,5 @@ Don't sign in, and don't solve CAPTCHAs; if either is required, stop and move to
 
 | Env var | Effect |
 |---|---|
-| `YT_PROXY_HTTP`, `YT_PROXY_HTTPS` | Route methods 2 and 5 through a proxy (e.g., a residential proxy the user controls). |
+| `YT_PROXY_HTTPS`, `YT_PROXY_HTTP` | Route methods 2 and 5 through a proxy (e.g., a residential proxy the user controls). Either one is enough; HTTPS wins when both are set. |
 | `YT_COOKIES_FILE` | Netscape-format cookies file for yt-dlp to pass the bot check. Only use one the user explicitly provides; never extract cookies from a browser on your own. |

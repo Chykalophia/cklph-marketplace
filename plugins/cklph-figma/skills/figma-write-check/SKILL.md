@@ -23,7 +23,7 @@ When only the desktop server is loaded, reads work and every edit silently has n
 Look for `use_figma` in the tool list. If Figma tools are deferred, load them in one call: `select:use_figma,whoami,get_metadata,get_screenshot`.
 
 - `use_figma` present → continue.
-- Only read tools present (`get_design_context`, `get_metadata`, `get_screenshot`, `get_variable_defs`) → stop. Tell the user: "I can read Figma but can't edit it here. The edit-capable Figma connector isn't on in this chat. Turn on the Figma connector in Settings → Connectors, then start a new message."
+- Only read tools present (`get_design_context`, `get_metadata`, `get_screenshot`, `get_variable_defs`) → stop. Tell the user: "I can read Figma but can't edit it here. The edit-capable Figma connector isn't on in this chat. Turn on the Figma connector in Settings → Connectors, then start a new message." In Claude Code there is no Connectors page: tell them to install Figma's official plugin (`figma@claude-plugins-official`), restart Claude Code, and finish the Figma sign-in it asks for.
 - An error saying to enable the Dev Mode MCP server → that's the desktop server. It does not enable edits. Same message as above.
 
 ## Step 2: Check who Claude is signed in as
@@ -33,7 +33,7 @@ Call `whoami`. Report back in one line: the account email, and the seat type on 
 | Seat | Can edit design files? |
 | --- | --- |
 | Full | Yes |
-| Dev | No. Dev Mode only. |
+| Dev | Only files in their own drafts. Dev Mode elsewhere. |
 | Collab or View | No |
 
 Flag it if the account is a shared login rather than the user's own. Edits show in Figma's version history under that name.
@@ -42,6 +42,8 @@ Also check `user_can_access_figma_ai` on the plan. Edits run through Figma's AI 
 
 ## Step 3: Read probe on the target file
 
+Load `figma-use` first: Figma requires it before every `use_figma` call, reads included. Pass it in each call's `skillNames` (prefixed `resource:` when it came from the Figma server).
+
 Parse the file key from the URL (`figma.com/design/<fileKey>/...`; for branches use the branch key). Run a read-only `use_figma`:
 
 ```js
@@ -49,7 +51,8 @@ return { pages: figma.root.children.map(p => p.name), editorType: figma.editorTy
 ```
 
 - Returns pages → the account can open the file.
-- Error or not found → the account has no access. Ask the user to share the file with that account.
+- "Not found" or a permission error → the account can't open the file. Ask the user to share it with that account.
+- Any other error (connection, timeout, server) → it says nothing about access. Retry once, then report the error as it is; don't tell the user to change sharing.
 - `editorType` tells you the mode: `figma` (Design), `figjam`, or `slides`. Load `figma-use-figjam` or `figma-use-slides` for those.
 
 ## Step 4: Write probe
@@ -81,14 +84,14 @@ Tell the user the probe ran. Never skip it on a client file just to save a call.
 
 Before the first edit that changes something visible:
 
-- Always load `figma-use`. Include it in every `use_figma` call's `skillNames`, prefixed `resource:` when it came from the Figma server.
+- Keep `figma-use` (loaded in step 3) in every `use_figma` call's `skillNames`.
 - Visible design changes, from one property to a full screen: also load `figma-generate-design`.
 - Reusable components, variables, tokens, or styles: load `figma-generate-library` instead.
 
 ## Step 6: Verify every write
 
-1. Every write script returns all created and changed node IDs.
-2. Read back structure with the returned IDs (`get_metadata`, or a read-only `use_figma`).
+1. Every write script returns all created and changed node IDs, plus the IDs of any variables or styles it touched and of any nodes it deleted.
+2. Read back structure with the returned node IDs (`get_metadata`, or a read-only `use_figma`). Writes that leave no canvas node need their own check in a read-only `use_figma`: variables with `figma.variables.getVariableByIdAsync`, styles with `figma.getStyleByIdAsync` (compare the values you set), and deletions by `figma.getNodeByIdAsync` returning `null`.
 3. For visible changes, take one screenshot after composing and one after any fix. Look for clipped text and overlaps.
 4. On an error, obey `safeToRetryWithoutCanvasRead`. If `false`, read the canvas before retrying. Never re-run a write that may have half-applied.
 
@@ -111,9 +114,9 @@ Then one line on what to fix, if anything. No other commentary.
 
 | Symptom | Cause | Fix |
 | --- | --- | --- |
-| Reads work, no edit tool | Only the desktop server is loaded | Turn on the Figma connector in Settings → Connectors |
+| Reads work, no edit tool | Only the desktop server is loaded | Turn on the Figma connector in Settings → Connectors (Claude Code: install the `figma@claude-plugins-official` plugin) |
 | "Enable Dev Mode MCP Server" error | Desktop server off | Optional for reads. Never fixes edits. |
 | Read probe fails | Account can't see the file | Share the file with the signed-in account |
-| Write probe fails | View-only access, or a Dev/View seat | "Can edit" on the file and a Full seat |
+| Write probe fails | View-only access, or a Dev/View seat | "Can edit" on the file and a Full seat (a Dev seat edits only its own drafts) |
 | Writes fail after working earlier | AI features turned off, or the connector signed out | Check plan settings, reconnect the connector |
 | Edits show under the wrong name | Connector signed in as a shared account | Disconnect and reconnect as the user |
