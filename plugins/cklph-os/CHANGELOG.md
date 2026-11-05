@@ -42,13 +42,18 @@ has, Claude called it "ready to start" and proposed a new file.
   the lock (index flags included), a test that doesn't pass under its recorded command, and any
   unlock not allowed per unlock commit (`--allow-unlocked <sha>:<path>`). Its header states the
   threat model: it catches shortcuts and mistakes, not a hostile agent with a shell; enforce in CI.
+  `lock --manifest` commits the locked paths to `docs/flow/<task-slug>/attack-tests.txt`, which
+  `check --require-file` reads; `check --clean` runs the tests in a fresh checkout of HEAD, so a fix
+  that lives only in a gitignored file fails; each test run stops after `CKLPH_ATTACK_TIMEOUT`
+  seconds (default 600), children included; NOTE lines cover the test's directory, any test location
+  and test-runner config; `prune` clears lock refs after a merge.
 - **`skills/review/cross-model.md`**: run the reviewer on a different model from the builder when
   one is available; same prompt, same markers, fresh context, read-only. Includes the Codex CLI
   invocation and a consent check before code goes to a second vendor.
-- Tests: `test/marker.bats` (20), `test/attack-tests.bats` (42), `test/attack-tests-forgery.bats` (the
+- Tests: `test/marker.bats` (20), `test/attack-tests.bats` (48), `test/attack-tests-forgery.bats` (the
   round 4 red-team's own attack test, locked with the script before the fix and passing after it),
   and a hooks.bats case that fails when a skill, reference file or agent emits a marker (backticked
-  or bare) with no row. `test/mutate-scripts.py` reinjects 57 bug shapes into a throwaway copy of the two
+  or bare) with no row. `test/mutate-scripts.py` reinjects 69 bug shapes into a throwaway copy of the two
   scripts, after checking the suites are green unmutated; each turns a test red. Trigger tests for `challenge` and `refine`
   (refine had none). Proof: `docs/proof/challenge/2026-11-04.md`.
 
@@ -106,12 +111,14 @@ found that git's default message cleanup made `lock` refuse a `--run`/`--expect`
 explicit), and that `review` still said lock commits skip hooks. All fixed (the script changes with
 tests). Round 8, on those fixes: Codex was clear; the red-team's one Medium was `verify` wording
 that could lead an agent to delete a user's untracked file (now: undo only what the checks created,
-stash the rest). Its two hook-related Lows are left open below. Left open for Peter:
-`--require` has no committed source (the list lives in the orchestrator's notes), lock refs are
-never pruned after merge, `run_test` has no timeout, NOTE lines only cover the test's directory, a
-commit-msg hook that re-emits trailers (Gerrit Change-Id, DCO sign-off) trims a `--expect` ending in a
-space so `lock` refuses it (it fails closed with an accurate message), a hook-added `#` comment line
-is now committed after the trailers, and `check` doesn't see gitignored files.
+stash the rest).
+
+The seven gaps the gate left open were then closed at Peter's request, each with a test and a
+mutation: a committed manifest for `--require` (`--manifest` / `--require-file`), `prune` for lock
+refs, a time limit on every test run, wider NOTE lines, `--run` trimmed and an `--expect` with an
+edge space refused up front (a trailer-rewriting hook such as Gerrit's Change-Id would trim it), the
+trailers required to be the message's last lines, and `check --clean` for fixes hidden in ignored
+files. These got one focused review round before merge.
 
 ## [0.14.0] — 2026-11-02
 

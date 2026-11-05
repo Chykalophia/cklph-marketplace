@@ -10,35 +10,46 @@
 # A reviewer proposes an attack test: a NEW test file that should fail on the current code, with the
 # failure it expects. The orchestrator reads it (untrusted code), writes it to disk, then:
 #
-#   attack-tests.sh lock --run '<cmd>' (--expect '<ERE>' | --expect-file <file>) [--no-verify] <path>...
-#       Commits normally, so the repo's git hooks run. If a hook changes a test, adds or leaves any
-#       other change, or rewrites the trailers, the lock is undone. A pre-commit hook that runs the
-#       test suite always rejects an attack test (it fails by design); pass --no-verify only when a
-#       human approves skipping hooks for this one commit.
+#   attack-tests.sh lock --run '<cmd>' (--expect '<ERE>' | --expect-file <file>) [--manifest <file>] [--no-verify] <path>...
 #       Refuses unless every path is a new, untracked, non-symlink file at a test location; the
-#       working tree has no other change before and after the runs; <cmd> uses "$1"; and each test
-#       FAILS (exit not 0/126/127) with output matching <ERE>, without modifying itself. Commits
-#       only those paths with trailers (paths, command, expectation) and records the lock commit as
-#       refs/attack-tests/<branch>/<sha>.
+#       working tree has no other change before and after the runs; <cmd> uses "$1"; <ERE> has no
+#       space at either end (write [ ] for one); and each test FAILS (exit not 0/126/127, not timed
+#       out) with output matching <ERE>, without modifying itself. Commits only those paths, with
+#       trailers (paths, command, expectation) as the last lines of the message, and records the lock
+#       commit as refs/attack-tests/<branch>/<sha>. --manifest appends the paths to <file> (e.g.
+#       docs/flow/<task-slug>/attack-tests.txt) in a second commit, the source for check --require-file.
+#       Commits normally, so the repo's git hooks run. If a hook changes a test, adds or leaves any
+#       other change, or rewrites or follows the trailers, the lock is undone. A pre-commit hook that
+#       runs the test suite always rejects an attack test (it fails by design); pass --no-verify only
+#       when a human approves skipping hooks for this one lock.
 #
-#   attack-tests.sh check <base> [--require <path>]... [--allow-unlocked <sha>:<path>]... [--branch <name>]
+#   attack-tests.sh check <base> [--require <path>]... [--require-file <file>] [--clean]
+#                     [--allow-unlocked <sha>:<path>]... [--branch <name>]
 #       Replays <base>..HEAD oldest first and FAILS on: any uncommitted change, tracked or untracked
-#       (it judges the committed code; gitignored files are not seen, so a fix that lives only in an
-#       ignored file still passes: CI from a clean clone catches that); a commit with lock trailers that isn't a real
-#       lock (it must only Add exactly the paths it names); a second lock of a path still locked; a
-#       recorded lock ref that is no longer on the branch, outside <base>..HEAD (wrong base), or
-#       not a valid lock commit; a
-#       --require path that isn't locked; a locked test touched by any later non-merge commit or
-#       changed by a merge (even if restored), or whose bytes differ from the lock commit's (working tree, index flags), that is missing or a symlink, or that
-#       doesn't PASS under its recorded command; and any unlock not allowed by
-#       --allow-unlocked <unlock-commit-sha>:<path> (only a human decides to pass that).
-#       Prints NOTE lines for other files changed since the lock in a locked test's directory.
+#       (it judges the committed code); a commit with lock trailers that isn't a real lock (it must
+#       only Add exactly the paths it names); a second lock of a path still locked; a recorded lock
+#       ref that is no longer on the branch, outside <base>..HEAD (wrong base), or not a valid lock
+#       commit; a --require path (or a line of --require-file) that isn't locked; a locked test
+#       touched by any later non-merge commit or changed by a merge (even if restored), or whose bytes
+#       differ from the lock commit's (working tree, index flags), that is missing or a symlink, or
+#       that doesn't PASS under its recorded command within the time limit; and any unlock not
+#       allowed by --allow-unlocked <unlock-commit-sha>:<path> (only a human decides to pass that).
+#       --clean runs the tests in a fresh checkout of HEAD, so a fix that lives only in a gitignored
+#       file fails too (without --clean, ignored files are invisible to git); use it when the test
+#       command doesn't need ignored files such as node_modules, and rely on CI otherwise.
+#       Prints NOTE lines for other files changed since a test's lock in its directory, in any test
+#       location, or in test-runner config (package.json, *.config.*, pytest.ini, ...): review them.
 #
 #   attack-tests.sh list <base>
 #       Prints the currently locked paths in <base>..HEAD, one per line (build's OUT OF SCOPE).
 #
+#   attack-tests.sh prune [--branch <name>]
+#       Deletes lock refs whose branch no longer exists, or all refs of --branch <name> once that
+#       branch is merged (never the checked-out branch). Prints what it deleted.
+#
 # <base> is `git merge-base <default-branch> HEAD` (cklph-os flow → Hand-offs). <cmd> is one line and
 # runs under bash with the test path as "$1", e.g. --run 'bats "$1"'. Run from the repository root.
+# Each test run is stopped after CKLPH_ATTACK_TIMEOUT seconds (default 600).
 # After a legitimate rebase the lock commits get new SHAs: point a ref at each rebased lock commit
 # (git update-ref refs/attack-tests/<branch>/<new> <new>) and delete the old refs. Don't just delete
 # them: the wrong-base guard needs them.
@@ -48,13 +59,35 @@ set -uo pipefail
 set -f   # trailer words are paths, never globs
 
 die()   { echo "attack-tests: $*" >&2; exit 1; }
-usage() { sed -n '2,46p' "${BASH_SOURCE[0]}" >&2; exit 2; }
+usage() { sed -n "2,$(grep -n -m1 '^# Exit 1' "${BASH_SOURCE[0]}" | cut -d: -f1)p" "${BASH_SOURCE[0]}" >&2; exit 2; }
 safe()  { [[ "$1" =~ ^[A-Za-z0-9_][A-Za-z0-9._/-]*$ ]] && [[ "$1" != *..* ]] && [[ "$1" != */.* ]]; }
 is_test_path() {  # a tests/test/__tests__/spec directory, or a test-named file
     [[ "$1" =~ (^|/)(tests?|__tests__|specs?)/ ]] || [[ "$1" =~ (^|/)test_[^/]+$ ]] ||
     [[ "$1" =~ [._-](test|spec)\.[A-Za-z0-9]+$ ]] || [[ "$1" =~ \.bats$ ]]
 }
-run_test() { OUT=$(bash -c "$1" attack-test "$2" 2>&1); RC=$?; }
+TIMEOUT="${CKLPH_ATTACK_TIMEOUT:-600}"
+[[ "$TIMEOUT" =~ ^[1-9][0-9]*$ ]] || die "CKLPH_ATTACK_TIMEOUT must be a whole number of seconds"
+# Run one test with a time limit. Sets OUT, RC (124 = timed out). The test and the watchdog each get
+# their own process group (set -m), so a timeout stops the whole test, children included.
+run_test() {
+    local out flag pid dog
+    out=$(mktemp); flag=$(mktemp); rm -f "$flag"
+    set -m
+    bash -c "$1" attack-test "$2" > "$out" 2>&1 < /dev/null & pid=$!
+    { sleep "$TIMEOUT"; : > "$flag"; kill -TERM -- -"$pid"; sleep 2; kill -KILL -- -"$pid"; } > /dev/null 2>&1 < /dev/null & dog=$!
+    set +m
+    wait "$pid"; RC=$?
+    kill -TERM -- -"$dog" > /dev/null 2>&1; wait "$dog" 2>/dev/null
+    OUT=$(cat "$out"); rm -f "$out"
+    if [ -e "$flag" ]; then rm -f "$flag"; RC=124; OUT="$OUT
+attack-tests: timed out after ${TIMEOUT}s"; fi
+}
+is_runner_config() {  # files that change how tests run, wherever they are
+    case "${1##*/}" in
+        package.json|*.config.*|.mocharc*|pytest.ini|pyproject.toml|setup.cfg|tox.ini|conftest.py|phpunit.xml*|Makefile|.bats*|go.mod|Cargo.toml|Gemfile|.rspec) return 0 ;;
+    esac
+    return 1
+}
 blob_at()  { git rev-parse --verify --quiet "$1:$2" 2>/dev/null; }
 valid_base() {
     git rev-parse --verify --quiet "$1^{commit}" >/dev/null || die "base is not a commit: '$1'"
@@ -102,7 +135,7 @@ drop_lock() {
 }
 
 cmd="${1:-}"; [ $# -gt 0 ] && shift
-RUN=""; EXPECT=""; BRANCH=""; NOVERIFY=""; ALLOW=(); REQUIRE=(); ARGS=()
+RUN=""; EXPECT=""; BRANCH=""; NOVERIFY=""; MANIFEST=""; CLEAN=""; ALLOW=(); REQUIRE=(); ARGS=()
 while [ $# -gt 0 ]; do
     case "$1" in
         --run)            [ $# -ge 2 ] || usage; RUN="$2"; shift 2 ;;
@@ -114,6 +147,12 @@ while [ $# -gt 0 ]; do
         --no-verify)      NOVERIFY=--no-verify; shift ;;
         --allow-unlocked) [ $# -ge 2 ] || usage; ALLOW+=("$2"); shift 2 ;;
         --require)        [ $# -ge 2 ] || usage; REQUIRE+=("$2"); shift 2 ;;
+        --require-file)   [ $# -ge 2 ] || usage; [ -r "$2" ] || die "can't read $2"
+                          while IFS= read -r line || [ -n "$line" ]; do
+                              line="${line%$'\r'}"; case "$line" in ''|'#'*) continue ;; esac; REQUIRE+=("$line")
+                          done < "$2"; shift 2 ;;
+        --manifest)       [ $# -ge 2 ] || usage; MANIFEST="$2"; shift 2 ;;
+        --clean)          CLEAN=1; shift ;;
         --branch)         [ $# -ge 2 ] || usage; BRANCH="$2"; shift 2 ;;
         --) shift; ARGS+=("$@"); break ;;
         -*) usage ;;
@@ -128,6 +167,12 @@ lock)
     [ -n "$RUN" ] && [ -n "$EXPECT" ] && [ ${#ARGS[@]} -gt 0 ] || usage
     [[ "$RUN" == *'$1'* ]] || die "--run must pass the test path as \"\$1\", or it isn't running the test"
     case "$RUN$EXPECT" in *$'\n'*|*$'\r'*) die "--run and --expect must be one line each" ;; esac
+    RUN=$(sed -e 's/^[[:space:]]*//' -e 's/[[:space:]]*$//' <<< "$RUN")   # edge spaces mean nothing to bash
+    case "$EXPECT" in [[:space:]]*|*[[:space:]]) die "--expect starts or ends with a space, which git hooks may trim from the trailer; write [ ] for a literal space" ;; esac
+    if [ -n "$MANIFEST" ]; then
+        safe "$MANIFEST" || die "unsafe --manifest path: $MANIFEST"
+        for p in "${ARGS[@]}"; do [ "$p" != "$MANIFEST" ] || die "--manifest can't be one of the tests"; done
+    fi
     b=$(cur_branch) || exit 1
     prev=$(git rev-parse --verify --quiet HEAD) || die "no commits yet; lock needs a parent commit to fail on"
     for p in "${ARGS[@]}"; do
@@ -146,6 +191,7 @@ $(git status --porcelain --untracked-files=all)"
         before=$(git hash-object -- "$p"); RANLIST="$RANLIST$p $before"$'\n'
         run_test "$RUN" "$p"
         [ "$(git hash-object -- "$p" 2>/dev/null)" = "$before" ] || die "the test modified itself while running: $p"
+        [ "$RC" -ne 124 ] || [[ "$OUT" != *"attack-tests: timed out"* ]] || die "timed out after ${TIMEOUT}s, so it proves nothing (set CKLPH_ATTACK_TIMEOUT if it needs longer): $p"
         [ "$RC" -ne 0 ] || die "passes on the current code, so it proves nothing; not locked: $p"
         [ "$RC" -ne 126 ] && [ "$RC" -ne 127 ] || die "exit $RC means the test didn't run (command not found or not executable): $p"
         hit=$(grep -E -m1 -- "$EXPECT" <<< "$OUT") || die "fails (exit $RC), but not with the expected failure /$EXPECT/; send it back to the reviewer: $p"
@@ -171,9 +217,17 @@ $(git status --porcelain --untracked-files=all)"
     [ "$(grep -c '^Attack-Tests' <<< "$hb")" -eq 3 ] && [ "$(sed -n 's/^Attack-Tests: //p' <<< "$hb")" = "${ARGS[*]}" ] &&
         [ "$(sed -n 's/^Attack-Tests-Run: //p' <<< "$hb")" = "$RUN" ] && [ "$(sed -n 's/^Attack-Tests-Expect: //p' <<< "$hb")" = "$EXPECT" ] ||
         undo "a commit hook rewrote the lock trailers"
+    [ "$(awk '{ a[NR] = $0 } NF { n = NR } END { for (i = n - 2; i <= n; i++) print a[i] }' <<< "$hb")" = \
+      "$(printf 'Attack-Tests: %s\nAttack-Tests-Run: %s\nAttack-Tests-Expect: %s' "${ARGS[*]}" "$RUN" "$EXPECT")" ] ||
+        undo "a commit hook added lines after the lock trailers (they must end the message)"
     [ -z "$(git status --porcelain --untracked-files=all)" ] || undo "a commit hook left changes in the working tree"
     c=$(git rev-parse HEAD)
     git update-ref "refs/attack-tests/$b/$c" "$c" || die "couldn't record the lock ref"
+    if [ -n "$MANIFEST" ]; then
+        mkdir -p "$(dirname "$MANIFEST")" && printf '%s\n' "${ARGS[@]}" >> "$MANIFEST" &&
+        git add -- "$MANIFEST" && git commit -q $NOVERIFY -m "test: record locked attack tests in $MANIFEST" -- "$MANIFEST" ||
+            die "locked in $c, but couldn't commit $MANIFEST; add these paths to it and commit it yourself: ${ARGS[*]}"
+    fi
     echo "$c"
     ;;
 check)
@@ -186,6 +240,12 @@ check)
         git status --porcelain --untracked-files=normal | sed 's/^/      /'; fail=1
     fi
     replay "$base"
+    root=$(pwd -P)
+    if [ -n "$CLEAN" ]; then
+        wt=$(mktemp -d); rmdir "$wt"
+        git worktree add -q --detach "$wt" HEAD || die "couldn't make a clean checkout for --clean"
+        trap 'cd "$root"; git worktree remove --force "$wt" >/dev/null 2>&1; git worktree prune >/dev/null 2>&1' EXIT
+    fi
     for ref in $(git for-each-ref --format='%(refname)' "refs/attack-tests/$b/"); do
         c=$(git rev-parse "$ref")
         if ! git merge-base --is-ancestor "$c" HEAD; then echo "FAIL  lock commit ${c:0:7} is no longer on $b (history rewritten? see the header on rebases)"; fail=1
@@ -217,10 +277,15 @@ check)
         if [ -L "$p" ] || [ ! -f "$p" ] || [ "$(git hash-object -- "$p")" != "$want" ] || [ "$(blob_at HEAD "$p")" != "$want" ]; then
             echo "FAIL  $p  differs from its lock commit ${c:0:7} (edited, deleted, or a symlink)"; fail=1; continue
         fi
-        run_test "$run" "$p"
-        if [ "$RC" -ne 0 ]; then echo "FAIL  $p  still fails (exit $RC)"; fail=1; else echo "PASS  $p"; fi
-        for f in $(git diff --name-only "$c" -- "$(dirname "$p")"); do
-            [ "$f" = "$p" ] || echo "NOTE  $f changed since $p was locked; review it (helpers aren't checked)"
+        if [ -n "$CLEAN" ]; then cd "$wt"; run_test "$run" "$p"; cd "$root"; else run_test "$run" "$p"; fi
+        if [ "$RC" -eq 124 ] && [[ "$OUT" == *"attack-tests: timed out"* ]]; then echo "FAIL  $p  timed out after ${TIMEOUT}s"; fail=1
+        elif [ "$RC" -ne 0 ]; then echo "FAIL  $p  still fails (exit $RC)"; fail=1; else echo "PASS  $p"; fi
+        d=$(dirname "$p")
+        for f in $(git diff --name-only "$c" HEAD); do
+            [ "$f" != "$p" ] || continue
+            if [ "$(dirname "$f")" = "$d" ] || is_test_path "$f" || is_runner_config "$f"; then
+                echo "NOTE  $f changed since $p was locked; review it (helpers and runner config aren't checked)"
+            fi
         done
     done
     [ "$n" -gt 0 ] || [ ${#UNLOCKS[@]} -gt 0 ] || [ ${#ERRORS[@]} -gt 0 ] || echo "no attack tests locked in $base..HEAD"
@@ -231,6 +296,17 @@ list)
     valid_base "${ARGS[0]}"
     replay "${ARGS[0]}"
     for entry in "${LOCKS[@]+"${LOCKS[@]}"}"; do echo "${entry%%|*}"; done | sort -u
+    ;;
+prune)
+    [ ${#ARGS[@]} -eq 0 ] || usage
+    cur=$(git symbolic-ref --quiet --short HEAD || true)
+    [ -z "$BRANCH" ] || [ "$BRANCH" != "$cur" ] || die "won't prune the checked-out branch's locks; check needs them until it's merged"
+    for ref in $(git for-each-ref --format='%(refname)' refs/attack-tests/); do
+        rb="${ref#refs/attack-tests/}"; rb="${rb%/*}"
+        if [ -n "$BRANCH" ]; then [ "$rb" = "$BRANCH" ] || continue
+        else git show-ref --verify --quiet "refs/heads/$rb" && continue; fi
+        git update-ref -d "$ref" && echo "pruned $ref"
+    done
     ;;
 *) usage ;;
 esac

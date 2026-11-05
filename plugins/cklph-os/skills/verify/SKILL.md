@@ -14,11 +14,13 @@ description: The VERIFY phase of the cklph-os flow — prove it works. Run build
 2. Run **each task's executable acceptance command** and walk the spec's **acceptance criteria** one by
    one — confirm each is met with captured evidence, not "looks right."
 3. **Attack tests intact.** From the repo root run
-   `"${CLAUDE_PLUGIN_ROOT}/scripts/attack-tests.sh" check <base> --require <each locked path>`
-   (`<base>` per `flow` → Hand-offs; add `--branch <name>` on a detached HEAD). It fails if a locked
-   test was touched after its lock, was dropped, forged or re-locked, or doesn't pass under its
-   recorded command, and on any unlock the user didn't approve. A failure is a gap. It checks the
-   test file only: helpers, fixtures and runner config are `review`'s job (read its NOTE lines).
+   `"${CLAUDE_PLUGIN_ROOT}/scripts/attack-tests.sh" check <base> --require-file docs/flow/<task-slug>/attack-tests.txt`
+   (`<base>` per `flow` → Hand-offs; add `--branch <name>` on a detached HEAD; add `--clean` when the
+   test command doesn't need gitignored files such as `node_modules`, so a fix that only exists in
+   an ignored file fails too). It fails if a locked test was touched after its lock, was dropped,
+   forged or re-locked, or doesn't pass under its recorded command in time, and on any unlock the
+   user didn't approve. A failure is a gap. It checks the test file only: helpers, fixtures and
+   runner config are `review`'s job (its NOTE lines list the ones that changed).
 4. Anything failing → emit a **structured gap list** (`@gaps-format.md`): diagnose the **root cause**
    (reproduce it first; `debugging` owns that method, and `browser-debug` covers a UI or console
    failure in the running app), route each `fix_task` back to `build` as a gaps-only wave, then re-verify.

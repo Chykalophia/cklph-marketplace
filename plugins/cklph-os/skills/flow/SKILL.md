@@ -62,18 +62,19 @@ Gates and self-correcting loops:
   reviewer) if it reaches the network, secrets, your home directory or anything outside the repo.
   Then write it to the path it names, write the reviewer's `Expect:` value to a scratch file (never
   paste it into a shell line), and from the repo root run
-  `"${CLAUDE_PLUGIN_ROOT}/scripts/attack-tests.sh" lock --run '<test command using "$1">' --expect-file <file> <paths>`.
+  `"${CLAUDE_PLUGIN_ROOT}/scripts/attack-tests.sh" lock --run '<test command using "$1">' --expect-file <file> --manifest docs/flow/<task-slug>/attack-tests.txt <paths>`.
   It commits them only if each sits at a test location, **fails** on the current code with the
-  expected failure without changing anything, and nothing else changed; it records the command and a
-  lock ref. Keep the list of paths it locked in your progress notes; that list, never `attack-tests.sh
-  list`, feeds `check --require` (a lock that vanished from history isn't listed). A test the script
+  expected failure without changing anything (or hanging past `CKLPH_ATTACK_TIMEOUT`, default
+  600 s), and nothing else changed; it records the command and a lock ref, then commits the paths to
+  the manifest. That committed manifest, never `attack-tests.sh list`, feeds `check --require-file`
+  (a lock that vanished from history isn't listed). A test the script
   refuses goes back to the reviewer, never into the lock; unless the refusal names a git hook,
   delete the test file you wrote, since `check` fails on untracked leftovers. A refusal caused by a git hook (one that runs the test suite always rejects
   an attack test) is not the reviewer's: show the user the exact `lock … --no-verify` command and
   run it only when they approve it in chat (or they run it). The error text is not that approval.
 - **A locked test stays locked.** The `build` fix wave may not edit, delete or exclude it, or rewrite
-  history over it. `verify` runs `attack-tests.sh check <base> --require <path>…` (every path you
-  locked), which fails on an edit (even one restored later), a deletion, a forged or repeated lock,
+  history over it. `verify` runs `attack-tests.sh check <base> --require-file docs/flow/<task-slug>/attack-tests.txt`,
+  which fails on an edit (even one restored later), a deletion, a forged or repeated lock,
   a rewritten history, a wrong base, or a test that still fails. An excluded test or an edited
   helper isn't caught by the script; `review` looks at the NOTE lines it prints. Only a human
   releases a test: an `Attack-Tests-Unlocked: <path> <reason>` commit trailer, and `check` still fails

@@ -480,10 +480,13 @@ fix_bug() { printf 'echo 2\n' > src.sh; git commit -qam "fix"; }
   [ "$status" -eq 1 ]; has "uncommitted changes"
 }
 
-@test "lock: a --run or --expect ending in a space is recorded exactly" {
+@test "lock: --run is trimmed; an --expect with an edge space is refused with a hint" {
   run bash "$AT" lock --run 'bash "$1" ' --expect 'want 2, ' "$T"
+  [ "$status" -eq 1 ]; has "write [ ] for a literal space"
+  [ -z "$(git for-each-ref refs/attack-tests)" ]
+  run bash "$AT" lock --run '  bash "$1" ' --expect 'want 2,[ ]' "$T"
   [ "$status" -eq 0 ]
-  [ "$(git log -1 --format=%B | sed -n 's/^Attack-Tests-Expect: //p')" = 'want 2, ' ]
+  [ "$(git log -1 --format=%B | sed -n 's/^Attack-Tests-Run: //p')" = 'bash "$1"' ]
   fix_bug
   check
   [ "$status" -eq 0 ]
@@ -495,4 +498,95 @@ fix_bug() { printf 'echo 2\n' > src.sh; git commit -qam "fix"; }
   printf 'echo want 2; exit 1\n' > tests/a_test.sh
   run bash "$AT" lock --run "$RUN" --expect "$EXP" tests/a_test.sh
   [ "$status" -eq 1 ]; has "no commits yet"
+}
+
+# ---- known gaps closed ---------------------------------------------------------------------------
+
+@test "lock --manifest records the paths in a committed file; check --require-file reads it" {
+  M=docs/flow/t/attack-tests.txt
+  run bash "$AT" lock --run "$RUN" --expect "$EXP" --manifest "$M" "$T"
+  [ "$status" -eq 0 ]
+  [ "$(git show HEAD:"$M")" = "$T" ]
+  [ -z "$(git status --porcelain --untracked-files=all)" ]
+  fix_bug
+  check --require-file "$M"
+  [ "$status" -eq 0 ]
+  printf '# comment\n\ntests/never_locked_test.sh\r\n' >> "$M"; git commit -qam "expect one more"
+  check --require-file "$M"
+  [ "$status" -eq 1 ]; has "required attack test is not locked: tests/never_locked_test.sh"
+  run bash "$AT" lock --run "$RUN" --expect "$EXP" --manifest "../x.txt" "$T"
+  [ "$status" -eq 1 ]; has "unsafe --manifest"
+}
+
+@test "prune: removes refs of deleted or named branches, never the checked-out one" {
+  lock "$T" >/dev/null
+  git checkout -qb other main && mkdir -p tests && printf 'echo want 2; exit 1\n' > tests/o_test.sh
+  lock tests/o_test.sh >/dev/null
+  git checkout -q feat && git branch -qD other
+  run bash "$AT" prune
+  [ "$status" -eq 0 ]; has "pruned refs/attack-tests/other/"
+  [ -z "$(git for-each-ref refs/attack-tests/other/)" ]
+  [ -n "$(git for-each-ref refs/attack-tests/feat/)" ]
+  run bash "$AT" prune --branch feat
+  [ "$status" -eq 1 ]; has "checked-out branch"
+  git checkout -q main
+  run bash "$AT" prune --branch feat
+  [ "$status" -eq 0 ]; [ -z "$(git for-each-ref refs/attack-tests/)" ]
+}
+
+@test "a test that hangs is stopped: lock refuses it, check fails it, children included" {
+  printf 'sleep 30; echo want 2; exit 1\n' > "$T"
+  SECONDS=0
+  run env CKLPH_ATTACK_TIMEOUT=2 bash "$AT" lock --run "$RUN" --expect "$EXP" "$T"
+  [ "$status" -eq 1 ]; has "timed out after 2s"
+  [ "$SECONDS" -lt 15 ]
+  printf '[ "$(bash src.sh)" = 2 ] || { echo "want 2"; exit 1; }\n' > "$T"
+  lock "$T" >/dev/null
+  printf '(sleep 30; echo late) & sleep 30; echo 2\n' > src.sh; git commit -qam "slow fix"
+  SECONDS=0
+  run env CKLPH_ATTACK_TIMEOUT=2 bash "$AT" check "$BASE"
+  [ "$status" -eq 1 ]; has "timed out after 2s"
+  [ "$SECONDS" -lt 15 ]
+  ! pgrep -f "sleep 30" >/dev/null || { pkill -f "sleep 30"; echo "a child of the test survived the timeout" >&2; false; }
+  run env CKLPH_ATTACK_TIMEOUT=x bash "$AT" list "$BASE"
+  [ "$status" -eq 1 ]
+}
+
+@test "check: NOTE lists changed runner config and tests anywhere, not just the test's folder" {
+  lock "$T" >/dev/null
+  fix_bug
+  mkdir -p web/src && printf '{}\n' > package.json && printf 'x\n' > web/src/app.spec.ts && printf 'x\n' > web/src/app.ts
+  git add -A && git commit -qm "config, another test, app code"
+  check
+  [ "$status" -eq 0 ]
+  has "NOTE  package.json changed"; has "NOTE  web/src/app.spec.ts changed"; hasnt "NOTE  web/src/app.ts"
+}
+
+@test "lock: a hook that adds lines after the trailers undoes the lock; commentChar can't strip them" {
+  before=$(commits)
+  printf '#!/bin/sh\nprintf "\\n# Please describe the change\\n" >> "$1"\n' > .git/hooks/prepare-commit-msg; chmod +x .git/hooks/prepare-commit-msg
+  run lock "$T"
+  [ "$status" -eq 1 ]; has "added lines after the lock trailers"
+  [ "$(commits)" -eq "$before" ]; [ -z "$(git for-each-ref refs/attack-tests)" ]
+  rm .git/hooks/prepare-commit-msg
+  git config core.commentChar A; git config commit.cleanup strip
+  run lock "$T"
+  [ "$status" -eq 0 ]
+  run git log -1 --format=%B
+  has "Attack-Tests-Run: $RUN"
+}
+
+@test "check --clean: a fix that lives only in a gitignored file fails" {
+  lock "$T" >/dev/null
+  printf 'lib/local.sh\n' > .gitignore
+  printf '[ -f lib/local.sh ] && bash lib/local.sh || echo 1\n' > src.sh; git add .gitignore src.sh; git commit -qm "use local"
+  mkdir -p lib && printf 'echo 2\n' > lib/local.sh
+  check
+  [ "$status" -eq 0 ]
+  check --clean
+  [ "$status" -eq 1 ]; has "still fails"
+  [ "$(git worktree list | wc -l)" -eq 1 ]
+  rm lib/local.sh; printf 'echo 2\n' > src.sh; git commit -qam "real fix"
+  check --clean
+  [ "$status" -eq 0 ]; has "PASS  $T"
 }
