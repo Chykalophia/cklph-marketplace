@@ -33,6 +33,8 @@ jobs:
           node-version: "22"
       - name: cklph-wp (cwp, fake ssh)
         run: bash plugins/cklph-wp/tests/cwp.test.sh
+      - name: cklph-youtube (get_transcript.py, offline)
+        run: bash plugins/cklph-youtube/tests/get_transcript.test.sh
       - name: cklph-elementor (el-tools.py)
         run: |
           python3 -m py_compile plugins/cklph-elementor/scripts/el-tools.py

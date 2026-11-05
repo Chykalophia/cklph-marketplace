@@ -4,6 +4,16 @@ Marketplace-level changes only: plugins added or removed, catalog and repo layou
 its own version history in `plugins/<name>/CHANGELOG.md` (cklph-os included).
 Format: [Keep a Changelog](https://keepachangelog.com).
 
+## 2026-11-05
+
+### Added
+- `cklph-youtube` 0.1.0: the `transcript` skill, ported from a claude.ai upload, with its dependencies
+  moved into a private venv and offline tests run in CI.
+
+### Changed
+- `cklph-figma` 0.2.0 gains `figma-write-check` (also from claude.ai). README groups `cklph-youtube` with
+  `cro-research-reporting` under "Strategy and research".
+
 ## 2026-10-27
 
 ### Changed
