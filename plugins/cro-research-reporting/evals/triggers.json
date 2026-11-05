@@ -1,0 +1,35 @@
+{
+  "_note": "Should-trigger and near-miss should-not-trigger prompts per skill. Run each prompt in a fresh session with only this plugin installed, on Haiku, Sonnet and Opus, and record which skill loads. Near-misses matter most because the skills overlap.",
+  "getting-started": {
+    "should": ["where do I start with this toolkit?", "I have a Shopify store and don't know what to work on first", "set up a new client engagement for Acme Outdoors"],
+    "should_not": ["audit this product page: https://example.com/p/1", "write a headline for our spring sale"]
+  },
+  "ecommerce-cro-audit": {
+    "should": ["why isn't this product page converting? https://example.com/products/runner", "our add-to-cart rate dropped on mobile, can you audit the PDP", "review our checkout for conversion problems"],
+    "should_not": ["how long should our checkout test run?", "code these 800 reviews into themes", "write a cold email to a Shopify brand"]
+  },
+  "voc-research": {
+    "should": ["here are 1,200 reviews, what objections keep coming up?", "write post-purchase survey questions to find out why people almost didn't buy", "plan a 5-user test of our checkout"],
+    "should_not": ["research the market size for DTC footwear", "audit this landing page"]
+  },
+  "experiment-design": {
+    "should": ["we get 3,000 visitors a day to the PDP at 2.4% ATC, how long to detect a 10% lift?", "control 48210/1205, variant 48530/1302, did it win?", "our traffic is too low to A/B test, what should we do?", "which of these two headlines will win if we test them?"],
+    "should_not": ["rewrite this headline in our brand voice", "turn these test results into a client report"]
+  },
+  "deep-research-synthesis": {
+    "should": ["research best practices for BNPL on high-AOV stores with sources", "fact-check: does free shipping really reduce abandonment 30%?"],
+    "should_not": ["analyse our survey responses", "audit our cart page"]
+  },
+  "report-information-design": {
+    "should": ["turn these audit findings into a client-ready HTML report", "write up this test readout as a one-pager"],
+    "should_not": ["research the luxury footwear market"]
+  },
+  "conversion-copywriting": {
+    "should": ["rewrite this PDP description to convert better", "give me headline variants for the hero, here's our review language"],
+    "should_not": ["write a cold outreach sequence", "is our headline test significant?"]
+  },
+  "outbound-and-positioning": {
+    "should": ["write a 5-touch cold email cadence to DTC founders", "help us position against Klaviyo agencies"],
+    "should_not": ["rewrite our product page copy"]
+  }
+}

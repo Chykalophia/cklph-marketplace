@@ -1,6 +1,6 @@
 # Conversion Playbook — the high-impact PDP/funnel levers
 
-Each lever: what it is, what "good" looks like, and the evidence (with source + year). Treat vendor/case figures as **directional** (use the direction, not the exact number).
+Each lever: what it is, what "good" looks like, and the evidence (with source + year). Treat vendor/case figures as **directional** (use the direction, not the exact number), and keep vendor magnitudes out of client-facing recommendations: median A/B lifts are near zero in large datasets (`experiment-design/references/base-rates.md`), so a quoted "+27%" reads as a promise.
 
 ## 1. Social proof & reviews — usually the #1 fix
 - Reviews lift purchase likelihood **~270% (5 reviews vs none)**, and **~380% for higher-priced products** — the effect is *largest* for expensive, unfamiliar items. Source: Spiegel Research Center, Northwestern, 2017 (peer-reviewed). https://spiegel.medill.northwestern.edu/how-online-reviews-influence-sales/
@@ -24,13 +24,13 @@ Each lever: what it is, what "good" looks like, and the evidence (with source + 
 - For many options: **smart default** (land on a complete, in-stock, attractive config — never a zero-state), **progressive disclosure** / guided "build," and one-tap **presets** to defeat blank-canvas paralysis (Nike By You pattern).
 
 ## 5. Buy box order + sticky ATC
-- Above-the-fold CTA correlates with ~**+30%** conversion (directional); users decide in seconds.
+- Keep the add-to-cart findable without hunting, especially on mobile (checklist P3). Note that across 6,700 ecommerce tests, changes to CTA text and buttons averaged about zero effect (Qubit 2017), so treat buy-box *placement and completeness* as the lever, not button styling.
 - Sticky/persistent add-to-cart: **+7.9% completed orders on desktop** (independent A/B, Growth Rock); mobile commonly **+12–25%** (directional). Especially valuable on long/configurator pages.
 - **What good looks like (buy box order):** breadcrumb → title + rating → price + financing + value line → trust row → options (default set) → **prominent ATC** → reassurance microcopy → highlights. Don't bury the ATC below descriptions/tabs/filler.
 
 ## 6. Value & story in the buy decision
 - Narrative raises willingness-to-pay (the "Significant Objects" experiment: ~2,700% value from story alone). Users read ~28% of words (NN/g) — lead with a 3–5 bullet "Highlights" block.
-- **Price justification:** craftsmanship/provenance ("Made in Italy" carries a measurable premium), founder/mission micro-story, and value framing. For platform/modular products, frame value as **multiplication** ("one pair → infinite looks"), not low cost-per-wear — CPW can cheapen a luxury brand (Eckmann et al., *Psychology & Marketing*, 2026).
+- **Price justification:** craftsmanship/provenance (e.g. "Made in Italy", if customers value it), founder/mission micro-story, and value framing. Cost-per-wear framing shifted preference toward higher-quality clothing in six preregistered experiments, especially when shoppers can compare CPW across options and the claim is certified (Eckmann & Reisch, *Psychology & Marketing*, 2026, https://researchportal.bath.ac.uk/en/publications/shifting-toward-quality-how-communicating-cost-per-wear-influence/). Whether CPW cheapens a luxury brand is untested; for luxury, test it rather than assume either way.
 
 ## 7. Trust signals + financing
 - Surface guarantee, free returns, secure-checkout, and **BNPL** near the price. BNPL ~**+27% conversion / +21% AOV** (Klarna, directional) — high leverage at AOV $200+.

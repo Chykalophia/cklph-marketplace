@@ -40,4 +40,4 @@ At the start of a task, check for the engagement brief (default `./cro-engagemen
 Pair with `conversion-copywriting` (the on-page expression of positioning) and `ecommerce-cro-audit`/`report-information-design` for the consulting deliverables that follow.
 
 ## Guardrails
-No fabricated personalization, fake mutual connections, or invented "case studies." Respect anti-spam norms; honor a breakup email if you send one. Keep claims true and specific.
+Positioning and qualification are judgement calls; in the BCG field experiment, consultants using GPT-4 on a judgement task just outside its strengths were less accurate than those without it (Dell'Acqua et al. 2023). Present positioning as options with the evidence for each and let the user decide. No fabricated personalization, fake mutual connections, or invented "case studies." Respect anti-spam norms; honor a breakup email if you send one. Keep claims true and specific.

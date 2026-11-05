@@ -1,30 +1,25 @@
-# Buyer Psychology — premium / luxury / affluent shoppers
+# Buyer Psychology — premium and considered purchases
 
-The operative model: **lead emotional, justify rational, substantiate sustainably, ration the whimsy, make value (not discount) the price story.**
+Generic guidance for higher-priced, higher-consideration products. Treat each point as a source of hypotheses to check against the client's own customer evidence (`voc-research`), not as a rule. A worked example from one engagement is in `examples/premium-footwear-engagement.md`.
 
-## How affluent women (and premium buyers generally) decide
-- Luxury buying is "overwhelmingly emotional" — driven by identity, self-expression, self-reward, and feeling — then rationalized with craft, materials, and logic. (IJFMR review, 2024.)
-- Motivational clusters: identity/self-expression, self-reward/milestone, status/signaling, quality/craftsmanship, comfort (under-rated for footwear), values/sustainability (secondary for most).
-- The most useful segmentation is motivational, not demographic. The "self-actualized affluent" (buying for personal meaning/comfort/values, often not habitual luxury spenders) respond to self-reward + smart-investment framing.
+## How considered purchases get decided
+- **Emotion first, justification second.** Premium buying is commonly driven by identity, self-expression and self-reward, then rationalised with craft, materials and value. Open with the outcome or feeling; put the rational proof right after it.
+- **Segment by motive, not demographics.** Motives cluster around identity/status, self-reward, quality/craftsmanship, comfort/function and values. "What were you looking for when you found us?" captures the job to be done; to see which motive dominates, ask "What mattered most to you when choosing this product?" and code the answers against these motives (`voc-research`).
+- **Risk grows with price.** Reviews matter most for expensive, unfamiliar items: going from zero to five reviews lifted purchase likelihood ~270% overall and ~380% for higher-priced products (Spiegel Research Center, 2017, https://spiegel.medill.northwestern.edu/how-online-reviews-influence-sales/).
 
-**Apply:** open the page with an emotional, identity-led promise and the visual "wow," not a SKU name. Let craft/materials/value arrive immediately after as the rational permission slip.
+## Price justification
+- Show the proof behind every quality claim (macro images of materials and construction, provenance, process). An unproven "craftsmanship" claim adds nothing.
+- Provenance (e.g. country of manufacture, handmade) can carry a premium; check whether customers mention it before leading with it.
+- **Cost-per-wear framing** shifted preference toward higher-quality clothing in six preregistered experiments, most when shoppers can compare CPW across options and when the claim is third-party certified (Eckmann & Reisch, *Psychology & Marketing*, 2026, https://researchportal.bath.ac.uk/en/publications/shifting-toward-quality-how-communicating-cost-per-wear-influence/). Its effect on luxury brand perception is untested; test before using it on a luxury brand.
+- Anchoring, tiering and financing (see `persuasion-and-mental-models.md`) change how a price feels without discounting.
 
-## Price justification at a high tier
-- "Made in Italy"/handcrafted is a measurable premium (commonly 10–30%, up to ~50% for leather) because it signals craftsmanship — put it in the buy box, not the footer.
-- Map every quality/comfort claim to a macro image (never claim "craftsmanship" without showing it).
-- **Cost-per-wear caveat:** stating CPW lifts willingness-to-pay generally **but can cheapen a luxury brand** (Eckmann et al., *Psychology & Marketing*, 2026). For platform/modular products use **value-multiplication** ("one pair → infinite looks / one base → a wardrobe of add-ons"), which keeps the durability/value signal without down-market framing.
+## Story and naming
+- Narrative can raise perceived value (the "Significant Objects" project resold thrift items at many times their cost with fictional stories attached), but users scan rather than read (NN/g). Lead with 3–5 scannable highlights; keep the story to 2–3 sentences.
+- Names must stay legible: a creative product name needs the plain product type and benefit next to it. Symbol-heavy or pun-heavy titles hurt comprehension.
 
-## Storytelling & naming
-- Narrative measurably raises willingness-to-pay ("Significant Objects": ~2,700% from story alone; oxytocin/competence research, Zak, HBR 2014).
-- But users read ~28% of words and scan in an F-pattern (NN/g). Lead with a scannable 3–5 bullet "Highlights" block; keep the founder/product micro-story to 2–3 sentences.
-- **Naming:** evocative is fine *only if still legible.* Even Chanel/Prada keep names simple; confusing names deter buyers. Keep a charming name but add the plain product type + benefit, and strip symbol-soup (e.g., `^ ~ * |`). Put SEO keyword strings in an H2/meta, not the H1.
-- **Whimsy discipline:** playful-yet-premium works with *one* layer of wit surrounded by clarity and white space. Wall-to-wall puns tax comprehension and read as *less* premium.
+## Sustainability and values claims
+- Tracked behaviour and stated attitudes disagree. Products with ESG claims grew faster (+28% vs +20%, McKinsey × NielsenIQ 2023), while only a minority say they will pay more and many distrust eco claims (Deloitte 2024; NielsenIQ 2022).
+- Robust approach: use specific, verifiable claims (named materials, percentages, a certification) as reinforcement. Whether to lead with them depends on whether customers mention them unprompted in VoC research.
 
-## Sustainability sequencing (the data conflicts — that's the strategy)
-- Behavior-tracked: products with ESG claims grew **+28% vs +20%**; multiple stacked claims grew ~**2×** a single claim; less-common claims (e.g., "vegan") outperformed (+8.5%). (McKinsey × NielsenIQ, 2023.)
-- But stated willingness-to-pay is soft/fatigued: only **36% will pay more** (Deloitte, 2024); **66% say** they will but **>60% distrust** eco claims (NielsenIQ, 2022); wide say/do gap.
-- **Resolution:** lead with desire/beauty; deploy sustainability as **stacked, specific, verifiable reinforcement** (named materials, percentages, one third-party certification, a "your choice matters" line). Don't make it the headline for a style-first audience.
-
-## Gifting & self-gifting
-- 45% of Americans self-gift; ~44% plan to buy luxury as gifts. Low-commitment, expressive add-ons (charms, accessories, refills) are near-perfect gifts and a low-risk entry to the ecosystem.
-- **Apply:** gift messaging, gift-ready packaging story, curated bundles, and a self-gift nudge; surface gifting reviews as social proof.
+## Gifting
+- For giftable categories, check what share of orders are gifts (post-purchase survey) before building gift messaging, packaging or bundles. Self-gifting is common in premium categories.

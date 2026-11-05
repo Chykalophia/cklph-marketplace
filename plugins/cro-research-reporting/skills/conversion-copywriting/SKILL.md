@@ -22,6 +22,12 @@ Write copy that earns the next scroll, the next click, the sale. Clarity over cl
 4. **One job per asset.** A page, an email, an ad each has a single primary action. Cut anything that competes with it.
 5. **Voice: confident, warm, non-hype.** No corporate-speak, no exclamation-point inflation. (Chykalophia voice rules, including no em dashes, in `references/voice-and-headlines.md`.)
 
+## What the evidence says about AI and copy
+- AI-written copy and creative can match or beat human work in live tests: fully AI-generated display ads lifted CTR up to 19% over expert ads, while AI edits to human ads did not help (Lee, Ghose, Todri & Adamopoulos, NYU Stern 2025).
+- Telling people an ad is AI-generated cut CTR by 31.5% (same NYU study). Don't add "AI-written" framing to the copy itself; follow any platform or legal disclosure rules that apply.
+- No one, human or model, reliably predicts the winner: GPT-4 picked the winning Upworthy headline 38–40% of the time vs 33% by chance (Ye et al., Marketing Science 2025). Frameworks and the 4 U's are a quality floor, not a predictor.
+- So the default output is a **variant set for testing**, written from customers' own words.
+
 ## Pick the framework to the format (`references/copy-frameworks.md`)
 - PDP / product page: **PAS** or **FAB** for the body, **4 U's** headline, proof + risk-reversal blocks.
 - Landing page (one offer): **BAB** or **4 Ps**, or **AIDA** for the full-page arc.
@@ -35,10 +41,11 @@ Every headline is checked against **Useful, Urgent, Unique, Ultra-specific**. Hi
 
 ## Workflow
 1. Identify the reader's awareness stage, the one job, and the single most compelling outcome.
-2. Choose the framework for the format; draft to it.
-3. Write the headline; run the 4 U's test; write 1 alternative for A/B.
-4. Apply the voice rules (cut hedging, buzzwords, em dashes, exclamation points; make verbs strong and nouns specific).
-5. Add proof (social proof, specifics) and risk-reversal near the CTA; end with one clear action.
+2. **Pull customer language first.** Use the `voc-research` language bank (or mine reviews/survey answers) for the exact phrases customers use for the problem, the outcome and their objections. Copy built from these phrases is the default; invented phrasing is the fallback.
+3. Choose the framework for the format; draft to it.
+4. **Write 3–5 variants per key element** (headline, subhead, CTA, key benefit block). Make each variant differ on one lever (e.g. outcome vs objection-handling vs proof-led), and label the hypothesis it tests and the customer evidence it draws on. Run the 4 U's as a floor on each. Hand the set to `experiment-design` for sizing; if traffic can't support a test, recommend the variant with the strongest customer evidence and say that is the reason.
+5. Apply the voice rules (cut hedging, buzzwords, em dashes, exclamation points; make verbs strong and nouns specific).
+6. Add proof (social proof, specifics) and risk-reversal near the CTA; end with one clear action.
 
 ## Reference map
 - `references/copy-frameworks.md` — AIDA, PAS, BAB, FAB, 4 Ps, PASTOR, StoryBrand SB7, each with a worked example and a "use when" table.
@@ -48,7 +55,7 @@ Every headline is checked against **Useful, Urgent, Unique, Ultra-specific**. Hi
 At the start of a task, check for the engagement brief (default `./cro-engagement.md`, created by the `getting-started` skill / `/kickoff`). If it exists, read it first and write to the client, ICP, price tier, and especially the brand voice/banned-words it records. If it's missing and the work is more than a one-off, offer to capture one via `getting-started`.
 
 ## Related skills
-Pair with `ecommerce-cro-audit` (where copy is a lever and persuasion models live), `report-information-design` (for on-page structure), and `outbound-and-positioning` (for cold email + the positioning that copy expresses).
+Pair with `voc-research` (the language bank), `experiment-design` (testing variants), `ecommerce-cro-audit` (where copy is a lever and persuasion models live), `report-information-design` (for on-page structure), and `outbound-and-positioning` (for cold email + the positioning that copy expresses).
 
 ## Guardrails
-Don't invent proof, testimonials, or stats. Don't manufacture false urgency. Keep claims substantiated; if you don't have the number, ask for it rather than fabricating.
+Don't invent proof, testimonials, or stats. Don't claim one variant "will win"; say which evidence each draws on. Don't manufacture false urgency. Keep claims substantiated; if you don't have the number, ask for it rather than fabricating.

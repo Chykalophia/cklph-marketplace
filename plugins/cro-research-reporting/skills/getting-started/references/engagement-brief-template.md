@@ -29,6 +29,7 @@ _Last updated: <date> · Owner: <name>_
 - Primary goal & metric: (e.g., add-to-cart rate, revenue-per-visitor, lead conversion)
 - Secondary / guardrail metrics: (e.g., return rate, AOV)
 - Known baseline numbers: (pull from analytics if available)
+- Traffic per key template (eligible visitors/day: PDP, cart, checkout, landing): (needed for test sizing)
 
 ## Voice & brand
 - Tone: (e.g., confident, warm, non-hype)
@@ -37,6 +38,9 @@ _Last updated: <date> · Owner: <name>_
 
 ## Data & access
 - Connected: analytics/Shopify MCP? web search? theme/codebase access?
+- Testing tool: (e.g. Convert, VWO, Optimizely, Shopify Rollouts, none) · sequential stats? CUPED? last A/A test:
+- Research assets: review export? support tickets? past surveys? session recordings? user tests?
+- Test log: (default ./cro-test-log.csv; create with `python3 ${CLAUDE_PLUGIN_ROOT}/skills/experiment-design/scripts/test_log.py init`)
 - Deliverable audience: internal-technical | client-facing
 
 ## Constraints & notes

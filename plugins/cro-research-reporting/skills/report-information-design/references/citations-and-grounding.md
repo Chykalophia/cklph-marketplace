@@ -20,6 +20,7 @@ Techniques from gpt-researcher, STORM, open_deep_research, and gpt-newspaper for
 - **List/landscape:** just the list with consistent per-item fields.
 - **Overview/explainer:** concept-by-concept.
 - **Audit (our default):** exec summary → data → diagnosis → teardown → evidence → recommendations/blueprint → action plan → sources.
+- **Test readout:** decision → hypothesis → trust checks → primary → guardrails → reading the result → next step (`experiment-readout.md`).
 "Section" is fluid — fit the question, but start from a template.
 
 ## Report-type & tone presets (optional parameters)
@@ -34,7 +35,8 @@ Techniques from gpt-researcher, STORM, open_deep_research, and gpt-newspaper for
 ## Citation-integrity QA (add to qa-checklist runs)
 - No duplicate sources; numbers sequential and gapless.
 - Every in-text citation has a list entry; every list entry is cited at least once.
-- Every URL valid in format; spot-check that the 2–3 load-bearing links resolve and the cited figure matches the primary source.
+- Every URL resolves and every load-bearing figure appears on its source page: run `python3 ${CLAUDE_PLUGIN_ROOT}/skills/report-information-design/scripts/check_citations.py <report> --claims <claims.csv>`, with each load-bearing figure listed as `url,expect` in the claims CSV (LLM research tools fabricate citations, 18% for GPT-4 in Walters & Wilder 2023, and produce dead URLs; an automated liveness check cut non-resolving URLs to under 1% in Rao et al. 2026).
+- For load-bearing claims surfaced by AI research, prefer ones that recur across independent runs or sources; a citation that only one model or one run produced is the most likely to be fabricated.
 - Reliability tiers applied; conflicts surfaced, not hidden.
 
 This file extends `report-structure.md` and `qa-checklist.md`.

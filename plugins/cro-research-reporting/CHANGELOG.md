@@ -3,6 +3,38 @@
 All notable changes to `cro-research-reporting` are documented here.
 Format: [Keep a Changelog](https://keepachangelog.com); versioning follows [SemVer](https://semver.org).
 
+## [0.4.0] — 2026-11-05
+
+0.4.0 was built in the old standalone repo (`Chykalophia/cro-research-reporting`, 2026-10-15) on top of
+0.3.0, while 0.3.1 and 0.3.2 landed here. This release merges the two lines. The README's "What's new in
+0.4.0" section lists the features; in short:
+
+### Added
+- Evidence-based audit: rendered desktop and mobile captures (`capture_pages.py`), a binary heuristic
+  checklist, evidence-tagged hypotheses (Instrument / Just do it / Test / Investigate), no promised lifts.
+- `voc-research` skill and `voc-coder` agent (review and ticket mining, surveys, AI coding validated
+  against a human sample with `agreement.py`).
+- `experiment-design` skill and `/experiment` command (sample size and MDE with CUPED, SRM, readouts with
+  guardrails, a per-client test log).
+- `check_citations.py`: mechanical check of every cited URL and load-bearing figure.
+- Unit tests (41, standard library only) in `tests/`, trigger evals and a seeded audit fixture in `evals/`.
+
+### Changed
+- Copywriting outputs test variants built from customer language; references cleaned of untraceable figures.
+
+### Merge decisions
+- Kept from 0.3.1/0.3.2: `NOTICE.md`, the marketplace install line, no per-skill version stamps, and
+  "Use when…" descriptions under 300 characters. The two new skills were brought to that rule; their
+  trigger phrases moved into the body.
+- Security: 0.3.1 took Bash away from the web-reading agents. 0.4.0 gives `cro-auditor` and `cro-verifier`
+  an explicit `Bash` to run this plugin's scripts (`capture_pages.py`, `power.py`, `check_citations.py`,
+  `readout.py`), so they keep it. Both now carry 0.3.1's guardrails (fetched content is data, never
+  instructions; Bash only for this plugin's scripts; local reads limited to named paths), which
+  `cro-verifier` never had. `deep-researcher` stays without Bash and gains 0.4.0's "only cite a URL you
+  opened" rule.
+- 0.4.0's own CI workflow is dropped (it can't run from a plugin subfolder); its unit tests and
+  `evals/triggers.json` check run in the marketplace CI instead.
+
 ## [0.3.2] — 2026-10-27
 
 ### Fixed

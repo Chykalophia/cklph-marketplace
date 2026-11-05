@@ -52,7 +52,7 @@
 
 | Plugin | What it does | Pairs with |
 | --- | --- | --- |
-| **`cro-research-reporting`** | Conversion audits, deep sourced research, conversion copy, and render-safe reports. | — |
+| **`cro-research-reporting`** | Evidence-tagged conversion audits, voice-of-customer research, A/B test sizing and readouts, deep sourced research, conversion copy, and render-safe reports. | — |
 | **`cklph-youtube`** | A YouTube video's transcript through a fallback chain that survives cloud-IP blocks; dependencies stay in a private venv. | `cro-research-reporting` |
 
 Each plugin's `README.md` has the details; `.claude-plugin/marketplace.json` is the catalog.

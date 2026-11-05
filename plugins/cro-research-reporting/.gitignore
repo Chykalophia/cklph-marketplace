@@ -10,8 +10,12 @@ Thumbs.db
 
 # Local engagement context (client-specific; don't commit)
 cro-engagement.md
+cro-test-log.csv
 
 # Misc
 *.log
 .env
 node_modules/
+__pycache__/
+*.pyc
+audit-captures/

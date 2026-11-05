@@ -4,7 +4,7 @@ Extends the five-gate model past the PDP. The gate model's "De-risk" and "Act" g
 
 ## Checkout & cart (Baymard)
 - **Average cart abandonment is 70.22%** (Baymard, 50-study average). https://baymard.com/lists/cart-abandonment-rate
-- **Reasons users abandon (2025, excluding "just browsing"):** extra costs too high **39%** · delivery too slow **21%** · don't trust site with card **19%** · forced account creation **19%** · checkout too long/complicated **18%** · unsatisfactory returns policy **15%** · errors/crashes **15%** · couldn't see total up-front **14%** · too few payment methods **10%**. [primary]
+- **Reasons users abandon (Baymard 2026 page, excluding the ~42% "just browsing"):** extra costs too high **40%** · delivery too slow **20%** · don't trust site with card **19%** · forced account creation **18%** · checkout too long/complicated **17%** · errors/crashes **17%**. From the 2025 edition (re-check): unsatisfactory returns policy 15% · couldn't see total up-front 14% · too few payment methods 10%. [primary]
 - **Form length:** ideal checkout ≈ **12–14 form elements (7–8 fields)**; the average US checkout shows **23.48 elements (14.88 fields)** by default — most can cut 20–60%. [primary]
 - **Prize:** an ideal checkout = ~**35.26% average uplift** for large sites; the average site has ~**39** checkout improvement areas. [primary]
 - **Guest checkout** must be the prominent default; mark **both required and optional** fields (when only optional were marked, 32% of users failed a required field). [primary]

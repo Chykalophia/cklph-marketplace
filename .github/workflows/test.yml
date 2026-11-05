@@ -35,6 +35,11 @@ jobs:
         run: bash plugins/cklph-wp/tests/cwp.test.sh
       - name: cklph-youtube (get_transcript.py, offline)
         run: bash plugins/cklph-youtube/tests/get_transcript.test.sh
+      - name: cro-research-reporting (stats, citation and agreement scripts; trigger evals)
+        working-directory: plugins/cro-research-reporting
+        run: |
+          python3 -m unittest discover -s tests -v
+          python3 -m json.tool evals/triggers.json > /dev/null
       - name: cklph-elementor (el-tools.py)
         run: |
           python3 -m py_compile plugins/cklph-elementor/scripts/el-tools.py
