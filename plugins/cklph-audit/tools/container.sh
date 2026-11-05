@@ -49,7 +49,6 @@ if [ -z "$SCAN_IMAGE" ]; then
 fi
 
 if [ -n "$SCAN_IMAGE" ]; then
-  # Trivy image scan
   if command -v trivy >/dev/null 2>&1; then
     REPORT="$WORK/trivy.json"
     trivy image --quiet --format json "$SCAN_IMAGE" > "$REPORT" 2> "$WORK/trivy.err"
@@ -84,7 +83,6 @@ if [ -n "$SCAN_IMAGE" ]; then
     fi
   fi
 
-  # Grype image scan
   if command -v grype >/dev/null 2>&1; then
     REPORT="$WORK/grype.json"
     grype "$SCAN_IMAGE" -o json --quiet > "$REPORT" 2> "$WORK/grype.err"
