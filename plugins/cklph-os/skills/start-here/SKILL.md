@@ -37,7 +37,7 @@ rather than reinventing what they already encode.
 
 ## Routing table
 Situation → skill. Every cklph-os skill except this one has a row here (STANDARD.md §10, Wire). Phase skills
-(`refine` → `spec` → `plan` → `build` → `review` → `verify` → `ship`) are run by `flow`. `survey` is not a
+(`challenge` → `refine` → `spec` → `plan` → `build` → `review` → `verify` → `ship`) are run by `flow`. `survey` is not a
 `flow` phase: invoke it yourself between `refine` and `spec` when the scope has gaps (rows below).
 
 | Situation | Skill |
@@ -48,6 +48,7 @@ Situation → skill. Every cklph-os skill except this one has a row here (STANDA
 | Implement an approved plan | `build` |
 | Review a diff before merging | `review` |
 | Open the PR once verified | `ship` |
+| A task/ticket arrives and nobody has checked it's workable | `challenge` |
 | A vague idea needs sharpening before a spec | `refine` |
 | New feature scope with gaps across users, devices, edges | `survey` |
 | New or inherited client codebase or site | `survey` (brownfield mode → gap register) |

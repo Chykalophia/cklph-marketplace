@@ -10,8 +10,8 @@ Pick the **intensity** for the change under review:
 - **red-team** — dispatch the **`red-team`** agent instead. Use for high-stakes changes: security /
   auth / money / data integrity / irreversible actions, or before a public release. `flow`
   auto-escalates to this at hard gates.
-- **two-reviewer gate** — two fresh reviewers, the same written rubric, **both** must pass, at most
-  2 fix rounds, then escalate to Peter. **Only** for client-facing deliverables, security-sensitive
+- **two-reviewer gate** — two fresh reviewers, the same written rubric, **both** must pass, fix rounds
+  continue while they find real new issues (churn or 5 rounds → escalate to Peter). **Only** for client-facing deliverables, security-sensitive
   diffs, and anything published publicly (this marketplace included). Procedure: `@two-reviewer-gate.md`.
 
 **Did this session write the change?** Then run the test suite and the build *before* dispatching
@@ -23,6 +23,9 @@ get wrong and how to test each.
 **Shared client state in the diff?** If it touches a store action, a TanStack Query mutation or
 query key, a context provider, or an effect that syncs state, also run `click-path-audit` on the
 touchpoints that reach it.
+
+**Run the reviewer on a different model than the builder** whenever one is available — same prompt,
+same markers, fresh context: `@cross-model.md`.
 
 The reviewer runs in a **fresh context**, **reads the tests first**, and reviews on **three axes —
 standards, spec, and omissions (what wasn't asked, including text and contracts that read two
@@ -39,6 +42,20 @@ Triage the findings:
 ~1000+ must be split (stack the PRs / by-file-group / horizontal / vertical) — flag oversize work as a
 finding, not "review anyway."
 
+**Attack tests.** The reviewer stays read-only. For a **Critical or High** finding it may *propose* an
+attack test, in exactly this form: a line `` **Attack test:** `<new/test/path>` `` (a new file at a
+test location; letters, digits, `. _ / -`, no dot-directories), a line `` Expect: `<ERE>` `` matching
+the failure it should print, then one fenced block with the whole file. You read it, then lock it
+with `scripts/attack-tests.sh lock` (`flow` → Hand-offs), which refuses any test that doesn't fail on
+the current code with that failure. A refused test goes back to the reviewer as "your attack test
+didn't reproduce the finding". A locked test is never edited by the fix wave; a disputed one goes
+to Peter. The script commits normally, so the repo's git hooks run; a hook that changes the commit
+(rewrites the test, adds a file, strips the trailers, leaves the tree dirty) undoes the lock. It
+skips hooks (`--no-verify`) only when the user approves (`flow` → Hand-offs). The Claude Code
+`pre-commit-gate` hook only inspects commands typed into the Bash tool, so it doesn't run on the
+lock commit; that commit holds only the test files.
+
 The `pre-commit-gate` hook is the automatic backstop at commit time — not a substitute for this gate.
 Proceed on `## REVIEW CLEAN` / `## RED-TEAM CLEAR`; loop (fix → re-review) on `## ISSUES FOUND` /
-`## RED-TEAM FINDINGS`. Hands off to `verify`.
+`## RED-TEAM FINDINGS` with a **fresh** reviewer each round, for as long as rounds find real new
+issues; stop and escalate to Peter on churn or after 5 rounds (`@two-reviewer-gate.md`, Rounds). Hands off to `verify`.

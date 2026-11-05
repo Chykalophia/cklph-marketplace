@@ -57,5 +57,5 @@ once every row is triaged and the go-ahead is in, `## SURVEY OPEN` while decisio
 - **Not "covering everything"** — pick *load-bearing* gaps. If a dimension genuinely doesn't apply
   ("this is a CLI tool, devices N/A"), say so and skip.
 
-Pair with `refine` (precedes), `spec` (follows), `decide` (for the chosen-alternative reversal
+Pair with `challenge` (checks the task itself is right, before `refine`), `refine` (precedes), `spec` (follows), `decide` (for the chosen-alternative reversal
 signal), and `cklph-reviewer`'s Omissions axis (which catches gaps *after* the fact in code review).

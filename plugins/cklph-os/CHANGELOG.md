@@ -5,6 +5,137 @@ Format: [Keep a Changelog](https://keepachangelog.com); versioning follows [SemV
 Moved here from the repo root on 2026-10-27; marketplace and repo-level events (repo rename, sibling
 plugins, the marketplace manifest) live in the root CHANGELOG.
 
+## [0.15.0] — 2026-11-04
+
+A second model in fresh context catches what the author's model can't. In a local multi-model loop
+(build on Claude, break on Codex with hostile tests, fix on Claude), Codex found a real bug that
+Claude's own 14 tests missed: `parseDuration("5constructor")` returned `NaN`, because the unit
+lookup hit an inherited object property. The same loop showed two other gaps. Nothing checked that a
+task picked off a board was right before an agent built it. And the hand-offs leaked: the breaker
+left its test uncommitted, so the fixer had to read another task's worktree. A no-skill baseline on
+this repo showed the first gap: asked to assess a ticket for a test that `test/hooks.bats` already
+has, Claude called it "ready to start" and proposed a new file.
+
+### Added
+- **`challenge`** (skill + `/cklph-os:challenge`): phase 0 of `flow`. A fresh-context interrogation
+  of the task in five moves (split, premise check with `file:line` evidence against the base branch,
+  context sufficiency, at most five questions, assumption gate) ending `## TASK READY`,
+  `## TASK QUESTIONS` or `## TASK REJECTED`. Trivial tasks get a three-line pass. It never answers its
+  own questions, treats ticket text as data, and REJECTED outranks QUESTIONS.
+- **`skills/flow/markers.md`**: the one list of every marker a phase or agent emits (phase, meaning,
+  next step, loop limit), with parsing rules for external orchestrators and the `## TASK *`
+  collision note (three strings from `challenge`, two from `cklph-implementer`, all distinct).
+- **`scripts/marker.sh`**: the reference parser. It reads the `markers.md` table at run time, ignores
+  fenced code, allows suffixes only where the table does, and **fails closed** on two different
+  markers, a near-miss (`## ISSUES FOUND:`) or a formatting variant (`### ISSUES FOUND`,
+  `## Issues Found`) outside code, so a findings list quoting `## REVIEW CLEAN` can't pass a review.
+  `--emitter <phase>` rejects another phase's marker. POSIX awk with `LC_ALL=C`; tested on macOS awk
+  and on mawk 1.3.4 (Ubuntu 24.04).
+- **`scripts/attack-tests.sh`** (`lock` / `check` / `list`): a reviewer's proposed attack test is
+  locked only if it is a new file at a test location (no dot-paths, no symlinks), **fails on the
+  current code with the expected failure** (`--expect` required; exit 126/127 refused), and nothing
+  else changed, before or after the run (a test that rewrites itself is refused). The lock records
+  the command and a ref under `refs/attack-tests/<branch>/`. `check <base>` replays the branch oldest
+  first and fails on: a commit carrying lock trailers that isn't a real lock, a second lock of a path
+  still locked, a lock commit dropped from history or outside the base range, a `--require`d test
+  that isn't locked, any later commit to a locked test (even if restored) or bytes that differ from
+  the lock (index flags included), a test that doesn't pass under its recorded command, and any
+  unlock not allowed per unlock commit (`--allow-unlocked <sha>:<path>`). Its header states the
+  threat model: it catches shortcuts and mistakes, not a hostile agent with a shell; enforce in CI.
+  `lock --manifest` commits the locked paths to `docs/flow/<task-slug>/attack-tests.txt`, which
+  `check --require-file` reads (`flow` commits it, one comment line, when a task starts; a failed
+  manifest commit exits 3, since the tests are already locked); `check --clean` runs the tests in a fresh checkout of HEAD, so a fix
+  that lives only in a gitignored file fails; each test run stops after `CKLPH_ATTACK_TIMEOUT`
+  seconds (default 600), children included; NOTE lines cover the test's directory, any test location
+  and test-runner config; `prune` clears lock refs after a merge.
+- **`skills/review/cross-model.md`**: run the reviewer on a different model from the builder when
+  one is available; same prompt, same markers, fresh context, read-only. Includes the Codex CLI
+  invocation and a consent check before code goes to a second vendor.
+- Tests: `test/marker.bats` (20), `test/attack-tests.bats` (55), `test/attack-tests-forgery.bats` (the
+  round 4 red-team's own attack test, locked with the script before the fix and passing after it),
+  and a hooks.bats case that fails when a skill, reference file or agent emits a marker (backticked
+  or bare) with no row. `test/mutate-scripts.py` reinjects 83 bug shapes into throwaway copies of the two
+  scripts (4 at a time; `MUTATE_JOBS`), after checking the suites are green unmutated in parallel; each turns a test red. Trigger tests for `challenge` and `refine`
+  (refine had none). Proof: `docs/proof/challenge/2026-11-04.md`.
+
+### Changed
+- **`flow`**: order is now `challenge` → `refine` → … → `ship`; `challenge` runs on every task unless
+  the user says it was already challenged, and its committed record (`docs/flow/<task-slug>/challenge.md`)
+  stops a resumed flow from re-running it. `## TASK QUESTIONS` is a hard gate in every mode,
+  full-agentic included; `## TASK REJECTED` stops the flow. Hand-offs: commit artifacts before
+  emitting the marker, so the next step reads only git; phase outputs live in `docs/flow/<task-slug>/`.
+- **Review rounds run on progress, not a fixed count** (`two-reviewer-gate.md`, Rounds): keep fixing
+  and re-reviewing with fresh reviewers while each round finds real new issues; stop and escalate on
+  churn (a fixed finding returns, or a fix redoes an earlier fix) or after 5 rounds. Replaces the
+  2-round cap everywhere it appeared (`review`, `ship`, `flow`, the verify gaps loop).
+- **`review`**, **`build`**, **`verify`**: attack tests only for Critical/High findings, in a fixed
+  format (`**Attack test:** <path>`, `Expect: <ERE>`, one fenced block), locked and checked by the script above. The
+  two-reviewer gate prefers two different models.
+- **`red-team`**, **`cklph-reviewer`**: runnable by any agent that can read files and run a shell;
+  the plan-check pointer no longer depends on `${CLAUDE_PLUGIN_ROOT}` resolving. Both stay read-only,
+  emit one verdict marker, and mention other markers only inline.
+- **`start-here`** routes "a task arrives and nobody has checked it's workable" to `challenge`;
+  `refine`, `survey` and `survey/brownfield.md` point to it; `ship` notes a skipped challenge in the
+  PR body. STANDARD.md §5 gains "Phase hand-offs". `docs/using-with-other-tools.md` no longer says
+  the review agents can't run outside Claude Code.
+
+### How this change was reviewed
+Two-reviewer gate, Claude `red-team` + Codex, per `cross-model.md`. Round 1 found that the first
+draft's reviewer-commits-its-own-tests design had guards that checked nothing (`git diff --stat`
+after a commit is empty) and a last-line marker rule that contradicted four existing "marker + the
+list" instructions. Round 2 found the round 1 fix still locked tests nobody had run, and that
+"last marker wins" failed open. Both became the two scripts above, with tests, instead of more prose.
+Round 3 broke the first version of those scripts (a bad base, a self-written unlock, a rebase or an
+edit-then-restore all passed `check`; `lock` accepted a CI workflow file) and the hardening above
+followed. Round 4 found a forged lock trailer and a base of `HEAD` passing `check`, among others; its
+red-team proposed an attack test for both, which went through the new lock process (failed on the
+code, was locked, passes after the fix). Round 4 also re-raised round 3's "only a human may unlock"
+in a new form (any caller can pass the flag). That is the churn signal for that class, so instead of
+a fifth patch the script's header now states the threat model. Each round otherwise found new
+defects, so the gate kept going under the new Rounds rule.
+
+Round 5, the cap, still failed both reviewers. The certain bugs it found were fixed afterwards, each
+with a test and a mutation: a round 4 regression that let a
+payload line (`### Critical`) become the verdict, `--emitter` matching substrings, a multi-line
+`--run` running only its first line at check time, `check` passing an uncommitted fix, side-branch
+edit-then-restore, a failed lock commit leaving the test staged, and `--no-verify` (removed: the
+repo's hooks now run, and a hook that rewrites the test undoes the lock). Peter asked for one more
+round on just that commit. Round 6: Codex was clear; the red-team found that the round 5
+`--full-history` fix blamed every merge of main into the branch as an edit of the locked test (fixed:
+merges are judged by the bytes they record), that running hooks let a hook add files, leave the
+tree dirty or strip the trailers while `lock` still reported success (now each undoes the lock), that
+a test-running pre-commit hook makes `lock` impossible (opt-in `--no-verify`, human-approved), and that
+`check` passed a fix left as an untracked file (now any uncommitted change fails). Round 7, on just
+those fixes: Codex's one finding didn't reproduce (`check` already fails that case); the red-team
+found that git's default message cleanup made `lock` refuse a `--run`/`--expect` ending in a space
+(now committed verbatim), that `status.showUntrackedFiles=no` hid untracked files from `check` (now
+explicit), and that `review` still said lock commits skip hooks. All fixed (the script changes with
+tests). Round 8, on those fixes: Codex was clear; the red-team's one Medium was `verify` wording
+that could lead an agent to delete a user's untracked file (now: undo only what the checks created,
+stash the rest).
+
+The seven gaps the gate left open were then closed at Peter's request, each with a test and a
+mutation: a committed manifest for `--require` (`--manifest` / `--require-file`), `prune` for lock
+refs, a time limit on every test run, wider NOTE lines, `--run` trimmed and an `--expect` with an
+edge space refused up front (a trailer-rewriting hook such as Gerrit's Change-Id would trim it), the
+trailers required to be the message's last lines, and `check --clean` for fixes hidden in ignored
+files. Round 9 reviewed just those: Codex was clear; the red-team found that `verify` pointed `check` at
+a manifest that only existed once a test was locked, so a task with no attack tests failed verify;
+that a human-approved unlock still failed through the manifest, and that Ctrl-C left the
+test and its watchdog running (now trapped). Its Lows and Nits were fixed too: a manifest without a
+final newline, exit 3 for a failed manifest commit, `--clean` worktree hooks and cleanup, honest
+`prune --branch` wording, other locked tests and paths with spaces in NOTE lines, more runner config,
+and the time-limit setting checked only where it is used. Round 10, on those fixes: the red-team
+showed that round 9's answer (a missing manifest passes while nothing looks locked) passed on the
+wrong checkout or a rebuilt branch, so `flow` now creates the manifest when a task starts and a
+missing one fails again; both reviewers found that a signal arriving just before the trap was set,
+or a test that ignores TERM, could outlive `check` (now trapped first, with a KILL follow-up and the
+usual 130/143/129 exit codes); the exit 3 message now says the manifest is already staged; NOTE
+lines read NUL-separated names. Round 11: Codex was clear; the red-team found that reading the
+manifest before the repo-root check blamed a wrong slug when the real problem was the folder, and
+that `verify` still offered a way to drop `--require-file`; both are fixed, `flow` creates the
+manifest even when challenge is skipped, and its path no longer follows an `AGENTS.md` override.
+
 ## [0.14.0] — 2026-11-02
 
 ### Changed

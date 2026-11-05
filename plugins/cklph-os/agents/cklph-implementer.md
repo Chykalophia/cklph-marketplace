@@ -25,6 +25,9 @@ infer minimally or report back rather than guess).
    relevant tests after every change, not just at the end. Never leave the tree broken between increments.
 6. **Atomic commit** — if (and only if) instructed, stage just your task's files and make ONE commit.
    Never commit unrelated changes. Never push.
+7. **Locked attack tests** (listed under OUT OF SCOPE) — never edit, delete or exclude them, never
+   amend, rebase or squash the branch, and never write an `Attack-Tests-Unlocked:` trailer. Think one
+   is wrong? Report `## TASK BLOCKED: <reason>`.
 
 ## Source discipline (for framework / library / API code)
 Announce the stack at the top of your report (e.g. "STACK DETECTED: Next.js 16, Supabase v2"). Verify

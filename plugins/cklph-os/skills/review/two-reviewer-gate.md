@@ -31,15 +31,26 @@ Add the deliverable's own rules (the spec's acceptance criteria, brand voice, th
 
 ## Procedure
 1. **Two fresh reviewers in parallel.** Dispatch two subagents (two `cklph-reviewer`, or two
-   `red-team` for security diffs). Each gets the spec, the work, and the rubric. Neither sees the
+   `red-team` for security diffs), **on two different models when one is available**, neither on
+   the builder's model if you can avoid it (`cross-model.md`). Each gets the spec, the work, and the rubric. Neither sees the
    other's review, the conversation, or your opinion of the work.
 2. **Verdict.** Ship only if **both** pass. A flag from one reviewer is real: the other reviewer's
    miss is exactly the blind spot this gate exists for.
 3. **Fix round.** Merge both lists, fix every failing criterion, change nothing else. Re-run
    **both** reviewers as **new** subagents (no memory of the last round; it anchors them).
-4. **Cap: 2 fix rounds.** Still failing after round 2 → stop and escalate to Peter with the
-   remaining failures, both reviewers' notes, and what you tried. Do not loop a third time, and do
-   not ship on one pass out of two.
+4. **Keep going while rounds make progress** (Rounds, below). On churn or after round 5, stop and
+   escalate to Peter with the remaining failures, both reviewers' notes, and what you tried. Never
+   ship on one pass out of two.
+
+## Rounds
+Finding real bugs is the point, including bugs in the last round's own fix: keep fixing and
+re-reviewing with **new** reviewers as long as each round turns up real, new problems.
+**Stop and escalate on churn**, which is any one of:
+- a finding that an earlier round already fixed comes back;
+- a fix reverts an earlier round's fix, or redoes the same spot a different way with no new failure
+  behind it;
+- **5 rounds** done (hard backstop). A round is one fix wave plus one fresh re-review.
+Report the round count either way. The same rule applies to every review→build and verify→build loop.
 
 ## Reviewer prompt
 ```text
@@ -53,7 +64,7 @@ Rubric: <the table>
 For each criterion: PASS, or FAIL with the exact problem and where it is. N/A only for a
 sub-check the rubric allows it for, with the reason; an N/A you disagree with is a FAIL.
 Then: Critical issues (must fix) and Suggestions (optional).
-End with the agent's own marker, last and outside any code block: `## REVIEW CLEAN` (pass) or
+End with the agent's own marker as your one verdict line, outside any code block (nothing after it but its list): `## REVIEW CLEAN` (pass) or
 `## ISSUES FOUND` (fail) for cklph-reviewer; `## RED-TEAM CLEAR` or `## RED-TEAM FINDINGS` for red-team.
 ```
 

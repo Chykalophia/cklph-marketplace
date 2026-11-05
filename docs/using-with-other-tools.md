@@ -62,10 +62,10 @@ If you'd rather drive your tool's **own** AI (Cursor's Agent, Copilot, Cascade�
 > [!WARNING]
 > **What you always lose on Path B**, in every tool:
 > - **Hooks** — the `pre-commit-gate`, `security-check`, and `nextjs-quality-check` gates are Claude-Code-only.
-> - **Sub-agent waves** — the `flow` orchestrator and the `cklph-implementer` / `cklph-reviewer` / `red-team` agents don't exist outside Claude Code.
+> - **Sub-agent waves** — the `flow` orchestrator's automatic dispatch is Claude-Code-only. The `cklph-reviewer` and `red-team` agent files are plain instructions any model can follow (paste one in as the prompt, or see `plugins/cklph-os/skills/review/cross-model.md`); nothing dispatches them for you.
 > - **Auto-routing** — `start-here` won't auto-pick a skill; you invoke things by hand.
 >
-> What you **keep**: the actual thinking — spec → plan → build → review → verify discipline, the design/security/debugging checklists, the daily-rhythm skills.
+> What you **keep**: the actual thinking — challenge → spec → plan → build → review → verify discipline, the design/security/debugging checklists, the daily-rhythm skills.
 
 ### The universal porting recipe
 
@@ -168,11 +168,11 @@ No terminal, no file access — but you can still borrow the *thinking*:
 | Slash commands (`/flow`, `/spec`…) | ✅ full | 🟡 rebuild as prompt files / workflows |
 | `start-here` auto-routing | ✅ full | ❌ invoke by hand |
 | Sub-agent waves + `flow` orchestrator | ✅ full | ❌ not available |
-| `cklph-implementer` / `reviewer` / `red-team` | ✅ full | ❌ not available |
+| `cklph-implementer` / `reviewer` / `red-team` | ✅ full | 🟡 reviewer and red-team run by hand as prompts; no dispatch |
 | Quality-gate hooks | ✅ full | ❌ not available |
 | `AGENTS.md` project rules | ✅ full | ✅ (except Windsurf) |
 
-**Bottom line:** Path A is the marketplace as designed. Path B gives you the cklph *playbook* inside your editor's own AI — worth it if that's where you live, as long as you know the gates and agents stay behind in Claude Code.
+**Bottom line:** Path A is the marketplace as designed. Path B gives you the cklph *playbook* inside your editor's own AI — worth it if that's where you live, as long as you know the hooks and automatic agent dispatch stay behind in Claude Code.
 
 ---
 

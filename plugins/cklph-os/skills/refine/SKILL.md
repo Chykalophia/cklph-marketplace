@@ -5,7 +5,8 @@ description: The REFINE phase (optional front-door) of the cklph-os flow — sha
 
 # refine — sharpen the idea
 
-Use when the ask is vague. Divergent, then convergent — don't jump to a plan.
+Use when the ask is vague. Divergent, then convergent — don't jump to a plan. If the *task itself* may
+be wrong or missing context (not just fuzzy), run `challenge` first.
 
 1. Restate the ask as a crisp **"How Might We"** problem statement.
 2. Ask **3–5 sharpening questions** (who is it for, what does success look like, real constraints).

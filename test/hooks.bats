@@ -340,6 +340,29 @@ print("\n".join(bad) or "ok")' "$HOOKS/.."
   [ "$output" = "ok" ]
 }
 
+# External orchestrators route on markers, so markers.md must list every one a skill or agent emits.
+# Markers are written in backticks (`## REVIEW CLEAN`); bare "## DRY"-style lines are headings.
+@test "markers: every marker in skills/**/*.md and agents (backticked or bare) has a row in flow/markers.md" {
+  command -v python3 >/dev/null || skip "python3 required"
+  run python3 -c '
+import pathlib, re, sys
+root = pathlib.Path(sys.argv[1])
+pat = re.compile(r"`## ([A-Z][A-Z-]*(?: [A-Z][A-Z-]+)*)")
+files = [f for f in (root / "skills").rglob("*.md") if f.name != "markers.md"] + list((root / "agents").glob("*.md"))
+emitted = {m for f in files for m in pat.findall(f.read_text())}
+# Unbackticked line-start "## UPPER" lines must be markers too, unless they are known headings.
+HEADINGS = {"CI", "DRY", "JS", "SOLID", "YAGNI"}
+bare = re.compile(r"^## ([A-Z][A-Z-]*(?: [A-Z][A-Z-]+)*)[ \t]*$", re.M)
+emitted |= {m for f in files for m in bare.findall(f.read_text()) if m not in HEADINGS}
+table = set(re.findall(r"^\|[^|]+\| `## ([A-Z][A-Z-]*(?: [A-Z][A-Z-]+)*)", (root / "skills/flow/markers.md").read_text(), re.M))
+missing = sorted(emitted - table)
+if len(emitted) < 15: print("only %d markers found; the pattern has stopped matching" % len(emitted))
+elif missing: print("missing from markers.md: " + ", ".join(missing))
+else: print("ok %d" % len(emitted))' "$HOOKS/.."
+  [ "$status" -eq 0 ]
+  has "ok "
+}
+
 @test "reply-shape-context: prints the rules without frontmatter; CKLPH_REPLY_SHAPE=off disables it" {
   run env CLAUDE_PLUGIN_ROOT="$HOOKS/.." bash "$HOOKS/reply-shape-context.sh"
   [ "$status" -eq 0 ]

@@ -10,13 +10,19 @@ description: The SHIP phase of the cklph-os flow — open a PR (or merge) with a
    `../verify/rationalization-patterns.md`, "Evidence that counts"), blocks the ship**: go back to `build`, not forward.
 2. **Two-reviewer gate** for client-facing deliverables, security-sensitive diffs, and anything
    published publicly (including this marketplace): both reviewers pass before the push
-   (`../review/two-reviewer-gate.md`). After 2 failed fix rounds, stop and escalate to Peter.
+   (`../review/two-reviewer-gate.md`). On churn or after 5 rounds, stop and escalate to Peter.
    **A fix round changes the diff, so it re-runs `verify`**: capture fresh `## VERIFIED` evidence
    before the push, never reuse the pre-gate run.
 3. Push the **feature branch** (never `dev`/`main`).
 4. Open a PR with: a concise **summary (the why)**, a **test plan**, and the spec's
-   **acceptance-criteria checklist**. Generate release notes if relevant. Write the PR body and
+   **acceptance-criteria checklist**. If `flow` skipped `challenge` because the user said the task
+   was already challenged, say so in the PR body. Generate release notes if relevant. Write the PR body and
    release notes with `writing`.
+
+After the PR merges, clear its attack-test lock refs from the local clone:
+`"${CLAUDE_PLUGIN_ROOT}/scripts/attack-tests.sh" prune --branch <feature-branch>` (from the default
+branch, and only after the merge: it can't tell a squash merge happened), or plain `prune` once the
+branch is deleted.
 
 Push and PR are externally visible — **confirm with the user before doing them** unless they've
 authorized it for this task. Match the action to what was actually requested.
