@@ -10,7 +10,8 @@ whole reason this works:
 Resolution order at draw time:
 
   1. A named client resolves a brand. Brand colour ALWAYS wins.
-  2. A theme supplies geometry, chrome, type treatment and density.
+  2. A theme supplies geometry, chrome and density. Brand typefaces win too;
+     a theme's Type table is intent, used only when no brand is set.
   3. A theme's palette is used ONLY when no brand is set (default runs, and
      marketplace installs where no brand has been onboarded yet).
 

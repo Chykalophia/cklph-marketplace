@@ -100,7 +100,7 @@ locally against your own clients' design systems; they never leave your machine.
 They live outside the skill, so an update cannot delete them:
 
 ```
-~/.config/cklph-diagram/brands/      or $CKLPH_DIAGRAM_BRANDS, when set
+${XDG_CONFIG_HOME:-~/.config}/cklph-diagram/brands/   or $CKLPH_DIAGRAM_BRANDS, when set
 ├── <client>.md                      one file per client brand
 └── fonts/<slug>/                    licensed font files, for any brand
 ```

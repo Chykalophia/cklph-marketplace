@@ -142,7 +142,7 @@ Brand and theme are **separate axes**:
 
 | | Owns | Lives in | Public? |
 |---|---|---|---|
-| **Brand** | colour and typefaces: *who* | `references/brands/` | client files are git-ignored |
+| **Brand** | colour and typefaces: *who* | `~/.config/cklph-diagram/brands/` (clients), `references/brands/` (the bundled four) | client files never ship |
 | **Theme** | geometry, chrome, density, texture: *how* | `references/themes/` | yes, ships with the skill |
 
 **In this fork a brand is always resolved** (§0: a named client, the marker, or

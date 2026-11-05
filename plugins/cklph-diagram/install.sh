@@ -207,8 +207,10 @@ case "$MODE" in
         echo "Kept brand(s) that exist only in the installed copy:$kept_only"
         echo "  Move them to the local brands directory, which no install or plugin"
         echo "  update touches (see references/brand-onboarding.md):"
-        echo "  mkdir -p ~/.config/cklph-diagram/brands"
-        echo "  mv \"$DEST/references/brands/<file>\" ~/.config/cklph-diagram/brands/"
+        local_dir="${CKLPH_DIAGRAM_BRANDS:-${XDG_CONFIG_HOME:-$HOME/.config}/cklph-diagram/brands}"
+        echo "  mkdir -p \"$local_dir/fonts\""
+        echo "  mv \"$DEST/references/brands/<client>.md\" \"$local_dir/\""
+        echo "  mv \"$DEST/references/brands/fonts/<slug>\" \"$local_dir/fonts/\"   # licensed fonts"
       fi
     fi
 
