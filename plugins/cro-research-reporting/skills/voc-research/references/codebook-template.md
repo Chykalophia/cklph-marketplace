@@ -5,6 +5,8 @@
 |---|---|---|---|---|---|---|---|
 | cost_shipping | Shipping cost surprise | Cost | Mentions shipping, tax or duty cost as a reason to hesitate | Cost appears late or is higher than expected | General "too expensive" (use cost_price) | "Shipping doubled the price" | "Didn't know about duties until checkout" |
 | fit_uncertainty | Unsure about size/fit | Usability | Doubt about which size or whether it fits | Asks about sizing, compares to other brands | Complaints after receiving (use fit_actual) | "Do these run small?" | "I'm between sizes" |
+| cost_price | Price too high overall | Cost | The product price itself is the hesitation | "Too expensive", compares price with alternatives | Shipping, tax or duty surprises (use cost_shipping) | "Love them but $240 is a lot" | "Cheaper elsewhere" |
+| fit_actual | Fit problem after receiving | Usability | The item arrived and did not fit as expected | Return or complaint about size after delivery | Doubts before buying (use fit_uncertainty) | "Had to send them back, too narrow" | "Runs a full size small" |
 | none | Explicitly no reason | — | The customer says nothing held them back | "Nothing", "no concerns" | Blank or off-topic answers (use skip) | "nope, all good" | "nothing really" |
 | skip | Not codable | — | Blank, unreadable or off-topic | — | — | "" | "what time is it?" |
 

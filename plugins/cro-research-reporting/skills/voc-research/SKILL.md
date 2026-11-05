@@ -33,13 +33,13 @@ Find out why visitors don't buy by asking and watching real customers, then turn
 1. **Read the brief** (`./cro-engagement.md`): the surface, the funnel step that leaks, the ICP.
 2. **Start with what already exists**: reviews, tickets, return reasons, past surveys. Mining costs nothing and needs no traffic.
 3. **Add the cheapest new signal** for the leaking step: a one-question poll on that page, or a post-purchase survey. Question bank in `references/methods.md`.
-4. **Code with the protocol in `references/ai-coding-protocol.md`**: build a codebook from a first sample, have AI code a 50–100 item sample, have a human code the same sample, run `scripts/agreement.py`, refine until kappa ≥ 0.7, then code the full set. With under ~100 items in total, have a human review every AI code instead and call the themes exploratory. The `voc-coder` agent runs the AI half.
+4. **Code with the protocol in `references/ai-coding-protocol.md`**: build a codebook from a first sample, have AI code a 50–100 item sample, have a human code the same sample, run `python3 ${CLAUDE_PLUGIN_ROOT}/skills/voc-research/scripts/agreement.py <sample.csv> --a human --b ai`, refine until kappa ≥ 0.7 overall and per code, then code the full set. With under ~100 items in total, have a human review every AI code instead and call the themes exploratory. The `voc-coder` agent runs the AI half.
 5. **Quantify and rank themes**: share of responses per code, split by segment (new vs returning, device, product line). Keep 2–3 verbatim quotes per theme.
 6. **Turn themes into hypotheses**: each one names the theme, its share, the page element it maps to, and the lever (Cost, Trust, Usability, Comprehension, Motivation). Hand them to `ecommerce-cro-audit` for prioritisation and `experiment-design` for testing.
 7. **Build the language bank** (`references/codebook-template.md` has the format) for `conversion-copywriting`.
 
 ## Engagement context
-Read `./cro-engagement.md` first and add any research assets you find (review export, survey tool, ticket system) to its Data & access section.
+At the start, check `./cro-engagement.md`. If it exists, read it, and offer to add any research assets you find (review export, survey tool, ticket system) to its Data & access section; update it only once the user agrees. If it's missing and the work is more than a one-off, offer to capture one via `getting-started`.
 
 ## Related skills
 `ecommerce-cro-audit` (consumes themes as evidence), `experiment-design` (tests the hypotheses), `conversion-copywriting` (uses the language bank), `report-information-design` (presents findings).

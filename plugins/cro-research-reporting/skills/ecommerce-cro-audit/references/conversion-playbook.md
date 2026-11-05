@@ -1,6 +1,6 @@
 # Conversion Playbook — the high-impact PDP/funnel levers
 
-Each lever: what it is, what "good" looks like, and the evidence (with source + year). Treat vendor/case figures as **directional** (use the direction, not the exact number), and keep vendor magnitudes out of client-facing recommendations: median A/B lifts are near zero in large datasets (`experiment-design/references/base-rates.md`), so a quoted "+27%" reads as a promise.
+Each lever: what it is, what "good" looks like, and the evidence (with source + year). Treat vendor/case figures as **directional** (use the direction, not the exact number), and keep vendor magnitudes out of client-facing recommendations: median A/B lifts are near zero in large datasets (`${CLAUDE_PLUGIN_ROOT}/skills/experiment-design/references/base-rates.md`), so a quoted "+27%" reads as a promise.
 
 ## 1. Social proof & reviews — usually the #1 fix
 - Reviews lift purchase likelihood **~270% (5 reviews vs none)**, and **~380% for higher-priced products** — the effect is *largest* for expensive, unfamiliar items. Source: Spiegel Research Center, Northwestern, 2017 (peer-reviewed). https://spiegel.medill.northwestern.edu/how-online-reviews-influence-sales/

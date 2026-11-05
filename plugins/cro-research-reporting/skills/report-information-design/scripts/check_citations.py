@@ -42,8 +42,8 @@ def extract_urls(text):
 
 
 def fetch(url, timeout=20, want_body=False):
-    req = urllib.request.Request(url, headers={"User-Agent": UA, "Accept": "text/html,*/*"})
     try:
+        req = urllib.request.Request(url, headers={"User-Agent": UA, "Accept": "text/html,*/*"})
         with urllib.request.urlopen(req, timeout=timeout) as r:
             body = r.read(3_000_000).decode("utf-8", "replace") if want_body else ""
             return {"status": r.status, "final_url": r.geturl(), "body": body}
@@ -70,16 +70,34 @@ def visible_text(page):
     return re.sub(r"\s+", " ", htmlmod.unescape(page))
 
 
+def contains_figure(body, expect):
+    """True if `expect` appears in `body` as a whole figure or phrase: "2" does not match
+    inside "2024" and "0.8%" does not match inside "10.8%"."""
+    exp = re.sub(r"\s+", " ", expect.strip())
+    left = r"(?<!\w)(?<!\d[.,])" if exp[:1].isalnum() else ""
+    right = r"(?!\w|[.,]\d)" if exp[-1:].isalnum() else ""
+    return re.search(left + re.escape(exp) + right, body, re.IGNORECASE) is not None
+
+
 def footnote_integrity(text):
     refs = re.findall(r'href="#(s-[\w-]+)"', text)
     ids = set(re.findall(r'id="(s-[\w-]+)"', text))
     missing = sorted(set(refs) - ids)
     uncited = sorted(ids - set(refs))
     # displayed citation numbers (slug ids like s-spiegel carry the number only in the link text)
-    nums = [int(n) for n in re.findall(r'href="#s-[\w-]+"[^>]*>\s*(\d+)\s*</a>', text)]
-    nums += [int(n) for n in re.findall(r'id="s-(\d+)"', text)]
+    shown = [(t, int(n)) for t, n in re.findall(r'href="#(s-[\w-]+)"[^>]*>\s*(\d+)\s*</a>', text)]
+    numbered = {t for t, _ in shown}
+    nums = [n for _, n in shown]
+    # a numeric id (s-3) is the entry's number only when no link displays one for it,
+    # so a slug such as s-2024 cited as "1" is not read as citation 2024
+    nums += [int(i[2:]) for i in ids if i[2:].isdigit() and i not in numbered]
     gaps = sorted(set(range(1, max(nums) + 1)) - set(nums)) if nums else []
-    return {"refs_without_entry": missing, "entries_never_cited": uncited, "numbering_gaps": gaps}
+    targets = {}
+    for t, n in shown:
+        targets.setdefault(n, set()).add(t)
+    reused = sorted(n for n, ts in targets.items() if len(ts) > 1)
+    return {"refs_without_entry": missing, "entries_never_cited": uncited, "numbering_gaps": gaps,
+            "numbers_used_for_several_sources": reused}
 
 
 def main(argv=None):
@@ -107,6 +125,12 @@ def main(argv=None):
             ap.error(f"cannot read claims file: {e}")
         if any(not (r.get("url") or "").strip() or not (r.get("expect") or "").strip() for r in claims):
             ap.error("--claims CSV has a row with a blank url or expect value")
+        claims = [dict(r, url=r["url"].strip()) for r in claims]
+        bad_urls = [r["url"] for r in claims if not re.match(r"https?://[^\s/]+", r["url"], re.IGNORECASE)]
+        if bad_urls:
+            ap.error(f"--claims CSV urls must start with http:// or https://: {bad_urls[0]}")
+    if args.workers < 1:
+        ap.error("--workers must be at least 1")
     need_body = {c["url"] for c in claims}
     with cf.ThreadPoolExecutor(args.workers) as ex:
         futs = {u: ex.submit(fetch, u, 20, u in need_body) for u in set(urls) | need_body}
@@ -118,8 +142,8 @@ def main(argv=None):
     for c in claims:
         body = visible_text(res[c["url"]].get("body", ""))
         exp = c["expect"].strip()
-        found = exp.lower() in body.lower() if body else None
-        claim_rows.append({"url": c["url"], "expect": exp, "found": found})
+        found = contains_figure(body, exp) if body else None
+        claim_rows.append({"url": c["url"], "expect": exp, "found": found, "result": classify(res[c["url"]])})
     foot = footnote_integrity(text) if "<" in text else None
     out = {"links": links, "claims": claim_rows, "footnotes": foot}
     bad = [l for l in links if l["result"] != "ok"]
@@ -135,7 +159,8 @@ def main(argv=None):
         if claim_rows:
             print(f"- Claims: {len(claim_rows) - len(failed_claims)}/{len(claim_rows)} found on the source page")
             for c in failed_claims:
-                state = "page not readable" if c["found"] is None else "NOT FOUND"
+                state = ("DEAD source" if c["result"] == "dead" else "page not readable") \
+                    if c["found"] is None else "NOT FOUND"
                 print(f"  - {state}: '{c['expect']}' at {c['url']}")
         if foot:
             issues = {k: v for k, v in foot.items() if v}
@@ -143,7 +168,8 @@ def main(argv=None):
         print("\nBlocked pages and 'not found' numbers need a human or WebFetch look: the figure may sit "
               "in a PDF, a table image or behind a paywall. Never keep a figure you could not confirm "
               "without labelling it unverified.")
-    failed = ([l for l in links if l["result"] == "dead"] or [c for c in claim_rows if c["found"] is False]
+    failed = ([l for l in links if l["result"] == "dead"]
+              or [c for c in claim_rows if c["found"] is False or c["result"] == "dead"]
               or (foot and any(foot.values())))
     sys.exit(1 if failed else 0)
 

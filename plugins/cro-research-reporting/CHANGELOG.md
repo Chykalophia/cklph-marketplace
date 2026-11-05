@@ -17,7 +17,7 @@ Format: [Keep a Changelog](https://keepachangelog.com); versioning follows [SemV
 - `experiment-design` skill and `/experiment` command (sample size and MDE with CUPED, SRM, readouts with
   guardrails, a per-client test log).
 - `check_citations.py`: mechanical check of every cited URL and load-bearing figure.
-- Unit tests (41, standard library only) in `tests/`, trigger evals and a seeded audit fixture in `evals/`.
+- Unit tests (52, standard library only) in `tests/`, trigger evals and a seeded audit fixture in `evals/`.
 
 ### Changed
 - Copywriting outputs test variants built from customer language; references cleaned of untraceable figures.
@@ -34,6 +34,39 @@ Format: [Keep a Changelog](https://keepachangelog.com); versioning follows [SemV
   opened" rule.
 - 0.4.0's own CI workflow is dropped (it can't run from a plugin subfolder); its unit tests and
   `evals/triggers.json` check run in the marketplace CI instead.
+
+### Review fixes
+From the automated review of the merge. Unit tests now number 52.
+- `power.py` rejects NaN or infinite inputs and a zero or negative `--max-days`.
+- `readout.py` rejects an `--alpha` outside 0 to 1, fractional counts, a zero or negative SD, a bad
+  `--mde` or `--days`, and malformed `--weights` with a usage error instead of a traceback.
+- `readout.py` always prints the run length when `--days` is given, and includes it in JSON.
+- `srm_check.py` rejects non-finite counts and weights whose sum overflows, which could pass SRM.
+- `test_log.py` writes the header into an empty log file, rejects NaN lifts, and no longer crashes on
+  a log without a `rel_lift` column.
+- `agreement.py` rejects a non-finite `--min-kappa`, the same column for both coders, and cells that
+  hold only separators; the table header shows the real column names.
+- `check_citations.py` matches a claimed figure as a whole number ("2" no longer matches "2024"),
+  fails the run when a claim's source is dead, rejects non-http claim URLs and `--workers` below 1,
+  stops reading numeric slugs such as `s-2024` as citation numbers, and flags one number used for
+  two sources.
+- `capture_pages.py` records HTTP error pages as errors, ignores elements hidden by opacity, keeps
+  checkout buttons apart from add-to-cart, reads `aria-label`, adds a largest-form field count,
+  says when the lazy-load scroll stopped early, takes `--viewports` before the URLs, and accepts
+  file:// URLs only with `--allow-file`.
+- `cro-auditor` quotes each URL as its own argument, captures only URLs from the user or brief, and
+  may read `./audit-captures/`.
+- `cro-verifier` uses a per-report `<report>.claims.csv` written by `report-builder`, since it
+  cannot write files.
+- `voc-coder` gains the untrusted-content, Bash, read and write guardrails, broader redaction,
+  a per-code kappa gate, and writes its CSV in the working folder.
+- The checklist adds N/A, keeps P5's star on the in-scale image only, and counts C3 on the checkout
+  form. The fixture key answers P3 and P15 "Can't tell", as the captures show.
+- Baymard abandonment figures now match the live page (returns 13%, total cost 12%, payment
+  methods 9%), and the Shopify link is fixed.
+- Docs: plugin-rooted script paths, `--log` passed to `test_log.py`, sequential tests read from the
+  testing tool, relative MDE and guardrail units in the pre-registration, CUPED `r` from historical
+  data, and sources added for the two copywriting studies.
 
 ## [0.3.2] — 2026-10-27
 

@@ -9,11 +9,12 @@ import unittest
 
 ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 for sub in ("skills/experiment-design/scripts", "skills/voc-research/scripts",
-            "skills/report-information-design/scripts"):
+            "skills/report-information-design/scripts", "skills/ecommerce-cro-audit/scripts"):
     sys.path.insert(0, os.path.join(ROOT, sub))
 
 import _stats  # noqa: E402
 import agreement  # noqa: E402
+import capture_pages  # noqa: E402  (imports Playwright only inside main)
 import check_citations  # noqa: E402
 import power  # noqa: E402
 import readout  # noqa: E402
@@ -198,6 +199,145 @@ class ReviewRoundFourTests(unittest.TestCase):
                 agreement.main([path])
             self.assertIn("(overall)", out.getvalue().split("Not scorable")[1])
             self.assertNotIn("Below", out.getvalue())
+
+def run_cli(fn, argv):
+    """Exit code and stdout of a CLI run (0 when it returns normally)."""
+    out = io.StringIO()
+    with contextlib.redirect_stderr(io.StringIO()), contextlib.redirect_stdout(out):
+        try:
+            fn(argv)
+        except SystemExit as e:
+            return (e.code if isinstance(e.code, int) else 1), out.getvalue()
+    return 0, out.getvalue()
+
+
+def write(path, text):
+    with open(path, "w") as f:
+        f.write(text)
+    return path
+
+
+class ReviewRoundFiveTests(unittest.TestCase):
+    """Findings from the automated review of PR #55."""
+
+    def test_power_rejects_non_finite_and_empty_windows(self):
+        self.assertTrue(rejects(power.main, ["size", "--mean", "inf", "--sd", "5", "--mde", "0.1"]))
+        self.assertTrue(rejects(power.main, ["size", "--baseline", "0.03", "--mde", "0.1",
+                                             "--daily-visitors", "nan"]))
+        self.assertTrue(rejects(power.main, ["mde", "--baseline", "0.03", "--daily-visitors", "1000",
+                                             "--max-days", "nan"]))
+        self.assertTrue(rejects(power.main, ["mde", "--baseline", "0.03", "--daily-visitors", "1000",
+                                             "--max-days", "0"]))
+
+    def test_readout_rejects_bad_alpha_counts_sd_mde_and_weights(self):
+        ok = ["--control", "50000", "1000", "--variant", "50000", "1200"]
+        self.assertTrue(rejects(readout.main, ok + ["--alpha", "0"]))
+        self.assertTrue(rejects(readout.main, ok + ["--alpha", "1.5"]))
+        self.assertTrue(rejects(readout.main, ok + ["--mde", "-0.1"]))
+        self.assertTrue(rejects(readout.main, ok + ["--weights", "50", "nan"]))
+        self.assertTrue(rejects(readout.main, ok + ["--weights", "50", "25", "25"]))
+        self.assertTrue(rejects(readout.main, ["--control", "50000.6", "1000", "--variant", "50000", "1200"]))
+        mean = ["--type", "mean", "--control", "48210", "2.41", "19.8", "--variant", "48530", "2.55"]
+        self.assertTrue(rejects(readout.main, mean + ["-20.4"]))
+        self.assertTrue(rejects(readout.main, ["--type", "mean", "--control", "100", "2.0", "0",
+                                               "--variant", "100", "3.0", "0"]))
+
+    def test_readout_always_reports_run_length(self):
+        argv = ["--control", "50000", "1000", "--variant", "50000", "1200", "--days", "21"]
+        code, text = run_cli(readout.main, argv)
+        self.assertEqual(code, 0)
+        self.assertIn("Run length: 21 days", text)
+        self.assertNotIn("prefer whole weeks", text)
+        self.assertEqual(quiet(readout.main, argv + ["--json"])["days"], 21)
+
+    def test_srm_rejects_non_finite_counts_and_overflowing_weights(self):
+        with self.assertRaises(ValueError):
+            srm_check.srm([float("nan"), 100])
+        with self.assertRaises(ValueError):
+            srm_check.srm([100, 100], [1e308, 1e308])
+
+    def test_test_log_handles_empty_file_nan_lift_and_missing_column(self):
+        with tempfile.TemporaryDirectory() as d:
+            log = write(os.path.join(d, "log.csv"), "")
+            quiet(test_log.main, ["--log", log, "add", "--id", "T1", "--page", "pdp", "--lever", "Trust",
+                                  "--hypothesis", "h", "--outcome", "win", "--rel-lift", "0.04"])
+            rows = test_log.read(log)
+            self.assertEqual([r["id"] for r in rows], ["T1"])
+            with self.assertRaises(SystemExit):
+                quiet(test_log.main, ["--log", log, "add", "--id", "T2", "--page", "pdp", "--lever", "Trust",
+                                      "--hypothesis", "h", "--outcome", "win", "--rel-lift", "nan"])
+            self.assertFalse(test_log.usable({"outcome": "win", "rel_lift": "inf"}))
+            short = write(os.path.join(d, "short.csv"), "id,lever,outcome\nT1,Trust,win\n")
+            code, text = run_cli(test_log.main, ["--log", short, "summary"])
+            self.assertEqual(code, 0)
+            self.assertIn("Win rate 1/1", text)
+
+    def test_agreement_rejects_bad_threshold_same_column_and_separator_cells(self):
+        with tempfile.TemporaryDirectory() as d:
+            good = write(os.path.join(d, "g.csv"), "id,human,ai\n1,cost,cost\n2,fit,fit\n")
+            self.assertTrue(rejects(agreement.main, [good, "--min-kappa", "nan"]))
+            self.assertTrue(rejects(agreement.main, [good, "--a", "ai", "--b", "ai"]))
+            seps = write(os.path.join(d, "s.csv"), "id,human,ai\n1,;,;\n2,cost;fit,cost;fit\n3,fit,cost\n")
+            self.assertTrue(rejects(agreement.main, [seps]))
+            named = write(os.path.join(d, "n.csv"), "id,coder1,coder2\n1,cost,cost\n2,fit,fit\n")
+            _, text = run_cli(agreement.main, [named, "--a", "coder1", "--b", "coder2"])
+            self.assertIn("| code | coder1 count | coder2 count |", text)
+
+    def citation_run(self, claims_text, pages, extra=()):
+        """Run the checker on a link-free report with a fake fetch serving `pages` (url -> (status, body))."""
+        orig = check_citations.fetch
+
+        def fake(url, timeout=20, want_body=False):
+            status, body = pages[url]
+            return {"status": status, "final_url": url, "body": body if want_body else ""}
+        check_citations.fetch = fake
+        try:
+            with tempfile.TemporaryDirectory() as d:
+                rep = write(os.path.join(d, "r.md"), "no links here")
+                claims = write(os.path.join(d, "c.csv"), "url,expect\n" + claims_text)
+                return run_cli(check_citations.main, [rep, "--claims", claims, *extra])
+        finally:
+            check_citations.fetch = orig
+
+    def test_claims_match_whole_figures_only(self):
+        page = {"https://a.example/": (200, "<p>Published in 2024. Rate 10.8%. Abandonment is 70.22.</p>")}
+        self.assertEqual(self.citation_run("https://a.example/,2\n", page)[0], 1)
+        self.assertEqual(self.citation_run("https://a.example/,0.8%\n", page)[0], 1)
+        self.assertEqual(self.citation_run("https://a.example/,70.22\nhttps://a.example/,10.8%\n", page)[0], 0)
+
+    def test_dead_claim_source_fails_the_run(self):
+        code, text = self.citation_run("https://dead.example/,5\n", {"https://dead.example/": (404, "")})
+        self.assertEqual(code, 1)
+        self.assertIn("DEAD source", text)
+        self.assertEqual(self.citation_run("https://b.example/,5\n", {"https://b.example/": (403, "")})[0], 0)
+
+    def test_citation_cli_rejects_bad_claim_urls_and_workers(self):
+        self.assertEqual(self.citation_run("notaurl,5\n", {})[0], 2)
+        self.assertEqual(self.citation_run("file:///etc/hosts,5\n", {})[0], 2)
+        page = {"https://a.example/": (200, "5")}
+        self.assertEqual(self.citation_run("https://a.example/,5\n", page, ["--workers", "0"])[0], 2)
+        self.assertEqual(check_citations.fetch("http://[bad")["status"], None)
+
+    def test_footnotes_numeric_slug_and_reused_numbers(self):
+        slug = '<sup><a href="#s-2024">1</a></sup><li id="s-2024"></li>'
+        f = check_citations.footnote_integrity(slug)
+        self.assertEqual((f["numbering_gaps"], f["numbers_used_for_several_sources"]), ([], []))
+        dup = ('<a href="#s-a">1</a><a href="#s-b">1</a><a href="#s-a">1</a>'
+               '<li id="s-a"></li><li id="s-b"></li>')
+        self.assertEqual(check_citations.footnote_integrity(dup)["numbers_used_for_several_sources"], [1])
+
+    def test_capture_args_accept_viewport_first_and_gate_schemes(self):
+        a = capture_pages.parse_args(["--viewports", "mobile", "https://store.example/p"])
+        self.assertEqual((a.viewports, a.urls), (["mobile"], ["https://store.example/p"]))
+        a = capture_pages.parse_args(["--out", "x", "--", "https://store.example/p", "http://127.0.0.1:9292/"])
+        self.assertEqual(a.viewports, ["desktop", "mobile"])
+        self.assertTrue(rejects(capture_pages.parse_args, ["file:///etc/passwd"]))
+        self.assertTrue(rejects(capture_pages.parse_args, ["javascript:alert(1)"]))
+        self.assertTrue(rejects(capture_pages.parse_args, ["store.example/p"]))
+        self.assertTrue(rejects(capture_pages.parse_args, ["--viewports", "tablet", "https://store.example/p"]))
+        self.assertEqual(capture_pages.parse_args(["--allow-file", "file:///tmp/pdp.html"]).urls,
+                         ["file:///tmp/pdp.html"])
+
 
 class StatsTests(unittest.TestCase):
     def test_chi2_matches_tables(self):

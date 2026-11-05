@@ -28,8 +28,10 @@ def srm(counts, weights=None, threshold=0.001):
         raise ValueError("need one weight per arm")
     if not 0 < threshold < 1:
         raise ValueError("threshold must be between 0 and 1")
-    if any(not math.isfinite(w) or w <= 0 for w in weights) or any(c < 0 for c in counts) or sum(counts) <= 0:
-        raise ValueError("weights must be positive finite numbers and counts non-negative with a positive total")
+    if (any(not math.isfinite(w) or w <= 0 for w in weights) or not math.isfinite(sum(weights))
+            or any(not math.isfinite(c) or c < 0 for c in counts) or sum(counts) <= 0):
+        raise ValueError("weights must be positive finite numbers and counts finite and non-negative "
+                         "with a positive total")
     total, wsum = sum(counts), float(sum(weights))
     expected = [total * w / wsum for w in weights]
     stat = sum((o - e) ** 2 / e for o, e in zip(counts, expected))

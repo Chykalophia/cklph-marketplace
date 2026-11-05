@@ -75,7 +75,8 @@ def guardrail_check(spec, alpha):
             n1, m1, s1, n2, m2, s2 = int(parts[2]), float(parts[3]), float(parts[4]), \
                 int(parts[5]), float(parts[6]), float(parts[7])
             margin = float(parts[8])
-            if n1 <= 0 or n2 <= 0 or m1 <= 0 or s1 < 0 or s2 < 0 or margin <= 0:
+            if n1 <= 0 or n2 <= 0 or m1 <= 0 or s1 <= 0 or s2 <= 0 or margin <= 0 \
+                    or not all(math.isfinite(x) for x in (m1, s1, m2, s2, margin)):
                 raise ValueError
         else:
             n1, x1, n2, x2, margin = int(parts[1]), int(parts[2]), int(parts[3]), int(parts[4]), float(parts[5])
@@ -83,7 +84,7 @@ def guardrail_check(spec, alpha):
                 raise ValueError
     except ValueError:
         raise ValueError(f"bad guardrail numbers (visitors > 0, at least one conversion in each arm since the "
-                         f"relative interval is undefined at zero, or a positive control mean, sd >= 0, "
+                         f"relative interval is undefined at zero, or a positive control mean, sd > 0, "
                          f"margin > 0): {spec}") from None
     name = parts[0]
     variant = 1
@@ -119,18 +120,34 @@ def main(argv=None):
     for arm in [args.control] + args.variant:
         if len(arm) != want:
             ap.error(f"--type {args.type} needs {want} numbers per arm")
+        if not all(math.isfinite(x) for x in arm):
+            ap.error("arm values must be finite numbers")
+        whole = arm[:2] if args.type == "prop" else arm[:1]
+        if any(x != int(x) for x in whole):
+            ap.error("visitor and conversion counts must be whole numbers")
         if arm[0] <= 0 or (args.type == "prop" and not 0 < arm[1] <= arm[0]):
             ap.error("each arm needs visitors > 0 and conversions between 1 and visitors "
                      "(the relative interval is undefined with zero events)")
+        if args.type == "mean" and arm[2] <= 0:
+            ap.error("each arm's standard deviation must be positive")
     if args.type == "mean" and args.control[1] <= 0:
         ap.error("the control mean must be positive (relative lift is measured against it)")
     if args.weights and any(w <= 0 for w in args.weights):
         ap.error("--weights must all be positive")
+    if not math.isfinite(args.alpha) or not 0 < args.alpha < 1:
+        ap.error("--alpha must be between 0 and 1")
+    if args.mde is not None and (not math.isfinite(args.mde) or args.mde <= 0):
+        ap.error("--mde must be a positive relative effect, e.g. 0.08")
+    if args.days is not None and (not math.isfinite(args.days) or args.days <= 0):
+        ap.error("--days must be positive")
     k = len(args.variant)
     alpha = args.alpha / k  # Bonferroni across variants
 
     counts = [int(args.control[0])] + [int(v[0]) for v in args.variant]
-    srm_r = srm(counts, args.weights)
+    try:
+        srm_r = srm(counts, args.weights)
+    except ValueError as e:
+        ap.error(str(e))
     try:
         guards = [guardrail_check(g, alpha) for g in args.guardrail]  # same Bonferroni alpha as the primary
     except ValueError as e:
@@ -167,15 +184,18 @@ def main(argv=None):
         r["decision"] = decision
         results.append(r)
 
-    out = {"alpha_per_comparison": alpha, "srm": srm_r, "guardrails": guards, "variants": results}
+    out = {"alpha_per_comparison": alpha, "days": args.days, "srm": srm_r, "guardrails": guards,
+           "variants": results}
     if args.json:
         print(json.dumps(out, indent=2, default=lambda o: list(o) if isinstance(o, tuple) else str(o)))
         return out
 
     fmt = (lambda x: pct(x, 2)) if args.type == "prop" else (lambda x: f"{x:,.4g}")
     print("## Test readout")
-    if args.days is not None and (args.days < 14 or args.days % 7):
-        print(f"- Note: ran {args.days:g} days. Prefer whole weeks and at least 14 days to cover weekly cycles.")
+    if args.days is not None:
+        print(f"- Run length: {args.days:g} days")
+        if args.days < 14 or args.days % 7:
+            print("- Note: prefer whole weeks and at least 14 days to cover weekly cycles.")
     print(f"- SRM: {'FAIL' if srm_r['srm'] else 'pass'} (p = {srm_r['p_value']:.2e}, shares {srm_r['observed_share']})")
     for i, r in enumerate(results, 1):
         lo, hi = r["rel_ci"]
