@@ -31,8 +31,8 @@ The script installs its own dependencies into a private virtualenv (`~/.cache/ck
 
 **Read the JSON on stdout:**
 - `"status": "ok"`: the transcript is in the file named by `out` (an absolute path; tell the user where it is). Continue to Step 3.
-- `"status": "no_captions"` (exit 2): the video has no captions. Go to Step 2, option C or D.
-- `"status": "blocked_or_failed"` (exit 3): the sandbox is blocked. Go to Step 2.
+- `"status": "no_captions"` (exit 2): every method reports that the video has no captions. Retrying or asking for a paste can't help; go straight to **No captions at all?** below.
+- `"status": "blocked_or_failed"` (exit 3): every method failed. Read `attempts`: IP blocks, bot checks and 429s mean the sandbox is blocked, so go to Step 2. Anything else (a dependency install or a script error) is a fault to report as it is, not a reason to fall back.
 
 Each attempt is logged to stderr. When you fall back, tell the user briefly which methods failed and why (IP block, bot check, 429); don't hide it.
 

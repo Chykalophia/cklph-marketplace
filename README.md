@@ -15,7 +15,7 @@
 ---
 
 > [!NOTE]
-> **TL;DR** — One repo, one marketplace (`cklph`), eleven plugins that layer on each other:
+> **TL;DR** — One repo, one marketplace (`cklph`), twelve plugins that layer on each other:
 > a dev-workflow spine, Next.js + Supabase patterns, auditing and monitoring, a WordPress and
 > design pipeline, and CRO research. Install only what you need.
 
@@ -180,6 +180,8 @@ Each plugin has its own `plugin.json`, `README.md`, and `CHANGELOG.md` inside it
 bats test/                                              # cklph-os hooks, incl. the destructive-command gate
 bash plugins/cklph-wp/tests/cwp.test.sh                 # cwp, against a fake ssh
 bash plugins/cklph-elementor/tests/el-tools.test.sh
+bash plugins/cklph-youtube/tests/get_transcript.test.sh # offline, no network
+(cd plugins/cro-research-reporting && python3 -m unittest discover -s tests)
 node --test plugins/cklph-audit/tests/*.test.mjs        # scanner wrappers against fake scanners
 (cd plugins/vuln-intel-ext && npm ci && npm test)
 (cd plugins/cklph-regression-watch && npm ci && npm test && npm run self-test)   # needs Chromium

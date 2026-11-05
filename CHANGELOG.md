@@ -15,7 +15,7 @@ Format: [Keep a Changelog](https://keepachangelog.com).
   `cro-research-reporting` under "Strategy and research".
 - `cro-research-reporting` 0.4.0 merges the line built in the old standalone repo
   (`Chykalophia/cro-research-reporting`) with 0.3.1/0.3.2 from here. This marketplace is now its only
-  source; the standalone repo is to be archived. Its unit tests and trigger evals run in CI.
+  source; the standalone repo is to be archived. Its unit tests and an `evals/triggers.json` syntax check run in CI.
 
 ## 2026-10-27
 

@@ -50,6 +50,19 @@ class Parsing(unittest.TestCase):
             os.unlink(f.name)
         self.assertEqual(texts, cues)
 
+    def test_vtt_drops_cue_ids_keeps_numeric_captions_and_unescapes(self):
+        vtt = ("WEBVTT\nKind: captions\n\n"
+               "1\n00:00:01.000 --> 00:00:02.000\nThe year was\n\n"
+               "2\n00:00:02.000 --> 00:00:03.000\n2024\n\n"
+               "intro-cue\n00:00:03.000 --> 00:00:04.000\nTom &amp; Jerry&#39;s\n")
+        with tempfile.NamedTemporaryFile("w", suffix=".vtt", delete=False) as f:
+            f.write(vtt)
+        try:
+            texts = [t for _, t in gt.parse_vtt(f.name)]
+        finally:
+            os.unlink(f.name)
+        self.assertEqual(texts, ["The year was", "2024", "Tom & Jerry's"])
+
     def test_pick_vtt_follows_lang_order(self):
         v = "dQw4w9WgXcQ"
         en, es, orig = f"/t/{v}.en.vtt", f"/t/{v}.es.vtt", f"/t/{v}.en-orig.vtt"
@@ -97,7 +110,7 @@ class Venv(unittest.TestCase):
             venv = os.path.join(d, "venv"); py = os.path.join(venv, "bin", "python")
 
             def fake_run(cmd, **kw):
-                self.assertEqual(cmd[1:3], ["-m", "venv"])
+                self.assertEqual(cmd, [sys.executable, "-m", "venv", venv])
                 os.makedirs(os.path.dirname(py)); open(py, "w").close()
                 return mock.Mock(returncode=0)
 
@@ -146,6 +159,29 @@ class YtdlpWiring(unittest.TestCase):
         with mock.patch.object(gt, "pip_install"), mock.patch.object(gt.subprocess, "run", side_effect=fake_run):
             segs = gt.via_ytdlp(vid, ["es", "en"])
         self.assertEqual(segs, [(1, "hola")])
+
+    def test_a_bot_check_moves_on_to_the_next_player_client(self):
+        vid, calls = "dQw4w9WgXcQ", []
+
+        def fake_run(args, **kw):
+            calls.append(args)
+            if len(calls) == 1:
+                return mock.Mock(returncode=1, stdout="", stderr="ERROR: Sign in to confirm you're not a bot")
+            tmp = os.path.dirname(args[args.index("-o") + 1])
+            with open(os.path.join(tmp, f"{vid}.en.vtt"), "w") as f:
+                f.write("WEBVTT\n\n00:00:01.000 --> 00:00:02.000\nhello\n")
+            return mock.Mock(returncode=0, stdout="", stderr="")
+
+        with mock.patch.object(gt, "pip_install"), mock.patch.object(gt.subprocess, "run", side_effect=fake_run):
+            self.assertEqual(gt.via_ytdlp(vid, ["en"]), [(1, "hello")])
+        self.assertEqual(len(calls), 2)
+
+    def test_bot_check_on_every_client_is_reported_as_a_bot_check(self):
+        bot = mock.Mock(returncode=1, stdout="", stderr="ERROR: Sign in to confirm you're not a bot")
+        with mock.patch.object(gt, "pip_install"), mock.patch.object(gt.subprocess, "run", return_value=bot) as run:
+            with self.assertRaisesRegex(RuntimeError, "bot check"):
+                gt.via_ytdlp("dQw4w9WgXcQ", ["en"])
+        self.assertEqual(run.call_count, 6)
 
 
 class Housekeeping(unittest.TestCase):

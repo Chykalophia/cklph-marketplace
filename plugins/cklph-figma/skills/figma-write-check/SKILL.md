@@ -44,7 +44,7 @@ Also check `user_can_access_figma_ai` on the plan. Edits run through Figma's AI 
 
 Load `figma-use` first: Figma requires it before every `use_figma` call, reads included. Pass it in each call's `skillNames` (prefixed `resource:` when it came from the Figma server).
 
-Parse the file key from the URL (`figma.com/design/<fileKey>/...`; for branches use the branch key). Run a read-only `use_figma`:
+Parse the file key from the URL: `figma.com/design/<fileKey>/...`, `figma.com/board/<fileKey>/...` (FigJam) or `figma.com/slides/<fileKey>/...`; for a branch (`/design/<fileKey>/branch/<branchKey>/...`) use the branch key. Pass that `fileKey` to this call and to the write probe, so both run against the user's file and not whichever file the connector used last. Run a read-only `use_figma`:
 
 ```js
 return { pages: figma.root.children.map(p => p.name), editorType: figma.editorType };
@@ -57,7 +57,7 @@ return { pages: figma.root.children.map(p => p.name), editorType: figma.editorTy
 
 ## Step 4: Write probe
 
-A read can succeed on a view-only file. Prove edit permission with a create-and-remove in one call. Nothing is left behind.
+A read can succeed on a view-only file. Prove edit permission with a create-and-remove in one call, against the same `fileKey`. Nothing is left behind. The probe uses a frame, which Design files support; in FigJam or Slides, load `figma-use-figjam` or `figma-use-slides` and probe with a node that editor supports (in FigJam, `figma.createSticky()`).
 
 ```js
 const page = figma.currentPage;
@@ -68,8 +68,12 @@ f.name = '__claude-write-probe__';
 f.resize(10, 10);
 f.x = maxX + 5000; f.y = -5000;
 const id = f.id;
-const existed = !!(await figma.getNodeByIdAsync(id));
-f.remove();
+let existed = false;
+try {
+  existed = !!(await figma.getNodeByIdAsync(id));
+} finally {
+  if (!f.removed) f.remove();   // clean up even if the lookup throws
+}
 const removed = !(await figma.getNodeByIdAsync(id));
 return { probeId: id, created: existed, removed, writeOk: existed && removed };
 ```

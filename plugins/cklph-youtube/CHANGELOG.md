@@ -18,4 +18,9 @@ Format: [Keep a Changelog](https://keepachangelog.com); versioning follows [SemV
 - Output goes to `transcript-<video-id>.txt` by default, so transcripts no longer overwrite each other;
   the output file is closed properly, and yt-dlp's temp folder is removed even when it fails.
 - `YT_PROXY_HTTP` alone now enables the proxy methods (they needed `YT_PROXY_HTTPS`).
-- Offline tests in `tests/` (16), each fix included.
+- Captions that are only a number ("2024") are kept; cue identifiers are recognised by the timing line
+  under them. HTML entities (`&amp;`, `&#39;`) are decoded.
+- A bot check on one yt-dlp player client moves on to the next instead of abandoning all six.
+- The skill routes `no_captions` straight to the no-captions guidance, and reads `attempts` before
+  treating exit 3 as a block.
+- Offline tests in `tests/` (19), each fix included.

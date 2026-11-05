@@ -112,18 +112,25 @@ def via_api(vid, langs, proxy=False):
             raise
     return [(s.start, s.text.replace("\n", " ")) for s in fetched]
 
+def _vtt_time(line):
+    m = re.match(r"(\d+):(\d+):(\d+)\.\d+\s+-->", line) or re.match(r"(\d+):(\d+)\.\d+\s+-->", line)
+    if not m: return None
+    g = [int(x) for x in m.groups()]
+    return g[0]*3600+g[1]*60+g[2] if len(g) == 3 else g[0]*60+g[1]
+
 def parse_vtt(path):
-    segs, start = [], 0.0
+    import html as H
+    segs, start, header = [], 0.0, True
     with open(path, encoding="utf-8") as f:
-        lines = f.read().splitlines()
-    for line in lines:
-        line = line.strip()
-        m = re.match(r"(\d+):(\d+):(\d+)\.\d+\s+-->", line) or re.match(r"(\d+):(\d+)\.\d+\s+-->", line)
-        if m:
-            g = [int(x) for x in m.groups()]
-            start = g[0]*3600+g[1]*60+g[2] if len(g) == 3 else g[0]*60+g[1]; continue
-        if not line or line.startswith(("WEBVTT", "Kind:", "Language:", "NOTE")) or line.isdigit(): continue
-        text = re.sub(r"<[^>]+>", "", line).strip()
+        lines = [l.strip() for l in f.read().splitlines()]
+    for i, line in enumerate(lines):
+        t = _vtt_time(line)
+        if t is not None:
+            start, header = t, False; continue
+        if not line or header: continue                     # WEBVTT, Kind:, Language: come before the first cue
+        if line.startswith("NOTE"): continue
+        if i + 1 < len(lines) and _vtt_time(lines[i + 1]) is not None: continue  # cue identifier: the line right above a timing line
+        text = H.unescape(re.sub(r"<[^>]+>", "", line)).strip()
         # Auto-subs roll: each cue repeats the previous line or two. Drop only those near repeats, so a
         # line that genuinely recurs later ("Yeah.", a chorus) is kept.
         if text and text not in [t for _, t in segs[-3:]]:
@@ -159,7 +166,7 @@ def _ytdlp_into(tmp, vid, langs, proxy):
             "--compat-options", "no-certifi"]  # use system CA store (sandbox egress proxies re-sign TLS)
     if os.environ.get("YT_COOKIES_FILE"): base += ["--cookies", os.environ["YT_COOKIES_FILE"]]
     if proxy: base += ["--proxy", proxy_url()]
-    last_err = ""
+    last_err, bot_checked = "", False
     for client in ["default", "web", "android", "ios", "tv_embedded", "mweb"]:
         args = list(base)
         if client != "default": args += ["--extractor-args", f"youtube:player_client={client}"]
@@ -171,10 +178,13 @@ def _ytdlp_into(tmp, vid, langs, proxy):
         last_err = (r.stderr or r.stdout).strip().splitlines()[-1:] or [""]
         last_err = last_err[0]
         if "sign in to confirm" in last_err.lower():
-            raise RuntimeError("yt-dlp: YouTube bot check (needs YT_COOKIES_FILE or a different IP)")
+            # Another player client often gets past a bot check that stopped this one: keep going.
+            bot_checked = True; log(f"yt-dlp player_client={client}: YouTube bot check"); continue
         if "no subtitles" in last_err.lower() or "There are no subtitles" in (r.stdout or ""):
             return NO_CAPTIONS
         log(f"yt-dlp player_client={client} failed: {last_err[:160]}")
+    if bot_checked:
+        raise RuntimeError("yt-dlp: YouTube bot check on every client that got that far (needs YT_COOKIES_FILE or a different IP)")
     raise RuntimeError(f"yt-dlp: all clients failed ({last_err[:160]})")
 
 def via_watchpage(vid, langs):
