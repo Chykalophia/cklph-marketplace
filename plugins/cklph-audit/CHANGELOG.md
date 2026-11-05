@@ -6,8 +6,8 @@ All notable changes to `cklph-audit` are documented here. This project adheres t
 ## 1.3.2 — 2026-11-05
 
 ### Changed
-- Comments only, no code change. Removed comments that restated the next line, made two history
-  comments present tense, and dropped stale line numbers from a cross-reference in `tools/ambiguity/common.mjs`.
+- Comments only, no code change. Removed comments that restated the next line, made one history
+  comment present tense, and dropped stale line numbers from a cross-reference in `tools/ambiguity/common.mjs`.
 
 ## 1.3.1 — 2026-11-02
 

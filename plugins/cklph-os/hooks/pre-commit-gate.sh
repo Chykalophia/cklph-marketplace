@@ -5,8 +5,8 @@
 # Checks: TypeScript, ESLint, Semgrep custom rules — against the CURRENT project.
 # Exit 2 = block the tool call. Exit 0 = allow it.
 #
-# Project-tunable: the ESLint --max-warnings budget (CKLPH_ESLINT_MAX_WARNINGS) and the
-# Semgrep config dir (.semgrep/). Each check skips when its tool or config is absent.
+# The ESLint warning budget is CKLPH_ESLINT_MAX_WARNINGS (default 0). Semgrep runs only when the
+# repo has a .semgrep/ rules dir. A tool that is not installed locally skips its check.
 
 set -uo pipefail
 
