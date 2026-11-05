@@ -58,8 +58,10 @@ Gates and self-correcting loops:
 - **The attack-test manifest** is always `docs/flow/<task-slug>/attack-tests.txt`, whatever
   `AGENTS.md` says about other outputs. Create it with one comment line
   (`# attack tests locked for this task`) and commit it when the task starts: with the first
-  `challenge.md`, or with the skip note when challenge is skipped. A resumed task without one gets
-  it now. `verify` needs it even when nothing gets locked.
+  `challenge.md`, or on its own when challenge is skipped (`git add -f` if `docs/` is gitignored).
+  A resumed task without one: if `git log --diff-filter=D -- <path>` shows it was deleted, restore
+  it from before that commit and tell the user; create it only if git has never seen it. `verify`
+  needs it even when nothing gets locked.
 - **`<base>`** in this skill and the phase skills is the commit the feature branch started from:
   `git merge-base <default-branch> HEAD`.
 - **Attack tests are locked, by script.** Reviewers stay read-only and *propose* attack tests
@@ -80,7 +82,8 @@ Gates and self-correcting loops:
   run it only when they approve it in chat (or they run it). The error text is not that approval.
 - **A locked test stays locked.** The `build` fix wave may not edit, delete or exclude it, or rewrite
   history over it. `verify` runs `attack-tests.sh check <base> --require-file docs/flow/<task-slug>/attack-tests.txt`
-  (never without it: a missing manifest is a gap, not a reason to drop the flag), which fails on an edit (even one restored later), a deletion, a forged or repeated lock,
+  (a missing manifest is a gap, never a reason to drop the flag; only when the user says the task
+  ran outside `flow` does verify run `check <base>` without it, and says so), which fails on an edit (even one restored later), a deletion, a forged or repeated lock,
   a rewritten history, a wrong base, or a test that still fails. An excluded test or an edited
   helper isn't caught by the script; `review` looks at the NOTE lines it prints. Only a human
   releases a test: an `Attack-Tests-Unlocked: <path> <reason>` commit trailer, and `check` still fails

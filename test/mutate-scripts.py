@@ -90,7 +90,7 @@ MUTS = [
     (AT, "test/attack-tests.bats", "trap 'stop_test 143' TERM", "trap 'stop_test 130' TERM", "TERM exits 130"),
     (AT, "test/attack-tests.bats", 'git diff -z --name-only "$c" HEAD', 'git diff --name-only "$c" HEAD', "NOTE names not NUL-separated"),
     (AT, "test/attack-tests.bats", 'already holds them and is staged', 'needs them added', "exit 3 hides the staged manifest"),
-    (AT, "test/attack-tests.bats", 'Make sure it lists each of these once (it may already), git add it (-f if it\'s gitignored), then', 'Add these lines and commit', "exit 3 doubles a written manifest"),
+    (AT, "test/attack-tests.bats", 'Make sure it lists each of these once (it may already: ${ARGS[*]}), git add it (-f if it\'s gitignored), then run', 'Add these lines and commit', "exit 3 doubles a written manifest"),
     (AT, "test/attack-tests.bats", '{ [ ! -s "$MANIFEST" ] || [ -z "$(tail -c 1 "$MANIFEST")" ] || echo >> "$MANIFEST"; } &&', '', "manifest without a final newline gets glued"),
     (AT, "test/attack-tests.bats", 'echo "$c"; exit 3; }', 'exit 1; }', "failed manifest commit looks like a refusal"),
     (AT, "test/attack-tests.bats", 'git -c core.hooksPath=/dev/null worktree add', 'git worktree add', "--clean runs checkout hooks"),
@@ -136,13 +136,16 @@ def main():
     for path, suite, old, new, label in MUTS:  # check every pattern before spending time on runs
         n = path.read_text().count(old)
         if n != 1: print(f"pattern for '{label}' matches {n} times; update it", flush=True); return 2
-    for suite in sorted({m[1] for m in MUTS}):
-        out, rc = run_suite(suite)
-        if rc != 0:
-            print(f"baseline is red or hung for {suite}; fix it first:\n{(out or '')[-2000:]}", flush=True); return 2
+    copies = [TMP / f"w{w}" for w in range(WORKERS)]
+    for c in copies: shutil.copytree(ROOT, c)
+    # Baseline under the same parallel load the mutations get, so a red test means the mutation, not load.
+    with concurrent.futures.ThreadPoolExecutor(WORKERS) as pool:
+        for suite in sorted({m[1] for m in MUTS}):
+            for out, rc in pool.map(lambda c: run_suite(suite, root=c), copies):
+                if rc != 0:
+                    print(f"baseline is red or hung for {suite}; fix it first:\n{(out or '')[-2000:]}", flush=True); return 2
     roots = queue.Queue()
-    for w in range(WORKERS):
-        shutil.copytree(ROOT, TMP / f"w{w}"); roots.put(TMP / f"w{w}")
+    for c in copies: roots.put(c)
     def work(m):
         root = roots.get()
         try: return try_mutation(m, root)

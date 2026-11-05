@@ -535,7 +535,7 @@ fix_bug() { printf 'echo 2\n' > src.sh; git commit -qam "fix"; }
 }
 
 @test "a test that hangs is stopped: lock refuses it, check fails it, children included" {
-  D=$((300 + $$ % 600))                            # unique per run, so parallel suites don't see each other
+  D="31.$(( $$ % 100000 ))"                        # short, and unique per run so parallel suites don't see each other
   printf 'sleep %s; echo want 2; exit 1\n' "$D" > "$T"
   SECONDS=0
   run env CKLPH_ATTACK_TIMEOUT=2 bash "$AT" lock --run "$RUN" --expect "$EXP" "$T"
@@ -638,7 +638,7 @@ fix_bug() { printf 'echo 2\n' > src.sh; git commit -qam "fix"; }
 
 @test "a killed check stops its test (even one ignoring TERM) and the watchdog" {
   lock "$T" >/dev/null
-  D=$((1000 + $$ % 600)); W=$((D + 1000))         # unique per run, so parallel suites don't see each other
+  D="41.$(( $$ % 100000 ))"; W=$((1000 + $$ % 100000))   # unique per run, so parallel suites don't see each other
   printf 'trap "" TERM; sleep %s; echo 2\n' "$D" > src.sh; git commit -qam "slow fix"
   CKLPH_ATTACK_TIMEOUT=$W bash "$AT" check "$BASE" >/dev/null 2>&1 & k=$!
   for i in 1 2 3 4 5 6 7 8 9 10; do pgrep -f "^sleep $D\$" >/dev/null && break; sleep 0.5; done
@@ -675,6 +675,9 @@ fix_bug() { printf 'echo 2\n' > src.sh; git commit -qam "fix"; }
   M=docs/flow/t/attack-tests.txt
   printf 'docs/\n' > .gitignore && git add .gitignore && git commit -qm "ignore docs"
   run bash "$AT" lock --run "$RUN" --expect "$EXP" --manifest "$M" "$T"
-  [ "$status" -eq 3 ]; has "ARE locked"; has "(it may already)"; has "-f if it's gitignored"
+  [ "$status" -eq 3 ]; has "ARE locked"; has "(it may already: $T)"; has "-f if it's gitignored"
   [ "$(cat "$M")" = "$T" ]
+  git add -f "$M"
+  cmd="${output##*then run: }"; eval "${cmd%%$'\n'*}"   # the printed command works as printed
+  [ "$(git show HEAD:"$M")" = "$T" ]; [ -z "$(git status --porcelain)" ]
 }

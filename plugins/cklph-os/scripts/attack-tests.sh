@@ -244,11 +244,11 @@ $(git status --porcelain --untracked-files=all)"
           { [ ! -s "$MANIFEST" ] || [ -z "$(tail -c 1 "$MANIFEST")" ] || echo >> "$MANIFEST"; } &&
           printf '%s\n' "${ARGS[@]}" >> "$MANIFEST" &&
           git add -- "$MANIFEST" && git commit -q $NOVERIFY -m "test: record locked attack tests" -- "$MANIFEST"; } || {
-            hint="git commit $NOVERIFY -m 'test: record locked attack tests' -- $MANIFEST"
+            hint="git commit${NOVERIFY:+ $NOVERIFY} -m 'test: record locked attack tests' -- $MANIFEST"
             if git diff --cached --quiet -- "$MANIFEST" 2>/dev/null; then
-                echo "attack-tests: the tests ARE locked in $c (don't delete them), but updating $MANIFEST failed. Make sure it lists each of these once (it may already), git add it (-f if it's gitignored), then: $hint  -- ${ARGS[*]}" >&2
+                echo "attack-tests: the tests ARE locked in $c (don't delete them), but updating $MANIFEST failed. Make sure it lists each of these once (it may already: ${ARGS[*]}), git add it (-f if it's gitignored), then run: $hint" >&2
             else
-                echo "attack-tests: the tests ARE locked in $c (don't delete them), but the manifest commit failed; $MANIFEST already holds them and is staged. If a hook rejected it, fix the hook or ask the user, then: $hint" >&2
+                echo "attack-tests: the tests ARE locked in $c (don't delete them), but the manifest commit failed; $MANIFEST already holds them and is staged. If a hook rejected it, fix the hook or ask the user, then run: $hint" >&2
             fi
             echo "$c"; exit 3; }
     fi

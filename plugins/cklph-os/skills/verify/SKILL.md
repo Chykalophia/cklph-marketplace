@@ -17,7 +17,8 @@ description: The VERIFY phase of the cklph-os flow — prove it works. Run build
    `"${CLAUDE_PLUGIN_ROOT}/scripts/attack-tests.sh" check <base> --require-file docs/flow/<task-slug>/attack-tests.txt`
    (`<base>` per `flow` → Hand-offs; `flow` commits that manifest when the task starts, so "can't
    read" means a wrong checkout, path or slug: report it as a gap, never drop `--require-file` to get
-   past it; only the user can say a task ran outside `flow` and skip it; add `--branch <name>` on a
+   past it; only when the user says the task ran outside `flow`, run `check <base>` without
+   `--require-file` and say so in the report; add `--branch <name>` on a
    detached HEAD; add `--clean` when the
    test command doesn't need gitignored files such as `node_modules`, so a fix that only exists in
    an ignored file fails too). It fails if a locked test was touched after its lock, was dropped,

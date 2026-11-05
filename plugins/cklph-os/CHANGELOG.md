@@ -54,8 +54,8 @@ has, Claude called it "ready to start" and proposed a new file.
 - Tests: `test/marker.bats` (20), `test/attack-tests.bats` (55), `test/attack-tests-forgery.bats` (the
   round 4 red-team's own attack test, locked with the script before the fix and passing after it),
   and a hooks.bats case that fails when a skill, reference file or agent emits a marker (backticked
-  or bare) with no row. `test/mutate-scripts.py` reinjects 83 bug shapes into a throwaway copy of the two
-  scripts, after checking the suites are green unmutated; each turns a test red. Trigger tests for `challenge` and `refine`
+  or bare) with no row. `test/mutate-scripts.py` reinjects 83 bug shapes into throwaway copies of the two
+  scripts (4 at a time; `MUTATE_JOBS`), after checking the suites are green unmutated in parallel; each turns a test red. Trigger tests for `challenge` and `refine`
   (refine had none). Proof: `docs/proof/challenge/2026-11-04.md`.
 
 ### Changed
