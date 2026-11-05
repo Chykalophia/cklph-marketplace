@@ -166,8 +166,9 @@ def _ytdlp_into(tmp, vid, langs, proxy):
             "--compat-options", "no-certifi"]  # use system CA store (sandbox egress proxies re-sign TLS)
     if os.environ.get("YT_COOKIES_FILE"): base += ["--cookies", os.environ["YT_COOKIES_FILE"]]
     if proxy: base += ["--proxy", proxy_url()]
-    last_err, bot_checked = "", False
-    for client in ["default", "web", "android", "ios", "tv_embedded", "mweb"]:
+    clients = ["default", "web", "android", "ios", "tv_embedded", "mweb"]
+    bots, other = 0, ""  # bot-checked clients; the last non-bot error
+    for client in clients:
         args = list(base)
         if client != "default": args += ["--extractor-args", f"youtube:player_client={client}"]
         r = subprocess.run(args + [f"https://www.youtube.com/watch?v={vid}"], capture_output=True, text=True)
@@ -179,13 +180,15 @@ def _ytdlp_into(tmp, vid, langs, proxy):
         last_err = last_err[0]
         if "sign in to confirm" in last_err.lower():
             # Another player client often gets past a bot check that stopped this one: keep going.
-            bot_checked = True; log(f"yt-dlp player_client={client}: YouTube bot check"); continue
+            bots += 1; log(f"yt-dlp player_client={client}: YouTube bot check"); continue
         if "no subtitles" in last_err.lower() or "There are no subtitles" in (r.stdout or ""):
             return NO_CAPTIONS
-        log(f"yt-dlp player_client={client} failed: {last_err[:160]}")
-    if bot_checked:
-        raise RuntimeError("yt-dlp: YouTube bot check on every client that got that far (needs YT_COOKIES_FILE or a different IP)")
-    raise RuntimeError(f"yt-dlp: all clients failed ({last_err[:160]})")
+        other = last_err; log(f"yt-dlp player_client={client} failed: {last_err[:160]}")
+    if bots == len(clients):
+        raise RuntimeError("yt-dlp: YouTube bot check on every client (needs YT_COOKIES_FILE or a different IP)")
+    if bots:
+        raise RuntimeError(f"yt-dlp: {bots} of {len(clients)} clients hit a bot check; the rest failed ({other[:160]})")
+    raise RuntimeError(f"yt-dlp: all clients failed ({other[:160]})")
 
 def via_watchpage(vid, langs):
     """Scrape captionTracks from the watch page and pull the timedtext XML directly."""

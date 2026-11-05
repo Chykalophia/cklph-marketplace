@@ -176,6 +176,14 @@ class YtdlpWiring(unittest.TestCase):
             self.assertEqual(gt.via_ytdlp(vid, ["en"]), [(1, "hello")])
         self.assertEqual(len(calls), 2)
 
+    def test_mixed_failures_are_not_reported_as_all_bot_checks(self):
+        bot = mock.Mock(returncode=1, stdout="", stderr="ERROR: Sign in to confirm you're not a bot")
+        other = mock.Mock(returncode=1, stdout="", stderr="ERROR: HTTP Error 403: Forbidden")
+        with mock.patch.object(gt, "pip_install"), \
+             mock.patch.object(gt.subprocess, "run", side_effect=[bot] + [other] * 5):
+            with self.assertRaisesRegex(RuntimeError, r"1 of 6 clients hit a bot check; the rest failed \(ERROR: HTTP Error 403"):
+                gt.via_ytdlp("dQw4w9WgXcQ", ["en"])
+
     def test_bot_check_on_every_client_is_reported_as_a_bot_check(self):
         bot = mock.Mock(returncode=1, stdout="", stderr="ERROR: Sign in to confirm you're not a bot")
         with mock.patch.object(gt, "pip_install"), mock.patch.object(gt.subprocess, "run", return_value=bot) as run:

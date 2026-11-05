@@ -20,7 +20,8 @@ Format: [Keep a Changelog](https://keepachangelog.com); versioning follows [SemV
 - `YT_PROXY_HTTP` alone now enables the proxy methods (they needed `YT_PROXY_HTTPS`).
 - Captions that are only a number ("2024") are kept; cue identifiers are recognised by the timing line
   under them. HTML entities (`&amp;`, `&#39;`) are decoded.
-- A bot check on one yt-dlp player client moves on to the next instead of abandoning all six.
+- A bot check on one yt-dlp player client moves on to the next instead of abandoning all six. The final
+  error says how many clients hit a bot check and what the others failed with.
 - The skill routes `no_captions` straight to the no-captions guidance, and reads `attempts` before
   treating exit 3 as a block.
-- Offline tests in `tests/` (19), each fix included.
+- Offline tests in `tests/` (20), each fix included.
