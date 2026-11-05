@@ -37,10 +37,6 @@ this forked from.
   it makes. That copy replaces the skill already installed or uploaded.
   The old folder stays git-ignored, because a checkout leaves git-ignored client
   files behind in it.
-- `install.sh` follows the move in git history, so a brand file installed
-  before 3.7.0 is still recognised as an older committed version.
-- `verify.sh` prints a failing test's `FAIL` lines. Under `pipefail` it used to
-  stop before printing them.
 - A brand slug defined both locally and in the bundle is refused, and so are an
   alias claimed by two brands and a `CKLPH_DIAGRAM_BRANDS` that is not a
   directory. None of them falls back.
@@ -55,6 +51,13 @@ this forked from.
   so `verify` was red on the runner (it was on #11 too).
 - The onboarding guide, SKILL.md §0, `cklph.md` and `install.sh` say where
   client brands and fonts go now.
+
+### Fixed
+
+- `install.sh` follows the move in git history, so a brand file installed
+  before 3.7.0 is still recognised as an older committed version.
+- `verify.sh` prints a failing test's `FAIL` lines. Under `pipefail` it used to
+  stop before printing them.
 
 ## [3.6.0] — 2026-10-21
 
