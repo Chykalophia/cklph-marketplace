@@ -21,7 +21,8 @@ description: The SHIP phase of the cklph-os flow — open a PR (or merge) with a
 
 After the PR merges, clear its attack-test lock refs from the local clone:
 `"${CLAUDE_PLUGIN_ROOT}/scripts/attack-tests.sh" prune --branch <feature-branch>` (from the default
-branch), or plain `prune` once the branch is deleted.
+branch, and only after the merge: it can't tell a squash merge happened), or plain `prune` once the
+branch is deleted.
 
 Push and PR are externally visible — **confirm with the user before doing them** unless they've
 authorized it for this task. Match the action to what was actually requested.

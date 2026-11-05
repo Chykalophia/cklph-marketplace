@@ -67,7 +67,8 @@ Gates and self-correcting loops:
   expected failure without changing anything (or hanging past `CKLPH_ATTACK_TIMEOUT`, default
   600 s), and nothing else changed; it records the command and a lock ref, then commits the paths to
   the manifest. That committed manifest, never `attack-tests.sh list`, feeds `check --require-file`
-  (a lock that vanished from history isn't listed). A test the script
+  (a lock that vanished from history isn't listed). Exit 3 means the tests ARE locked but the
+  manifest commit failed: keep them, add the printed paths to the manifest and commit it. A test the script
   refuses goes back to the reviewer, never into the lock; unless the refusal names a git hook,
   delete the test file you wrote, since `check` fails on untracked leftovers. A refusal caused by a git hook (one that runs the test suite always rejects
   an attack test) is not the reviewer's: show the user the exact `lock … --no-verify` command and

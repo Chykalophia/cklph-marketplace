@@ -40,7 +40,7 @@ MUTS = [
     (AT, "test/attack-tests.bats", 'die "timed out after ${TIMEOUT}s, so it proves nothing', 'true "timed out after ${TIMEOUT}s, so it proves nothing', "lock accepts a hanging test"),
     (AT, "test/attack-tests.bats", ' || is_runner_config "$f"; then', '; then', "NOTE skips runner config"),
     (AT, "test/attack-tests.bats", 'undo "a commit hook added lines after', 'true "a commit hook added lines after', "lines after the trailers locked"),
-    (AT, "test/attack-tests.bats", 'if [ -n "$CLEAN" ]; then cd "$wt"; run_test', 'if false; then cd "$wt"; run_test', "--clean ignored"),
+    (AT, "test/attack-tests.bats", 'if [ -n "$CLEAN" ]; then cd "$wt" ||', 'if false; then cd "$wt" ||', "--clean ignored"),
     (AT, "test/attack-tests.bats", 'RUN=$(sed -e \'s/^[[:space:]]*//\' -e \'s/[[:space:]]*$//\' <<< "$RUN")', ':', "--run not trimmed"),
     (AT, "test/attack-tests.bats", 'case "$EXPECT" in [[:space:]]*|*[[:space:]]) die', 'case "" in x) die', "edge space in --expect accepted"),
     (AT, "test/attack-tests.bats", 'git rev-list --full-history', 'git rev-list', "side-branch edit-then-restore hidden"),
@@ -61,7 +61,7 @@ MUTS = [
     (AT, "test/attack-tests.bats", 'elif git merge-base --is-ancestor "$c" "$base"; then', 'elif false; then', "base excluding the locks accepted"),
     (AT, "test/attack-tests.bats", 'if has_lock "$p"; then ERRORS+=', 'if false; then ERRORS+=', "re-lock while locked accepted"),
     (AT, "test/attack-tests.bats", 'if [ "$added" != "$listed" ] || [ -z "$run" ]; then', 'if false; then', "forged lock trailers accepted"),
-    (AT, "test/attack-tests.bats", 'has_lock "$r" || {', 'true || {', "--require ignored"),
+    (AT, "test/attack-tests.bats", 'has_lock "$r" || [[', 'true || [[', "--require ignored"),
     (AT, "test/attack-tests.bats", '[[ "$c" == "$as"* ]] && ok=1', 'ok=1', "one allowance covers every unlock"),
     (AT, "test/attack-tests.bats", '= "$before" ] || die', '= "$before" ] || true', "self-modifying test locked"),
     (AT, "test/attack-tests.bats", "[[ \"$RUN\" == *'$1'* ]] || die", 'true || die', "run command ignoring $1 accepted"),
@@ -83,6 +83,15 @@ MUTS = [
     (MK, "test/marker.bats", 'length(f) >= length(fence)', '1', "shorter fence closes a longer one"),
     (MK, "test/marker.bats", 'intable = ($0 ~ /^## Markers[ \\t]*$/)', 'intable = 1', "every table in markers.md counts"),
     (MK, "test/marker.bats", 'match(line, /^ ? ? ?(```+|~~~+)/)', 'match(line, /^(```+|~~~+)/)', "indented fences ignored"),
+    (AT, "test/attack-tests.bats", 'if [ ${#LOCKS[@]} -gt 0 ] || [ ${#UNLOCKS[@]} -gt 0 ] || [ -n "$(git for-each-ref "refs/attack-tests/$b/")" ]; then', 'if false; then', "missing manifest ignored while tests are locked"),
+    (AT, "test/attack-tests.bats", ' || [[ "$RELEASED" == *" $r "* ]]', '', "approved unlock still required by the manifest"),
+    (AT, "test/attack-tests.bats", "    trap 'kill -TERM -- -\"$pid\" -\"$dog\" > /dev/null 2>&1; rm -f \"$out\" \"$flag\"; exit 130' INT TERM HUP\n", '', "a killed check leaves its test running"),
+    (AT, "test/attack-tests.bats", '{ [ ! -s "$MANIFEST" ] || [ -z "$(tail -c 1 "$MANIFEST")" ] || echo >> "$MANIFEST"; } &&', '', "manifest without a final newline gets glued"),
+    (AT, "test/attack-tests.bats", 'echo "$c"; exit 3; }', 'exit 1; }', "failed manifest commit looks like a refusal"),
+    (AT, "test/attack-tests.bats", 'git -c core.hooksPath=/dev/null worktree add', 'git worktree add', "--clean runs checkout hooks"),
+    (AT, "test/attack-tests.bats", 'has_lock "$f" && continue', ':', "NOTE lists other locked tests"),
+    (AT, "test/attack-tests.bats", 'case "$cmd" in lock|check) [[ "$TIMEOUT"', 'case "$cmd" in *) [[ "$TIMEOUT"', "bad timeout breaks list"),
+    (AT, "test/attack-tests.bats", '|tsconfig*.json|', '|', "NOTE skips tsconfig"),
 ]
 bats = shlex.split(os.environ.get("BATS", "bats"))
 

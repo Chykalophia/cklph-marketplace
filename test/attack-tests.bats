@@ -535,31 +535,37 @@ fix_bug() { printf 'echo 2\n' > src.sh; git commit -qam "fix"; }
 }
 
 @test "a test that hangs is stopped: lock refuses it, check fails it, children included" {
-  printf 'sleep 30; echo want 2; exit 1\n' > "$T"
+  printf 'sleep 31; echo want 2; exit 1\n' > "$T"
   SECONDS=0
   run env CKLPH_ATTACK_TIMEOUT=2 bash "$AT" lock --run "$RUN" --expect "$EXP" "$T"
   [ "$status" -eq 1 ]; has "timed out after 2s"
   [ "$SECONDS" -lt 15 ]
   printf '[ "$(bash src.sh)" = 2 ] || { echo "want 2"; exit 1; }\n' > "$T"
   lock "$T" >/dev/null
-  printf '(sleep 30; echo late) & sleep 30; echo 2\n' > src.sh; git commit -qam "slow fix"
+  printf '(sleep 31; echo late) & sleep 31; echo 2\n' > src.sh; git commit -qam "slow fix"
   SECONDS=0
   run env CKLPH_ATTACK_TIMEOUT=2 bash "$AT" check "$BASE"
   [ "$status" -eq 1 ]; has "timed out after 2s"
   [ "$SECONDS" -lt 15 ]
-  ! pgrep -f "sleep 30" >/dev/null || { pkill -f "sleep 30"; echo "a child of the test survived the timeout" >&2; false; }
+  ! pgrep -f '^sleep 31$' >/dev/null || { pkill -f '^sleep 31$'; echo "a child of the test survived the timeout" >&2; false; }
+  run env CKLPH_ATTACK_TIMEOUT=x bash "$AT" check "$BASE"
+  [ "$status" -eq 1 ]; has "whole number of seconds"
   run env CKLPH_ATTACK_TIMEOUT=x bash "$AT" list "$BASE"
-  [ "$status" -eq 1 ]
+  [ "$status" -eq 0 ]; [ "$output" = "$T" ]
 }
 
 @test "check: NOTE lists changed runner config and tests anywhere, not just the test's folder" {
   lock "$T" >/dev/null
+  printf '[ "$(bash src.sh)" = 2 ] || { echo "want 2"; exit 1; }\n' > tests/second_test.sh
+  lock tests/second_test.sh >/dev/null
   fix_bug
-  mkdir -p web/src && printf '{}\n' > package.json && printf 'x\n' > web/src/app.spec.ts && printf 'x\n' > web/src/app.ts
+  mkdir -p web/src && printf '{}\n' > package.json && printf '{}\n' > tsconfig.base.json
+  printf 'x\n' > web/src/app.spec.ts && printf 'x\n' > web/src/app.ts
   git add -A && git commit -qm "config, another test, app code"
   check
   [ "$status" -eq 0 ]
-  has "NOTE  package.json changed"; has "NOTE  web/src/app.spec.ts changed"; hasnt "NOTE  web/src/app.ts"
+  has "NOTE  package.json changed"; has "NOTE  tsconfig.base.json changed"; has "NOTE  web/src/app.spec.ts changed"
+  hasnt "NOTE  web/src/app.ts"; hasnt "NOTE  tests/second_test.sh"
 }
 
 @test "lock: a hook that adds lines after the trailers undoes the lock; commentChar can't strip them" {
@@ -589,4 +595,64 @@ fix_bug() { printf 'echo 2\n' > src.sh; git commit -qam "fix"; }
   rm lib/local.sh; printf 'echo 2\n' > src.sh; git commit -qam "real fix"
   check --clean
   [ "$status" -eq 0 ]; has "PASS  $T"
+}
+
+# ---- round 9 ---------------------------------------------------------------------------------------
+
+@test "check --require-file: a missing manifest passes when nothing is locked, fails when tests are" {
+  M=docs/flow/t/attack-tests.txt
+  mv "$T" "$BATS_TEST_TMPDIR/t.sh"
+  check --require-file "$M"
+  [ "$status" -eq 0 ]; has "no $M and no attack tests locked"
+  mv "$BATS_TEST_TMPDIR/t.sh" "$T"
+  lock "$T" >/dev/null
+  fix_bug
+  check --require-file "$M"
+  [ "$status" -eq 1 ]; has "doesn't exist, but attack tests are locked"
+}
+
+@test "check --require-file: a human-approved unlock releases the manifest line too" {
+  M=docs/flow/t/attack-tests.txt
+  bash "$AT" lock --run "$RUN" --expect "$EXP" --manifest "$M" "$T" >/dev/null
+  git rm -q "$T" && git commit -qm $'drop\n\nAttack-Tests-Unlocked: tests/attack_test.sh wrong premise'
+  U=$(git rev-parse HEAD)
+  check --require-file "$M" --allow-unlocked "$U:$T"
+  [ "$status" -eq 0 ]; has "UNLOCKED (allowed)"
+  check --require-file "$M"
+  [ "$status" -eq 1 ]; has "UNLOCKED without --allow-unlocked"
+}
+
+@test "lock --manifest: adds a newline to a manifest missing one; a failed manifest commit exits 3, still locked" {
+  M=docs/flow/t/attack-tests.txt
+  mkdir -p docs/flow/t && printf '# locked tests' > "$M" && git add "$M" && git commit -qm "manifest"
+  bash "$AT" lock --run "$RUN" --expect "$EXP" --manifest "$M" "$T" >/dev/null
+  [ "$(git show HEAD:"$M")" = "$(printf '# locked tests\n%s' "$T")" ]
+  printf '[ -f nope ] || { echo want 2; exit 1; }\n' > tests/b_test.sh
+  printf '#!/bin/sh\ngrep -q "^test: record" "$1" && exit 1; exit 0\n' > .git/hooks/commit-msg; chmod +x .git/hooks/commit-msg
+  run bash "$AT" lock --run "$RUN" --expect "$EXP" --manifest "$M" tests/b_test.sh
+  [ "$status" -eq 3 ]; has "ARE locked"
+  run bash "$AT" list "$BASE"
+  has "tests/b_test.sh"
+}
+
+@test "a killed check stops its test and the watchdog" {
+  lock "$T" >/dev/null
+  printf 'sleep 41; echo 2\n' > src.sh; git commit -qam "slow fix"
+  CKLPH_ATTACK_TIMEOUT=59 bash "$AT" check "$BASE" >/dev/null 2>&1 & k=$!
+  for i in 1 2 3 4 5 6 7 8 9 10; do pgrep -f '^sleep 41$' >/dev/null && break; sleep 0.5; done
+  pgrep -f '^sleep 41$' >/dev/null
+  st=0; kill -TERM "$k"; wait "$k" || st=$?
+  [ "$st" -eq 130 ]
+  sleep 0.5
+  left=$(pgrep -f '^sleep (41|59)$' || true)
+  [ -z "$left" ] || { pkill -f '^sleep (41|59)$'; echo "left running: $left" >&2; false; }
+}
+
+@test "check --clean: a failing checkout hook doesn't stop it or leak a worktree" {
+  lock "$T" >/dev/null
+  fix_bug
+  printf '#!/bin/sh\nexit 1\n' > .git/hooks/post-checkout; chmod +x .git/hooks/post-checkout
+  check --clean
+  [ "$status" -eq 0 ]; has "PASS  $T"
+  [ "$(git worktree list | wc -l)" -eq 1 ]
 }

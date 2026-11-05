@@ -18,6 +18,7 @@
 #       trailers (paths, command, expectation) as the last lines of the message, and records the lock
 #       commit as refs/attack-tests/<branch>/<sha>. --manifest appends the paths to <file> (e.g.
 #       docs/flow/<task-slug>/attack-tests.txt) in a second commit, the source for check --require-file.
+#       If that second commit fails, lock exits 3: the tests ARE locked; add them to the manifest.
 #       Commits normally, so the repo's git hooks run. If a hook changes a test, adds or leaves any
 #       other change, or rewrites or follows the trailers, the lock is undone. A pre-commit hook that
 #       runs the test suite always rejects an attack test (it fails by design); pass --no-verify only
@@ -29,7 +30,8 @@
 #       (it judges the committed code); a commit with lock trailers that isn't a real lock (it must
 #       only Add exactly the paths it names); a second lock of a path still locked; a recorded lock
 #       ref that is no longer on the branch, outside <base>..HEAD (wrong base), or not a valid lock
-#       commit; a --require path (or a line of --require-file) that isn't locked; a locked test
+#       commit; a --require path (or a line of --require-file) that isn't locked or human-unlocked; a
+#       missing --require-file while tests are locked (a mistyped path); a locked test
 #       touched by any later non-merge commit or changed by a merge (even if restored), or whose bytes
 #       differ from the lock commit's (working tree, index flags), that is missing or a symlink, or
 #       that doesn't PASS under its recorded command within the time limit; and any unlock not
@@ -44,8 +46,9 @@
 #       Prints the currently locked paths in <base>..HEAD, one per line (build's OUT OF SCOPE).
 #
 #   attack-tests.sh prune [--branch <name>]
-#       Deletes lock refs whose branch no longer exists, or all refs of --branch <name> once that
-#       branch is merged (never the checked-out branch). Prints what it deleted.
+#       Deletes lock refs whose branch no longer exists, or all refs of --branch <name> (never the
+#       checked-out branch). Run --branch only after that branch is merged: a squash merge can't be
+#       detected, so it doesn't check. Prints what it deleted.
 #
 # <base> is `git merge-base <default-branch> HEAD` (cklph-os flow → Hand-offs). <cmd> is one line and
 # runs under bash with the test path as "$1", e.g. --run 'bats "$1"'. Run from the repository root.
@@ -53,7 +56,7 @@
 # After a legitimate rebase the lock commits get new SHAs: point a ref at each rebased lock commit
 # (git update-ref refs/attack-tests/<branch>/<new> <new>) and delete the old refs. Don't just delete
 # them: the wrong-base guard needs them.
-# Exit 1 = refused/failed, 2 = usage.
+# Exit 1 = refused/failed, 2 = usage, 3 = locked but the manifest commit failed.
 
 set -uo pipefail
 set -f   # trailer words are paths, never globs
@@ -66,7 +69,6 @@ is_test_path() {  # a tests/test/__tests__/spec directory, or a test-named file
     [[ "$1" =~ [._-](test|spec)\.[A-Za-z0-9]+$ ]] || [[ "$1" =~ \.bats$ ]]
 }
 TIMEOUT="${CKLPH_ATTACK_TIMEOUT:-600}"
-[[ "$TIMEOUT" =~ ^[1-9][0-9]*$ ]] || die "CKLPH_ATTACK_TIMEOUT must be a whole number of seconds"
 # Run one test with a time limit. Sets OUT, RC (124 = timed out). The test and the watchdog each get
 # their own process group (set -m), so a timeout stops the whole test, children included.
 run_test() {
@@ -76,15 +78,19 @@ run_test() {
     bash -c "$1" attack-test "$2" > "$out" 2>&1 < /dev/null & pid=$!
     { sleep "$TIMEOUT"; : > "$flag"; kill -TERM -- -"$pid"; sleep 2; kill -KILL -- -"$pid"; } > /dev/null 2>&1 < /dev/null & dog=$!
     set +m
-    wait "$pid"; RC=$?
+    # Ctrl-C or a kill reaches only this script (the test has its own group): stop both, then leave.
+    trap 'kill -TERM -- -"$pid" -"$dog" > /dev/null 2>&1; rm -f "$out" "$flag"; exit 130' INT TERM HUP
+    wait "$pid" 2>/dev/null; RC=$?
+    trap - INT TERM HUP
     kill -TERM -- -"$dog" > /dev/null 2>&1; wait "$dog" 2>/dev/null
     OUT=$(cat "$out"); rm -f "$out"
     if [ -e "$flag" ]; then rm -f "$flag"; RC=124; OUT="$OUT
 attack-tests: timed out after ${TIMEOUT}s"; fi
 }
 is_runner_config() {  # files that change how tests run, wherever they are
+    case "$1" in .github/workflows/*) return 0 ;; esac
     case "${1##*/}" in
-        package.json|*.config.*|.mocharc*|pytest.ini|pyproject.toml|setup.cfg|tox.ini|conftest.py|phpunit.xml*|Makefile|.bats*|go.mod|Cargo.toml|Gemfile|.rspec) return 0 ;;
+        package.json|*.config.*|*.conf.*|tsconfig*.json|.mocharc*|pytest.ini|pyproject.toml|setup.cfg|tox.ini|conftest.py|phpunit.xml*|Makefile|.bats*|go.mod|Cargo.toml|Gemfile|.rspec|pom.xml|build.gradle*) return 0 ;;
     esac
     return 1
 }
@@ -135,7 +141,7 @@ drop_lock() {
 }
 
 cmd="${1:-}"; [ $# -gt 0 ] && shift
-RUN=""; EXPECT=""; BRANCH=""; NOVERIFY=""; MANIFEST=""; CLEAN=""; ALLOW=(); REQUIRE=(); ARGS=()
+RUN=""; EXPECT=""; BRANCH=""; NOVERIFY=""; MANIFEST=""; CLEAN=""; REQFILE=""; REQMISSING=""; ALLOW=(); REQUIRE=(); ARGS=()
 while [ $# -gt 0 ]; do
     case "$1" in
         --run)            [ $# -ge 2 ] || usage; RUN="$2"; shift 2 ;;
@@ -147,10 +153,15 @@ while [ $# -gt 0 ]; do
         --no-verify)      NOVERIFY=--no-verify; shift ;;
         --allow-unlocked) [ $# -ge 2 ] || usage; ALLOW+=("$2"); shift 2 ;;
         --require)        [ $# -ge 2 ] || usage; REQUIRE+=("$2"); shift 2 ;;
-        --require-file)   [ $# -ge 2 ] || usage; [ -r "$2" ] || die "can't read $2"
-                          while IFS= read -r line || [ -n "$line" ]; do
-                              line="${line%$'\r'}"; case "$line" in ''|'#'*) continue ;; esac; REQUIRE+=("$line")
-                          done < "$2"; shift 2 ;;
+        --require-file)   [ $# -ge 2 ] || usage; REQFILE="$2"
+                          if [ -e "$2" ]; then
+                              [ -f "$2" ] && [ -r "$2" ] || die "can't read $2"
+                              while IFS= read -r line || [ -n "$line" ]; do
+                                  line=$(sed -e 's/^[[:space:]]*//' -e 's/[[:space:]]*$//' <<< "$line")
+                                  case "$line" in ''|'#'*) continue ;; esac; REQUIRE+=("$line")
+                              done < "$2"
+                          else REQMISSING=1; fi
+                          shift 2 ;;
         --manifest)       [ $# -ge 2 ] || usage; MANIFEST="$2"; shift 2 ;;
         --clean)          CLEAN=1; shift ;;
         --branch)         [ $# -ge 2 ] || usage; BRANCH="$2"; shift 2 ;;
@@ -160,6 +171,7 @@ while [ $# -gt 0 ]; do
     esac
 done
 git rev-parse --git-dir >/dev/null 2>&1 || die "not inside a git repository"
+case "$cmd" in lock|check) [[ "$TIMEOUT" =~ ^[1-9][0-9]*$ ]] || die "CKLPH_ATTACK_TIMEOUT must be a whole number of seconds" ;; esac
 [ "$(pwd -P)" = "$(cd "$(git rev-parse --show-toplevel)" && pwd -P)" ] || die "run from the repository root (paths are root-relative)"
 
 case "$cmd" in
@@ -224,9 +236,12 @@ $(git status --porcelain --untracked-files=all)"
     c=$(git rev-parse HEAD)
     git update-ref "refs/attack-tests/$b/$c" "$c" || die "couldn't record the lock ref"
     if [ -n "$MANIFEST" ]; then
-        mkdir -p "$(dirname "$MANIFEST")" && printf '%s\n' "${ARGS[@]}" >> "$MANIFEST" &&
-        git add -- "$MANIFEST" && git commit -q $NOVERIFY -m "test: record locked attack tests in $MANIFEST" -- "$MANIFEST" ||
-            die "locked in $c, but couldn't commit $MANIFEST; add these paths to it and commit it yourself: ${ARGS[*]}"
+        { mkdir -p "$(dirname "$MANIFEST")" &&
+          { [ ! -s "$MANIFEST" ] || [ -z "$(tail -c 1 "$MANIFEST")" ] || echo >> "$MANIFEST"; } &&
+          printf '%s\n' "${ARGS[@]}" >> "$MANIFEST" &&
+          git add -- "$MANIFEST" && git commit -q $NOVERIFY -m "test: record locked attack tests" -- "$MANIFEST"; } || {
+            echo "attack-tests: the tests ARE locked in $c (don't delete them), but the manifest commit failed; add these lines to $MANIFEST and commit it yourself: ${ARGS[*]}" >&2
+            echo "$c"; exit 3; }
     fi
     echo "$c"
     ;;
@@ -243,8 +258,8 @@ check)
     root=$(pwd -P)
     if [ -n "$CLEAN" ]; then
         wt=$(mktemp -d); rmdir "$wt"
-        git worktree add -q --detach "$wt" HEAD || die "couldn't make a clean checkout for --clean"
-        trap 'cd "$root"; git worktree remove --force "$wt" >/dev/null 2>&1; git worktree prune >/dev/null 2>&1' EXIT
+        trap 'cd "$root"; git worktree remove --force "$wt" >/dev/null 2>&1; rm -rf "$wt"; git worktree prune >/dev/null 2>&1' EXIT
+        git -c core.hooksPath=/dev/null worktree add -q --detach "$wt" HEAD || die "couldn't make a clean checkout for --clean"
     fi
     for ref in $(git for-each-ref --format='%(refname)' "refs/attack-tests/$b/"); do
         c=$(git rev-parse "$ref")
@@ -253,16 +268,24 @@ check)
         elif [[ "$LOCKCOMMITS" != *" $c "* ]]; then echo "FAIL  lock ref points at ${c:0:7}, which isn't a valid lock commit (its trailers or contents are wrong)"; fail=1; fi
     done
     for e in "${ERRORS[@]+"${ERRORS[@]}"}"; do echo "FAIL  $e"; fail=1; done
+    RELEASED=" "
     for u in "${UNLOCKS[@]+"${UNLOCKS[@]}"}"; do
         p="${u%%|*}"; rest="${u#*|}"; c="${rest%%|*}"; who="${rest#*|}"; ok=0
         for a in "${ALLOW[@]+"${ALLOW[@]}"}"; do
             as="${a%%:*}"; ap="${a#*:}"
             [ "$ap" = "$p" ] && [ ${#as} -ge 7 ] && [[ "$c" == "$as"* ]] && ok=1
         done
-        if [ "$ok" = 1 ]; then echo "UNLOCKED (allowed)  $p in ${c:0:7} by $who"
+        if [ "$ok" = 1 ]; then echo "UNLOCKED (allowed)  $p in ${c:0:7} by $who"; RELEASED="$RELEASED$p "
         else echo "FAIL  UNLOCKED without --allow-unlocked ${c:0:7}:$p  ($who)"; fail=1; fi
     done
-    for r in "${REQUIRE[@]+"${REQUIRE[@]}"}"; do has_lock "$r" || { echo "FAIL  required attack test is not locked: $r"; fail=1; }; done
+    if [ -n "$REQMISSING" ]; then
+        if [ ${#LOCKS[@]} -gt 0 ] || [ ${#UNLOCKS[@]} -gt 0 ] || [ -n "$(git for-each-ref "refs/attack-tests/$b/")" ]; then
+            echo "FAIL  --require-file $REQFILE doesn't exist, but attack tests are locked on $b (wrong path or task slug?)"; fail=1
+        else echo "NOTE  no $REQFILE and no attack tests locked; nothing to require"; fi
+    fi
+    for r in "${REQUIRE[@]+"${REQUIRE[@]}"}"; do
+        has_lock "$r" || [[ "$RELEASED" == *" $r "* ]] || { echo "FAIL  required attack test is not locked: $r"; fail=1; }
+    done
     n=0
     for entry in "${LOCKS[@]+"${LOCKS[@]}"}"; do
         p="${entry%%|*}"; rest="${entry#*|}"; c="${rest%%|*}"; run="${rest#*|}"; n=$((n + 1))
@@ -277,16 +300,17 @@ check)
         if [ -L "$p" ] || [ ! -f "$p" ] || [ "$(git hash-object -- "$p")" != "$want" ] || [ "$(blob_at HEAD "$p")" != "$want" ]; then
             echo "FAIL  $p  differs from its lock commit ${c:0:7} (edited, deleted, or a symlink)"; fail=1; continue
         fi
-        if [ -n "$CLEAN" ]; then cd "$wt"; run_test "$run" "$p"; cd "$root"; else run_test "$run" "$p"; fi
+        if [ -n "$CLEAN" ]; then cd "$wt" || die "lost the clean checkout"; run_test "$run" "$p"; cd "$root"; else run_test "$run" "$p"; fi
         if [ "$RC" -eq 124 ] && [[ "$OUT" == *"attack-tests: timed out"* ]]; then echo "FAIL  $p  timed out after ${TIMEOUT}s"; fail=1
         elif [ "$RC" -ne 0 ]; then echo "FAIL  $p  still fails (exit $RC)"; fail=1; else echo "PASS  $p"; fi
         d=$(dirname "$p")
-        for f in $(git diff --name-only "$c" HEAD); do
-            [ "$f" != "$p" ] || continue
+        while IFS= read -r f; do
+            [ -n "$f" ] && [ "$f" != "$p" ] || continue
+            has_lock "$f" && continue   # another locked test: checked on its own
             if [ "$(dirname "$f")" = "$d" ] || is_test_path "$f" || is_runner_config "$f"; then
                 echo "NOTE  $f changed since $p was locked; review it (helpers and runner config aren't checked)"
             fi
-        done
+        done <<< "$(git -c core.quotePath=false diff --name-only "$c" HEAD)"
     done
     [ "$n" -gt 0 ] || [ ${#UNLOCKS[@]} -gt 0 ] || [ ${#ERRORS[@]} -gt 0 ] || echo "no attack tests locked in $base..HEAD"
     exit "$fail"

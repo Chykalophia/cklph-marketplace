@@ -43,17 +43,18 @@ has, Claude called it "ready to start" and proposed a new file.
   unlock not allowed per unlock commit (`--allow-unlocked <sha>:<path>`). Its header states the
   threat model: it catches shortcuts and mistakes, not a hostile agent with a shell; enforce in CI.
   `lock --manifest` commits the locked paths to `docs/flow/<task-slug>/attack-tests.txt`, which
-  `check --require-file` reads; `check --clean` runs the tests in a fresh checkout of HEAD, so a fix
+  `check --require-file` reads (a missing manifest is fine only while nothing is locked; a failed
+  manifest commit exits 3, since the tests are already locked); `check --clean` runs the tests in a fresh checkout of HEAD, so a fix
   that lives only in a gitignored file fails; each test run stops after `CKLPH_ATTACK_TIMEOUT`
   seconds (default 600), children included; NOTE lines cover the test's directory, any test location
   and test-runner config; `prune` clears lock refs after a merge.
 - **`skills/review/cross-model.md`**: run the reviewer on a different model from the builder when
   one is available; same prompt, same markers, fresh context, read-only. Includes the Codex CLI
   invocation and a consent check before code goes to a second vendor.
-- Tests: `test/marker.bats` (20), `test/attack-tests.bats` (48), `test/attack-tests-forgery.bats` (the
+- Tests: `test/marker.bats` (20), `test/attack-tests.bats` (53), `test/attack-tests-forgery.bats` (the
   round 4 red-team's own attack test, locked with the script before the fix and passing after it),
   and a hooks.bats case that fails when a skill, reference file or agent emits a marker (backticked
-  or bare) with no row. `test/mutate-scripts.py` reinjects 69 bug shapes into a throwaway copy of the two
+  or bare) with no row. `test/mutate-scripts.py` reinjects 78 bug shapes into a throwaway copy of the two
   scripts, after checking the suites are green unmutated; each turns a test red. Trigger tests for `challenge` and `refine`
   (refine had none). Proof: `docs/proof/challenge/2026-11-04.md`.
 
@@ -118,7 +119,13 @@ mutation: a committed manifest for `--require` (`--manifest` / `--require-file`)
 refs, a time limit on every test run, wider NOTE lines, `--run` trimmed and an `--expect` with an
 edge space refused up front (a trailer-rewriting hook such as Gerrit's Change-Id would trim it), the
 trailers required to be the message's last lines, and `check --clean` for fixes hidden in ignored
-files. These got one focused review round before merge.
+files. Round 9 reviewed just those: Codex was clear; the red-team found that `verify` always passed
+a manifest that only exists once a test is locked (now a missing manifest fails only when tests are
+locked), that a human-approved unlock still failed through the manifest, and that Ctrl-C left the
+test and its watchdog running (now trapped). Its Lows and Nits were fixed too: a manifest without a
+final newline, exit 3 for a failed manifest commit, `--clean` worktree hooks and cleanup, honest
+`prune --branch` wording, other locked tests and paths with spaces in NOTE lines, more runner config,
+and the time-limit setting checked only where it is used.
 
 ## [0.14.0] — 2026-11-02
 
