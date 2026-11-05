@@ -76,8 +76,8 @@ BRANDS_ENV = "CKLPH_DIAGRAM_BRANDS"
 
 def default_local_brands_dir() -> Path:
     """Where client brands go, whether or not the directory exists yet."""
-    raw = os.environ.get(BRANDS_ENV, "").strip()
-    if raw:
+    raw = os.environ.get(BRANDS_ENV, "")
+    if raw.strip():
         return Path(raw).expanduser()
     config = Path(os.environ.get("XDG_CONFIG_HOME") or Path.home() / ".config")
     return config.expanduser() / "cklph-diagram" / "brands"

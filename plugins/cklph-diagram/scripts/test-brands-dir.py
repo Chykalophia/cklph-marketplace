@@ -135,6 +135,13 @@ def run_all(tmp: Path) -> None:
     r = run(TOKENS, "Acme Co", "--check", env={"HOME": str(tmp / "h1"), "CKLPH_DIAGRAM_BRANDS": "  "})
     case("a blank CKLPH_DIAGRAM_BRANDS counts as unset", r.returncode == 0, r.stdout + r.stderr)
 
+    spaced = tmp / "spaced brands "
+    spaced.mkdir()
+    (spaced / "edge.md").write_text(client_brand("edge"), encoding="utf-8")
+    r = run(TOKENS, "edge", "--check", env={"HOME": str(h), "CKLPH_DIAGRAM_BRANDS": str(spaced)})
+    case("a CKLPH_DIAGRAM_BRANDS path with a trailing space is kept as given",
+         r.returncode == 0, r.stdout + r.stderr)
+
     dup = tmp / "dup-brands"
     dup.mkdir()
     shutil.copy(BUNDLED / "cklph.md", dup / "cklph.md")

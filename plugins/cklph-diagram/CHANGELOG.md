@@ -23,7 +23,7 @@ this forked from.
   bundled registry. Fonts are found in `fonts/<slug>/` beside either one.
   `--list` marks local brands and prints both directories.
 - **`scripts/test-brands-dir.py`**, run by `verify.sh`: 21 cases with a
-  throwaway HOME. 18 of them fail on 3.6.0.
+  throwaway HOME. 19 of them fail on 3.6.0.
 
 ### Changed
 
