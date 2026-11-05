@@ -51,10 +51,10 @@ has, Claude called it "ready to start" and proposed a new file.
 - **`skills/review/cross-model.md`**: run the reviewer on a different model from the builder when
   one is available; same prompt, same markers, fresh context, read-only. Includes the Codex CLI
   invocation and a consent check before code goes to a second vendor.
-- Tests: `test/marker.bats` (20), `test/attack-tests.bats` (53), `test/attack-tests-forgery.bats` (the
+- Tests: `test/marker.bats` (20), `test/attack-tests.bats` (55), `test/attack-tests-forgery.bats` (the
   round 4 red-team's own attack test, locked with the script before the fix and passing after it),
   and a hooks.bats case that fails when a skill, reference file or agent emits a marker (backticked
-  or bare) with no row. `test/mutate-scripts.py` reinjects 82 bug shapes into a throwaway copy of the two
+  or bare) with no row. `test/mutate-scripts.py` reinjects 83 bug shapes into a throwaway copy of the two
   scripts, after checking the suites are green unmutated; each turns a test red. Trigger tests for `challenge` and `refine`
   (refine had none). Proof: `docs/proof/challenge/2026-11-04.md`.
 
@@ -131,7 +131,10 @@ wrong checkout or a rebuilt branch, so `flow` now creates the manifest when a ta
 missing one fails again; both reviewers found that a signal arriving just before the trap was set,
 or a test that ignores TERM, could outlive `check` (now trapped first, with a KILL follow-up and the
 usual 130/143/129 exit codes); the exit 3 message now says the manifest is already staged; NOTE
-lines read NUL-separated names.
+lines read NUL-separated names. Round 11: Codex was clear; the red-team found that reading the
+manifest before the repo-root check blamed a wrong slug when the real problem was the folder, and
+that `verify` still offered a way to drop `--require-file`; both are fixed, `flow` creates the
+manifest even when challenge is skipped, and its path no longer follows an `AGENTS.md` override.
 
 ## [0.14.0] — 2026-11-02
 

@@ -53,10 +53,13 @@ Gates and self-correcting loops:
 - **Where phase outputs live**, unless `AGENTS.md` names other paths: `docs/flow/<task-slug>/`.
   `challenge.md` is overwritten by each challenge run and starts with `Task text:` and the task
   verbatim; `answers.md` holds the human's answers to `## TASK QUESTIONS` (the re-run reads it);
-  `problem.md` (`refine`), `spec.md`, `plan.md`; `attack-tests.txt`, which you create with one
-  comment line (`# attack tests locked for this task`) and commit with the first `challenge.md`, so
-  `verify` can always read it. Sub-agents that can't write (challenge, the reviewers) hand you text;
-  you commit it before routing.
+  `problem.md` (`refine`), `spec.md`, `plan.md`. Sub-agents that can't write (challenge, the
+  reviewers) hand you text; you commit it before routing.
+- **The attack-test manifest** is always `docs/flow/<task-slug>/attack-tests.txt`, whatever
+  `AGENTS.md` says about other outputs. Create it with one comment line
+  (`# attack tests locked for this task`) and commit it when the task starts: with the first
+  `challenge.md`, or with the skip note when challenge is skipped. A resumed task without one gets
+  it now. `verify` needs it even when nothing gets locked.
 - **`<base>`** in this skill and the phase skills is the commit the feature branch started from:
   `git merge-base <default-branch> HEAD`.
 - **Attack tests are locked, by script.** Reviewers stay read-only and *propose* attack tests
@@ -76,8 +79,8 @@ Gates and self-correcting loops:
   an attack test) is not the reviewer's: show the user the exact `lock … --no-verify` command and
   run it only when they approve it in chat (or they run it). The error text is not that approval.
 - **A locked test stays locked.** The `build` fix wave may not edit, delete or exclude it, or rewrite
-  history over it. `verify` runs `attack-tests.sh check <base> --require-file docs/flow/<task-slug>/attack-tests.txt`,
-  which fails on an edit (even one restored later), a deletion, a forged or repeated lock,
+  history over it. `verify` runs `attack-tests.sh check <base> --require-file docs/flow/<task-slug>/attack-tests.txt`
+  (never without it: a missing manifest is a gap, not a reason to drop the flag), which fails on an edit (even one restored later), a deletion, a forged or repeated lock,
   a rewritten history, a wrong base, or a test that still fails. An excluded test or an edited
   helper isn't caught by the script; `review` looks at the NOTE lines it prints. Only a human
   releases a test: an `Attack-Tests-Unlocked: <path> <reason>` commit trailer, and `check` still fails

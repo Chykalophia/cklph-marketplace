@@ -59,7 +59,7 @@ project. `CKLPH_GATEGUARD_EXEMPT="docs/*:*.lock"` skips paths. Denials are logge
 
 ```bash
 bats test/                                                   # hook and script tests, from the repo root
-python3 test/mutate-scripts.py .                             # reinjects 82 bug shapes into a copy of the scripts; each must turn a test red
+python3 test/mutate-scripts.py .                             # reinjects 83 bug shapes into a copy of the scripts; each must turn a test red
 bash plugins/cklph-os/hooks/tests/destructive-command-gate.test.sh   # the gate's own suite
 bash plugins/cklph-os/hooks/tests/gateguard.test.sh                  # GateGuard's suite
 ```

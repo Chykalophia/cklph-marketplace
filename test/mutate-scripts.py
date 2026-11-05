@@ -6,7 +6,7 @@ unmutated, so a suite that is already red can't make every mutation look "caught
 
 Run from the repo root:  python3 test/mutate-scripts.py .     (BATS="npx --yes bats@1.13.0" if bats is missing)
 """
-import os, pathlib, shlex, shutil, signal, subprocess, sys, tempfile
+import concurrent.futures, os, pathlib, queue, shlex, shutil, signal, subprocess, sys, tempfile
 
 SRC = pathlib.Path(sys.argv[1]).resolve()
 TMP = pathlib.Path(tempfile.mkdtemp(prefix="cklph-mutate-"))
@@ -83,13 +83,14 @@ MUTS = [
     (MK, "test/marker.bats", 'length(f) >= length(fence)', '1', "shorter fence closes a longer one"),
     (MK, "test/marker.bats", 'intable = ($0 ~ /^## Markers[ \\t]*$/)', 'intable = 1', "every table in markers.md counts"),
     (MK, "test/marker.bats", 'match(line, /^ ? ? ?(```+|~~~+)/)', 'match(line, /^(```+|~~~+)/)', "indented fences ignored"),
-    (AT, "test/attack-tests.bats", '|| die "can\'t read $2 (flow', '|| true "can\'t read $2 (flow', "missing manifest ignored"),
+    (AT, "test/attack-tests.bats", '|| die "can\'t read $f (flow', '|| true "can\'t read $f (flow', "missing manifest ignored"),
     (AT, "test/attack-tests.bats", ' || [[ "$RELEASED" == *" $r "* ]]', '', "approved unlock still required by the manifest"),
     (AT, "test/attack-tests.bats", "trap 'stop_test 143' TERM; ", '', "a killed check leaves its test running"),
     (AT, "test/attack-tests.bats", 'sleep 1; kill -KILL -- -"$pid" > /dev/null 2>&1; ', '', "a killed check leaves a TERM-proof test running"),
     (AT, "test/attack-tests.bats", "trap 'stop_test 143' TERM", "trap 'stop_test 130' TERM", "TERM exits 130"),
     (AT, "test/attack-tests.bats", 'git diff -z --name-only "$c" HEAD', 'git diff --name-only "$c" HEAD', "NOTE names not NUL-separated"),
     (AT, "test/attack-tests.bats", 'already holds them and is staged', 'needs them added', "exit 3 hides the staged manifest"),
+    (AT, "test/attack-tests.bats", 'Make sure it lists each of these once (it may already), git add it (-f if it\'s gitignored), then', 'Add these lines and commit', "exit 3 doubles a written manifest"),
     (AT, "test/attack-tests.bats", '{ [ ! -s "$MANIFEST" ] || [ -z "$(tail -c 1 "$MANIFEST")" ] || echo >> "$MANIFEST"; } &&', '', "manifest without a final newline gets glued"),
     (AT, "test/attack-tests.bats", 'echo "$c"; exit 3; }', 'exit 1; }', "failed manifest commit looks like a refusal"),
     (AT, "test/attack-tests.bats", 'git -c core.hooksPath=/dev/null worktree add', 'git worktree add', "--clean runs checkout hooks"),
@@ -103,14 +104,32 @@ bats = shlex.split(os.environ.get("BATS", "bats"))
 ENV = dict(os.environ, CKLPH_ATTACK_TIMEOUT="10")
 SUITE_LIMIT = 900
 
-def run_suite(suite):
-    p = subprocess.Popen(bats + [suite], cwd=ROOT, env=ENV, stdout=subprocess.PIPE, stderr=subprocess.STDOUT,
-                         text=True, start_new_session=True)
+def run_suite(suite, first_red=False, root=ROOT):  # first_red: stop at the first failing test (one is enough)
+    p = subprocess.Popen(bats + (["--abort"] if first_red else []) + [suite], cwd=root, env=ENV,
+                         stdout=subprocess.PIPE, stderr=subprocess.STDOUT, text=True, start_new_session=True)
     try:
         return p.communicate(timeout=SUITE_LIMIT)[0], p.returncode
     except subprocess.TimeoutExpired:
-        os.killpg(p.pid, signal.SIGKILL); p.communicate()
+        try: os.killpg(p.pid, signal.SIGKILL)
+        except ProcessLookupError: pass   # it finished at the deadline
+        p.communicate()
         return None, None
+
+WORKERS = int(os.environ.get("MUTATE_JOBS", "4"))   # each worker mutates its own copy of the repo
+
+def try_mutation(m, root):
+    path, suite, old, new, label = m
+    path = root / path.relative_to(ROOT)
+    src = path.read_text()
+    path.write_text(src.replace(old, new))
+    try:
+        out, rc = run_suite(suite, first_red=True, root=root)
+    finally:
+        path.write_text(src)
+    if out is None:
+        return True, f"CAUGHT {label}  (suite hung past {SUITE_LIMIT}s)"
+    red = [l for l in out.splitlines() if l.startswith("not ok")]
+    return bool(red), ("CAUGHT " if red else "MISSED ") + label + (f"  ({len(red)} red, e.g. {red[0][7:60]})" if red else "")
 
 def main():
     shutil.copytree(SRC, ROOT, ignore=shutil.ignore_patterns(".git", "node_modules"))
@@ -121,19 +140,17 @@ def main():
         out, rc = run_suite(suite)
         if rc != 0:
             print(f"baseline is red or hung for {suite}; fix it first:\n{(out or '')[-2000:]}", flush=True); return 2
+    roots = queue.Queue()
+    for w in range(WORKERS):
+        shutil.copytree(ROOT, TMP / f"w{w}"); roots.put(TMP / f"w{w}")
+    def work(m):
+        root = roots.get()
+        try: return try_mutation(m, root)
+        finally: roots.put(root)
     bad = 0
-    for path, suite, old, new, label in MUTS:
-        src = path.read_text()
-        path.write_text(src.replace(old, new))
-        try:
-            out, rc = run_suite(suite)
-            if out is None:
-                print(f"CAUGHT {label}  (suite hung past {SUITE_LIMIT}s)", flush=True); continue
-            red = [l for l in out.splitlines() if l.startswith("not ok")]
-            print(("CAUGHT " if red else "MISSED ") + label + (f"  ({len(red)} red, e.g. {red[0][7:60]})" if red else ""), flush=True)
-            bad += 0 if red else 1
-        finally:
-            path.write_text(src)
+    with concurrent.futures.ThreadPoolExecutor(WORKERS) as pool:
+        for caught, line in pool.map(work, MUTS):   # results print in list order
+            print(line, flush=True); bad += 0 if caught else 1
     print(f"{len(MUTS) - bad}/{len(MUTS)} mutations caught", flush=True)
     return 1 if bad else 0
 

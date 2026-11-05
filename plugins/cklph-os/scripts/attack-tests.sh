@@ -80,7 +80,7 @@ run_test() {
     bash -c "$1" attack-test "$2" > "$out" 2>&1 < /dev/null & pid=$!
     { sleep "$TIMEOUT"; : > "$flag"; kill -TERM -- -"$pid"; sleep 2; kill -KILL -- -"$pid"; } > /dev/null 2>&1 < /dev/null & dog=$!
     set +m
-    wait "$pid" 2>/dev/null; RC=$?
+    wait "$pid" 2>/dev/null; RC=$?; pid=""
     kill -TERM -- -"$dog" > /dev/null 2>&1; wait "$dog" 2>/dev/null
     trap - INT TERM HUP
     OUT=$(cat "$out"); rm -f "$out"
@@ -146,7 +146,7 @@ drop_lock() {
 }
 
 cmd="${1:-}"; [ $# -gt 0 ] && shift
-RUN=""; EXPECT=""; BRANCH=""; NOVERIFY=""; MANIFEST=""; CLEAN=""; ALLOW=(); REQUIRE=(); ARGS=()
+RUN=""; EXPECT=""; BRANCH=""; NOVERIFY=""; MANIFEST=""; CLEAN=""; ALLOW=(); REQUIRE=(); REQFILES=(); ARGS=()
 while [ $# -gt 0 ]; do
     case "$1" in
         --run)            [ $# -ge 2 ] || usage; RUN="$2"; shift 2 ;;
@@ -158,12 +158,7 @@ while [ $# -gt 0 ]; do
         --no-verify)      NOVERIFY=--no-verify; shift ;;
         --allow-unlocked) [ $# -ge 2 ] || usage; ALLOW+=("$2"); shift 2 ;;
         --require)        [ $# -ge 2 ] || usage; REQUIRE+=("$2"); shift 2 ;;
-        --require-file)   [ $# -ge 2 ] || usage
-                          [ -f "$2" ] && [ -r "$2" ] || die "can't read $2 (flow creates the manifest when a task starts; wrong path or task slug?)"
-                          while IFS= read -r line || [ -n "$line" ]; do
-                              line=$(sed -e 's/^[[:space:]]*//' -e 's/[[:space:]]*$//' <<< "$line")
-                              case "$line" in ''|'#'*) continue ;; esac; REQUIRE+=("$line")
-                          done < "$2"; shift 2 ;;
+        --require-file)   [ $# -ge 2 ] || usage; REQFILES+=("$2"); shift 2 ;;   # read after the root check
         --manifest)       [ $# -ge 2 ] || usage; MANIFEST="$2"; shift 2 ;;
         --clean)          CLEAN=1; shift ;;
         --branch)         [ $# -ge 2 ] || usage; BRANCH="$2"; shift 2 ;;
@@ -175,6 +170,13 @@ done
 git rev-parse --git-dir >/dev/null 2>&1 || die "not inside a git repository"
 case "$cmd" in lock|check) [[ "$TIMEOUT" =~ ^[1-9][0-9]*$ ]] || die "CKLPH_ATTACK_TIMEOUT must be a whole number of seconds" ;; esac
 [ "$(pwd -P)" = "$(cd "$(git rev-parse --show-toplevel)" && pwd -P)" ] || die "run from the repository root (paths are root-relative)"
+for f in "${REQFILES[@]+"${REQFILES[@]}"}"; do
+    [ -f "$f" ] && [ -r "$f" ] || die "can't read $f (flow commits it when the task starts; wrong checkout, path or task slug?)"
+    while IFS= read -r line || [ -n "$line" ]; do
+        line=$(sed -e 's/^[[:space:]]*//' -e 's/[[:space:]]*$//' <<< "$line")
+        case "$line" in ''|'#'*) continue ;; esac; REQUIRE+=("$line")
+    done < "$f"
+done
 
 case "$cmd" in
 lock)
@@ -242,10 +244,11 @@ $(git status --porcelain --untracked-files=all)"
           { [ ! -s "$MANIFEST" ] || [ -z "$(tail -c 1 "$MANIFEST")" ] || echo >> "$MANIFEST"; } &&
           printf '%s\n' "${ARGS[@]}" >> "$MANIFEST" &&
           git add -- "$MANIFEST" && git commit -q $NOVERIFY -m "test: record locked attack tests" -- "$MANIFEST"; } || {
+            hint="git commit $NOVERIFY -m 'test: record locked attack tests' -- $MANIFEST"
             if git diff --cached --quiet -- "$MANIFEST" 2>/dev/null; then
-                echo "attack-tests: the tests ARE locked in $c (don't delete them), but updating $MANIFEST failed; add these lines to it and commit it: ${ARGS[*]}" >&2
+                echo "attack-tests: the tests ARE locked in $c (don't delete them), but updating $MANIFEST failed. Make sure it lists each of these once (it may already), git add it (-f if it's gitignored), then: $hint  -- ${ARGS[*]}" >&2
             else
-                echo "attack-tests: the tests ARE locked in $c (don't delete them), but the manifest commit failed; $MANIFEST already holds them and is staged: commit it (git commit -- $MANIFEST)" >&2
+                echo "attack-tests: the tests ARE locked in $c (don't delete them), but the manifest commit failed; $MANIFEST already holds them and is staged. If a hook rejected it, fix the hook or ask the user, then: $hint" >&2
             fi
             echo "$c"; exit 3; }
     fi

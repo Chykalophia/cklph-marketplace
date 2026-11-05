@@ -535,19 +535,20 @@ fix_bug() { printf 'echo 2\n' > src.sh; git commit -qam "fix"; }
 }
 
 @test "a test that hangs is stopped: lock refuses it, check fails it, children included" {
-  printf 'sleep 31; echo want 2; exit 1\n' > "$T"
+  D=$((300 + $$ % 600))                            # unique per run, so parallel suites don't see each other
+  printf 'sleep %s; echo want 2; exit 1\n' "$D" > "$T"
   SECONDS=0
   run env CKLPH_ATTACK_TIMEOUT=2 bash "$AT" lock --run "$RUN" --expect "$EXP" "$T"
   [ "$status" -eq 1 ]; has "timed out after 2s"
   [ "$SECONDS" -lt 15 ]
   printf '[ "$(bash src.sh)" = 2 ] || { echo "want 2"; exit 1; }\n' > "$T"
   lock "$T" >/dev/null
-  printf '(sleep 31; echo late) & sleep 31; echo 2\n' > src.sh; git commit -qam "slow fix"
+  printf '(sleep %s; echo late) & sleep %s; echo 2\n' "$D" "$D" > src.sh; git commit -qam "slow fix"
   SECONDS=0
   run env CKLPH_ATTACK_TIMEOUT=2 bash "$AT" check "$BASE"
   [ "$status" -eq 1 ]; has "timed out after 2s"
   [ "$SECONDS" -lt 15 ]
-  ! pgrep -f '^sleep 31$' >/dev/null || { pkill -f '^sleep 31$'; echo "a child of the test survived the timeout" >&2; false; }
+  ! pgrep -f "^sleep $D\$" >/dev/null || { pkill -f "^sleep $D\$"; echo "a child of the test survived the timeout" >&2; false; }
   run env CKLPH_ATTACK_TIMEOUT=x bash "$AT" check "$BASE"
   [ "$status" -eq 1 ]; has "whole number of seconds"
   run env CKLPH_ATTACK_TIMEOUT=x bash "$AT" list "$BASE"
@@ -637,15 +638,16 @@ fix_bug() { printf 'echo 2\n' > src.sh; git commit -qam "fix"; }
 
 @test "a killed check stops its test (even one ignoring TERM) and the watchdog" {
   lock "$T" >/dev/null
-  printf 'trap "" TERM; sleep 41; echo 2\n' > src.sh; git commit -qam "slow fix"
-  CKLPH_ATTACK_TIMEOUT=59 bash "$AT" check "$BASE" >/dev/null 2>&1 & k=$!
-  for i in 1 2 3 4 5 6 7 8 9 10; do pgrep -f '^sleep 41$' >/dev/null && break; sleep 0.5; done
-  pgrep -f '^sleep 41$' >/dev/null
+  D=$((1000 + $$ % 600)); W=$((D + 1000))         # unique per run, so parallel suites don't see each other
+  printf 'trap "" TERM; sleep %s; echo 2\n' "$D" > src.sh; git commit -qam "slow fix"
+  CKLPH_ATTACK_TIMEOUT=$W bash "$AT" check "$BASE" >/dev/null 2>&1 & k=$!
+  for i in 1 2 3 4 5 6 7 8 9 10; do pgrep -f "^sleep $D\$" >/dev/null && break; sleep 0.5; done
+  pgrep -f "^sleep $D\$" >/dev/null
   st=0; kill -TERM "$k"; wait "$k" || st=$?
   [ "$st" -eq 143 ]
   sleep 0.5
-  left=$(pgrep -f '^sleep (41|59)$' || true)
-  [ -z "$left" ] || { pkill -f '^sleep (41|59)$'; echo "left running: $left" >&2; false; }
+  left=$(pgrep -f "^sleep ($D|$W)\$" || true)
+  [ -z "$left" ] || { pkill -f "^sleep ($D|$W)\$"; echo "left running: $left" >&2; false; }
 }
 
 @test "check --clean: a failing checkout hook doesn't stop it or leak a worktree" {
@@ -655,4 +657,24 @@ fix_bug() { printf 'echo 2\n' > src.sh; git commit -qam "fix"; }
   check --clean
   [ "$status" -eq 0 ]; has "PASS  $T"
   [ "$(git worktree list | wc -l)" -eq 1 ]
+}
+
+# ---- round 11 --------------------------------------------------------------------------------------
+
+@test "check --require-file from a subdirectory says 'run from the repository root', not 'wrong slug'" {
+  M=docs/flow/t/attack-tests.txt
+  mkdir -p docs/flow/t web && printf '# attack tests locked for this task\n' > "$M" && printf 'x\n' > web/a.txt
+  git add -A "$M" web && git commit -qm "start task"
+  mv "$T" "$BATS_TEST_TMPDIR/t.sh"
+  cd web
+  run bash "$AT" check "$BASE" --require-file "$M"
+  [ "$status" -eq 1 ]; has "run from the repository root"; hasnt "can't read"
+}
+
+@test "lock --manifest: exit 3 on a gitignored manifest says it may already list the tests" {
+  M=docs/flow/t/attack-tests.txt
+  printf 'docs/\n' > .gitignore && git add .gitignore && git commit -qm "ignore docs"
+  run bash "$AT" lock --run "$RUN" --expect "$EXP" --manifest "$M" "$T"
+  [ "$status" -eq 3 ]; has "ARE locked"; has "(it may already)"; has "-f if it's gitignored"
+  [ "$(cat "$M")" = "$T" ]
 }
