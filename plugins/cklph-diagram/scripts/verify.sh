@@ -15,6 +15,13 @@ cd "$(dirname "$0")/.."
 # Keep the tree clean: a verification run should not leave __pycache__ behind.
 export PYTHONDONTWRITEBYTECODE=1
 
+# Run against the bundled registry only. A machine with real client brands in
+# ~/.config/cklph-diagram/brands must get the same answer as CI, so point the
+# local brands directory at an empty one for the whole run.
+CKLPH_DIAGRAM_BRANDS="$(mktemp -d)"
+export CKLPH_DIAGRAM_BRANDS
+trap 'rm -rf "$CKLPH_DIAGRAM_BRANDS"' EXIT
+
 BRANDS_DIR="skills/cklph-diagram/references/brands"
 OUT="${OUT:-out}"
 fail=0
@@ -152,6 +159,11 @@ echo "=============================================="
 # must refuse too -- never fall back to the house brand.
 python3 scripts/test-brand-marker.py | tail -1
 python3 scripts/test-brand-marker.py >/dev/null || { python3 scripts/test-brand-marker.py | grep '^FAIL'; fail=1; }
+# Client brands live in a local directory outside the skill, so an update
+# cannot delete them. A brand defined twice, or an override that points
+# nowhere, must refuse rather than pick a file by search order.
+python3 scripts/test-brands-dir.py | tail -1
+python3 scripts/test-brands-dir.py >/dev/null || { python3 scripts/test-brands-dir.py | grep -A1 '^FAIL'; fail=1; }
 # A stub brand MUST refuse. If one ever renders, a client deliverable is one
 # command away from shipping in house colours — that is a hard failure, and it
 # is why this check asserts the non-zero exit rather than trusting the message.

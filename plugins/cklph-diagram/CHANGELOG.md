@@ -8,6 +8,36 @@ The major version tracks the skill's `metadata.version` in
 `skills/cklph-diagram/SKILL.md`, which inherits `3.x` from the upstream skill
 this forked from.
 
+## [3.7.0] — 2026-11-05
+
+### Added
+
+- **A plugin.** `.claude-plugin/plugin.json` at the repo root makes the repo a
+  Claude Code plugin (`cklph-diagram`), so it can be listed in the `cklph` and
+  `cklph-private` marketplaces instead of installed as a loose skill.
+- **A local brands directory.** Client brands and licensed fonts now live in
+  `~/.config/cklph-diagram/brands/` (or `$XDG_CONFIG_HOME/cklph-diagram/brands/`,
+  or `$CKLPH_DIAGRAM_BRANDS` when set), outside the skill folder. A plugin update
+  replaces the skill folder, which used to be the only place a client brand
+  could live. `brand-tokens.py` searches the local directory first, then the
+  bundled registry. Fonts are found in `fonts/<slug>/` beside either one.
+  `--list` marks local brands and prints both directories.
+- **`scripts/test-brands-dir.py`**, run by `verify.sh`: 20 cases with a
+  throwaway HOME. 18 of them fail on 3.6.0.
+
+### Changed
+
+- A brand slug defined both locally and in the bundle is refused, and so are an
+  alias claimed by two brands and a `CKLPH_DIAGRAM_BRANDS` that is not a
+  directory. None of them falls back.
+- `lint-a11y.py` drops its own copy of the brands lookup, which nothing used,
+  and goes through `brand-tokens.py` only. A missing brand now prints the
+  refusal instead of a traceback.
+- `verify.sh` points `CKLPH_DIAGRAM_BRANDS` at an empty directory, so a machine
+  with real client brands gets the same result as CI.
+- The onboarding guide, SKILL.md §0, `cklph.md` and `install.sh` say where
+  client brands and fonts go now.
+
 ## [3.6.0] — 2026-10-21
 
 ### Added

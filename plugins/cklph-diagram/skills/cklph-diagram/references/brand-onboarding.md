@@ -44,8 +44,18 @@ example of a blocked file.
 
 ## 2. Map to semantic roles
 
-Copy [`brands/_template.md`](brands/_template.md) to `<client-slug>.md` and fill
-it. Rules that matter:
+Copy [`brands/_template.md`](brands/_template.md) to
+`~/.config/cklph-diagram/brands/<client-slug>.md` (or `$CKLPH_DIAGRAM_BRANDS/`,
+when that is set) and fill it. Never save a client brand inside the skill
+folder: an update replaces that folder and the file is gone. `brand-tokens.py
+--list` prints the local directory it searches.
+
+```bash
+mkdir -p ~/.config/cklph-diagram/brands
+cp references/brands/_template.md ~/.config/cklph-diagram/brands/<client-slug>.md
+```
+
+Rules that matter:
 
 - **Extracted beats derived; derived beats invented.** Mark every token's origin.
   Deriving a mid-tone inside an extracted hue family is fine. Introducing a hue
@@ -62,8 +72,9 @@ it. Rules that matter:
 - **`paper` is never pure `#ffffff`.** See [`cognitive-load.md`](cognitive-load.md) C5.
 - **Fill both modes.** A brand with no dark tokens is half a brand.
 - **Licensed faces** (not on Google Fonts): when the client's licence allows use
-  in their deliverables, put the files in `references/brands/fonts/<slug>/`
-  (git-ignored — the repo is public) and list them in a `### Local fonts` table
+  in their deliverables, put the files in
+  `~/.config/cklph-diagram/brands/fonts/<slug>/` (never in the skill folder or
+  the public repo) and list them in a `### Local fonts` table
   under Typography: `| Family | Weight | Style | File |`. `scaffold.py` embeds
   them in every page and `export.py` carries them into SVG, PNG, GIF and MP4.
   Without the files, the face falls back to its stack and `--check` says so.

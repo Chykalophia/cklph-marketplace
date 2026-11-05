@@ -110,7 +110,7 @@ The Silver Editorial is a licensed face, not on Google Fonts. Chykalophia's
 licence covers using it wherever its work needs it, so `scaffold.py` embeds it
 in every page (and `export.py` carries it into SVG, PNG, GIF and MP4). The files
 are **not** in git — the repo is public — and live in
-`references/brands/fonts/cklph/`, copied from the Chykalophia-Website repo
+`~/.config/cklph-diagram/brands/fonts/cklph/`, copied from the Chykalophia-Website repo
 (`apps/web/public/fonts/`). Without them the title falls back to Georgia.
 
 ### Local fonts

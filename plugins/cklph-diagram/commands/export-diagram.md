@@ -10,7 +10,8 @@ allowed-tools:
 ---
 
 Export the diagram HTML at `$1` as deliverables by running the packaged helper
-`skills/cklph-diagram/scripts/export.py` (installed: `<skill-dir>/scripts/export.py`).
+`skills/cklph-diagram/scripts/export.py` (installed: `<skill-dir>/scripts/export.py`; as a plugin:
+`${CLAUDE_PLUGIN_ROOT}/skills/cklph-diagram/scripts/export.py`).
 [`skills/cklph-diagram/references/export.md`](../skills/cklph-diagram/references/export.md)
 is the source of truth for what each format is for and the sizing rules — don't
 reimplement the logic here.

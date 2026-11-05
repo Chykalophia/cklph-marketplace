@@ -33,30 +33,10 @@ from pathlib import Path
 sys.path.insert(0, str(Path(__file__).resolve().parent))
 from colorlib import is_exempt, parse_color, passes  # noqa: E402
 
-def _find_brands_dir() -> Path:
-    """Locate references/brands whether we are in the repo or installed alone.
-
-    The skill is installed as a self-contained folder, but development happens
-    in the fork repo where scripts also live at the root. Walk up from this
-    file and take the first match, so neither layout has to know about the
-    other.
-    """
-    here = Path(__file__).resolve()
-    for base in [here.parent, *here.parents]:
-        for candidate in (
-            base / "references" / "brands",
-            base / "skills" / "cklph-diagram" / "references" / "brands",
-        ):
-            if candidate.is_dir():
-                return candidate
-    raise SystemExit(
-        "cannot locate references/brands -- run from the skill directory "
-        "or the fork repo"
-    )
-
-
-BRANDS_DIR = _find_brands_dir()
-ROOT = BRANDS_DIR.parent.parent
+# Brands are resolved by brand-tokens.py (load_brand below), never by a path
+# of our own: it searches the local brands directory ($CKLPH_DIAGRAM_BRANDS or
+# ~/.config/cklph-diagram/brands) before the bundled registry, and a second
+# copy of that lookup here is how a client brand goes missing in one tool only.
 
 NODE_CEILING = 9
 FONT_FLOOR_PX = 12.0
@@ -105,8 +85,10 @@ def load_brand(slug: str, mode: str) -> dict[str, str]:
     module = importlib.util.module_from_spec(spec)
     assert spec.loader is not None
     spec.loader.exec_module(module)
-    resolved = module.resolve_slug(slug)
-    brand = module.load(resolved)
+    try:
+        brand = module.load(module.resolve_slug(slug))
+    except module.BrandError as exc:
+        raise SystemExit(f"error: {exc}") from None
     problems = module.validate(brand, mode)
     if problems:
         raise SystemExit(

@@ -35,6 +35,18 @@ not saturation, not gradients, not density.
 
 ## Install
 
+As a Claude Code plugin (the team installs from `cklph-private`):
+
+```
+/plugin install cklph-diagram@cklph-private
+```
+
+Or from the public `cklph` marketplace: `/plugin install cklph-diagram@cklph`.
+Client brands go in `~/.config/cklph-diagram/brands/` (see "The registry"), so
+a plugin update never touches them.
+
+As a loose skill, or a bundle for claude.ai:
+
 ```bash
 git clone https://github.com/Chykalophia/cklph-diagram-skill.git
 cd cklph-diagram-skill
@@ -85,6 +97,17 @@ skills/cklph-diagram/references/brands/
 
 **Client brand files are not in this repo, and are git-ignored.** You create them
 locally against your own clients' design systems; they never leave your machine.
+They live outside the skill, so an update cannot delete them:
+
+```
+~/.config/cklph-diagram/brands/      or $CKLPH_DIAGRAM_BRANDS, when set
+├── <client>.md                      one file per client brand
+└── fonts/<slug>/                    licensed font files, for any brand
+```
+
+`brand-tokens.py` searches that directory first, then the bundled four. A slug
+in both places is refused, and a `CKLPH_DIAGRAM_BRANDS` that is not a directory
+is refused, so search order never decides which brand renders.
 The registry ships with the house brand, a neutral skin, a template, and one
 deliberately-blocked fixture.
 

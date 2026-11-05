@@ -205,8 +205,10 @@ case "$MODE" in
       fi
       if [ -n "$kept_only" ]; then
         echo "Kept brand(s) that exist only in the installed copy:$kept_only"
-        echo "  They are not in the repo. To keep a backup there (git-ignored):"
-        echo "  cp \"$DEST/references/brands/<file>\" \"$SRC/references/brands/\""
+        echo "  Move them to the local brands directory, which no install or plugin"
+        echo "  update touches (see references/brand-onboarding.md):"
+        echo "  mkdir -p ~/.config/cklph-diagram/brands"
+        echo "  mv \"$DEST/references/brands/<file>\" ~/.config/cklph-diagram/brands/"
       fi
     fi
 
@@ -219,8 +221,9 @@ case "$MODE" in
       echo "Ask Claude for a diagram to use it:"
       echo "  \"architecture diagram of the ingest pipeline\""
       echo
-      echo "To add a client brand, copy references/brands/_template.md and run"
-      echo "brand onboarding — see references/brand-onboarding.md."
+      echo "To add a client brand, copy references/brands/_template.md to"
+      echo "~/.config/cklph-diagram/brands/<slug>.md and run brand onboarding."
+      echo "See references/brand-onboarding.md."
     else
       echo "FAILED: the installed copy cannot load its own registry." >&2
       exit 1

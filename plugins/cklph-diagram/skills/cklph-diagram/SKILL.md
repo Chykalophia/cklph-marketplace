@@ -3,7 +3,7 @@ name: cklph-diagram
 description: Create accessible, brand-correct diagrams as standalone HTML with inline SVG, across 41 types, including architecture, flowchart, sequence, state, ER, DB schema, UML, deployment, timeline, swimlane, journey, kanban, org chart, fishbone, Wardley, Sankey, treemap, heatmap, bar, waterfall, line, Gantt, scatter and more. Use this skill whenever a diagram, chart, schematic, flow, architecture drawing, or "can you visualise this" comes up for Chykalophia or any Chykalophia client, even if the user does not say "diagram". Renders in the correct client brand from a multi-brand token registry (CKLPH by default, per-client override by name), and refuses to render a named client whose brand has not been onboarded rather than silently shipping house colours into a client deliverable. Every diagram is WCAG AA at the sizes used, with a non-colour cue for every colour distinction and a prose alternative. Ships SVG, PNG and animated GIF/MP4 for docs, slides and email; imports draw.io, Mermaid, Excalidraw.
 license: MIT
 metadata:
-  version: "3.6-cklph"
+  version: "3.7-cklph"
   upstream: cathrynlavery/diagram-design @ 57148ac (2.6.46)
 ---
 
@@ -60,8 +60,18 @@ wrong marker gets noticed.
 
 The registry ships with four files: `cklph` (house brand), `_default` (neutral
 editorial), `_template` (copy this to add a client), and `_example-stub` (a
-synthetic blocked brand, kept so the refusal path stays under test). Client brand
-files are created locally and are git-ignored — see
+synthetic blocked brand, kept so the refusal path stays under test).
+
+**Client brand files never go inside this skill folder.** An update replaces the
+folder and would delete them. They live in the local brands directory, which
+`brand-tokens.py` searches before the bundled four:
+
+1. `$CKLPH_DIAGRAM_BRANDS`, when set (it must be a directory, or every command refuses).
+2. `~/.config/cklph-diagram/brands/` (or `$XDG_CONFIG_HOME/cklph-diagram/brands/`).
+
+Licensed font files go in `fonts/<slug>/` inside that directory. A slug defined
+both locally and in the bundle is refused, never resolved by search order.
+`--list` marks local brands and prints both directories. See
 [`brand-onboarding.md`](references/brand-onboarding.md).
 
 ### Project marker — pinning a brand to a repo

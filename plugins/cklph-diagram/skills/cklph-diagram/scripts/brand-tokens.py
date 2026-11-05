@@ -39,7 +39,7 @@ sys.path.insert(0, str(Path(__file__).resolve().parent))
 from colorlib import check_ramp, is_exempt, passes  # noqa: E402
 
 def _find_brands_dir() -> Path:
-    """Locate references/brands whether we are in the repo or installed alone.
+    """Locate the bundled references/brands, in the repo or installed alone.
 
     The skill is installed as a self-contained folder, but development happens
     in the fork repo where scripts also live at the root. Walk up from this
@@ -60,11 +60,76 @@ def _find_brands_dir() -> Path:
     )
 
 
-BRANDS = _find_brands_dir()
-ROOT = BRANDS.parent.parent
-# Licensed font files live beside the registry, git-ignored (the repo is public;
-# the faces are licensed to Chykalophia, not to the world). Overridable for tests.
-FONTS_DIR = Path(os.environ.get("CKLPH_FONTS_DIR", BRANDS / "fonts"))
+# Client brand files must not live inside the installed skill: a plugin update
+# replaces that folder and would delete them. They live in a local brands
+# directory instead, searched before the bundled registry:
+#
+#   1. $CKLPH_DIAGRAM_BRANDS, when set. It must be a directory; a set variable
+#      that points nowhere is refused, never silently ignored.
+#   2. ${XDG_CONFIG_HOME:-~/.config}/cklph-diagram/brands, when it exists.
+#
+# The bundled registry (_default, _template, _example-stub, cklph) is always
+# searched last. A slug found in two places is refused: which file renders a
+# client deliverable must never depend on search order.
+BRANDS_ENV = "CKLPH_DIAGRAM_BRANDS"
+
+
+def default_local_brands_dir() -> Path:
+    """Where client brands go, whether or not the directory exists yet."""
+    raw = os.environ.get(BRANDS_ENV, "")
+    if raw:
+        return Path(raw).expanduser()
+    config = Path(os.environ.get("XDG_CONFIG_HOME") or Path.home() / ".config")
+    return config.expanduser() / "cklph-diagram" / "brands"
+
+
+def _local_brands_dir() -> Path | None:
+    path = default_local_brands_dir()
+    if path.is_dir():
+        return path.resolve()
+    if os.environ.get(BRANDS_ENV):
+        raise SystemExit(
+            f"{BRANDS_ENV}={os.environ[BRANDS_ENV]} is not a directory. Create it, "
+            f"or unset {BRANDS_ENV} to use the default local brands directory."
+        )
+    return None
+
+
+BUNDLED_BRANDS = _find_brands_dir()
+LOCAL_BRANDS = _local_brands_dir()
+if LOCAL_BRANDS == BUNDLED_BRANDS.resolve():
+    LOCAL_BRANDS = None
+BRAND_DIRS = [d for d in (LOCAL_BRANDS, BUNDLED_BRANDS) if d is not None]
+# Licensed font files are never bundled (the repo is public; the faces are
+# licensed to Chykalophia, not to the world). They sit in fonts/<slug>/ beside
+# a brands directory, local first. CKLPH_FONTS_DIR overrides both, for tests.
+FONT_DIRS = (
+    [Path(os.environ["CKLPH_FONTS_DIR"])]
+    if os.environ.get("CKLPH_FONTS_DIR")
+    else [d / "fonts" for d in BRAND_DIRS]
+)
+
+
+def brand_file(slug: str) -> Path | None:
+    """The one file that defines ``slug``, or None. Two files is an error."""
+    hits = [d / f"{slug}.md" for d in BRAND_DIRS if (d / f"{slug}.md").is_file()]
+    if len(hits) > 1:
+        raise BrandError(
+            f"brand {slug!r} is defined twice:\n"
+            + "".join(f"  {h}\n" for h in hits)
+            + "  delete one copy; refusing to guess which one is current."
+        )
+    return hits[0] if hits else None
+
+
+def font_path(slug: str, file: str) -> Path:
+    """First existing fonts/<slug>/<file>; else where it should be installed."""
+    for d in FONT_DIRS:
+        if (d / slug / file).is_file():
+            return d / slug / file
+    return FONT_DIRS[0] / slug / file
+
+
 LOCAL_FONT_RE = re.compile(
     r"^\|\s*([A-Z][^|]*?)\s*\|\s*(\d{3})\s*\|\s*(normal|italic)\s*\|\s*`?([\w.-]+\.(?:woff2|woff|ttf|otf))`?\s*\|"
 )
@@ -182,16 +247,21 @@ def resolve_project_brand(start: Path) -> tuple[str, str]:
     return slug, f"marker {marker}"
 
 
+def _all_brand_files() -> list[Path]:
+    return [p for d in BRAND_DIRS for p in sorted(d.glob("*.md"))]
+
+
 def available() -> list[str]:
-    return sorted(p.stem for p in BRANDS.glob("*.md"))
+    return sorted({p.stem for p in _all_brand_files()})
 
 
 def resolve_slug(name: str) -> str:
     """Map a user-supplied name or alias onto a brand file stem."""
     want = name.strip().lower().replace(" ", "-")
-    if (BRANDS / f"{want}.md").exists():
+    if MARKER_SLUG_RE.fullmatch(want) and brand_file(want) is not None:
         return want
-    for path in BRANDS.glob("*.md"):
+    owners = []
+    for path in _all_brand_files():
         fm = FM_RE.match(path.read_text(encoding="utf-8"))
         if not fm:
             continue
@@ -199,12 +269,20 @@ def resolve_slug(name: str) -> str:
         if aliases:
             names = [a.strip().strip("'\"").lower() for a in aliases.group(1).split(",")]
             if want in names:
-                return path.stem
+                owners.append(path)
+    if len(owners) > 1:
+        raise BrandError(
+            f"{name!r} is an alias of more than one brand:\n"
+            + "".join(f"  {o}\n" for o in owners)
+            + "  name the brand by its slug, or remove the alias from one file."
+        )
+    if owners:
+        return owners[0].stem
     raise BrandError(
         f"no brand file for {name!r}.\n"
         f"  known brands: {', '.join(available())}\n"
-        f"  to add one: copy references/brands/_template.md to "
-        f"references/brands/{want}.md and run brand onboarding."
+        f"  to add one: copy {BUNDLED_BRANDS / '_template.md'} to "
+        f"{default_local_brands_dir() / (want + '.md')} and run brand onboarding."
     )
 
 
@@ -233,9 +311,9 @@ def css_font_stack(cell: str) -> str:
 
 
 def load(slug: str) -> dict:
-    path = BRANDS / f"{slug}.md"
-    if not path.exists():
-        raise BrandError(f"missing brand file: {path}")
+    path = brand_file(slug) if MARKER_SLUG_RE.fullmatch(slug) else None
+    if path is None:
+        raise BrandError(f"missing brand file for {slug!r} in: {', '.join(map(str, BRAND_DIRS))}")
     text = path.read_text(encoding="utf-8")
 
     fm_match = FM_RE.match(text)
@@ -286,7 +364,7 @@ def load(slug: str) -> dict:
         if m:
             family, weight, style, file = m.groups()
             local_fonts.append({"family": family, "weight": weight, "style": style,
-                                "path": FONTS_DIR / slug / file})
+                                "path": font_path(slug, file)})
 
     return {
         "slug": slug,
@@ -471,10 +549,18 @@ def main() -> int:
         for slug in available():
             if slug == "_template":
                 continue
-            b = load(slug)
+            try:
+                b = load(slug)
+            except BrandError as exc:
+                print(f"error: {exc}", file=sys.stderr)
+                return 2
             flag = "live " if b["status"] == "live" else "STUB "
-            print(f"  {flag} {slug:<16} {b['label']}")
+            where = "  (local)" if LOCAL_BRANDS and brand_file(slug).parent == LOCAL_BRANDS else ""
+            print(f"  {flag} {slug:<16} {b['label']}{where}")
         print("\n  _template        (copy this to add a client)")
+        print(f"\n  local brands:   {default_local_brands_dir()}"
+              f"{'' if LOCAL_BRANDS else '  (not created yet)'}")
+        print(f"  bundled brands: {BUNDLED_BRANDS}")
         return 0
 
     try:
