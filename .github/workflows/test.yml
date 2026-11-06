@@ -65,3 +65,16 @@ jobs:
           npx playwright install --with-deps chromium
           npm test
           npm run self-test
+
+  cklph-diagram:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v5
+      - uses: actions/setup-python@v6
+        with:
+          python-version: "3.12"
+      # test-tools.py checks that GIF and MP4 exports animate, which needs ffmpeg.
+      - name: Install ffmpeg
+        run: sudo apt-get update && sudo apt-get install -y ffmpeg
+      - name: verify (brand audits, renders, a11y lint, refusal path)
+        run: bash plugins/cklph-diagram/scripts/verify.sh

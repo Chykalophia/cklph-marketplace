@@ -1,0 +1,11 @@
+{
+  "name": "cklph-diagram",
+  "description": "Accessible, brand-correct diagrams as self-contained HTML with inline SVG, in 41 types, exported to SVG, PNG, GIF and MP4. A multi-brand token registry refuses to render a client whose brand is not onboarded, and WCAG AA is checked by script. Client brands live in ~/.config/cklph-diagram/brands, so updates never touch them. Imports draw.io, Mermaid and Excalidraw.",
+  "version": "3.7.2",
+  "author": {
+    "name": "Peter Krzyzek"
+  },
+  "homepage": "https://github.com/Chykalophia/cklph-marketplace/tree/main/plugins/cklph-diagram",
+  "repository": "https://github.com/Chykalophia/cklph-marketplace",
+  "license": "MIT"
+}

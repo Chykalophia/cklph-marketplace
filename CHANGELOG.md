@@ -6,6 +6,11 @@ Format: [Keep a Changelog](https://keepachangelog.com).
 
 ## 2026-11-06
 
+### Changed
+- `cklph-diagram` 3.7.2 moved in from `Chykalophia/cklph-diagram-skill` to `plugins/cklph-diagram/`,
+  with its full git history. The catalog lists it by folder like every other plugin, and its
+  `verify.sh` gate runs in the test workflow.
+
 ### Added
 - `AGENTS.md` with the repo's comment policy, and a `CLAUDE.md` that imports it, so agents stop
   writing history, narration and commented-out code into comments.

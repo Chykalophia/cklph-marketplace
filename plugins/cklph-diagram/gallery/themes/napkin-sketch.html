@@ -1,0 +1,97 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Napkin Sketch — theme</title>
+<style>
+  body { margin:0; padding:55px 40px; background:#fdfcf7; color:#1e1e1e;
+         font-family:'Inter', system-ui, sans-serif; line-height:1.6; -webkit-font-smoothing:antialiased; }
+  main { max-width:880px; margin:0 auto; }
+  .tag { font-family:ui-monospace, monospace; font-size:14px; letter-spacing:.12em; text-transform:uppercase;
+          color:#5a5a5a; margin:0 0 8px; }
+  h1 { font-family:'Comic Neue', 'Segoe Print', cursive; font-size:34px; font-weight:600;
+        letter-spacing:0; margin:0 0 12px; }
+  .note { color:#5a5a5a; font-size:17px; max-width:64ch; margin:0 0 14px; }
+  .use { color:#1e1e1e; font-size:16px; max-width:64ch; margin:0 0 32px; }
+  svg { width:100%; height:auto; display:block; }
+  .alt { margin-top:32px; padding-top:20px; border-top:1px solid #b8b5ad; }
+  .alt h2 { font-family:ui-monospace, monospace; font-size:14px; font-weight:500; letter-spacing:.12em;
+             text-transform:uppercase; color:#5a5a5a; margin:0 0 10px; }
+  .alt p { color:#5a5a5a; font-size:16px; max-width:68ch; margin:0; }
+  @media (prefers-reduced-motion: reduce) { * { animation:none!important; transition:none!important; } }
+  @media (prefers-contrast: more) {
+    body { background:#fff; color:#000; } .note,.alt p,.tag,.use,.alt h2 { color:#000; } }
+</style>
+</head>
+<body>
+<main>
+  <p class="tag">theme · napkin-sketch</p>
+  <h1>Napkin Sketch</h1>
+  <p class="note">Hand-drawn wobble, Excalidraw-style. The wobble is a communication choice, not decoration: it signals 'this is a sketch, not the final answer', which keeps a conversation open. Polished diagrams pretend to be more decided than they are.</p>
+  <p class="use"><strong>Reach for it when:</strong> Early-stage thinking, discovery workshops, anything you want critiqued rather than approved. Never for a final client deliverable.</p>
+
+  <svg viewBox="0 0 768 356" xmlns="http://www.w3.org/2000/svg"
+       role="img" aria-labelledby="napkin-sketch-t napkin-sketch-d">
+    <title id="napkin-sketch-t">Content pipeline, Napkin Sketch theme</title>
+    <desc id="napkin-sketch-d">Six stages: intake and triage feed review and enrich,
+      which feed publish and archive.</desc>
+    <defs><filter id="wobble"><feTurbulence type="fractalNoise" baseFrequency="0.028" numOctaves="2" result="n" seed="7"/><feDisplacementMap in="SourceGraphic" in2="n" scale="2.4"/></filter></defs>
+    <rect width="768" height="356" fill="#fdfcf7"/>
+    
+    
+    <line x1="216" y1="136" x2="286" y2="136" stroke="#5a5a5a" stroke-width="1.5"/>
+    <line x1="216" y1="248" x2="286" y2="248" stroke="#5a5a5a" stroke-width="1.5"/>
+    <line x1="472" y1="136" x2="542" y2="136" stroke="#5a5a5a" stroke-width="1.5"/>
+    <line x1="472" y1="248" x2="542" y2="248" stroke="#5a5a5a" stroke-width="1.5"/>
+    <path d="M128,176 V196 Q128,208 140,208 H296" fill="none" stroke="#5a5a5a"
+          stroke-width="1.5" stroke-dasharray="5,4"/>
+  <g data-node="intake">
+    <rect x="40" y="96" width="176" height="80" rx="0" fill="#ffffff" stroke="#1d4ed8" stroke-width="2" filter="url(#wobble)" transform="rotate(-0.6 128 136)"/>
+    <text x="60" y="130" font-family="'Inter', system-ui, sans-serif" font-size="18" font-weight="600"
+          fill="#1e1e1e" letter-spacing="0">Intake</text>
+    <text x="60" y="154" font-family="ui-monospace, monospace" font-size="14" fill="#5a5a5a">form + email</text>
+  </g>
+  <g data-node="triage">
+    <rect x="40" y="208" width="176" height="80" rx="0" fill="#ffffff" stroke="#1d4ed8" stroke-width="2" filter="url(#wobble)" transform="rotate(-0.6 128 248)"/>
+    <text x="60" y="242" font-family="'Inter', system-ui, sans-serif" font-size="18" font-weight="600"
+          fill="#1e1e1e" letter-spacing="0">Triage</text>
+    <text x="60" y="266" font-family="ui-monospace, monospace" font-size="14" fill="#5a5a5a">rules engine</text>
+  </g>
+  <g data-node="review">
+    <rect x="296" y="96" width="176" height="80" rx="8" fill="#ffffff" stroke="#c2410c" stroke-width="3" filter="url(#wobble)" transform="rotate(-0.6 384 136)"/>
+    <text x="316" y="130" font-family="'Inter', system-ui, sans-serif" font-size="18" font-weight="600"
+          fill="#1e1e1e" letter-spacing="0">Review</text>
+    <text x="316" y="154" font-family="ui-monospace, monospace" font-size="14" fill="#5a5a5a">human check</text>
+  </g>
+  <g data-node="enrich">
+    <rect x="296" y="208" width="176" height="80" rx="8" fill="#ffffff" stroke="#c2410c" stroke-width="2" filter="url(#wobble)" transform="rotate(-0.6 384 248)"/>
+    <text x="316" y="242" font-family="'Inter', system-ui, sans-serif" font-size="18" font-weight="600"
+          fill="#1e1e1e" letter-spacing="0">Enrich</text>
+    <text x="316" y="266" font-family="ui-monospace, monospace" font-size="14" fill="#5a5a5a">lookup + tag</text>
+  </g>
+  <g data-node="publish">
+    <rect x="552" y="96" width="176" height="80" rx="6" fill="#ffffff" stroke="#15803d" stroke-width="2" stroke-dasharray="6,4" filter="url(#wobble)" transform="rotate(-0.6 640 136)"/>
+    <text x="572" y="130" font-family="'Inter', system-ui, sans-serif" font-size="18" font-weight="600"
+          fill="#1e1e1e" letter-spacing="0">Publish</text>
+    <text x="572" y="154" font-family="ui-monospace, monospace" font-size="14" fill="#5a5a5a">public API</text>
+  </g>
+  <g data-node="archive">
+    <rect x="552" y="208" width="176" height="80" rx="6" fill="#ffffff" stroke="#15803d" stroke-width="2" stroke-dasharray="6,4" filter="url(#wobble)" transform="rotate(-0.6 640 248)"/>
+    <text x="572" y="242" font-family="'Inter', system-ui, sans-serif" font-size="18" font-weight="600"
+          fill="#1e1e1e" letter-spacing="0">Archive</text>
+    <text x="572" y="266" font-family="ui-monospace, monospace" font-size="14" fill="#5a5a5a">cold storage</text>
+  </g>
+    <line x1="40" y1="300" x2="728" y2="300" stroke="#b8b5ad" stroke-width="1"/><rect x="40" y="322" width="20" height="14" rx="0" fill="none" stroke="#1d4ed8" stroke-width="2"/><text x="68" y="333" font-family="ui-monospace, monospace" font-size="14" fill="#5a5a5a">source</text><rect x="230" y="322" width="20" height="14" rx="8" fill="none" stroke="#c2410c" stroke-width="2"/><text x="258" y="333" font-family="ui-monospace, monospace" font-size="14" fill="#5a5a5a">processing</text><rect x="420" y="322" width="20" height="14" rx="6" fill="none" stroke="#15803d" stroke-width="2" stroke-dasharray="6,4"/><text x="448" y="333" font-family="ui-monospace, monospace" font-size="14" fill="#5a5a5a">destination</text>
+  </svg>
+
+  <div class="alt">
+    <h2>Described in words</h2>
+    <p>A content pipeline in three stages: intake and triage collect and sort,
+    review and enrich add judgement and metadata, publish and archive are the two
+    destinations. Category is carried by shape and border pattern as well as
+    colour.</p>
+  </div>
+</main>
+</body>
+</html>

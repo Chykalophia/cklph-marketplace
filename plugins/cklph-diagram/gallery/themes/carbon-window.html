@@ -1,0 +1,103 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Carbon Window — theme</title>
+<style>
+  body { margin:0; padding:57px 40px; background:#2b2f3a; color:#e6e6e6;
+         font-family:'Inter', system-ui, sans-serif; line-height:1.6; -webkit-font-smoothing:antialiased; }
+  main { max-width:880px; margin:0 auto; }
+  .tag { font-family:ui-monospace, monospace; font-size:14px; letter-spacing:.12em; text-transform:uppercase;
+          color:#a6adba; margin:0 0 8px; }
+  h1 { font-family:ui-monospace, monospace; font-size:34px; font-weight:600;
+        letter-spacing:0; margin:0 0 12px; }
+  .note { color:#a6adba; font-size:17px; max-width:64ch; margin:0 0 14px; }
+  .use { color:#e6e6e6; font-size:16px; max-width:64ch; margin:0 0 33px; }
+  svg { width:100%; height:auto; display:block; }
+  .alt { margin-top:33px; padding-top:20px; border-top:1px solid #3c414d; }
+  .alt h2 { font-family:ui-monospace, monospace; font-size:14px; font-weight:500; letter-spacing:.12em;
+             text-transform:uppercase; color:#a6adba; margin:0 0 10px; }
+  .alt p { color:#a6adba; font-size:16px; max-width:68ch; margin:0; }
+  @media (prefers-reduced-motion: reduce) { * { animation:none!important; transition:none!important; } }
+  @media (prefers-contrast: more) {
+    body { background:#fff; color:#000; } .note,.alt p,.tag,.use,.alt h2 { color:#000; } }
+</style>
+</head>
+<body>
+<main>
+  <p class="tag">theme · carbon-window</p>
+  <h1>Carbon Window</h1>
+  <p class="note">The macOS window chrome plus padded ground that Carbon popularised and every screenshot tool now replicates. A padding ring makes the diagram read as an embedded artifact rather than a hole punched in the page.</p>
+  <p class="use"><strong>Reach for it when:</strong> Social cards, dev-blog headers, anything posted to a feed. Pair with a light host page; skip it if your page already wraps images in a card, since two layers of depth compete.</p>
+
+  <svg viewBox="0 0 768 356" xmlns="http://www.w3.org/2000/svg"
+       role="img" aria-labelledby="carbon-window-t carbon-window-d">
+    <title id="carbon-window-t">Content pipeline, Carbon Window theme</title>
+    <desc id="carbon-window-d">Six stages: intake and triage feed review and enrich,
+      which feed publish and archive.</desc>
+    <defs></defs>
+    <rect width="768" height="356" fill="#2b2f3a"/>
+    
+    <rect x="24" y="24" width="720" height="308" rx="12" fill="#1b1e26"/>
+    <rect x="24" y="24" width="720" height="34" rx="12" fill="#3c414d"/>
+    <rect x="24" y="46" width="720" height="12" fill="#3c414d"/>
+    <circle cx="48" cy="41" r="6" fill="#ed6a5e"/><circle cx="68" cy="41" r="6" fill="#f4bf50"/>
+    <circle cx="88" cy="41" r="6" fill="#61c554"/>
+    <text x="384" y="46" text-anchor="middle" font-family="ui-monospace, monospace" font-size="14"
+          fill="#a6adba">pipeline.svg</text><g transform="translate(0,34) scale(0.94)">
+    <line x1="216" y1="136" x2="286" y2="136" stroke="#a6adba" stroke-width="1.5"/>
+    <line x1="216" y1="248" x2="286" y2="248" stroke="#a6adba" stroke-width="1.5"/>
+    <line x1="472" y1="136" x2="542" y2="136" stroke="#a6adba" stroke-width="1.5"/>
+    <line x1="472" y1="248" x2="542" y2="248" stroke="#a6adba" stroke-width="1.5"/>
+    <path d="M128,176 V196 Q128,208 140,208 H296" fill="none" stroke="#a6adba"
+          stroke-width="1.5" stroke-dasharray="5,4"/>
+  <g data-node="intake">
+    <rect x="40" y="96" width="176" height="80" rx="0" fill="#1b1e26" stroke="#7fb3d5" stroke-width="1.2"/>
+    <text x="60" y="130" font-family="'Inter', system-ui, sans-serif" font-size="18" font-weight="600"
+          fill="#e6e6e6" letter-spacing="0">Intake</text>
+    <text x="60" y="154" font-family="ui-monospace, monospace" font-size="14" fill="#a6adba">form + email</text>
+  </g>
+  <g data-node="triage">
+    <rect x="40" y="208" width="176" height="80" rx="0" fill="#1b1e26" stroke="#7fb3d5" stroke-width="1.2"/>
+    <text x="60" y="242" font-family="'Inter', system-ui, sans-serif" font-size="18" font-weight="600"
+          fill="#e6e6e6" letter-spacing="0">Triage</text>
+    <text x="60" y="266" font-family="ui-monospace, monospace" font-size="14" fill="#a6adba">rules engine</text>
+  </g>
+  <g data-node="review">
+    <rect x="296" y="96" width="176" height="80" rx="10" fill="#1b1e26" stroke="#f08a4b" stroke-width="2.2"/>
+    <text x="316" y="130" font-family="'Inter', system-ui, sans-serif" font-size="18" font-weight="600"
+          fill="#e6e6e6" letter-spacing="0">Review</text>
+    <text x="316" y="154" font-family="ui-monospace, monospace" font-size="14" fill="#a6adba">human check</text>
+  </g>
+  <g data-node="enrich">
+    <rect x="296" y="208" width="176" height="80" rx="10" fill="#1b1e26" stroke="#f08a4b" stroke-width="1.2"/>
+    <text x="316" y="242" font-family="'Inter', system-ui, sans-serif" font-size="18" font-weight="600"
+          fill="#e6e6e6" letter-spacing="0">Enrich</text>
+    <text x="316" y="266" font-family="ui-monospace, monospace" font-size="14" fill="#a6adba">lookup + tag</text>
+  </g>
+  <g data-node="publish">
+    <rect x="552" y="96" width="176" height="80" rx="10" fill="#1b1e26" stroke="#a3c9a8" stroke-width="1.2" stroke-dasharray="6,4"/>
+    <text x="572" y="130" font-family="'Inter', system-ui, sans-serif" font-size="18" font-weight="600"
+          fill="#e6e6e6" letter-spacing="0">Publish</text>
+    <text x="572" y="154" font-family="ui-monospace, monospace" font-size="14" fill="#a6adba">public API</text>
+  </g>
+  <g data-node="archive">
+    <rect x="552" y="208" width="176" height="80" rx="10" fill="#1b1e26" stroke="#a3c9a8" stroke-width="1.2" stroke-dasharray="6,4"/>
+    <text x="572" y="242" font-family="'Inter', system-ui, sans-serif" font-size="18" font-weight="600"
+          fill="#e6e6e6" letter-spacing="0">Archive</text>
+    <text x="572" y="266" font-family="ui-monospace, monospace" font-size="14" fill="#a6adba">cold storage</text>
+  </g><line x1="40" y1="300" x2="728" y2="300" stroke="#3c414d" stroke-width="1"/><rect x="40" y="322" width="20" height="14" rx="0" fill="none" stroke="#7fb3d5" stroke-width="1.2"/><text x="68" y="333" font-family="ui-monospace, monospace" font-size="14" fill="#a6adba">source</text><rect x="230" y="322" width="20" height="14" rx="8" fill="none" stroke="#f08a4b" stroke-width="1.2"/><text x="258" y="333" font-family="ui-monospace, monospace" font-size="14" fill="#a6adba">processing</text><rect x="420" y="322" width="20" height="14" rx="10" fill="none" stroke="#a3c9a8" stroke-width="1.2" stroke-dasharray="6,4"/><text x="448" y="333" font-family="ui-monospace, monospace" font-size="14" fill="#a6adba">destination</text></g>
+    
+  </svg>
+
+  <div class="alt">
+    <h2>Described in words</h2>
+    <p>A content pipeline in three stages: intake and triage collect and sort,
+    review and enrich add judgement and metadata, publish and archive are the two
+    destinations. Category is carried by shape and border pattern as well as
+    colour.</p>
+  </div>
+</main>
+</body>
+</html>
