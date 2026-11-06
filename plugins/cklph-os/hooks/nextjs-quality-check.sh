@@ -6,16 +6,12 @@
 
 set -uo pipefail
 
-# Read JSON input from stdin
 INPUT=$(cat 2>/dev/null || true)
 
-# Parse input using jq
 FILE_PATH=$(printf '%s' "$INPUT" | jq -r '.tool_input.file_path // empty' 2>/dev/null)
 
 # No success check: PostToolUse fires only after a tool call succeeds (a failed call fires
-# PostToolUseFailure instead), and Write/Edit results carry no `success` field. Before 0.12.3 this
-# hook waited for `.tool_response.success == true`, so it exited here on every real edit.
-# Skip if not a JS/TS file
+# PostToolUseFailure instead), and Write/Edit results carry no `success` field.
 if [[ ! "$FILE_PATH" =~ \.(js|jsx|ts|tsx)$ ]]; then
     exit 0
 fi
@@ -37,10 +33,8 @@ echo "Next.js Quality Check: $FILE_PATH"
 APP_RE='(^|/)app/'
 if [[ "$FILE_PATH" =~ $APP_RE ]]; then
 
-    # Page component checks
     if [[ "$FILE_PATH" =~ page\.(js|jsx|ts|tsx)$ ]]; then
-        # Any `export default` shape — function, async function, or arrow function (the old check
-        # only matched named function exports and false-positived on arrow defaults).
+        # Any `export default` shape: function, async function, or arrow function.
         if ! grep -q 'export default' "$FILE_PATH" 2>/dev/null; then
             echo "Error: Page must have a default export" >&2
             ISSUES=$((ISSUES + 1))
@@ -60,13 +54,11 @@ if [[ "$FILE_PATH" =~ $APP_RE ]]; then
         fi
     fi
 
-    # Client vs Server component checks
     if grep -q "'use client'\|\"use client\"" "$FILE_PATH" 2>/dev/null; then
         echo "Info: Client Component"
     else
         echo "Info: Server Component"
-        # Word-boundary — old version flagged `useStateOf`, comments mentioning useEffect,
-        # and string literals like "onClick handler" as interactive features.
+        # Word-boundary, so `useStateOf` does not count as an interactive feature.
         if grep -qE '\b(useState|useEffect|onClick|onChange|onSubmit)\b' "$FILE_PATH" 2>/dev/null; then
             echo "Error: Interactive features require 'use client' directive" >&2
             ISSUES=$((ISSUES + 1))
@@ -74,14 +66,12 @@ if [[ "$FILE_PATH" =~ $APP_RE ]]; then
     fi
 fi
 
-# Image optimization check
 if grep -q '<img ' "$FILE_PATH" 2>/dev/null; then
     if ! grep -q 'next/image' "$FILE_PATH" 2>/dev/null; then
         echo "Suggestion: Use next/image for optimized images"
     fi
 fi
 
-# Link optimization check
 if grep -q '<a href=' "$FILE_PATH" 2>/dev/null; then
     if ! grep -q 'next/link' "$FILE_PATH" 2>/dev/null; then
         # Only suggest for internal links (not http)
@@ -96,7 +86,6 @@ if grep -qE '\b(getServerSideProps|getStaticProps|getInitialProps)\b' "$FILE_PAT
     echo "Warning: Legacy Pages Router patterns detected"
 fi
 
-# Final result
 if [[ $ISSUES -eq 0 ]]; then
     echo "Passed: No issues found"
     exit 0

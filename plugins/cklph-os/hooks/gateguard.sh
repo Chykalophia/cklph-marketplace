@@ -41,12 +41,11 @@
 #   state file cannot be written, so a broken gate can never loop an agent forever.
 #   State: one gateguard-<session>.list per session under ${CKLPH_GATEGUARD_STATE:-
 #   ~/.claude/cklph-gateguard}; set it to an absolute path (a relative one resolves against
-#   the hook's working directory). Session ids are reduced to [A-Za-z0-9_-] for the file name. Only those files, at that level, are pruned after about 3 days
-#   (find -maxdepth 1 -mtime +2). Each denial appends one line to
-#   ~/.claude/cklph-usage/gateguard.jsonl (time,
-#   tool, class, sensitive, repo directory name, session id; never paths; CKLPH_USAGE_DIR moves it,
-#   as for skill-usage-log), so the weekly review
-#   can judge whether the gate earns its friction.
+#   the hook's working directory). Session ids are reduced to [A-Za-z0-9_-] for the file name.
+#   Only those files, at that level, are pruned after about 3 days (find -maxdepth 1 -mtime +2).
+#   Each denial appends one line to ~/.claude/cklph-usage/gateguard.jsonl (time, tool, class,
+#   sensitive, repo directory name, session id; never paths; CKLPH_USAGE_DIR moves it, as for
+#   skill-usage-log), so the weekly review can judge whether the gate earns its friction.
 #
 # KNOWN LIMITS
 #   - Parallel batches: hooks see calls one at a time. When several edits to an untouched file go

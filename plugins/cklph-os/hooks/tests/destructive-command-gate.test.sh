@@ -384,8 +384,8 @@ block "docker run -c 256 --entrypoint sh alpine -c 'git reset --hard'"
 block "docker exec db sh -c 'echo ok' && docker exec db bash -c 'git reset --hard'"
 allow 'docker run -c 256 --entrypoint sh alpine -c "ls -la"'
 allow "kubectl exec pod -c app -- sh -c 'ls -la'"
-# Only the SQL client sits inside the nested string; the DROP is outside it. A 0.12.2 draft's
-# early exit in check_string let all of these through.
+# Only the SQL client sits inside the nested string; the DROP is outside it. A word-based early
+# exit in check_string would let all of these through.
 block "echo 'DROP TABLE users;' | bash -c 'psql mydb'"
 block "echo 'DROP TABLE users;' | sh -c psql"
 block "echo 'DROP TABLE users;' | eval psql mydb"
@@ -478,7 +478,8 @@ allow 'git commit -unormal -m x'
 allow 'git commit -Snm x'
 allow 'git commit -Sjohn@x.com -m x'
 block 'git commit -S -nm x'
-# zsh does not end a heredoc at EOF); a later exact EOF line means zsh reads on. Block if either reading blocks.
+# bash ends a heredoc opened inside $( ) at `EOF)`; zsh does not, and reads on to a later exact EOF
+# line. Block if either reading blocks.
 expect 2 'block: EOF) body line under the zsh reading, then git reset --hard' "$(printf 'git commit -m "$(cat <<'"'"'EOF'"'"'\nEOF)" note don'"'"'t\nEOF\n)" && git reset --hard')"
 block "bash -co pipefail 'git reset --hard'"
 block "bash -ceo pipefail 'git reset --hard'"

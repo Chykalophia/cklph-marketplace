@@ -17,8 +17,8 @@ has()   { [[ "$output" == *"$1"* ]] || { echo "expected output to contain: $1" >
 hasnt() { [[ "$output" != *"$1"* ]] || { echo "expected output NOT to contain: $1" >&2; return 1; }; }
 
 # Real PostToolUse payloads. Write and Edit results carry NO `success` field (PostToolUse only fires
-# after a successful call). Before 0.12.3 these tests faked "tool_response":{"success":true}, which
-# hid that the Next.js hook waited for that field and so never ran on a real edit.
+# after a successful call). Never fake "tool_response":{"success":true}: it hides a hook that
+# waits for that field and so never runs on a real edit.
 write_payload() {  # write_payload <file>
   printf '{"session_id":"s","hook_event_name":"PostToolUse","tool_name":"Write","tool_input":{"file_path":"%s","content":"x"},"tool_response":{"type":"create","filePath":"%s","content":"x","structuredPatch":[],"originalFile":null}}' "$1" "$1"
 }

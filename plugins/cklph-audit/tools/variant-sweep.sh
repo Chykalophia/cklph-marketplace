@@ -69,7 +69,7 @@ while IFS= read -r F; do
     LN="${HIT%%:*}"
     TXT="${HIT#*:}"
     TXT="${TXT#"${TXT%%[![:space:]]*}"}"     # ltrim leading whitespace
-    TXT="${TXT:0:200}"                         # cap excerpt length
+    TXT="${TXT:0:200}"
     printf '{"file":"%s","line":%s,"excerpt":"%s"}\n' \
       "$(json_escape "$REL")" "$LN" "$(json_escape "$TXT")" >> "$TMP"
   done < <(grep -nE "$ALT" "$F" 2>/dev/null || true)

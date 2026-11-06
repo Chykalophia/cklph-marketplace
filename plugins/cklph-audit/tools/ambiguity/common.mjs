@@ -4,7 +4,7 @@
 import fs from 'node:fs';
 import nodePath from 'node:path';
 
-// Verbatim port of globMatch from workflows/audit.workflow.js:520-529 (`**/` = zero or more dirs).
+// Verbatim port of globMatch in workflows/audit.workflow.js (`**/` = zero or more dirs).
 // Never the bash `case` matching of omissions.sh:96, which misses `src/a.ts` for `src/**/*.ts`.
 export function globMatch(path, globs) {
   // honest subset: '**/' = any depth (incl. none), '**' = anything, '*' = one segment, else literal.
@@ -68,8 +68,8 @@ export function walk(root, onSkip = () => {}, onPrune = () => {}) {
 }
 
 // Markdown code spans as [start, end) ranges, in O(n): a backtick run pairs with the NEXT run of the
-// same length; an unpaired run is literal (CommonMark). Replaces a lazy regex that went quadratic on
-// many backtick runs (180KB took 14s).
+// same length; an unpaired run is literal (CommonMark). A lazy regex goes quadratic on many
+// backtick runs (180KB took 14s).
 export function codeSpanRanges(text) {
   const runs = [];
   for (let i = 0; i < text.length;) {
