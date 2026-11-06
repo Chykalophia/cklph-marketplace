@@ -15,9 +15,9 @@
 ---
 
 > [!NOTE]
-> **TL;DR** — One repo, one marketplace (`cklph`), twelve plugins that layer on each other:
+> **TL;DR** — One marketplace (`cklph`), thirteen plugins that layer on each other:
 > a dev-workflow spine, Next.js + Supabase patterns, auditing and monitoring, a WordPress and
-> design pipeline, and CRO research. Install only what you need.
+> design pipeline, diagrams, and CRO research. Install only what you need.
 
 ---
 
@@ -54,6 +54,12 @@
 | --- | --- | --- |
 | **`cro-research-reporting`** | Evidence-tagged conversion audits, voice-of-customer research, A/B test sizing and readouts, deep sourced research, conversion copy, and render-safe reports. | — |
 | **`cklph-youtube`** | A YouTube video's transcript through a fallback chain that survives cloud-IP blocks; dependencies stay in a private venv. | `cro-research-reporting` |
+
+**Diagrams**
+
+| Plugin | What it does | Pairs with |
+| --- | --- | --- |
+| **`cklph-diagram`** | Accessible, brand-correct diagrams in 41 types as HTML with inline SVG, exported to SVG, PNG, GIF and MP4. Refuses to render a client whose brand is not onboarded. Client brands stay in `~/.config/cklph-diagram/brands/`. Hosted in its own repo, [`Chykalophia/cklph-diagram-skill`](https://github.com/Chykalophia/cklph-diagram-skill). | — |
 
 Each plugin's `README.md` has the details; `.claude-plugin/marketplace.json` is the catalog.
 
