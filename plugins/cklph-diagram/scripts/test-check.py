@@ -158,7 +158,7 @@ def label_moved_svg(html):
 
 
 def shrink_on_phone(html):
-    # the pre-fix behaviour: the svg scales down to a 375px screen
+    # the svg loses its min-width and scales down to a 375px screen
     return re.sub(r' style="min-width: \d+px"', "", html, count=1)
 
 

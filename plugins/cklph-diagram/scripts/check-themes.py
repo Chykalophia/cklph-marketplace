@@ -5,7 +5,7 @@ Every file in references/themes/ promises: "Every role above is verified at or
 above 4.5:1 on `ground` by scripts/check-themes.py." This is that check.
 
 build-themes.py checks the fourteen themes it generates, but nine art-directed
-themes are hand-written and were checked by nothing. This reads the palette
+themes are hand-written and nothing else checks them. This reads the palette
 table out of each theme file, so it covers all of them however they were made.
 
 Checked at 4.5:1, as text:
