@@ -49,10 +49,7 @@
     },
     {
       "name": "cklph-diagram",
-      "source": {
-        "source": "github",
-        "repo": "Chykalophia/cklph-diagram-skill"
-      },
+      "source": "./plugins/cklph-diagram",
       "description": "Accessible, brand-correct diagrams as self-contained HTML with inline SVG, in 41 types, exported to SVG, PNG, GIF and MP4. A multi-brand token registry refuses to render a client whose brand is not onboarded, and WCAG AA is checked by script. Client brands live in ~/.config/cklph-diagram/brands, so updates never touch them. Imports draw.io, Mermaid and Excalidraw.",
       "category": "design"
     },

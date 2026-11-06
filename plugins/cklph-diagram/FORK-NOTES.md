@@ -43,7 +43,7 @@ upstream does not silently undo a decision.
 | `scripts/verify.sh` | The whole gate, in one command |
 | `scripts/verify-export.py` | Asserts an SVG export keeps the brand's tokens and fonts |
 | `scripts/self_check.py` (root) | Forwarder to the packaged self-check, like the other root scripts |
-| `.github/workflows/verify.yml` | CI, running that same script |
+| `verify` step in the marketplace's `.github/workflows/test.yml` | CI, running that same script |
 
 ## Files removed
 
@@ -336,7 +336,7 @@ surface map, retainer scope boundary, site architecture / redirect map.
 ## Open questions, now answered
 
 1. **Public or private repo?** *Public*, at
-   `Chykalophia/cklph-diagram-skill`. The concern that decided it — client brand
+   `Chykalophia/cklph-marketplace` under `plugins/cklph-diagram/`. The concern that decided it — client brand
    tokens living in the registry — was resolved by removing them and
    git-ignoring the path, rather than by keeping the whole repo private.
 2. **Ships to the team, or stays local?** *Ships.* `verify.sh` and CI therefore

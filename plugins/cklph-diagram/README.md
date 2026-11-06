@@ -24,7 +24,7 @@ self-contained HTML page. Imports draw.io, Mermaid and Excalidraw sources.
 | **Themes** | One look | 23 opt-in themes for geometry, chrome and density, plus a 10-file component library; the brand always keeps colour and typefaces |
 | **Source of truth** | The HTML | A JSON source (content + placement) beside and inside every HTML; `check.py` fails a drawing that disagrees with it |
 | **Checking** | Static linters | `check.py`: static gates plus measurement in real Chrome at desktop and phone widths |
-| **CI** | — | `./scripts/verify.sh`, run identically in GitHub Actions |
+| **CI** | — | `./scripts/verify.sh`, the same gate locally and in the marketplace's test workflow |
 
 The design tension behind all of it — "vibrant" versus "low sensory load" — is
 resolved once in [`references/design-thesis.md`](skills/diagram/references/design-thesis.md).
@@ -50,8 +50,8 @@ a plugin update never touches them.
 As a loose skill, or a bundle for claude.ai:
 
 ```bash
-git clone https://github.com/Chykalophia/cklph-diagram-skill.git
-cd cklph-diagram-skill
+git clone https://github.com/Chykalophia/cklph-marketplace.git
+cd cklph-marketplace/plugins/cklph-diagram
 
 ./install.sh              # -> ~/.claude/skills/cklph-diagram
 ./install.sh --bundle     # -> cklph-diagram.skill, for claude.ai upload

@@ -21,7 +21,7 @@ import zipfile
 from pathlib import Path
 
 REPO = Path(__file__).resolve().parent.parent
-PRE_RENAME = "045b4af"  # main before 3.7.0, when the skill lived in skills/cklph-diagram/
+PRE_RENAME = "c2e42af"  # main before 3.7.0, when the skill lived in skills/cklph-diagram/
 failures: list[str] = []
 
 
@@ -71,7 +71,7 @@ def main() -> int:
         # A copy installed before the move from skills/cklph-diagram/ holds an
         # older committed cklph.md. A reinstall must treat it as out of date,
         # not as a local edit. Needs git history (CI checks out one commit).
-        old = subprocess.run(["git", "show", f"{PRE_RENAME}:skills/cklph-diagram/references/brands/cklph.md"],
+        old = subprocess.run(["git", "show", f"{PRE_RENAME}:./skills/cklph-diagram/references/brands/cklph.md"],
                              capture_output=True, cwd=REPO)
         target = Path(d) / "skills/cklph-diagram/references/brands/cklph.md"
         if old.returncode != 0 or not target.is_file():

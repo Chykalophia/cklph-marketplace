@@ -59,7 +59,7 @@
 
 | Plugin | What it does | Pairs with |
 | --- | --- | --- |
-| **`cklph-diagram`** | Accessible, brand-correct diagrams in 41 types as HTML with inline SVG, exported to SVG, PNG, GIF and MP4. Refuses to render a client whose brand is not onboarded. Client brands stay in `~/.config/cklph-diagram/brands/`. Hosted in its own repo, [`Chykalophia/cklph-diagram-skill`](https://github.com/Chykalophia/cklph-diagram-skill). | — |
+| **`cklph-diagram`** | Accessible, brand-correct diagrams in 41 types as HTML with inline SVG, exported to SVG, PNG, GIF and MP4. Refuses to render a client whose brand is not onboarded. Client brands stay in `~/.config/cklph-diagram/brands/`. | — |
 
 Each plugin's `README.md` has the details; `.claude-plugin/marketplace.json` is the catalog.
 
@@ -191,6 +191,7 @@ bash plugins/cklph-youtube/tests/get_transcript.test.sh # offline, no network
 node --test plugins/cklph-audit/tests/*.test.mjs        # scanner wrappers against fake scanners
 (cd plugins/vuln-intel-ext && npm ci && npm test)
 (cd plugins/cklph-regression-watch && npm ci && npm test && npm run self-test)   # needs Chromium
+bash plugins/cklph-diagram/scripts/verify.sh                               # needs Chrome and ffmpeg
 ```
 
 CI runs all of these on every push (see the badge up top).

@@ -179,7 +179,7 @@ def fetch(url: str) -> str | None:
             url,
             headers={
                 "User-Agent": "cklph-diagram-build/1.0 "
-                "(https://github.com/Chykalophia/cklph-diagram-skill)"
+                "(https://github.com/Chykalophia/cklph-marketplace)"
             },
         )
         with urllib.request.urlopen(req, timeout=15) as r:

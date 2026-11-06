@@ -8,6 +8,17 @@ The major version tracks the skill's `metadata.version` in
 `skills/diagram/SKILL.md`, which inherits `3.x` from the upstream skill
 this forked from.
 
+## [3.7.2] — 2026-11-06
+
+### Changed
+
+- **New home.** The plugin moved from `Chykalophia/cklph-diagram-skill` into
+  `Chykalophia/cklph-marketplace` at `plugins/cklph-diagram/`, with its full git history.
+  Both catalogs list it like every other public plugin, and `cklph-private` mirrors it by
+  `git-subdir`. Nothing changes for installs: the plugin name, the skill name, the brands
+  directory (`~/.config/cklph-diagram/brands/`), `install.sh` and the claude.ai bundle all
+  work as before. `./scripts/verify.sh` runs from the plugin folder.
+
 ## [3.7.1] — 2026-11-06
 
 ### Changed
