@@ -4,6 +4,12 @@ Marketplace-level changes only: plugins added or removed, catalog and repo layou
 its own version history in `plugins/<name>/CHANGELOG.md` (cklph-os included).
 Format: [Keep a Changelog](https://keepachangelog.com).
 
+## 2026-11-06
+
+### Added
+- `AGENTS.md` with the repo's comment policy, and a `CLAUDE.md` that imports it, so agents stop
+  writing history, narration and commented-out code into comments.
+
 ## 2026-11-05
 
 ### Added
