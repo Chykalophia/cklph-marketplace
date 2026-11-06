@@ -50,10 +50,10 @@ SI_URL = "https://raw.githubusercontent.com/simple-icons/simple-icons/develop/ic
 SI_CDN_URL = "https://cdn.jsdelivr.net/npm/simple-icons/icons/{slug}.svg"
 LOGZ_URL = "https://raw.githubusercontent.com/log-z/logos/main/website-logos/{name}.svg"
 DEVICON_URL = "https://raw.githubusercontent.com/devicons/devicon/master/icons/{name}/{name}-{variant}.svg"
-# There is deliberately no "url" source. Logos fetched straight from vendor
-# sites and logo CDNs carry no licence for the SVG file, and this repo is public,
-# so shipping them is redistribution. Only libraries whose licence covers
-# redistribution are allowed (see the License attribution section).
+# There is deliberately no "url" source. An arbitrary URL does not establish a
+# licence for the SVG file, and this repo is public, so shipping it would be
+# redistribution. Only libraries whose licence covers redistribution are allowed,
+# whichever host serves them (see the License attribution section).
 
 
 # (slot_name, source, source_id, blurb)

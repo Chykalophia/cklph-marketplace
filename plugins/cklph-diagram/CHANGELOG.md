@@ -12,7 +12,7 @@ this forked from.
 
 ### Changed
 
-- Comments only, no code change. Seven comments in `install.sh`, the CI workflow and
+- Comments only, no code change. Six comments in `install.sh`, the CI workflow and
   `scripts/` state the current reason instead of history ("so every install shipped a
   stale .pyc", "were checked by nothing"). One thinking-out-loud comment is gone.
 
