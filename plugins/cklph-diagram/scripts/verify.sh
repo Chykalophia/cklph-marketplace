@@ -15,7 +15,14 @@ cd "$(dirname "$0")/.."
 # Keep the tree clean: a verification run should not leave __pycache__ behind.
 export PYTHONDONTWRITEBYTECODE=1
 
-BRANDS_DIR="skills/cklph-diagram/references/brands"
+# Run against the bundled registry only. A machine with real client brands in
+# ~/.config/cklph-diagram/brands must get the same answer as CI, so point the
+# local brands directory at an empty one for the whole run.
+CKLPH_DIAGRAM_BRANDS="$(mktemp -d)"
+export CKLPH_DIAGRAM_BRANDS
+trap 'rm -rf "$CKLPH_DIAGRAM_BRANDS"' EXIT
+
+BRANDS_DIR="skills/diagram/references/brands"
 OUT="${OUT:-out}"
 fail=0
 
@@ -116,7 +123,7 @@ echo
 echo "=============================================="
 echo " 5. Shipped templates and inherited examples"
 echo "=============================================="
-ASSETS="skills/cklph-diagram/assets"
+ASSETS="skills/diagram/assets"
 # The templates are the copy path for every new diagram, so they must lint clean
 # in the brand they ship with. template-full.html is excluded: its baked-in
 # sample diagram is the Phase 2 backlog (FORK-NOTES.md), and SKILL.md §10 says
@@ -150,8 +157,14 @@ echo " 6. Refusal path (the client-safety guardrail)"
 echo "=============================================="
 # A project marker (.cklph-diagram) that is malformed, hostile, or names a stub
 # must refuse too -- never fall back to the house brand.
-python3 scripts/test-brand-marker.py | tail -1
-python3 scripts/test-brand-marker.py >/dev/null || { python3 scripts/test-brand-marker.py | grep '^FAIL'; fail=1; }
+if out="$(python3 scripts/test-brand-marker.py 2>&1)"; then echo "$out" | tail -1; else echo "$out" | grep -A1 '^FAIL' || true; echo "$out" | tail -1; fail=1; fi
+# Client brands live in a local directory outside the skill, so an update
+# cannot delete them. A brand defined twice, or an override that points
+# nowhere, must refuse rather than pick a file by search order.
+if out="$(python3 scripts/test-brands-dir.py 2>&1)"; then echo "$out" | tail -1; else echo "$out" | grep -A1 '^FAIL' || true; echo "$out" | tail -1; fail=1; fi
+# In the plugin the skill is cklph-diagram:diagram; a loose install and the
+# claude.ai bundle keep the full name cklph-diagram.
+if out="$(python3 scripts/test-skill-name.py 2>&1)"; then echo "$out" | tail -1; else echo "$out" | grep -A1 '^FAIL' || true; echo "$out" | tail -1; fail=1; fi
 # A stub brand MUST refuse. If one ever renders, a client deliverable is one
 # command away from shipping in house colours — that is a hard failure, and it
 # is why this check asserts the non-zero exit rather than trusting the message.

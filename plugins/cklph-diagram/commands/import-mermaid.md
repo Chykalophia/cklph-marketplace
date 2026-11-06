@@ -9,7 +9,7 @@ allowed-tools:
   - Glob
 ---
 
-Redraw the Mermaid source at `$1` in this skill's design system, following [`skills/cklph-diagram/references/import-mermaid.md`](../skills/cklph-diagram/references/import-mermaid.md) and [`skills/cklph-diagram/references/output-spec.md`](../skills/cklph-diagram/references/output-spec.md). Treat those references as the source of truth.
+Redraw the Mermaid source at `$1` in this skill's design system, following [`skills/diagram/references/import-mermaid.md`](../skills/diagram/references/import-mermaid.md) and [`skills/diagram/references/output-spec.md`](../skills/diagram/references/output-spec.md). Treat those references as the source of truth.
 
 Full argument string: `$ARGUMENTS`
 
@@ -23,7 +23,7 @@ Accepts `.mmd`, `.mermaid`, and Markdown files containing fenced `mermaid` block
 - `--variant=light` — the minimal light template.
 - A single diagram selects diagram 0; a multi-block Markdown file lists blocks and asks which to use.
 - Type is chosen from the extracted grammar and structure; `--type` forces one of the visual
-  types in [`SKILL.md` §3](../skills/cklph-diagram/SKILL.md).
+  types in [`SKILL.md` §3](../skills/diagram/SKILL.md).
 
 ## Flags
 

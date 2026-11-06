@@ -11,7 +11,7 @@ from html.parser import HTMLParser
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parent.parent
-ASSET_DIR = ROOT / "skills/cklph-diagram/assets"
+ASSET_DIR = ROOT / "skills/diagram/assets"
 MOTION_TEMPLATE = ASSET_DIR / "template-motion.html"
 MODES = {"none", "reveal", "step", "loop"}
 ACTIONS = {"play", "pause", "replay", "prev", "next"}

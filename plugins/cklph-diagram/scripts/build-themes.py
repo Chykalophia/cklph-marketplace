@@ -10,7 +10,8 @@ whole reason this works:
 Resolution order at draw time:
 
   1. A named client resolves a brand. Brand colour ALWAYS wins.
-  2. A theme supplies geometry, chrome, type treatment and density.
+  2. A theme supplies geometry, chrome and density. Brand typefaces win too;
+     a theme's Type table is intent, used only when no brand is set.
   3. A theme's palette is used ONLY when no brand is set (default runs, and
      marketplace installs where no brand has been onboarded yet).
 
@@ -24,10 +25,10 @@ import sys
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parent.parent
-sys.path.insert(0, str(ROOT / "skills/cklph-diagram/scripts"))
+sys.path.insert(0, str(ROOT / "skills/diagram/scripts"))
 from colorlib import contrast_ratio  # noqa: E402
 
-THEME_DIR = ROOT / "skills/cklph-diagram/references/themes"
+THEME_DIR = ROOT / "skills/diagram/references/themes"
 DEMO_DIR = ROOT / "gallery/themes"
 
 DEFAULT_THEME = "muted-dopamine"
@@ -234,7 +235,7 @@ These are what the theme actually owns. They apply on top of ANY brand.
 ## Fallback palette
 
 Used **only when no brand is resolved**. When a client brand is set, the brand's
-colours win and only the geometry and type above apply.
+colours and typefaces win, and only the geometry above applies.
 
 | Role | Value |
 |---|---|

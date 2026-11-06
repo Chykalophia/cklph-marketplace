@@ -17,14 +17,14 @@ upstream does not silently undo a decision.
 | `references/style-guide.md` | **Deprecated to a shim.** Keeps the terminal-skin table (deep-linked by `primitive-terminal.md`) and a token migration table. No longer a source of truth. |
 | `references/onboarding.md` | **Superseded.** Banner added; retained for reference. Its flow rewrites a single global skin, which would undo the fork. |
 | `assets/template*.html` | Repointed at the brand-token vocabulary — see "The template vocabulary was broken" below |
-| `commands/*.md` | Links repointed from `skills/diagram-design/` (which does not exist here) to `skills/cklph-diagram/`; `style-guide.md` replaced by the brand gate |
+| `commands/*.md` | Links repointed from `skills/diagram-design/` (which does not exist here) to `skills/diagram/`; `style-guide.md` replaced by the brand gate |
 | `prompts/*.md` | De-hosted — they referenced a different agent product by name |
 | `assets/template-motion.html` | Ported to the brand-token vocabulary (it shipped with `--color-*` and upstream hexes) |
 | `references/primitives-core.md`, `layout-budget.md` | Snippets in brand tokens at the 12px floor; fork note added |
 | `references/animation.md` | `lint-skin.py` replaced by `lint-a11y.py` + `self_check.py` |
 | `scripts/export_svg.py` | Font `@import` taken from the source page, not hardcoded |
 | `scripts/self_check.py` | Ignores URLs inside CSS comments; allows the Google Fonts `preconnect` |
-| `scripts/verify-*.py` (geometry, motion, 14 per-type) | Paths repointed to `skills/cklph-diagram/` |
+| `scripts/verify-*.py` (geometry, motion, 14 per-type) | Paths repointed to `skills/diagram/` |
 
 ## Files added
 

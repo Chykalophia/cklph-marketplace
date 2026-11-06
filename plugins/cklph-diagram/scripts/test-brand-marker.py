@@ -20,7 +20,7 @@ import sys
 import tempfile
 from pathlib import Path
 
-CLI = Path(__file__).resolve().parent.parent / "skills/cklph-diagram/scripts/brand-tokens.py"
+CLI = Path(__file__).resolve().parent.parent / "skills/diagram/scripts/brand-tokens.py"
 MARKER = ".cklph-diagram"
 
 

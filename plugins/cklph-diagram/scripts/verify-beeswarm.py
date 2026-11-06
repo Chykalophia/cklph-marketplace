@@ -104,7 +104,7 @@ WHAT THIS DOES NOT CHECK, deliberately:
 
 Usage:
     python3 scripts/verify-beeswarm.py --all
-    python3 scripts/verify-beeswarm.py skills/cklph-diagram/assets/example-beeswarm.html
+    python3 scripts/verify-beeswarm.py skills/diagram/assets/example-beeswarm.html
 
 Exit: 0 clean, 1 findings, 2 usage.
 """
@@ -119,7 +119,7 @@ import sys
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parent.parent
-ASSET_DIR = ROOT / "skills/cklph-diagram/assets"
+ASSET_DIR = ROOT / "skills/diagram/assets"
 
 CIRCLE_RE = re.compile(r"<circle\b(?P<attrs>[^>]*?)/?>", re.IGNORECASE)
 TEXT_RE = re.compile(r"<text\b(?P<attrs>[^>]*)>(?P<body>.*?)</text>", re.IGNORECASE | re.DOTALL)

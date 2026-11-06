@@ -5,8 +5,59 @@ All notable changes to this project are recorded here. Format follows
 [semantic](https://semver.org/).
 
 The major version tracks the skill's `metadata.version` in
-`skills/cklph-diagram/SKILL.md`, which inherits `3.x` from the upstream skill
+`skills/diagram/SKILL.md`, which inherits `3.x` from the upstream skill
 this forked from.
+
+## [3.7.0] — 2026-11-05
+
+### Added
+
+- **A plugin.** `.claude-plugin/plugin.json` at the repo root makes the repo a
+  Claude Code plugin (`cklph-diagram`), so it can be listed in the `cklph` and
+  `cklph-private` marketplaces instead of installed as a loose skill.
+- **A local brands directory.** Client brands and licensed fonts now live in
+  `~/.config/cklph-diagram/brands/` (or `$XDG_CONFIG_HOME/cklph-diagram/brands/`,
+  or `$CKLPH_DIAGRAM_BRANDS` when set), outside the skill folder. A plugin update
+  replaces the skill folder, which used to be the only place a client brand
+  could live. `brand-tokens.py` searches the local directory first, then the
+  bundled registry. Fonts are found in `fonts/<slug>/` beside either one.
+  `--list` marks local brands and prints both directories.
+- **`scripts/test-brands-dir.py`**, run by `verify.sh`: 21 cases with a
+  throwaway HOME. 19 of them fail on 3.6.0.
+- **`scripts/test-skill-name.py`**, run by `verify.sh`: the plugin skill is
+  named `diagram`, a loose install and the claude.ai bundle are named
+  `cklph-diagram`, and a copy installed before the move still updates.
+
+### Changed
+
+- The skill moved from `skills/cklph-diagram/` to `skills/diagram/`, and
+  SKILL.md says `name: diagram`. In the plugin it is `cklph-diagram:diagram`,
+  not `cklph-diagram:cklph-diagram`. A loose install and the claude.ai bundle
+  have no namespace, so `install.sh` writes `name: cklph-diagram` into the copy
+  it makes. That copy replaces the skill already installed or uploaded.
+  The old folder stays git-ignored, because a checkout leaves git-ignored client
+  files behind in it.
+- A brand slug defined both locally and in the bundle is refused, and so are an
+  alias claimed by two brands and a `CKLPH_DIAGRAM_BRANDS` that is not a
+  directory. None of them falls back.
+- `lint-a11y.py` drops its own copy of the brands lookup, which nothing used,
+  and goes through `brand-tokens.py` only. A missing brand now prints the
+  refusal instead of a traceback.
+- `verify.sh` points `CKLPH_DIAGRAM_BRANDS` at an empty directory, so a machine
+  with real client brands gets the same result as CI.
+- Theme files said a client brand keeps the theme's type. SKILL.md says brand
+  typefaces always win. The 23 themes and `build-themes.py` now agree with SKILL.md.
+- CI installs ffmpeg. `test-tools.py` needs it for the GIF and MP4 cases,
+  so `verify` was red on the runner (it was on #11 too).
+- The onboarding guide, SKILL.md §0, `cklph.md` and `install.sh` say where
+  client brands and fonts go now.
+
+### Fixed
+
+- `install.sh` follows the move in git history, so a brand file installed
+  before 3.7.0 is still recognised as an older committed version.
+- `verify.sh` prints a failing test's `FAIL` lines. Under `pipefail` it used to
+  stop before printing them.
 
 ## [3.6.0] — 2026-10-21
 

@@ -22,10 +22,10 @@ import sys
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parent.parent
-sys.path.insert(0, str(ROOT / "skills/cklph-diagram/scripts"))
+sys.path.insert(0, str(ROOT / "skills/diagram/scripts"))
 from colorlib import contrast_ratio  # noqa: E402
 
-THEME_DIR = ROOT / "skills/cklph-diagram/references/themes"
+THEME_DIR = ROOT / "skills/diagram/references/themes"
 ON_GROUND = ("ink", "soft", "accent", "cat-1", "cat-2", "cat-3")
 ON_SURFACE = ("ink", "soft")
 AA = 4.5

@@ -24,7 +24,7 @@ cognitive-load rules (C1-C9), the WCAG contrast library, and CI. FORK-NOTES.md
 records what changed and why, decision by decision.
 
 Third-party icon sources, redistributed under their own terms in
-skills/cklph-diagram/references/primitive-icons.md and assets/icons.html:
+skills/diagram/references/primitive-icons.md and assets/icons.html:
 
     Tabler Icons    MIT     https://github.com/tabler/tabler-icons
     Simple Icons    CC0     https://github.com/simple-icons/simple-icons

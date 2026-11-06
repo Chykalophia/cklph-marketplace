@@ -5,11 +5,16 @@
 #
 # The negations below are what keep the shipped four tracked. If you add a brand
 # for a client, it is ignored on purpose -- do not `git add -f` it.
-skills/cklph-diagram/references/brands/*.md
-!skills/cklph-diagram/references/brands/_default.md
-!skills/cklph-diagram/references/brands/_template.md
-!skills/cklph-diagram/references/brands/_example-stub.md
-!skills/cklph-diagram/references/brands/cklph.md
+skills/diagram/references/brands/*.md
+!skills/diagram/references/brands/_default.md
+!skills/diagram/references/brands/_template.md
+!skills/diagram/references/brands/_example-stub.md
+!skills/diagram/references/brands/cklph.md
+
+# The skill moved from skills/cklph-diagram/ to skills/diagram/ in 3.7.0. A
+# checkout leaves git-ignored client files behind in the old folder, so it stays
+# ignored until they are moved out.
+skills/cklph-diagram/
 
 # Local-only backup of client brand files taken during an upgrade. Same rule as
 # above: client design systems do not belong in a public repo.
@@ -28,4 +33,4 @@ __pycache__/
 .DS_Store
 
 # Licensed brand font files: used in deliverables, never published in this public repo.
-skills/cklph-diagram/references/brands/fonts/
+skills/diagram/references/brands/fonts/

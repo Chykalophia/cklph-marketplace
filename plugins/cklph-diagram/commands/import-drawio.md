@@ -9,7 +9,7 @@ allowed-tools:
   - Glob
 ---
 
-Redraw the draw.io file at `$1` as a diagram in this skill's design system, following [`skills/cklph-diagram/references/import-drawio.md`](../skills/cklph-diagram/references/import-drawio.md) and [`skills/cklph-diagram/references/output-spec.md`](../skills/cklph-diagram/references/output-spec.md). Treat those references as the source of truth — don't reimplement the logic here.
+Redraw the draw.io file at `$1` as a diagram in this skill's design system, following [`skills/diagram/references/import-drawio.md`](../skills/diagram/references/import-drawio.md) and [`skills/diagram/references/output-spec.md`](../skills/diagram/references/output-spec.md). Treat those references as the source of truth — don't reimplement the logic here.
 
 Full argument string: `$ARGUMENTS`
 
@@ -23,7 +23,7 @@ Accepts `.drawio`, `.drawio.xml`, `.xml`, `.drawio.png`, and `.drawio.svg`.
 - `--variant=light` — the minimal light template.
 - A single-page file selects its only page; a multi-page file lists pages and asks which to use.
 - Type is chosen from the extracted structure; `--type` forces one of the visual types in
-  [`SKILL.md` §3](../skills/cklph-diagram/SKILL.md).
+  [`SKILL.md` §3](../skills/diagram/SKILL.md).
 
 ## Flags
 

@@ -39,7 +39,7 @@ occupies a column.
 
 Usage:
     python3 scripts/verify-waterfall.py --all
-    python3 scripts/verify-waterfall.py skills/cklph-diagram/assets/example-waterfall.html
+    python3 scripts/verify-waterfall.py skills/diagram/assets/example-waterfall.html
 
 Exit: 0 clean, 1 findings, 2 usage.
 """
@@ -54,7 +54,7 @@ import sys
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parent.parent
-ASSET_DIR = ROOT / "skills/cklph-diagram/assets"
+ASSET_DIR = ROOT / "skills/diagram/assets"
 
 RECT_RE = re.compile(r"<rect\b(?P<attrs>[^>]*?)/?>", re.IGNORECASE)
 LINE_RE = re.compile(r"<line\b(?P<attrs>[^>]*?)/?>", re.IGNORECASE)

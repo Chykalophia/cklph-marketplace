@@ -27,8 +27,13 @@ cd "$(dirname "$0")"
 # the cleanup.
 export PYTHONDONTWRITEBYTECODE=1
 
-SRC="skills/cklph-diagram"
+SRC="skills/diagram"
+# In the plugin the skill is cklph-diagram:diagram, so SKILL.md says
+# `name: diagram`. A loose install or a claude.ai upload has no plugin
+# namespace, so it keeps the full name. That way it still replaces the
+# cklph-diagram skill that is already installed or uploaded.
 NAME="cklph-diagram"
+set_name() { sed -i.bak "1,/^---\$/ s/^name: .*/name: ${NAME}/" "$1/SKILL.md" && rm -f "$1/SKILL.md.bak"; }
 DEST="${HOME}/.claude/skills/${NAME}"
 MODE="install"
 BRANDS_FROM=""
@@ -95,15 +100,19 @@ echo "  registry ok"
 # True when $2 is byte-identical to some committed version of repo path $1:
 # the installed file is just out of date, so the repo's version can replace it.
 # A file matching no committed version was edited in place, and stops the install.
+# --follow walks back through the 3.7.0 move from skills/cklph-diagram/, so a
+# copy installed before the move still counts as an older committed version.
 was_committed() {
   git -C "$(dirname "$1")" rev-parse --is-inside-work-tree >/dev/null 2>&1 || return 1
-  local rel
-  rel="$(git -C "$(dirname "$1")" ls-files --full-name "$(basename "$1")")"
-  [ -n "$rel" ] || return 1
-  local h
-  for h in $(git -C "$(dirname "$1")" log --format=%H -- "$(basename "$1")"); do
-    if git -C "$(dirname "$1")" show "${h}:${rel}" 2>/dev/null | cmp -s - "$2"; then return 0; fi
-  done
+  [ -n "$(git -C "$(dirname "$1")" ls-files "$(basename "$1")")" ] || return 1
+  local line h=""
+  while IFS= read -r line; do
+    case "$line" in
+      '>'*) h="${line#>}" ;;
+      '')   ;;
+      *)    if git -C "$(dirname "$1")" show "${h}:${line}" 2>/dev/null | cmp -s - "$2"; then return 0; fi ;;
+    esac
+  done < <(git -C "$(dirname "$1")" log --follow --format='>%H' --name-only -- "$(basename "$1")")
   return 1
 }
 
@@ -119,6 +128,7 @@ case "$MODE" in
     tmp="$(mktemp -d)"
     cp -R "$SRC" "$tmp/${NAME}"
     find "$tmp" -name '__pycache__' -type d -prune -exec rm -rf {} + 2>/dev/null || true
+    set_name "$tmp/${NAME}"
     # claude.ai rejects an upload with more than 200 files. The inherited
     # example diagrams ship in three variants (light, dark, full) and are layout
     # reading only, never the copy path, so the bundle keeps one per type: the
@@ -189,6 +199,7 @@ case "$MODE" in
     fi
     mkdir -p "$(dirname "$DEST")"
     cp -R "$SRC" "$DEST"
+    set_name "$DEST"
     find "$DEST" -name '__pycache__' -type d -prune -exec rm -rf {} + 2>/dev/null || true
     if [ -n "$keep" ]; then
       for f in "$keep"/*.md; do
@@ -205,8 +216,12 @@ case "$MODE" in
       fi
       if [ -n "$kept_only" ]; then
         echo "Kept brand(s) that exist only in the installed copy:$kept_only"
-        echo "  They are not in the repo. To keep a backup there (git-ignored):"
-        echo "  cp \"$DEST/references/brands/<file>\" \"$SRC/references/brands/\""
+        echo "  Move them to the local brands directory, which no install or plugin"
+        echo "  update touches (see references/brand-onboarding.md):"
+        local_dir="${CKLPH_DIAGRAM_BRANDS:-${XDG_CONFIG_HOME:-$HOME/.config}/cklph-diagram/brands}"
+        echo "  mkdir -p \"$local_dir/fonts\""
+        echo "  mv \"$DEST/references/brands/<client>.md\" \"$local_dir/\""
+        echo "  mv \"$DEST/references/brands/fonts/<slug>\" \"$local_dir/fonts/\"   # licensed fonts"
       fi
     fi
 
@@ -219,8 +234,9 @@ case "$MODE" in
       echo "Ask Claude for a diagram to use it:"
       echo "  \"architecture diagram of the ingest pipeline\""
       echo
-      echo "To add a client brand, copy references/brands/_template.md and run"
-      echo "brand onboarding — see references/brand-onboarding.md."
+      echo "To add a client brand, copy references/brands/_template.md to"
+      echo "${CKLPH_DIAGRAM_BRANDS:-${XDG_CONFIG_HOME:-$HOME/.config}/cklph-diagram/brands}/<slug>.md and run brand onboarding."
+      echo "See references/brand-onboarding.md."
     else
       echo "FAILED: the installed copy cannot load its own registry." >&2
       exit 1

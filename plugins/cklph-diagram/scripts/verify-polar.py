@@ -14,7 +14,7 @@ from urllib.parse import urlsplit
 
 
 ROOT = Path(__file__).resolve().parent.parent
-ASSET_DIR = ROOT / "skills" / "cklph-diagram" / "assets"
+ASSET_DIR = ROOT / "skills" / "diagram" / "assets"
 DEFAULT_PATHS = (
     ASSET_DIR / "example-polar.html",
     ASSET_DIR / "example-polar-dark.html",

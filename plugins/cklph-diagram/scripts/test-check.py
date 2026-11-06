@@ -22,7 +22,7 @@ import tempfile
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parent.parent
-sys.path.insert(0, str(ROOT / "skills/cklph-diagram/scripts"))
+sys.path.insert(0, str(ROOT / "skills/diagram/scripts"))
 import check  # noqa: E402
 import diagram_source  # noqa: E402
 
