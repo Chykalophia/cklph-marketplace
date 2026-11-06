@@ -8,6 +8,14 @@ The major version tracks the skill's `metadata.version` in
 `skills/diagram/SKILL.md`, which inherits `3.x` from the upstream skill
 this forked from.
 
+## [3.7.1] — 2026-11-06
+
+### Changed
+
+- Comments only, no code change. Seven comments in `install.sh`, the CI workflow and
+  `scripts/` state the current reason instead of history ("so every install shipped a
+  stale .pyc", "were checked by nothing"). One thinking-out-loud comment is gone.
+
 ## [3.7.0] — 2026-11-05
 
 ### Added
