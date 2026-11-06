@@ -1,0 +1,24 @@
+<!DOCTYPE html><html lang="en"><head><meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1"><title>Fix 4 · Radius Scale</title><style>
+ body{margin:0;padding:52px 40px;background:#faf8f5;color:#231f1a;font-family:'Inter',system-ui,sans-serif;
+  line-height:1.6;-webkit-font-smoothing:antialiased}
+ main{max-width:960px;margin:0 auto}
+ .tag{font-family:ui-monospace,monospace;font-size:13px;letter-spacing:.14em;text-transform:uppercase;
+  color:#736a5f;margin:0 0 6px}
+ h1{font-size:33px;font-weight:650;letter-spacing:-.022em;margin:0 0 10px}
+ .note{color:#4e483f;font-size:17px;max-width:64ch;margin:0 0 6px}
+ .tech{font-size:15px;max-width:68ch;margin:0 0 28px;padding:10px 14px;border-left:3px solid #a8442a;
+  background:rgba(168,68,42,.05)}
+ .cav{font-size:15px;color:#4e483f;max-width:68ch;margin:22px 0 0;padding:10px 14px;
+  border-left:3px solid #c9c1b4;background:rgba(138,129,117,.08)}
+ svg{width:100%;height:auto;display:block}
+ .alt{margin-top:26px;padding-top:18px;border-top:1px solid #e4ded4}
+ .alt h2{font-family:ui-monospace,monospace;font-size:13px;font-weight:500;letter-spacing:.14em;
+  text-transform:uppercase;color:#736a5f;margin:0 0 8px}
+ .alt p{color:#4e483f;font-size:15px;max-width:72ch;margin:0}
+ @media (prefers-reduced-motion:reduce){*{animation:none!important;transition:none!important}}
+ @media (prefers-contrast:more){body{background:#fff;color:#000}.note,.alt p,.tag,.cav{color:#000}}
+</style></head><body><main>
+<p class="tag">demo 35</p><h1>Fix 4 · Radius Scale</h1><p class="note">Concentric corners, or the whole thing looks assembled by accident.</p><p class="tech"><strong>Child radius ≤ parent, curves parallel.</strong> Left: 20 → 12 → 8, every curve concentric. Right: 4 → 18 → 2, the corners fighting each other. Same layout, same colours.</p>
+<svg viewBox="0 0 900 330" xmlns="http://www.w3.org/2000/svg" role="img" aria-labelledby="t d"><title id="t">Concentric versus mismatched corner radii compared</title><desc id="d">Concentric versus mismatched corner radii compared</desc><defs></defs><rect width="900" height="330" fill="#faf8f5"/><text x="60" y="56" font-size="15" font-weight="650" fill="#231f1a" font-family="'Inter',sans-serif" text-anchor="start" letter-spacing="0">Concentric radii: child ≤ parent, curves aligned</text><rect x="60" y="90" width="330" height="180" rx="20" fill="#f2eee8" stroke="#e4ded4"/><rect x="76" y="106" width="298" height="72" rx="12" fill="#ffffff" stroke="#e4ded4"/><rect x="90" y="120" width="120" height="44" rx="8" fill="#2f5d6b" opacity=".16"/><text x="84" y="206" font-size="13" font-weight="400" fill="#4e483f" font-family="'Inter',sans-serif" text-anchor="start" letter-spacing="0">20 → 12 → 8 · curves stay parallel</text><text x="84" y="232" font-size="14" font-weight="650" fill="#3f6b46" font-family="'Inter',sans-serif" text-anchor="start" letter-spacing="0">correct</text><rect x="470" y="90" width="330" height="180" rx="4" fill="#f2eee8" stroke="#e4ded4"/><rect x="486" y="106" width="298" height="72" rx="18" fill="#ffffff" stroke="#e4ded4"/><rect x="500" y="120" width="120" height="44" rx="2" fill="#a8442a" opacity=".16"/><text x="494" y="206" font-size="13" font-weight="400" fill="#4e483f" font-family="'Inter',sans-serif" text-anchor="start" letter-spacing="0">4 → 18 → 2 · corners fight each other</text><text x="494" y="232" font-size="14" font-weight="650" fill="#a8442a" font-family="'Inter',sans-serif" text-anchor="start" letter-spacing="0">wrong</text><text x="60" y="292" font-size="14" font-weight="400" fill="#4e483f" font-family="'Inter',sans-serif" text-anchor="start" letter-spacing="0">Pick one radius scale and never deviate. A child corner larger than its parent is the single most common tell in a default diagram.</text></svg><p class="cav"><strong>Watch out:</strong> This is the tell most people feel but cannot name. Fixing it costs nothing.</p>
+<div class="alt"><h2>Described in words</h2><p>Concentric corners, or the whole thing looks assembled by accident.</p></div></main></body></html>

@@ -1,0 +1,226 @@
+# CKLPH Diagram
+
+A Chykalophia fork of [`cathrynlavery/diagram-design`](https://github.com/cathrynlavery/diagram-design)
+(MIT), turning a single-skin personal diagramming skill into a multi-brand
+agency tool with mechanically enforced accessibility.
+
+Forty-one visual types, built as deliverables: every diagram ships as SVG and
+PNG (and GIF/MP4 when animated) for docs, slides and client email, plus a
+self-contained HTML page. Imports draw.io, Mermaid and Excalidraw sources.
+
+---
+
+## What this fork adds
+
+| | Upstream | Here |
+|---|---|---|
+| **Brands** | One global `references/style-guide.md` | A registry: `references/brands/<slug>.md`, resolved per request |
+| **Client safety** | First-run gate, once per project | A named client with no brand file **stops the run**. No fallback to house colours, ever. |
+| **Per-repo brand** | `.diagram-design` profile marker, ignored if invalid | `.cklph-diagram` marker (`brand: <slug>`) at a client repo's root; an invalid one **refuses** |
+| **Colour** | One accent, one series palette | Categorical / sequential / diverging scales, each AA-verified, each with a mandatory non-colour cue |
+| **Accessibility** | Contrast checked at onboarding; SVG title/desc linted | Eight rules (A1–A8), most enforced by `lint-a11y.py`, which fails the build |
+| **Cognitive load** | Density budget | Nine rules (C1–C9) — predictable grammar, one reading order, node ceiling, no crossing lines |
+| **Type sizes** | 7–9px mono labels | 12px floor, enforced |
+| **Themes** | One look | 23 opt-in themes for geometry, chrome and density, plus a 10-file component library; the brand always keeps colour and typefaces |
+| **Source of truth** | The HTML | A JSON source (content + placement) beside and inside every HTML; `check.py` fails a drawing that disagrees with it |
+| **Checking** | Static linters | `check.py`: static gates plus measurement in real Chrome at desktop and phone widths |
+| **CI** | — | `./scripts/verify.sh`, run identically in GitHub Actions |
+
+The design tension behind all of it — "vibrant" versus "low sensory load" — is
+resolved once in [`references/design-thesis.md`](skills/diagram/references/design-thesis.md).
+Short version: vibrancy means **hue variety inside a controlled warm palette**,
+not saturation, not gradients, not density.
+
+---
+
+## Install
+
+As a Claude Code plugin (the team installs from `cklph-private`):
+
+```
+/plugin install cklph-diagram@cklph-private
+```
+
+Or from the public `cklph` marketplace: `/plugin install cklph-diagram@cklph`.
+In the plugin the skill is `cklph-diagram:diagram`. A loose install and the
+claude.ai bundle keep the name `cklph-diagram`.
+Client brands go in `~/.config/cklph-diagram/brands/` (see "The registry"), so
+a plugin update never touches them.
+
+As a loose skill, or a bundle for claude.ai:
+
+```bash
+git clone https://github.com/Chykalophia/cklph-diagram-skill.git
+cd cklph-diagram-skill
+
+./install.sh              # -> ~/.claude/skills/cklph-diagram
+./install.sh --bundle     # -> cklph-diagram.skill, for claude.ai upload
+./install.sh --dir <path> # -> somewhere else
+./install.sh --uninstall
+```
+
+Requires Python 3 (standard library only — no pip install, no dependencies).
+
+The installer refuses to install if any `live` brand fails its AA audit, and
+verifies the installed copy can load its own registry before reporting success.
+The skill folder is self-contained — `SKILL.md`, `references/` (including the
+brand registry) and `scripts/` travel together, so the brand gate and the a11y
+lint work with no repo present.
+
+## Quick start
+
+```bash
+# what brands exist, and which are actually renderable
+python3 scripts/brand-tokens.py --list
+
+# audit a brand's tokens against WCAG AA, both modes
+python3 scripts/brand-tokens.py cklph --check
+python3 scripts/brand-tokens.py cklph --check --mode dark
+
+# render the proof diagrams for a brand
+python3 scripts/build-examples.py --brand cklph --out out/
+
+# lint rendered output
+python3 scripts/lint-a11y.py out/*-cklph-light.html --brand cklph
+
+# everything above, for every live brand, plus the refusal path
+./scripts/verify.sh
+```
+
+## The registry
+
+```
+skills/diagram/references/brands/
+├── _default.md        neutral editorial skin — for unbranded work
+├── _template.md       copy this to add a client
+├── _example-stub.md   a synthetic blocked brand, so the refusal path stays tested
+└── cklph.md           house brand — the default when no client is named
+```
+
+**Client brand files are not in this repo, and are git-ignored.** You create them
+locally against your own clients' design systems; they never leave your machine.
+They live outside the skill, so an update cannot delete them:
+
+```
+${XDG_CONFIG_HOME:-~/.config}/cklph-diagram/brands/   or $CKLPH_DIAGRAM_BRANDS, when set
+├── <client>.md                      one file per client brand
+└── fonts/<slug>/                    licensed font files, for any brand
+```
+
+`brand-tokens.py` searches that directory first, then the bundled four. A slug
+in both places is refused, and a `CKLPH_DIAGRAM_BRANDS` that is not a directory
+is refused, so search order never decides which brand renders.
+The registry ships with the house brand, a neutral skin, a template, and one
+deliberately-blocked fixture.
+
+A brand file is `live` only once every text role clears 4.5:1 on its ground in
+both modes, meaningful borders clear 3:1, every ramp is monotonic with separable
+steps, and the Typography table names all three faces. Until then the loader
+refuses it:
+
+```
+$ python3 scripts/build-examples.py --brand _example-stub --out out/
+REFUSED — will not render '_example-stub':
+  - brand '_example-stub' has status 'stub' — not onboarded.
+    Run brand onboarding before rendering anything for Example Client (synthetic).
+    Do NOT fall back to CKLPH tokens.
+  - missing core roles in light: paper, paper-2, ink, ink-2, muted, soft, …
+```
+
+That refusal is the point of the fork. The failure it prevents is a
+CKLPH-skinned diagram shipping inside a client deliverable, where nobody catches
+it until the client does. `scripts/verify.sh` asserts the non-zero exit rather
+than trusting the message, and `_example-stub.md` exists so that assertion is
+never checking an empty list.
+
+Adding a client: [`references/brand-onboarding.md`](skills/diagram/references/brand-onboarding.md).
+
+## Layout
+
+```
+skills/diagram/
+├── SKILL.md                    entry point — brand gate, type selection, taste gate
+├── references/
+│   ├── design-thesis.md        what "vibrant" means here
+│   ├── accessibility.md        A1–A8, marked [lint] or [human]
+│   ├── cognitive-load.md       C1–C9
+│   ├── prose-alternative.md    the text alternative every diagram ships with
+│   ├── brand-onboarding.md     adding a client brand
+│   ├── brands/                 the registry
+│   ├── themes/                 23 opt-in themes: geometry, chrome, density
+│   ├── components/             the menu themes are built from
+│   ├── diagram-source.md       the JSON every diagram is drawn from
+│   ├── semantic-patterns.md    behavioural patterns, chosen before the type
+│   ├── type-*.md               41 visual types
+│   ├── primitives-core.md      SVG markup, connector rules, in brand tokens
+│   ├── animation.md            optional accessible motion
+│   └── primitive-*.md          annotation, icons, sketchy, terminal
+└── assets/                     examples and templates
+
+scripts/
+├── brand-tokens.py             resolve + audit a brand; the refusal path
+├── colorlib.py                 WCAG maths, ramp validation
+├── lint-a11y.py                fails the build on a11y violations
+├── check.py                    one verdict per diagram: source → embed → match → a11y → safety → browser
+├── layout.py                   grid intent → coordinates and orthogonal routes
+├── scaffold.py                 the page from the source; you draw between its markers
+├── export.py                   SVG, PNG, and GIF/MP4 from the source's steps
+├── diagram_source.py           validate / embed / match / diff the JSON source
+├── browser_check.py            measured in headless Chrome at 1440px and 375px
+├── test-check.py               24 planted defects + 3 warnings, each caught at the right gate
+├── test-tools.py               30 outcome tests for scaffold, layout and export
+├── self_check.py               single-file safety + accessible-SVG contract
+├── verify-export.py            an SVG export keeps the brand's tokens and fonts
+├── verify-geometry.py          label masks never clipped by a later node
+├── verify-motion.py            the accessible motion contract
+├── verify-<type>.py            upstream's per-type data-contract checks
+├── build-examples.py           verification harness, not the production path
+├── build-icons.py              regenerates the icon catalog (maintainers only)
+├── build-themes.py             regenerates the 14 baseline themes + gallery/themes
+├── build-artdirected.py        gallery/artdirected (demos 23-44)
+├── build-form-explorations.py  gallery/forms
+├── build-ui-explorations.py    gallery/ui (demos 11-21)
+├── build-line-lab.py           gallery/ui/22-line-lab.html
+├── check-themes.py             every theme's fallback palette passes AA
+├── fix-mojibake.py             one-off encoding repair utility
+└── verify.sh                   the whole gate
+
+gallery/                        every theme and component, rendered (repo only)
+```
+
+`build-examples.py` renders three proof diagrams to answer one question
+mechanically: does the same diagram render correctly in two brands from the same
+directory and pass the lint in both? Normal use of the skill is Claude authoring
+SVG by hand against the references — the harness is not a diagram generator.
+
+## Status
+
+Phase 1 of the scoping spec is complete and verified, and the skill is synced
+with upstream 2.6.46. Phases 2–4 (a11y hardening across the 167 inherited
+example assets, the orthogonal connector routing engine, and the remaining new
+chart types) are not started — see [`FORK-NOTES.md`](FORK-NOTES.md), which
+records what is measured rather than estimated.
+
+## Credits
+
+Built by [Peter Krzyzek](https://github.com/PiotrKrzyzek) at
+[Chykalophia](https://chykalophia.com).
+
+Forked from [`cathrynlavery/diagram-design`](https://github.com/cathrynlavery/diagram-design)
+@ `3c5c34b` (synced to `57148ac`) by Cathryn Lavery, which is where the editorial
+design system, the 41 visual types, the semantic patterns, the import extractors,
+and the taste gate come from. This fork adds
+the multi-brand registry and its refusal path, mechanically enforced accessibility,
+the cognitive-load rules, and CI. What changed and why is recorded in
+[`FORK-NOTES.md`](FORK-NOTES.md).
+
+Icon sources: Tabler Icons (MIT), Simple Icons (CC0), log-z/logos (MIT),
+Devicon (MIT).
+
+## Licence
+
+MIT. [`LICENSE`](LICENSE) carries both the upstream copyright and Chykalophia's,
+because this is a derivative work and the upstream notice has to travel with it.
+[`NOTICE`](NOTICE) records the provenance in full — what came from upstream, what
+this fork added, and the licences of the bundled icon sets. Upstream's original
+licence file is preserved verbatim at [`LICENSE.upstream`](LICENSE.upstream).

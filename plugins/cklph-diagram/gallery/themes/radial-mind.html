@@ -1,0 +1,74 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Radial Mind — theme</title>
+<style>
+  body { margin:0; padding:57px 40px; background:#fcfaf6; color:#201c18;
+         font-family:'Inter', system-ui, sans-serif; line-height:1.6; -webkit-font-smoothing:antialiased; }
+  main { max-width:880px; margin:0 auto; }
+  .tag { font-family:ui-monospace, monospace; font-size:14px; letter-spacing:.12em; text-transform:uppercase;
+          color:#5e564c; margin:0 0 8px; }
+  h1 { font-family:'Inter', system-ui, sans-serif; font-size:34px; font-weight:600;
+        letter-spacing:-0.01em; margin:0 0 12px; }
+  .note { color:#5e564c; font-size:17px; max-width:64ch; margin:0 0 14px; }
+  .use { color:#201c18; font-size:16px; max-width:64ch; margin:0 0 33px; }
+  svg { width:100%; height:auto; display:block; }
+  .alt { margin-top:33px; padding-top:20px; border-top:1px solid #ded6c9; }
+  .alt h2 { font-family:ui-monospace, monospace; font-size:14px; font-weight:500; letter-spacing:.12em;
+             text-transform:uppercase; color:#5e564c; margin:0 0 10px; }
+  .alt p { color:#5e564c; font-size:16px; max-width:68ch; margin:0; }
+  @media (prefers-reduced-motion: reduce) { * { animation:none!important; transition:none!important; } }
+  @media (prefers-contrast: more) {
+    body { background:#fff; color:#000; } .note,.alt p,.tag,.use,.alt h2 { color:#000; } }
+</style>
+</head>
+<body>
+<main>
+  <p class="tag">theme · radial-mind</p>
+  <h1>Radial Mind</h1>
+  <p class="note">Mind-map geometry: one centre, branches radiating out, thickness falling off with depth. The one theme that changes layout rather than only surface.</p>
+  <p class="use"><strong>Reach for it when:</strong> Brainstorms, topic maps, scope breakdowns. Not for anything with a sequence — radial has no reading order, which is exactly what makes it wrong for process diagrams.</p>
+
+  <svg viewBox="0 0 768 356" xmlns="http://www.w3.org/2000/svg"
+       role="img" aria-labelledby="radial-mind-t radial-mind-d">
+    <title id="radial-mind-t">Content pipeline, Radial Mind theme</title>
+    <desc id="radial-mind-d">Six stages: intake and triage feed review and enrich,
+      which feed publish and archive.</desc>
+    <defs></defs>
+    <rect width="768" height="356" fill="#fcfaf6"/>
+    
+    <circle cx="384" cy="196" r="62" fill="#ffffff" stroke="#9d2f5f" stroke-width="2.5"/>
+    <text x="384" y="202" text-anchor="middle" font-family="'Inter', system-ui, sans-serif" font-size="18" font-weight="600" fill="#201c18">Pipeline</text>
+    <line x1="384" y1="132" x2="384" y2="66" stroke="#2a6f8e" stroke-width="3.0"/>
+    <rect x="318" y="42" width="132" height="48" rx="0" fill="#ffffff" stroke="#2a6f8e" stroke-width="1.5"/>
+    <text x="384" y="71" text-anchor="middle" font-family="'Inter', system-ui, sans-serif" font-size="16" font-weight="600" fill="#201c18" data-node="intake">Intake</text>
+    <line x1="439" y1="164" x2="601" y2="131" stroke="#2a6f8e" stroke-width="3.0"/>
+    <rect x="535" y="107" width="132" height="48" rx="0" fill="#ffffff" stroke="#2a6f8e" stroke-width="1.5"/>
+    <text x="601" y="136" text-anchor="middle" font-family="'Inter', system-ui, sans-serif" font-size="16" font-weight="600" fill="#201c18" data-node="triage">Triage</text>
+    <line x1="439" y1="228" x2="601" y2="261" stroke="#9d2f5f" stroke-width="2.4"/>
+    <rect x="535" y="237" width="132" height="48" rx="14" fill="#ffffff" stroke="#9d2f5f" stroke-width="1.5"/>
+    <text x="601" y="266" text-anchor="middle" font-family="'Inter', system-ui, sans-serif" font-size="16" font-weight="600" fill="#201c18" data-node="review">Review</text>
+    <line x1="384" y1="260" x2="384" y2="326" stroke="#9d2f5f" stroke-width="2.4"/>
+    <rect x="318" y="302" width="132" height="48" rx="14" fill="#ffffff" stroke="#9d2f5f" stroke-width="1.5"/>
+    <text x="384" y="331" text-anchor="middle" font-family="'Inter', system-ui, sans-serif" font-size="16" font-weight="600" fill="#201c18" data-node="enrich">Enrich</text>
+    <line x1="329" y1="228" x2="167" y2="261" stroke="#5a7040" stroke-width="1.8"/>
+    <rect x="101" y="237" width="132" height="48" rx="16" fill="#ffffff" stroke="#5a7040" stroke-width="1.5" stroke-dasharray="6,4"/>
+    <text x="167" y="266" text-anchor="middle" font-family="'Inter', system-ui, sans-serif" font-size="16" font-weight="600" fill="#201c18" data-node="publish">Publish</text>
+    <line x1="329" y1="164" x2="167" y2="131" stroke="#5a7040" stroke-width="1.8"/>
+    <rect x="101" y="107" width="132" height="48" rx="16" fill="#ffffff" stroke="#5a7040" stroke-width="1.5" stroke-dasharray="6,4"/>
+    <text x="167" y="136" text-anchor="middle" font-family="'Inter', system-ui, sans-serif" font-size="16" font-weight="600" fill="#201c18" data-node="archive">Archive</text>
+    
+  </svg>
+
+  <div class="alt">
+    <h2>Described in words</h2>
+    <p>A content pipeline in three stages: intake and triage collect and sort,
+    review and enrich add judgement and metadata, publish and archive are the two
+    destinations. Category is carried by shape and border pattern as well as
+    colour.</p>
+  </div>
+</main>
+</body>
+</html>

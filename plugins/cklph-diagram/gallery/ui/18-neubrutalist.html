@@ -1,0 +1,28 @@
+<!DOCTYPE html><html lang="en"><head><meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1"><title>Neubrutalist</title>
+<style>
+ body{margin:0;padding:52px 40px;background:#faf8f4;color:#191621;
+  font-family:'Inter',system-ui,sans-serif;line-height:1.6;-webkit-font-smoothing:antialiased}
+ main{max-width:940px;margin:0 auto}
+ .tag{font-family:ui-monospace,monospace;font-size:13px;letter-spacing:.14em;
+  text-transform:uppercase;color:#57505f;margin:0 0 6px}
+ h1{font-size:32px;font-weight:650;letter-spacing:-.02em;margin:0 0 10px}
+ .note{color:#57505f;font-size:17px;max-width:64ch;margin:0 0 6px}
+ .tech{font-size:15px;max-width:66ch;margin:0 0 28px;padding:10px 14px;
+  border-left:3px solid #b4245f;background:rgba(180,36,95,.05)}
+ .cav{font-size:15px;color:#57505f;max-width:66ch;margin:22px 0 0;padding:10px 14px;
+  border-left:3px solid #8a5a12;background:rgba(138,90,18,.06)}
+ svg{width:100%;height:auto;display:block}
+ .alt{margin-top:26px;padding-top:18px;border-top:1px solid #ded6cc}
+ .alt h2{font-family:ui-monospace,monospace;font-size:13px;font-weight:500;letter-spacing:.14em;
+  text-transform:uppercase;color:#57505f;margin:0 0 8px}
+ .alt p{color:#57505f;font-size:15px;max-width:70ch;margin:0}
+ @media (prefers-reduced-motion:reduce){*{animation:none!important;transition:none!important}}
+ @media (prefers-contrast:more){body{background:#fff;color:#000}.note,.alt p,.tag,.cav{color:#000}}
+</style></head><body><main>
+<p class="tag">demo 18 of 21</p><h1>Neubrutalist</h1>
+<p class="note">A pipeline with hard offset shadows and no softness anywhere.</p><p class="tech"><strong>The shadow is a rectangle.</strong> A solid offset shape, not a blur — it survives any export, scales cleanly, and costs nothing to render. Planned work is a dashed outline with no shadow, so 'not built yet' is visible at a glance.</p>
+<svg viewBox="0 0 900 410" xmlns="http://www.w3.org/2000/svg" role="img" aria-labelledby="t d"><title id="t">Pipeline in a neubrutalist register with hard offset shadows</title><desc id="d">Pipeline in a neubrutalist register with hard offset shadows</desc><defs></defs><rect width="900" height="410" fill="#faf8f4"/><rect x="68" y="78" width="230" height="96" fill="#191621"/><rect x="60" y="70" width="230" height="96" fill="#ffd6e7" stroke="#191621" stroke-width="3"/><text x="78" y="106" font-size="19" font-weight="750" fill="#191621">INGRESS</text><text x="78" y="130" font-size="13.5" font-family="ui-monospace,monospace" fill="#191621">nginx · 2 replicas</text><rect x="358" y="78" width="230" height="96" fill="#191621"/><rect x="350" y="70" width="230" height="96" fill="#d6ecff" stroke="#191621" stroke-width="3"/><text x="368" y="106" font-size="19" font-weight="750" fill="#191621">QUEUE</text><text x="368" y="130" font-size="13.5" font-family="ui-monospace,monospace" fill="#191621">rabbit · 12k/s</text><rect x="648" y="78" width="200" height="96" fill="#191621"/><rect x="640" y="70" width="200" height="96" fill="#d9f5e4" stroke="#191621" stroke-width="3"/><text x="658" y="106" font-size="19" font-weight="750" fill="#191621">SINK</text><text x="658" y="130" font-size="13.5" font-family="ui-monospace,monospace" fill="#191621">s3 · versioned</text><rect x="68" y="248" width="230" height="96" fill="#191621"/><rect x="60" y="240" width="230" height="96" fill="#fff0c9" stroke="#191621" stroke-width="3"/><text x="78" y="276" font-size="19" font-weight="750" fill="#191621">RETRY</text><text x="78" y="300" font-size="13.5" font-family="ui-monospace,monospace" fill="#191621">backoff 3×</text><rect x="358" y="248" width="230" height="96" fill="#191621"/><rect x="350" y="240" width="230" height="96" fill="#ece0ff" stroke="#191621" stroke-width="3"/><text x="368" y="276" font-size="19" font-weight="750" fill="#191621">DLQ</text><text x="368" y="300" font-size="13.5" font-family="ui-monospace,monospace" fill="#191621">manual review</text><line x1="290" y1="118" x2="350" y2="118" stroke="#191621" stroke-width="4"/><polygon points="338,111 350,118 338,125" fill="#191621"/><line x1="580" y1="118" x2="640" y2="118" stroke="#191621" stroke-width="4"/><polygon points="628,111 640,118 628,125" fill="#191621"/><line x1="465" y1="166" x2="465" y2="240" stroke="#191621" stroke-width="4"/><polygon points="458,228 465,240 472,228" fill="#191621"/><line x1="175" y1="166" x2="175" y2="240" stroke="#191621" stroke-width="4"/><polygon points="168,228 175,240 182,228" fill="#191621"/><line x1="290" y1="288" x2="350" y2="288" stroke="#191621" stroke-width="4"/><polygon points="338,281 350,288 338,295" fill="#191621"/><rect x="640" y="240" width="200" height="96" fill="none" stroke="#191621" stroke-width="3" stroke-dasharray="10,7"/><text x="658" y="276" font-size="19" font-weight="750" fill="#191621">PLANNED</text><text x="658" y="300" font-size="13.5" font-family="ui-monospace,monospace" fill="#191621">replay service</text><text x="60" y="384" font-size="13" fill="#57505f">Offset shadow is hard-edged — a solid rect, not a blur. It survives any export, at any scale.</text></svg>
+<p class="cav"><strong>Watch out:</strong> High-saturation fills at large area can be fatiguing. Keep the fills pale and let the black borders carry the weight, as they do here.</p>
+<div class="alt"><h2>Described in words</h2><p>A pipeline with hard offset shadows and no softness anywhere.</p></div>
+</main></body></html>

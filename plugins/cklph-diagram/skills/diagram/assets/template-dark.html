@@ -1,0 +1,171 @@
+<!DOCTYPE html>
+<html lang="en" data-cklph-brand="_default" data-cklph-mode="dark">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Diagram</title>
+  <link href="https://fonts.googleapis.com/css2?family=Instrument+Serif:ital@0;1&family=Geist:wght@400;500;600&family=Geist+Mono:wght@400;500;600&display=swap" rel="stylesheet">
+  <style>
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+    /* ------------------------------------------------------------------
+       BRAND TOKENS -- replace this whole :root block with the output of:
+
+           python3 scripts/brand-tokens.py <slug>            # light
+           python3 scripts/brand-tokens.py <slug> --mode dark
+
+       The block below is the `_default` neutral skin so this template renders
+       standalone. Do not hand-edit these values for a client -- resolve the
+       brand (SKILL.md section 0) and paste, so the a11y lint can verify what
+       actually shipped.
+       ------------------------------------------------------------------ */
+    /* cklph:tokens:start */
+    :root {
+      --font-display: "Instrument Serif", Georgia, serif;
+      --font-mono: "Geist Mono", monospace;
+      --font-sans: Geist, system-ui, sans-serif;
+      --paper: #1a1917;
+      --paper-2: #26241f;
+      --ink: #f7f5f2;
+      --ink-2: #c8d2e0;
+      --muted: #a8a29b;
+      --soft: #c9c4bd;
+      --rule: rgba(247,245,242,0.16);
+      --rule-solid: #6f6a63;
+      --accent: #e08a6a;
+      --accent-tint: rgba(224,138,106,0.14);
+      --link: #8fb4d6;
+      --cat-1: #c8d2e0;
+      --cat-2: #d9b478;
+      --cat-3: #8fb4d6;
+      --cat-4: #e08a6a;
+      --cat-5: #c9c4bd;
+      --seq-1: #22303f;
+      --seq-2: #33506a;
+      --seq-3: #4f7396;
+      --seq-4: #7f9bb8;
+      --seq-5: #b3c6d8;
+      --seq-6: #e2eaf2;
+      --div-neg-2: #e08a6a;
+      --div-neg-1: #a8543a;
+      --div-mid: #4a4642;
+      --div-pos-1: #6f90b0;
+      --div-pos-2: #c8d8e8;
+    }
+
+    @media (prefers-contrast: more) {
+      :root {
+        --paper: #000000;
+        --ink: #ffffff;
+        --muted: #ffffff;
+        --soft: #ffffff;
+        --rule: rgba(255,255,255,0.55);
+      }
+    }
+    /* cklph:tokens:end */
+
+    body {
+      font-family: var(--font-sans);
+      background: var(--paper);
+      color: var(--ink);
+      min-height: 100vh;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      padding: 3rem 2rem;
+    }
+
+    .frame { max-width: 1200px; width: 100%; }
+    /* The SVG holds its readable width (min-width == the viewBox width, so the
+       type ramp is never silently scaled down). This wrapper lets a narrow
+       screen scroll the diagram instead of the whole page. */
+    .diagram-container { width: 100%; overflow-x: auto; }
+
+    .eyebrow {
+      font-family: var(--font-mono);
+      font-size: 0.66rem;
+      font-weight: 500;
+      letter-spacing: 0.18em;
+      text-transform: uppercase;
+      color: var(--muted);
+      margin-bottom: 0.5rem;
+    }
+
+    h1 {
+      font-family: var(--font-display);
+      font-size: clamp(1.5rem, 2.4vw + 0.75rem, 2rem);
+      font-weight: 400;
+      letter-spacing: -0.02em;
+      line-height: 1.15;
+      color: var(--ink);
+      margin-bottom: 1.5rem;
+    }
+
+    svg { width: 100%; min-width: 1000px; display: block; }
+    /* Paper has no scrollbar, so the local scroller would clip instead of
+       scroll. Let the diagram scale down to the sheet: smaller but whole
+       beats sharp but cut off. Must come after the svg rule above - a media
+       query adds no specificity, so a later plain rule would win. */
+    @media print {
+      .diagram-container { overflow-x: visible; }
+      svg { min-width: 0; }
+    }
+    /* Prose alternative (accessibility.md A4, prose-alternative.md). Required. */
+    .diagram-alt { margin-top: 2rem; border-top: 1px solid var(--rule); padding-top: 1rem; font-size: 1rem; }
+    .diagram-alt summary {
+      font-family: var(--font-mono); font-size: 0.75rem; letter-spacing: 0.08em;
+      text-transform: uppercase; color: var(--muted); cursor: pointer;
+    }
+    .diagram-alt p, .diagram-alt ol { margin: 0.5rem 0; }
+    .diagram-alt ol { padding-left: 1.25rem; }
+  </style>
+</head>
+<body>
+  <div class="frame">
+    <p class="eyebrow">[Type] · Diagram Design</p>
+    <h1>[Diagram title]</h1>
+
+    <!-- Replace [diagram-slug] with a unique slug for this diagram before export. -->
+    <div class="diagram-container">
+      <svg viewBox="0 0 1000 600" data-render-width="1000" xmlns="http://www.w3.org/2000/svg" role="img" aria-labelledby="[diagram-slug]-title [diagram-slug]-desc">
+        <title id="[diagram-slug]-title">[Diagram title]</title>
+        <desc id="[diagram-slug]-desc">[One sentence describing what the diagram shows]</desc>
+        <defs>
+          <marker id="arrow" markerWidth="8" markerHeight="6" refX="7" refY="3" orient="auto" markerUnits="userSpaceOnUse"><polygon points="0 0, 8 3, 0 6" style="fill: var(--muted)"/></marker>
+          <marker id="arrow-accent" markerWidth="8" markerHeight="6" refX="7" refY="3" orient="auto" markerUnits="userSpaceOnUse"><polygon points="0 0, 8 3, 0 6" style="fill: var(--accent)"/></marker>
+          <marker id="arrow-link" markerWidth="8" markerHeight="6" refX="7" refY="3" orient="auto" markerUnits="userSpaceOnUse"><polygon points="0 0, 8 3, 0 6" style="fill: var(--link)"/></marker>
+
+          <!-- OPTIONAL: dot-pattern background. Uncomment and add <rect fill="url(#dots)"/> after the paper rect to enable. -->
+          <!--
+          <pattern id="dots" width="22" height="22" patternUnits="userSpaceOnUse">
+            <circle cx="1" cy="1" r="0.9" style="fill: var(--rule)"/>
+          </pattern>
+          -->
+        </defs>
+
+        <rect width="100%" height="100%" style="fill: var(--paper)"/>
+
+        <!-- Draw arrows first, then nodes. Replace with your content. -->
+
+      </svg>
+    </div>
+
+    <!-- Required prose alternative (accessibility.md A4). Fill it in; never ship
+         the placeholder. Same content as <desc>, plus nodes in reading order. -->
+    <details class="diagram-alt">
+      <summary>Text description of this diagram</summary>
+      <div id="[diagram-slug]-alt">
+        <p><strong>What it shows.</strong> [Same sentence as the &lt;desc&gt;.]</p>
+        <p><strong>Reading order.</strong> [Where to start and which way to read.]</p>
+        <ol>
+          <li><strong>[Node]</strong> — [what it does, and what it hands to next].</li>
+        </ol>
+        <p><strong>Connections.</strong> [A → B (sync). B → C (async, dashed).]</p>
+        <p><strong>Highlighted.</strong> [The accent element, and why it is focal.]</p>
+      </div>
+    </details>
+  </div>
+  <!-- Embed this diagram's source here (references/diagram-source.md):
+       python3 scripts/diagram_source.py embed <slug>.json <slug>.html
+       Set data-cklph-brand / data-cklph-mode on <html> to the resolved brand. -->
+</body>
+</html>

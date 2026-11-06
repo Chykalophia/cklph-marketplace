@@ -1,0 +1,59 @@
+<!DOCTYPE html>
+<html lang="en"><head><meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Isometric Strata</title>
+<style>
+ body{margin:0;padding:52px 40px;background:#faf8f4;color:#191621;
+   font-family:'Inter',system-ui,sans-serif;line-height:1.6;-webkit-font-smoothing:antialiased}
+ main{max-width:900px;margin:0 auto}
+ .tag{font-family:ui-monospace,monospace;font-size:13px;letter-spacing:.14em;
+   text-transform:uppercase;color:#57505f;margin:0 0 6px}
+ h1{font-size:32px;font-weight:650;letter-spacing:-.02em;margin:0 0 10px}
+ .note{color:#57505f;font-size:17px;max-width:64ch;margin:0 0 6px}
+ .tech{font-size:15px;max-width:64ch;margin:0 0 28px;padding:10px 14px;
+   border-left:3px solid #b4245f;background:rgba(180,36,95,.05)}
+ .cav{font-size:15px;color:#57505f;max-width:64ch;margin:22px 0 0;
+   padding:10px 14px;border-left:3px solid #8a5a12;background:rgba(138,90,18,.06)}
+ svg{width:100%;height:auto;display:block}
+ .alt{margin-top:26px;padding-top:18px;border-top:1px solid #ded6cc}
+ .alt h2{font-family:ui-monospace,monospace;font-size:13px;font-weight:500;
+   letter-spacing:.14em;text-transform:uppercase;color:#57505f;margin:0 0 8px}
+ .alt p{color:#57505f;font-size:15px;max-width:70ch;margin:0}
+ @media (prefers-reduced-motion:reduce){*{animation:none!important;transition:none!important}}
+ @media (prefers-contrast:more){body{background:#fff;color:#000}.note,.alt p,.tag,.cav{color:#000}}
+</style></head><body><main>
+<p class="tag">form 01 of 10</p>
+<h1>Isometric Strata</h1>
+<p class="note">Four platform layers seen at an angle instead of head-on.</p>
+<p class="tech"><strong>Technique — depth by projection.</strong> Each plane is drawn in a 2:1 isometric projection with its own cast shadow. Stacking order becomes the message, and no arrow is needed to say 'sits on top of'.</p>
+<svg viewBox="0 0 860 420" xmlns="http://www.w3.org/2000/svg" role="img"
+   aria-labelledby="t d"><title id="t">Four platform layers drawn as stacked isometric planes</title><desc id="d">Four platform layers drawn as stacked isometric planes</desc>
+ <defs></defs><rect width="860" height="420" fill="#faf8f4"/>
+ 
+   <polygon points="430,275 710,340 430,405 150,340" fill="rgba(25,22,33,.10)"/>
+   <polygon points="430,265 710,330 430,395 150,330" fill="#eef3f7" stroke="#1f5f8b" stroke-width="1.6"/>
+   <text x="444" y="328" font-size="17" font-weight="650" fill="#191621">Interface</text>
+   <text x="444" y="348" font-size="13" font-family="ui-monospace,monospace"
+     fill="#57505f">web + api</text>
+   <text x="422" y="338" font-size="19" text-anchor="middle" fill="#1f5f8b">▲</text>
+   <polygon points="430,195 710,260 430,325 150,260" fill="rgba(25,22,33,.10)"/>
+   <polygon points="430,185 710,250 430,315 150,250" fill="#fbeef4" stroke="#b4245f" stroke-width="1.6"/>
+   <text x="444" y="248" font-size="17" font-weight="650" fill="#191621">Logic</text>
+   <text x="444" y="268" font-size="13" font-family="ui-monospace,monospace"
+     fill="#57505f">rules + jobs</text>
+   <text x="422" y="258" font-size="19" text-anchor="middle" fill="#b4245f">●</text>
+   <polygon points="430,115 710,180 430,245 150,180" fill="rgba(25,22,33,.10)"/>
+   <polygon points="430,105 710,170 430,235 150,170" fill="#eaf4f0" stroke="#046a52" stroke-width="1.6"/>
+   <text x="444" y="168" font-size="17" font-weight="650" fill="#191621">Data</text>
+   <text x="444" y="188" font-size="13" font-family="ui-monospace,monospace"
+     fill="#57505f">postgres + cache</text>
+   <text x="422" y="178" font-size="19" text-anchor="middle" fill="#046a52">■</text>
+   <polygon points="430,35 710,100 430,165 150,100" fill="rgba(25,22,33,.10)"/>
+   <polygon points="430,25 710,90 430,155 150,90" fill="#f6f0e4" stroke="#8a5a12" stroke-width="1.6"/>
+   <text x="444" y="88" font-size="17" font-weight="650" fill="#191621">Platform</text>
+   <text x="444" y="108" font-size="13" font-family="ui-monospace,monospace"
+     fill="#57505f">hosts + network</text>
+   <text x="422" y="98" font-size="19" text-anchor="middle" fill="#8a5a12">◆</text><line x1="430" y1="354" x2="430" y2="290" stroke="#57505f" stroke-width="1.4" stroke-dasharray="4,4"/><polygon points="425,290 435,290 430,280" fill="#57505f"/><line x1="430" y1="274" x2="430" y2="210" stroke="#57505f" stroke-width="1.4" stroke-dasharray="4,4"/><polygon points="425,210 435,210 430,200" fill="#57505f"/><line x1="430" y1="194" x2="430" y2="130" stroke="#57505f" stroke-width="1.4" stroke-dasharray="4,4"/><polygon points="425,130 435,130 430,120" fill="#57505f"/></svg>
+<p class="cav"><strong>Watch out:</strong> Isometric costs readability at small sizes and cannot be scanned linearly. Use it for an overview slide, never for something someone must trace step by step.</p>
+<div class="alt"><h2>Described in words</h2><p>Four platform layers seen at an angle instead of head-on.</p></div>
+</main></body></html>

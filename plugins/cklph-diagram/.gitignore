@@ -1,0 +1,36 @@
+# Client brand files never belong in a public repo. The registry ships with the
+# house brand, the neutral skin, the template, and one synthetic stub; every
+# other brand file is created locally against a real client's design system and
+# stays on the machine that made it.
+#
+# The negations below are what keep the shipped four tracked. If you add a brand
+# for a client, it is ignored on purpose -- do not `git add -f` it.
+skills/diagram/references/brands/*.md
+!skills/diagram/references/brands/_default.md
+!skills/diagram/references/brands/_template.md
+!skills/diagram/references/brands/_example-stub.md
+!skills/diagram/references/brands/cklph.md
+
+# The skill moved from skills/cklph-diagram/ to skills/diagram/ in 3.7.0. A
+# checkout leaves git-ignored client files behind in the old folder, so it stays
+# ignored until they are moved out.
+skills/cklph-diagram/
+
+# Local-only backup of client brand files taken during an upgrade. Same rule as
+# above: client design systems do not belong in a public repo.
+.local-brands-backup/
+
+# Build output and packaging artifacts
+out/
+*.skill
+*.tar.gz
+
+# Python
+__pycache__/
+*.py[cod]
+
+# macOS
+.DS_Store
+
+# Licensed brand font files: used in deliverables, never published in this public repo.
+skills/diagram/references/brands/fonts/

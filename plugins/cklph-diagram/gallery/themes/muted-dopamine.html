@@ -1,0 +1,97 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Muted Dopamine — theme</title>
+<style>
+  body { margin:0; padding:55px 40px; background:#fbf7f2; color:#1d1a26;
+         font-family:'Inter', system-ui, sans-serif; line-height:1.6; -webkit-font-smoothing:antialiased; }
+  main { max-width:880px; margin:0 auto; }
+  .tag { font-family:ui-monospace, monospace; font-size:14px; letter-spacing:.12em; text-transform:uppercase;
+          color:#565064; margin:0 0 8px; }
+  h1 { font-family:'Inter', system-ui, sans-serif; font-size:34px; font-weight:600;
+        letter-spacing:-0.01em; margin:0 0 12px; }
+  .note { color:#565064; font-size:17px; max-width:64ch; margin:0 0 14px; }
+  .use { color:#1d1a26; font-size:16px; max-width:64ch; margin:0 0 32px; }
+  svg { width:100%; height:auto; display:block; }
+  .alt { margin-top:32px; padding-top:20px; border-top:1px solid #e0d8ce; }
+  .alt h2 { font-family:ui-monospace, monospace; font-size:14px; font-weight:500; letter-spacing:.12em;
+             text-transform:uppercase; color:#565064; margin:0 0 10px; }
+  .alt p { color:#565064; font-size:16px; max-width:68ch; margin:0; }
+  @media (prefers-reduced-motion: reduce) { * { animation:none!important; transition:none!important; } }
+  @media (prefers-contrast: more) {
+    body { background:#fff; color:#000; } .note,.alt p,.tag,.use,.alt h2 { color:#000; } }
+</style>
+</head>
+<body>
+<main>
+  <p class="tag">theme · muted-dopamine · default</p>
+  <h1>Muted Dopamine</h1>
+  <p class="note">Real hue variety and optimism, every colour darkened until it passes AA as text. The saturation revival made safe: colour that distinguishes categories instead of shouting.</p>
+  <p class="use"><strong>Reach for it when:</strong> The house default. Client work, decks, anything that needs to look current without risking legibility.</p>
+
+  <svg viewBox="0 0 768 356" xmlns="http://www.w3.org/2000/svg"
+       role="img" aria-labelledby="muted-dopamine-t muted-dopamine-d">
+    <title id="muted-dopamine-t">Content pipeline, Muted Dopamine theme</title>
+    <desc id="muted-dopamine-d">Six stages: intake and triage feed review and enrich,
+      which feed publish and archive.</desc>
+    <defs></defs>
+    <rect width="768" height="356" fill="#fbf7f2"/>
+    
+    
+    <line x1="216" y1="136" x2="286" y2="136" stroke="#565064" stroke-width="1.5"/>
+    <line x1="216" y1="248" x2="286" y2="248" stroke="#565064" stroke-width="1.5"/>
+    <line x1="472" y1="136" x2="542" y2="136" stroke="#565064" stroke-width="1.5"/>
+    <line x1="472" y1="248" x2="542" y2="248" stroke="#565064" stroke-width="1.5"/>
+    <path d="M128,176 V196 Q128,208 140,208 H296" fill="none" stroke="#565064"
+          stroke-width="1.5" stroke-dasharray="5,4"/>
+  <g data-node="intake">
+    <rect x="40" y="96" width="176" height="80" rx="0" fill="#ffffff" stroke="#1f5f8b" stroke-width="1.5"/>
+    <text x="60" y="130" font-family="'Inter', system-ui, sans-serif" font-size="18" font-weight="600"
+          fill="#1d1a26" letter-spacing="-0.01em">Intake</text>
+    <text x="60" y="154" font-family="ui-monospace, monospace" font-size="14" fill="#565064">form + email</text>
+  </g>
+  <g data-node="triage">
+    <rect x="40" y="208" width="176" height="80" rx="0" fill="#ffffff" stroke="#1f5f8b" stroke-width="1.5"/>
+    <text x="60" y="242" font-family="'Inter', system-ui, sans-serif" font-size="18" font-weight="600"
+          fill="#1d1a26" letter-spacing="-0.01em">Triage</text>
+    <text x="60" y="266" font-family="ui-monospace, monospace" font-size="14" fill="#565064">rules engine</text>
+  </g>
+  <g data-node="review">
+    <rect x="296" y="96" width="176" height="80" rx="10" fill="#ffffff" stroke="#b4245f" stroke-width="2.5"/>
+    <text x="316" y="130" font-family="'Inter', system-ui, sans-serif" font-size="18" font-weight="600"
+          fill="#1d1a26" letter-spacing="-0.01em">Review</text>
+    <text x="316" y="154" font-family="ui-monospace, monospace" font-size="14" fill="#565064">human check</text>
+  </g>
+  <g data-node="enrich">
+    <rect x="296" y="208" width="176" height="80" rx="10" fill="#ffffff" stroke="#b4245f" stroke-width="1.5"/>
+    <text x="316" y="242" font-family="'Inter', system-ui, sans-serif" font-size="18" font-weight="600"
+          fill="#1d1a26" letter-spacing="-0.01em">Enrich</text>
+    <text x="316" y="266" font-family="ui-monospace, monospace" font-size="14" fill="#565064">lookup + tag</text>
+  </g>
+  <g data-node="publish">
+    <rect x="552" y="96" width="176" height="80" rx="10" fill="#ffffff" stroke="#046a52" stroke-width="1.5" stroke-dasharray="6,4"/>
+    <text x="572" y="130" font-family="'Inter', system-ui, sans-serif" font-size="18" font-weight="600"
+          fill="#1d1a26" letter-spacing="-0.01em">Publish</text>
+    <text x="572" y="154" font-family="ui-monospace, monospace" font-size="14" fill="#565064">public API</text>
+  </g>
+  <g data-node="archive">
+    <rect x="552" y="208" width="176" height="80" rx="10" fill="#ffffff" stroke="#046a52" stroke-width="1.5" stroke-dasharray="6,4"/>
+    <text x="572" y="242" font-family="'Inter', system-ui, sans-serif" font-size="18" font-weight="600"
+          fill="#1d1a26" letter-spacing="-0.01em">Archive</text>
+    <text x="572" y="266" font-family="ui-monospace, monospace" font-size="14" fill="#565064">cold storage</text>
+  </g>
+    <line x1="40" y1="300" x2="728" y2="300" stroke="#e0d8ce" stroke-width="1"/><rect x="40" y="322" width="20" height="14" rx="0" fill="none" stroke="#1f5f8b" stroke-width="1.5"/><text x="68" y="333" font-family="ui-monospace, monospace" font-size="14" fill="#565064">source</text><rect x="230" y="322" width="20" height="14" rx="8" fill="none" stroke="#b4245f" stroke-width="1.5"/><text x="258" y="333" font-family="ui-monospace, monospace" font-size="14" fill="#565064">processing</text><rect x="420" y="322" width="20" height="14" rx="10" fill="none" stroke="#046a52" stroke-width="1.5" stroke-dasharray="6,4"/><text x="448" y="333" font-family="ui-monospace, monospace" font-size="14" fill="#565064">destination</text>
+  </svg>
+
+  <div class="alt">
+    <h2>Described in words</h2>
+    <p>A content pipeline in three stages: intake and triage collect and sort,
+    review and enrich add judgement and metadata, publish and archive are the two
+    destinations. Category is carried by shape and border pattern as well as
+    colour.</p>
+  </div>
+</main>
+</body>
+</html>
