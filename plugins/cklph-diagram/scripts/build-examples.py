@@ -42,7 +42,7 @@ import scaffold  # noqa: E402
 
 GRID = 4
 R = 8  # elbow radius
-SKILL_VERSION = "3.5-cklph"
+SKILL_VERSION = "3.6-cklph"
 
 
 def snap(v: float) -> int:
