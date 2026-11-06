@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """Ten structurally different diagram ideas.
 
-The previous set was one layout in fourteen skins. This set changes the
+The theme set is one layout in fourteen skins. This set changes the
 *geometry* — how space carries meaning — and treats colour as the last variable
 rather than the only one.
 

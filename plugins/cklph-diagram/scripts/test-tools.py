@@ -95,7 +95,7 @@ def test_scaffold(tmp: Path) -> None:
          r.returncode != 0 and "hand-made" in (tmp / "foreign.html").read_text(), r.stdout)
 
     bad = copy.deepcopy(src)
-    bad["nodes"][0]["x"] = 3  # off-canvas? no: overlap with nothing; make it invalid instead
+    bad["nodes"][0]["x"] = 3
     bad["edges"][0]["points"] = [[0, 0], [5, 9]]
     bp = tmp / "bad.json"
     bp.write_text(json.dumps({**bad, "id": "bad"}), encoding="utf-8")

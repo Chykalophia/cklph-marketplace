@@ -21,10 +21,9 @@ set -euo pipefail
 cd "$(dirname "$0")"
 
 # Every python3 call below imports colorlib, which writes a __pycache__ next to
-# the source. The install already prunes those after copying, but the final
-# "does the installed copy work?" check runs inside $DEST and would recreate one
-# -- so every install shipped a stale .pyc. Suppress bytecode instead of racing
-# the cleanup.
+# the source. The install prunes those after copying, but the final "does the
+# installed copy work?" check runs inside $DEST and would recreate one. Suppress
+# bytecode instead of racing the cleanup.
 export PYTHONDONTWRITEBYTECODE=1
 
 SRC="skills/diagram"
