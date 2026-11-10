@@ -5,6 +5,12 @@ Format: [Keep a Changelog](https://keepachangelog.com); versioning follows [SemV
 Moved here from the repo root on 2026-10-27; marketplace and repo-level events (repo rename, sibling
 plugins, the marketplace manifest) live in the root CHANGELOG.
 
+## [0.15.2] - 2026-11-10
+
+### Fixed
+- `frontend-ui`: the accessibility heading names WCAG 2.2 AA, the current W3C Recommendation,
+  instead of WCAG 2.1 AA.
+
 ## [0.15.1] — 2026-11-05
 
 ### Changed

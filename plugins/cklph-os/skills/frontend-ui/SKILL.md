@@ -27,7 +27,7 @@ padding, no shadow-heavy cards. Use realistic content (not lorem) so wrapping/ov
   `dark:` variant; never use color as the *only* signal.
 - **Type** — respect the hierarchy; don't skip heading levels.
 
-## Accessibility (WCAG 2.1 AA — non-negotiable)
+## Accessibility (WCAG 2.2 AA — non-negotiable)
 - Real `<button>` / `<a>` for actions (keyboard-focusable by default); if you must `role="button"`, add
   `tabIndex={0}` + Enter/Space handlers.
 - Label icon-only controls (`aria-label`); associate `<label htmlFor>` with inputs.

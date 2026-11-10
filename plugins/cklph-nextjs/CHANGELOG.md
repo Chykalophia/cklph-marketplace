@@ -3,6 +3,13 @@
 All notable changes to `cklph-nextjs` are documented here.
 Format: [Keep a Changelog](https://keepachangelog.com); versioning follows [SemVer](https://semver.org).
 
+## [0.3.3] - 2026-11-10
+
+### Fixed
+- `ui-quality` and `discipline`: the touch-target rule cites the AA criterion, 24 x 24 CSS px
+  minimum (WCAG 2.5.8, AA), and names 44 x 44 px as the AAA recommendation (2.5.5). Both skills
+  cited 2.5.5 as if 44 x 44 px were the AA floor.
+
 ## [0.3.2] — 2026-10-29
 
 ### Fixed

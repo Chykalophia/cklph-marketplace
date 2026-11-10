@@ -49,7 +49,7 @@ NEVER commit directly to `dev` or `main`. Before any code, `git checkout dev && 
 - Pair every `bg-`, `text-`, `border-` class with a `dark:` variant.
 - Target 4.5:1 contrast for body text, 3:1 for large text and UI components — verify in BOTH modes.
 - Every input has a `<label>` or `aria-label`. Error messages associate via `aria-describedby`. Modals trap focus.
-- Touch targets meet 44x44px (WCAG 2.5.5).
+- Touch targets meet 24 x 24 CSS px minimum (WCAG 2.5.8, AA); 44 x 44 px is the AAA recommendation (2.5.5).
 
 ## Zero `any`
 
