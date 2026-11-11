@@ -39,8 +39,20 @@ padding, no shadow-heavy cards. Use realistic content (not lorem) so wrapping/ov
 - Mobile-first; verify at 320 / 768 / 1024 / 1440px.
 - Optimistic updates for perceived speed (snapshot → mutate → roll back on error).
 
+## Motion
+Read `references/motion.md` before adding or changing any animation, transition, hover or press
+state, or an animated library component. The short version:
+- Animate only what has a job, and the more often people see it, the less it moves.
+- Ease-out for entering and leaving, under 300ms for UI, never from `scale(0)`.
+- Every pressable element gets hover and press feedback (`active:scale-[0.97]`).
+- `transform` and `opacity` only; content is readable at rest, never hidden waiting for a scroll.
+- Reduced motion means gentler, not none. Tailwind v4 `hover:` is already gated for touch.
+- Animated library components pass three checks: reduced motion, correct no-JS output, and their
+  gzip size cost.
+
 ## Verify
 - [ ] Tab through everything; screen reader conveys structure.
 - [ ] Loading / error / empty states all present.
 - [ ] Works at all four breakpoints; light **and** dark.
 - [ ] Matches the design system; no axe-core warnings.
+- [ ] With reduced motion on, nothing moves that shouldn't; with JS off, the real content shows.

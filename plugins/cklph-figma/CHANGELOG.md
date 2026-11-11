@@ -3,6 +3,17 @@
 All notable changes to `cklph-figma` are documented here.
 Format: [Keep a Changelog](https://keepachangelog.com); versioning follows [SemVer](https://semver.org).
 
+## [0.3.0] - 2026-11-11
+
+### Added
+- `design-md`: write a client's DESIGN.md (Google's design.md format) in the client repo from the
+  real token source, one file per theme or mode, lint it with `@google/design.md@0.4.0` pinned
+  through npx, run the contrast check, diff against the live CSS, and re-run on token changes.
+- `scripts/contrast.mjs`, the plugin's first script: a zero-dependency WCAG contrast check that
+  reads a JSON pair list or a DESIGN.md's components. It composites alpha over the canvas, uses
+  3:1 for large text and UI edges, and reads hex, rgb(), rgba() and oklch(). Exit 0 pass, 2 fail,
+  1 bad input. Tests in `tests/contrast.test.mjs`, run in CI.
+
 ## [0.2.0] — 2026-11-05
 
 ### Added

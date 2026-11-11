@@ -3,6 +3,17 @@
 All notable changes to `cklph-visual-qa` are documented here.
 Format: [Keep a Changelog](https://keepachangelog.com); versioning follows [SemVer](https://semver.org).
 
+## [0.2.0] - 2026-11-11
+
+### Added
+- `design-lint` skill: runs the `impeccable` detector (Apache-2.0, pinned to 4.8.2 through npx, no
+  AI model) on a live page at desktop and mobile widths, and says how to triage it. Readability and
+  layout findings get checked and fixed; "looks generated" findings are taste and never fail a build.
+  It also covers using it as a CI gate and keeping per-project exceptions in `.impeccable/config.json`.
+  Tried on chykalophia.com and ooohm.team first: half the findings checked were real (14px text on a
+  16px line height, 89-character lines), and the false positives seen are listed in the skill. Only
+  the detector is used, not impeccable's skills, which repeat `cklph-os:frontend-ui`.
+
 ## [0.1.1] — 2026-10-27
 
 ### Fixed

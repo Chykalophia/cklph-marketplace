@@ -3,6 +3,17 @@
 All notable changes to `cklph-nextjs` are documented here.
 Format: [Keep a Changelog](https://keepachangelog.com); versioning follows [SemVer](https://semver.org).
 
+## [0.4.0] - 2026-11-11
+
+### Added
+- `ui-quality`: a checked list of animated component libraries (`references/animated-components.md`),
+  from adding one component of each to OOOhm and building it. React Bits: use per component.
+  Canvas UI: one showcase section at most. Magic UI: rebuild what you need, because its counter
+  ignored reduced motion and rendered "0" before JS ran. The list holds names, links and notes only:
+  React Bits and Canvas UI are MIT plus Commons Clause, which forbids redistributing their source.
+  Also covers installing through the shadcn CLI without it rewriting `globals.css`, and points to the
+  three checks in `cklph-os:frontend-ui`.
+
 ## [0.3.3] - 2026-11-10
 
 ### Fixed

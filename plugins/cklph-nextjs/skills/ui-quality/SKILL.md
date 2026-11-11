@@ -59,6 +59,13 @@ Pair color with an icon and text — red border + alert icon + error text, green
 
 **24 x 24 CSS px** minimum (WCAG 2.5.8, AA); 44 x 44 px is the AAA recommendation (2.5.5). `p-1 text-xs` "×" buttons fail.
 
+## Animated components
+
+Before adding a component from React Bits, Canvas UI, Magic UI or any shadcn-style animation
+registry, read `references/animated-components.md`: which ones we've checked, the licence limits,
+and how to install without surprises. Every animated component passes the three checks in
+`cklph-os:frontend-ui`: reduced motion, correct no-JS output, and its gzip size cost.
+
 ## Screen-reader smoke-test
 
 Run the primary flow through VoiceOver (Cmd+F5) or NVDA before shipping. **Can a screen-reader user finish?** Missing labels and broken focus order surface in 30 seconds.

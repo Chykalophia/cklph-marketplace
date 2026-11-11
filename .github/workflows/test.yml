@@ -46,6 +46,8 @@ jobs:
           bash plugins/cklph-elementor/tests/el-tools.test.sh
       - name: cklph-audit (scanner wrappers against fake scanners, engine flow)
         run: node --test plugins/cklph-audit/tests/*.test.mjs
+      - name: cklph-figma (contrast.mjs)
+        run: node --test plugins/cklph-figma/tests/*.test.mjs
       - name: cklph-nextjs rollback harness (real TanStack and SWR hooks)
         working-directory: docs/proof/testing/rollback-harness
         run: |
