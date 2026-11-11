@@ -38,13 +38,13 @@
     {
       "name": "cklph-figma",
       "source": "./plugins/cklph-figma",
-      "description": "Read designs from the Figma MCP (design context, screenshots, structure metadata, design tokens), and preflight and verify Figma writes. The design-source layer for any Figma-to-code work.",
+      "description": "Read designs from the Figma MCP (design context, screenshots, structure metadata, design tokens), preflight and verify Figma writes, and write a client's DESIGN.md tokens file with a lint and an alpha-aware contrast check. The design-source layer for any Figma-to-code work.",
       "category": "design"
     },
     {
       "name": "cklph-visual-qa",
       "source": "./plugins/cklph-visual-qa",
-      "description": "Verify a rendered web page VISUALLY against a design — headless-Chrome screenshots, ImageMagick crop/compare, overflow probes, and the adversarial visual-reviewer agent. Framework-agnostic; pairs with cklph-figma.",
+      "description": "Verify a rendered web page VISUALLY against a design — headless-Chrome screenshots, ImageMagick crop/compare, overflow probes, the adversarial visual-reviewer agent, and a deterministic type and layout lint (impeccable). Framework-agnostic; pairs with cklph-figma.",
       "category": "design"
     },
     {

@@ -14,6 +14,7 @@ chase phantoms (Chrome's 500px window clamp, CDN cache, CSS-load races).
 | Item | Trigger / role |
 |---|---|
 | `visual-verify` (skill) | After any UI/styling change; matching a design pixel-for-pixel; proving "it should look like X". |
+| `design-lint` (skill) | Before a release or hand-off, or as a CI gate on a preview URL: runs the `impeccable` detector (pinned, no AI model) for type and layout problems and triages what it finds. Needs Node and Chrome. |
 | `visual-reviewer` (agent) | Adversarial pass — assumes the page does NOT match until pixels prove it; returns a ranked delta list. |
 | `scripts/shot` | `shot <url> <out> [WxH] [scale]`, `shot crop <in> <out> WxH+X+Y [pct]`, `shot probe` (prints the overflow-probe script; flags elements past either viewport edge). |
 

@@ -53,7 +53,7 @@ Use both — they are layered, not competing:
 
 ### Quality
 - `testing` — Vitest + Playwright coverage tiers; mock the data-layer, not the network; `ai-regression.md` for code an AI wrote and self-reviewed.
-- `ui-quality` — dark mode + WCAG AA deep dive: `dark:` variants, contrast thresholds, `:focus-visible`, keyboard nav, ARIA, screen-reader smoke tests.
+- `ui-quality` — dark mode + WCAG AA deep dive: `dark:` variants, contrast thresholds, `:focus-visible`, keyboard nav, ARIA, screen-reader smoke tests, and the checked list of animated component libraries.
 - `error-handling` — `ServiceResult` returns, user-surface vs log-only, Sentry capture-at-boundary.
 - `config` — typed env vars (Zod / `@t3-oss/env-nextjs`) + graceful degradation (missing env = feature off, not error).
 

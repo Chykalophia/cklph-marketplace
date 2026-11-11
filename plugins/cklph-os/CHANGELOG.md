@@ -5,6 +5,28 @@ Format: [Keep a Changelog](https://keepachangelog.com); versioning follows [SemV
 Moved here from the repo root on 2026-10-27; marketplace and repo-level events (repo rename, sibling
 plugins, the marketplace manifest) live in the root CHANGELOG.
 
+## [0.16.0] - 2026-11-11
+
+### Added
+- `frontend-ui` has motion guidance, which it had none of: `references/motion.md` covers when to
+  animate, easing and duration, press feedback, transform and opacity only, scroll reveals, touch and
+  hover, and reduced motion. It's adapted from Emil Kowalski's `review-animations` standards (MIT,
+  notice kept), trimmed to rules we can check. Trying his skills on OOOhm found real gaps (no press
+  feedback, no hover on the primary button, a 700ms scroll reveal, a hover zoom stuck on touch), but
+  about half their flags were noise. Two rules changed on the way in: Tailwind v4's `hover:` is
+  already gated for touch, and a short confirmation after a keyboard action is feedback, not
+  decoration.
+- Three checks for animated library components: reduced motion, correct no-JS output, and the gzip
+  size cost. They caught every problem found trialling Magic UI, React Bits and Canvas UI, including
+  a number counter that ignored reduced motion and rendered "0" before JS ran.
+- A Verify item for reduced motion and no-JS output.
+
+## [0.15.2] - 2026-11-10
+
+### Fixed
+- `frontend-ui`: the accessibility heading names WCAG 2.2 AA, the current W3C Recommendation,
+  instead of WCAG 2.1 AA.
+
 ## [0.15.1] — 2026-11-05
 
 ### Changed
