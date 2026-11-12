@@ -5,6 +5,17 @@ Format: [Keep a Changelog](https://keepachangelog.com); versioning follows [SemV
 Moved here from the repo root on 2026-10-27; marketplace and repo-level events (repo rename, sibling
 plugins, the marketplace manifest) live in the root CHANGELOG.
 
+## [0.17.0] - 2026-11-11
+
+### Added
+- `frontend-ui` lists the looks generated UIs fall into, so a page avoids them while it's built
+  instead of failing a lint afterwards. `references/ai-tells.md` covers all 31 "slop" rules in the
+  `impeccable` 4.8.2 detector (Apache-2.0), in seven groups, each with what to do instead and the
+  rule id that `cklph-visual-qa:design-lint` reports. 15 of them fired on MailPrism, SendBriefs and
+  OOOhm, and those are marked. The design system still wins: a brand that uses Inter or a label above
+  its headings keeps them.
+- A short version in `SKILL.md` and a Verify item.
+
 ## [0.16.0] - 2026-11-11
 
 ### Added
