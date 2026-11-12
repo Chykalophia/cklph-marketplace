@@ -27,6 +27,12 @@ padding, no shadow-heavy cards. Use realistic content (not lorem) so wrapping/ov
   `dark:` variant; never use color as the *only* signal.
 - **Type** — respect the hierarchy; don't skip heading levels.
 
+Read `references/ai-tells.md` before building a page or section without a full design. It lists the
+31 looks generated UIs fall into, with what to do instead. The short version: no purple or
+cyan-on-dark gradients, gradient text or colored glows; no stock fonts (Inter, Geist) unless the brand
+uses them; no tiny uppercase label above a heading; no cards inside cards and no icon tile above
+every heading; no buzzwords. The design system wins where it asks for one of these.
+
 ## Accessibility (WCAG 2.2 AA — non-negotiable)
 - Real `<button>` / `<a>` for actions (keyboard-focusable by default); if you must `role="button"`, add
   `tabIndex={0}` + Enter/Space handlers.
@@ -56,3 +62,4 @@ state, or an animated library component. The short version:
 - [ ] Works at all four breakpoints; light **and** dark.
 - [ ] Matches the design system; no axe-core warnings.
 - [ ] With reduced motion on, nothing moves that shouldn't; with JS off, the real content shows.
+- [ ] No tell from `references/ai-tells.md` unless the design system asked for it.
