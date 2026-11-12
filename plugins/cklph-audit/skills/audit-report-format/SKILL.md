@@ -1,6 +1,6 @@
 ---
 name: audit-report-format
-description: The exact AUDIT-<date>.md contract — front-matter, coverage summary + rule-closure matrix, coverage narrative (positive assurance), severity sections (file:line, snippet, why-real + verifier note, fix, confidence/bucket/context/validation, root-cause/invariant/boundary/reachability), positive controls (INFO), ordered remediation waves for /cklph-os:flow with an owner-decisions subsection, and an appendix with NO silent truncation (incl. whether the Map + Variant phases ran). Loaded by audit-synthesizer when writing the report.
+description: The exact AUDIT-YYYY-MM-DD.md contract — front-matter, coverage summary + rule-closure matrix, coverage narrative (positive assurance), severity sections (file:line, snippet, why-real + verifier note, fix, confidence/bucket/context/validation, root-cause/invariant/boundary/reachability), positive controls (INFO), ordered remediation waves for /cklph-os:flow with an owner-decisions subsection, and an appendix with NO silent truncation (incl. whether the Map + Variant phases ran). Loaded by audit-synthesizer when writing the report.
 ---
 
 # audit-report-format — the AUDIT-<date>.md contract

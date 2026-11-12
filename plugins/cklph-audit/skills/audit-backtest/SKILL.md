@@ -1,6 +1,6 @@
 ---
 name: audit-backtest
-description: Validate a lens against ground truth — run it over fixtures/<lens>/ and/or a historical git commit, compute precision/recall, and gate the lens (recall ≥ 0.8, precision ≥ 0.7 after verify) before it ships.
+description: Validate a lens against ground truth — run it over fixtures/LENS/ and/or a historical git commit, compute precision/recall, and gate the lens (recall ≥ 0.8, precision ≥ 0.7 after verify) before it ships.
 ---
 
 # audit-backtest

@@ -3,6 +3,14 @@
 All notable changes to `cklph-audit` are documented here. This project adheres to
 [Semantic Versioning](https://semver.org/).
 
+## 1.3.3 - 2026-11-12
+
+### Fixed
+- Installs in the Claude app without warnings. The plugin description was 1,115 characters and the app
+  allows 500; it's now 486 and still names every lens. Three skill descriptions had `<lens>` and
+  `<date>`, which the app strips as XML tags. They now say `LENS` and `YYYY-MM-DD`. Nothing else
+  changed.
+
 ## 1.3.2 — 2026-11-05
 
 ### Changed

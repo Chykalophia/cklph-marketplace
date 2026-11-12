@@ -1,6 +1,6 @@
 ---
 name: audit-run
-description: Orchestrate a scoped, adversarially-verified whole-repo audit — load config + baseline, run the audit workflow over the requested lenses, and write the triaged AUDIT-<date>.md report. Invoked by /cklph-audit:run and /cklph-audit:quick.
+description: Orchestrate a scoped, adversarially-verified whole-repo audit — load config + baseline, run the audit workflow over the requested lenses, and write the triaged AUDIT-YYYY-MM-DD.md report. Invoked by /cklph-audit:run and /cklph-audit:quick.
 ---
 
 # audit-run — drive the audit workflow and write the report
