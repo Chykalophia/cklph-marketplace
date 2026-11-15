@@ -25,7 +25,7 @@ This lens is **gated by the fixture precision/recall test** (`fixtures/security/
 
 Judge each unit against these. Map every finding to a **CWE** and/or **ASVS** id (e.g. `CWE-862` missing authorization, `CWE-89` SQLi, `CWE-918` SSRF, `CWE-798` hardcoded creds, `ASVS-4.2.2` access-control, `ASVS-2.x` authn).
 
-- **Authz / authn** — every mutation gated; correct identity source (e.g. `getUser()`, never `getSession()`); admin paths behind an explicit admin check; **no privilege self-escalation** (column grants, RLS `WITH CHECK` letting a user write their own role/tier/entitlement). (CWE-862/863/269, ASVS-4.)
+- **Authz / authn** — every mutation gated; correct identity source (e.g. `getClaims()` or `getUser()`, never `getSession()`; middleware/Proxy alone is not a gate); admin paths behind an explicit admin check; **no privilege self-escalation** (column grants, RLS `WITH CHECK` letting a user write their own role/tier/entitlement). (CWE-862/863/269, ASVS-4.)
 - **Injection & I/O** — SQL/NoSQL/command/template injection; **SSRF** on outbound fetch built from user input; path traversal; unsafe deserialization; XSS in rendered/`dangerouslySetInnerHTML` content. (CWE-89/78/79/918/502/22.)
 - **Secrets & data** — hardcoded secrets (tool); secrets leaked into logs / exports / error bodies; PII handling; encryption at rest for credentials/tokens (e.g. ciphertext, not plaintext, in GDPR data exports). (CWE-798/312/532, ASVS-6/7.)
 - **Money & state** — payment/webhook **signature verification**; **idempotency** on charge paths; tier/entitlement integrity (price from DB, not client); no live side-effects triggered by untrusted input. (CWE-345/347, ASVS-9.)

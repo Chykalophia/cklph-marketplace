@@ -1,9 +1,9 @@
 ---
 name: pitfalls
-description: The recurring review-catch list. Twelve patterns external reviewers find again and again. Use during pre-PR review, pre-commit checks, or whenever editing data-fetching, state, or async code.
+description: The recurring review-catch list. Fifteen patterns external reviewers find again and again. Use during pre-PR review, pre-commit checks, or whenever editing data-fetching, state, or async code.
 ---
 
-# pitfalls — the twelve recurring bugs
+# pitfalls — the fifteen recurring bugs
 
 These are the patterns reviewers consistently catch in Next.js + Supabase code. Check them DURING writing, not after. Each one has bitten production at least once across the cklph stack.
 
@@ -77,8 +77,26 @@ After `if (error) return …`, success logic goes in an `else` block (or use ear
 
 Files over 500 lines hide things. Split by responsibility — readers vs writers, evaluator vs executor, query vs mutation — before the file passes 500. Refactoring later is more expensive than splitting now.
 
-`lib/services/rule-engine.ts (847 lines)` // evaluator, executor, and storage all in one file
+`src/modules/rules/application/rule-engine.ts (847 lines)` // evaluator, executor, and storage all in one file
+
+## 13. Layer skipping
+
+A page, layout, action or route that creates its own Supabase client and queries a table skips the use case, and with it the ownership policy. That is an IDOR waiting for a guessed ID. Call the module's use case through `@/modules/<f>`; only `infrastructure/` and `src/server/` touch Supabase (see **architecture**).
+
+`// app/projects/[id]/page.tsx → const sb = await createClient(); sb.from("projects").select().eq("id", params.id)` // no policy check
+
+## 14. Leaky repository
+
+A repository that runs `select('*')` and hands back the row leaks every column (including ones added next month) to whoever renders it, and ties the UI to the schema. Select explicit columns and map to a domain type or DTO inside the repository.
+
+`return (await sb.from("users").select("*").eq("id", id).single()).data;` // password_reset_token rides along to the client
+
+## 15. Service locator
+
+`container.resolve(...)` or a global registry lookup inside a use case hides its dependencies and makes it untestable without the container. Use cases receive what they need on `ctx`, wired once in `src/server/context.ts`, the only place allowed to construct implementations.
+
+`const repo = container.resolve<ProjectRepo>("ProjectRepo");` // inside a use case; the test can't see what it needs
 
 ---
 
-Use this list as a checklist during writing. If you're touching state, async, or DB code and HAVEN'T checked these twelve, you haven't reviewed yet. Pair with **discipline** for the broader house rules.
+Use this list as a checklist during writing. If you're touching state, async, or DB code and HAVEN'T checked these fifteen, you haven't reviewed yet. Pair with **discipline** for the broader house rules.

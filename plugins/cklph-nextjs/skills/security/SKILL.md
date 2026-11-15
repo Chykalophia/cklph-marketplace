@@ -13,7 +13,8 @@ the one place the order is defined; other skills reference it.
 1. **Rate-limit FIRST, keyed by IP.** Stops abuse before any work happens, including unauthenticated
    traffic and credential stuffing that never gets past auth.
 2. **CSRF on state-change.** All POST/PUT/PATCH/DELETE from a browser session must carry a CSRF token. Exempt only OAuth callbacks, signed webhooks, and cron paths.
-3. **Auth with `getUser()` — NEVER `getSession()`.** `getSession()` reads a cookie without verifying it; `getUser()` calls the auth server and validates.
+3. **Auth with `getClaims()` or `getUser()` — NEVER `getSession()`.** `getSession()` reads a cookie without verifying it. `getClaims()` verifies the JWT signature locally (fast default); `getUser()` calls the auth server for the freshest record (use it for sensitive operations).
+   Auth runs **inside** every route handler and server action. Server actions are public POST endpoints: page-level auth does not cover them. Middleware/Proxy auth is an optimistic check only, never the gate (CVE-2025-29927 bypassed it with a spoofed header).
    Once you have the user, apply any **per-user** limit (a user ID is a stable key; an IP is not).
    This is an extra limit for costly buckets (`ai`, `email`), not a replacement for step 1.
 4. **Zod on all input.** Use `.strict()` on objects so unknown fields fail closed. Validate URL params (UUID regex) before they hit a query.
@@ -27,11 +28,21 @@ the one place the order is defined; other skills reference it.
 | Client component            | `createClient`               | Honors RLS for the logged-in user.   |
 | Cron / admin path           | `createServiceRoleClient`    | Bypasses RLS — danger zone.          |
 
+Where they live (see **architecture**): the user-scoped server client is created once per request in `src/server/context.ts` and passed to repositories in `src/modules/<f>/infrastructure/`. `createServiceRoleClient` lives ONLY in `src/server/admin/` and is lint-banned everywhere else. The key never gets a `NEXT_PUBLIC_` prefix; prefer Supabase's new secret keys (rejected from browsers) and rotate on any exposure.
+
 `createServiceRoleClient` bypasses ALL row-level security. Use ONLY after an `isAdmin()` check, in a cron handler with no user context, or for explicit cross-user operations (system notifications, webhook fan-out). Never in a normal authenticated request path.
 
 ## RLS as defense in depth
 
-Even with `getUser()` + correct client, write the query as if RLS doesn't exist — `.eq("user_id", user.id)` on every read and write of user data. RLS is the safety net, not the gate.
+Even with verified identity + correct client, write the query as if RLS doesn't exist — `.eq("user_id", user.id)` on every read and write of user data, and an ownership check in the use case's policy. RLS is the safety net, not the gate. Both layers, always:
+
+- **RLS = tenancy and ownership floor.** Enabled on every exposed table, explicit per-operation policies (`using` AND `with check`; never `using (true)`), tested with pgTAP. A CI check fails if any `public` table has RLS off.
+- **App policies = business rules** (roles, plan limits, step-up auth) in `src/modules/<f>/application/policies.ts`.
+- **RLS performance:** write `(select auth.uid())`, not bare `auth.uid()`; index every column a policy filters on; put membership lookups in `security definer` functions in a private schema.
+
+## Never send to the client
+
+Return DTOs, not rows: no full records as props, no updated row from an action (return `{ success: true }` or a minimal DTO). Explicit `select` columns, never `select('*')`. Only server code reads `process.env`. Put `import 'server-only'` in every application, infrastructure and DAL file.
 
 ## Never log or return
 
@@ -80,4 +91,4 @@ If any of those four pass when they shouldn't, you skipped a step.
 - **Open redirect** — `redirect(user_provided_url)` must validate against an allowlist, or accept only a same-origin relative path: it starts with a single `/`, and not `//` or `/\` (browsers read both as a new host). See the `safeNext` helper in **auth**.
 - **Secret in URL / log** — never put a token in a query string (it lands in proxy logs and browser history); never log full request URLs that include credentials.
 
-Pair with **api-routes** for the `compose()` middleware that wires this in.
+Pair with **api-routes** for the `compose()` middleware that wires this in, and **architecture** for where policies, repositories and the admin client live.

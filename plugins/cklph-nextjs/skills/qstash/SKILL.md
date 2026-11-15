@@ -39,6 +39,8 @@ export const POST = verifySignatureAppRouter(handler);
 
 `verifySignatureAppRouter` checks QStash's HMAC header before your code runs. Read the body **inside** the wrapped handler — the wrapper consumes the stream to verify.
 
+The handler is a route handler like any other (see **api-routes**): verify the signature, then call ONE use case from `@/modules/<f>`. The calls above are shown inline to make the state machine visible; in the app, claim → work → status live in that use case and its repository, not in `route.ts`. A job has no user session, so the request context uses the service-role client from `src/server/admin/`, never one created in the handler.
+
 ## Idempotency: deterministic IDs + a state table
 
 A `jobs` row tracks every job: `pending → processing → completed | failed`. The job ID is deterministic — `process-email-${workspaceId}-${emailId}`, not `Date.now()`. `markJobAsProcessing` does `UPDATE … WHERE status = 'pending'` and returns whether a row changed. If not, replay — return 200.
@@ -64,5 +66,6 @@ Cron handlers finish in 2–3 seconds — they enqueue and return. The QStash we
 - Non-deterministic job IDs (`Date.now()`) — every replay creates a new job.
 - 500 on permanent failure — infinite retry storm.
 - `catch` without setting `failed` — jobs stuck in `processing` forever.
+- Supabase queries written straight into the handler — call the use case; only `infrastructure/` and `src/server/` touch Supabase.
 
 Pair with **api-routes** for the cron handler shape and **pubsub** for real-time webhooks.

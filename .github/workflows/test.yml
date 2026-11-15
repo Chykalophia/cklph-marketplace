@@ -48,6 +48,11 @@ jobs:
         run: node --test plugins/cklph-audit/tests/*.test.mjs
       - name: cklph-figma (contrast.mjs)
         run: node --test plugins/cklph-figma/tests/*.test.mjs
+      - name: cklph-nextjs dependency-cruiser reference (each rule fires on a fixture)
+        working-directory: docs/proof/architecture/dependency-cruiser
+        run: |
+          npm ci
+          npm test
       - name: cklph-nextjs rollback harness (real TanStack and SWR hooks)
         working-directory: docs/proof/testing/rollback-harness
         run: |

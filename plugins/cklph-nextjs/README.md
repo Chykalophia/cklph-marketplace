@@ -24,17 +24,40 @@ Use both — they are layered, not competing:
 | Layer | Source | Examples |
 |---|---|---|
 | **Framework patterns** | `vercel:*` | `vercel:nextjs`, `vercel:react-best-practices`, `vercel:routing-middleware`, `vercel:shadcn`, `vercel:turbopack`, `vercel:auth`, `vercel:ai-sdk` |
-| **Peter's house style on top** | `cklph-nextjs` | layered `lib/` architecture, mutation security checklist, data-layer abstraction, 12 accumulated review pitfalls, cross-cutting discipline rules |
+| **Peter's house style on top** | `cklph-nextjs` | feature-module architecture, mutation security checklist, RLS + app policies, data-layer abstraction, 15 accumulated review pitfalls, cross-cutting discipline rules |
+
+## The layout
+
+```
+src/
+  app/                  routes only: pages, layouts, actions.ts, route.ts (all thin)
+  modules/<f>/
+    ui/                 components, hooks, presenters
+    application/        use-cases/, policies.ts, dto.ts, schemas.ts
+    domain/             optional: entities, value objects, errors, ports
+    infrastructure/     supabase-*.repository.ts, <vendor>.gateway.ts
+    index.ts            the module's public API
+  server/
+    context.ts          composition root, built per request
+    admin/              service-role Supabase client, isolated
+    db/database.types.ts
+  shared/               ui kit, lib/data, lib/middleware, result, branded types
+```
+
+`app → modules/*/index.ts → application → domain ← infrastructure`, checked in CI with the
+dependency-cruiser config in `skills/architecture/references/`. Repos still on the older `lib/`
+layout follow the same rules under the old paths and migrate one module at a time. Decisions behind
+it: `docs/adr/` 001 to 004 at the repo root.
 
 ## What's inside
 
 ### Foundations
-- `architecture` — layered `lib/` structure (services / data / middleware / security / utils / validation) + "Why these layers" linking each to a principle from `cklph-os:design`.
+- `architecture` — feature modules layered inside (Lite / Standard / Full tiers per module), the dependency rule, "where does this code go?", ten non-negotiables, a dependency-cruiser reference config, and "Why these boundaries" linking each to a principle from `cklph-os:design`.
 - `discipline` — cross-cutting house rules (Tailwind+ShadCN only · search-before-create · DRY at 3+ · branch safety · dark mode + WCAG AA · zero `any` · 500-line file limit · regen types after every migration).
-- `pitfalls` — the 12 cumulative review-catch patterns with one-line WRONG-code examples (React updater purity, optimistic-update drift, Supabase `range()` inclusivity, `{count: "exact"}` for pagination, JSON.parse before Zod, state-machine catch blocks, etc.).
+- `pitfalls` — the 15 cumulative review-catch patterns with one-line WRONG-code examples (React updater purity, optimistic-update drift, Supabase `range()` inclusivity, `{count: "exact"}` for pagination, JSON.parse before Zod, state-machine catch blocks, layer skipping, leaky repositories, service locator, etc.).
 
 ### Mutation security
-- `security` — ordered checklist (rate-limit FIRST · CSRF · `getUser()` · Zod · correct Supabase client by intent) + specific attack vectors (SQLi / IDOR / XSS / path traversal / open redirect / secrets-in-URL).
+- `security` — ordered checklist (rate-limit FIRST · CSRF · `getClaims()`/`getUser()` · Zod · correct Supabase client by intent) + RLS and app policies, both + specific attack vectors (SQLi / IDOR / XSS / path traversal / open redirect / secrets-in-URL).
 - `auth` — Supabase auth flows: sign-in / sign-up / OAuth callback / password reset / multi-tenant gating.
 
 ### Route shapes
@@ -43,7 +66,7 @@ Use both — they are layered, not competing:
 
 ### Data access
 - `data-layer` — no raw `fetch("/api/...")` in components or hooks; route through `authFetcher` / `useAuthQuery` / `useAuthMutation`.
-- `data-model` — the Supabase-generated `lib/types/database.ts` is the source of truth; how to read `Row` / `Insert` / `Update` / `Enums` types.
+- `data-model` — the Supabase-generated `src/server/db/database.types.ts` is the source of truth, used only in repositories; how to read `Row` / `Insert` / `Update` / `Enums` types.
 - `supabase-migrations` — CLI-first workflow + RLS policy template + rollback discipline.
 - `postgres` — index design, `EXPLAIN ANALYZE`, pgbouncer pooling, JSONB `gin` patterns.
 

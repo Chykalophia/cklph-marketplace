@@ -7,6 +7,8 @@ description: Peter's pattern for Google Cloud Pub/Sub webhooks in Next.js. Use w
 
 Google Cloud Pub/Sub pushes notifications to your webhook. Three rules keep it healthy — always return 200, verify the JWT, dedupe atomically.
 
+The webhook is a thin route handler (see **api-routes**): verify the JWT, then call ONE use case from `@/modules/<f>`. Dedupe and processing live in that use case and its repository, not in `route.ts`.
+
 ## Always return 200 (yes, even on errors)
 
 ```ts
@@ -75,7 +77,7 @@ Gmail watches expire in 7 days. Run a cron at the 6-day mark per user. A missed 
 - `Number(historyId)` — precision loss above 2^53.
 - Skipping JWT verification — your endpoint is public; anyone can spoof Google.
 - Processing without dedup — duplicates corrupt counters and re-trigger downstream work.
-- Cookie-based Supabase client in the webhook — no cookies; use the service-role client.
+- Cookie-based Supabase client in the webhook — no cookies; the request context uses the service-role client from `src/server/admin/`, never one created in the handler.
 - Forgetting watch renewal — feature dies silently in 7 days.
 
 Pair with **api-routes** for the webhook shape and **qstash** for queueing the heavy work this webhook fans out to.

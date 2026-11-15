@@ -1,11 +1,17 @@
 ---
 name: api-routes
-description: Peter's route handler pattern using compose() middleware. Use when creating or editing files under app/api/ or writing route.ts files.
+description: Peter's route handler pattern using compose() middleware. Use when creating or editing files under app/api/ or writing route.ts files, or deciding between a route handler and a server action.
 ---
 
 # api-routes — thin controllers with compose()
 
-Routes parse HTTP, validate input, delegate to a service, and return JSON. Nothing else. If a route grows past ~100 lines it has business logic in it — move that logic into `lib/services/`.
+Routes parse HTTP, validate input, call ONE use case from the module's public API (`@/modules/<f>`), and return JSON. Nothing else. If a route grows past ~100 lines it has business logic in it — move that logic into `src/modules/<f>/application/use-cases/`.
+
+## Route handler or server action?
+
+- **Route handler** (`route.ts`): webhooks, public/partner APIs, OAuth callbacks, cron, anything a non-React client calls.
+- **Server action** (`actions.ts`): mutations from your own UI (see **server-actions**). Don't use server actions as a public API.
+- Never put DB or Supabase calls in either. Never import from `src/modules/*/infrastructure/` — only from the module's `index.ts`.
 
 ## The shape
 
@@ -19,9 +25,10 @@ import {
   getUserIdentifier,
   APIErrors,
   type MiddlewareRequest,
-} from "@/lib/middleware";
+} from "@/shared/lib/middleware";
 import { z } from "zod";
-import { createItem } from "@/lib/services/item-service";
+import { createItem } from "@/modules/items"; // the module's index.ts — never a deep import
+import { makeRequestContext } from "@/server/context"; // composition root
 
 const CreateItemSchema = z.object({
   name: z.string().min(1).max(100),
@@ -53,7 +60,9 @@ export const POST = compose(
       );
     }
 
-    const result = await createItem(request.user!.id, parsed.data);
+    // The use case authorizes the actor against the resource (IDOR) and returns a DTO, never a raw row.
+    const ctx = await makeRequestContext(request);
+    const result = await createItem(ctx, parsed.data);
     if (!result.success) {
       const status = result.code === "VALIDATION_ERROR" ? 400 : 500;
       return NextResponse.json({ error: result.error }, { status });
@@ -71,9 +80,9 @@ export const POST = compose(
 - `csrfValidate` — rejects a state-changing request without a valid CSRF token (403). Leave it out only on the exempt paths **security** lists (OAuth callback, signed webhooks, cron).
 - `APIErrors` — `badRequest`, `unauthorized`, `forbidden`, `notFound`, `internal`.
 
-## Services return ServiceResult, routes translate to HTTP
+## Use cases return ServiceResult, routes translate to HTTP
 
-Services return `{ success, data }` or `{ success, error, code }`. The route maps `code` to a status code — never throws raw from a service. This keeps services framework-agnostic and routes boring.
+Use cases return `{ success, data }` or `{ success, error, code }`, where `data` is a DTO. The route maps `code` to a status code — never throws raw from a use case. This keeps use cases framework-agnostic and routes boring.
 
 ## Special handlers
 
@@ -86,7 +95,8 @@ Services return `{ success, data }` or `{ success, error, code }`. The route map
 - Uses `compose()` in the **security** order: IP rate-limit, `csrfValidate`, `requireAuth`.
 - Per-user rate-limit applied with a bucket appropriate to cost.
 - Zod schema with `.strict()`.
-- All DB work delegated to a service.
+- Calls exactly one use case via `@/modules/<f>`; no Supabase, no `infrastructure/` imports.
+- Webhook/cron routes that need the service-role client get it from `src/server/admin/` only.
 - Error responses don't leak stack traces or PostgREST internals.
 - File is under 100 lines.
 
