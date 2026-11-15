@@ -3,6 +3,22 @@
 All notable changes to `cklph-figma` are documented here.
 Format: [Keep a Changelog](https://keepachangelog.com); versioning follows [SemVer](https://semver.org).
 
+## [0.4.0] - 2026-11-13
+
+### Added
+- `figma-audit`: a read-only hand-off audit of one Figma page, published as a ClickUp fix list.
+  Each row links the section, gives the exact layer path, and shows a crop of the screen with the
+  problem boxed in red. Problems inside components are reported once against the main component.
+  A recheck adds a new doc page marking each earlier row fixed, open, improved, removed or new.
+  Built from a client's feedback on a hand-made audit: links landed on tiny or deleted layers,
+  "which part?" had no answer for counted findings, and there were no screenshots.
+- `scripts/figma-audit.mjs` and `figma-audit-rules.mjs`: emit the `use_figma` scan, join its
+  hash-checked parts (use_figma refuses returns over 48,000 bytes), check every link exists,
+  render the report, plan and annotate screenshots with ImageMagick, upload them with ClickUp
+  connector tickets, and diff a recheck. Zero dependencies. Tests run the emitted scan against a
+  mock Figma file. Rule skips (auto-layout fill widths, icon internals, nested repeats) come from
+  false positives on a real file.
+
 ## [0.3.0] - 2026-11-11
 
 ### Added
