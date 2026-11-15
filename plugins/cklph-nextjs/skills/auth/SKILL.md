@@ -5,14 +5,16 @@ description: Peter's Supabase auth flows for Next.js — sign-in, OAuth callback
 
 # auth — Supabase auth flows
 
-`security` covers per-mutation auth (`getUser()`, rate-limit, CSRF). This skill is the surrounding flow — how users get a session and where auth gates live.
+`security` covers per-mutation auth (`getClaims()`/`getUser()`, rate-limit, CSRF). This skill is the surrounding flow — how users get a session and where auth gates live.
 
 ## Server vs client — the one rule
 
-- **Server-side** (routes, server components, server actions, middleware): always `await supabase.auth.getUser()`. It validates the token with the auth server and refreshes as a side effect.
+- **Server-side** (routes, server components, server actions, middleware): default to `await supabase.auth.getClaims()`. It verifies the JWT signature locally against the project's published keys, with no round trip, when the project uses asymmetric JWT signing keys (on the legacy shared secret it falls back to asking the auth server). Use `await supabase.auth.getUser()` for sensitive operations (password or email change, billing, role changes, anything irreversible) or when you need the freshest user record: it asks the auth server, so a revoked or deleted user fails immediately. Identity is resolved once per request in `src/server/context.ts` and handed to use cases on `ctx`.
 - **Client-side**: a `useUser()` hook for reads. For data fetches, go through `authFetcher` from **data-layer** — it owns the 401 → refresh → retry path.
 
 **Never `getSession()` on the server.** It reads a cookie without validating it. Stale tokens slip through, RLS becomes a lie.
+
+**Middleware/Proxy is an optimistic check only.** It can redirect a signed-out visitor early, but it is never the gate: CVE-2025-29927 let a spoofed `x-middleware-subrequest` header skip middleware entirely. Re-check identity in the action, route handler or use case that does the work.
 
 ## OAuth callback route
 
@@ -33,15 +35,15 @@ export async function GET(request: Request) {
   const code = searchParams.get("code");
   const next = safeNext(searchParams.get("next"), origin);
   if (code) {
-    const supabase = await createServerSupabaseClient();
-    const { error } = await supabase.auth.exchangeCodeForSession(code);
-    if (!error) return NextResponse.redirect(`${origin}${next}`);
+    // @/modules/auth: the use case calls ctx.auth.exchangeCodeForSession(code) in its gateway.
+    const result = await completeSignIn(await makeRequestContext(), code);
+    if (result.success) return NextResponse.redirect(`${origin}${next}`);
   }
   return NextResponse.redirect(`${origin}/auth/error`);
 }
 ```
 
-PKCE is handled by `@supabase/ssr`. The exchange must run server-side (HttpOnly cookie).
+PKCE is handled by `@supabase/ssr`. The exchange must run server-side (HttpOnly cookie). Like every route, the callback calls a use case; the Supabase auth calls live in the auth module's `infrastructure/` gateway.
 
 ## Three entry points, one callback
 
@@ -53,17 +55,19 @@ Two pages: **Request** — `resetPasswordForEmail(email, { redirectTo })`. **Res
 
 ## Multi-tenant gating
 
-RLS predicates include both `auth.uid()` AND `organization_id`. Verify membership in the service layer too — RLS is the net, not the gate. Store `current_organization_id` in a cookie or user metadata; **never trust the request body**.
+RLS predicates include both `auth.uid()` AND `organization_id`. Verify membership in the use case policy (`src/modules/<f>/application/policies.ts`) too — RLS is the net, not the gate. Store `current_organization_id` in a cookie or user metadata; **never trust the request body**.
 
 ## Where auth code lives
 
-- **Redirect-if-unauthenticated** → `middleware.ts` or `app/(authed)/layout.tsx`. One boundary check.
-- **Per-mutation auth** → `requireAuth` (see **api-routes**, **security**).
+- **Session refresh** → `src/proxy.ts` (`middleware.ts` before Next 16), calling `updateSession` from `src/server/supabase/proxy.ts`. Required with `@supabase/ssr`: Server Components cannot write cookies, so without it expired tokens are never refreshed.
+- **Redirect-if-unauthenticated** → the same proxy, or `app/(authed)/layout.tsx`. One boundary check, for UX only: it does not protect actions or routes.
+- **Per-mutation auth** → `requireAuth` in route handlers (see **api-routes**, **security**), `authActionClient` in server actions, `sensitiveActionClient` for sensitive ones (see **server-actions**).
 - **Never** scatter auth checks inside leaf components.
 
 ## Anti-patterns
 
 - `getSession()` server-side; auth checks scattered in leaf components.
+- Treating middleware/Proxy or a layout check as the only gate — actions and routes must re-check.
 - RLS policy missing the `auth.uid()` predicate.
 - Password reset that doesn't invalidate other sessions.
 - OAuth code exchange running on the client.

@@ -3,6 +3,58 @@
 All notable changes to `cklph-nextjs` are documented here.
 Format: [Keep a Changelog](https://keepachangelog.com); versioning follows [SemVer](https://semver.org).
 
+## [0.5.0] - 2026-11-14
+
+### Changed
+- **Feature-module layout.** `architecture` replaces the layer-first `lib/` layout with a modular
+  monolith: `src/modules/<f>/{ui, application, domain?, infrastructure, index.ts}`, a composition
+  root in `src/server/context.ts`, the service-role client isolated in `src/server/admin/`, and
+  `src/shared/` for code 3+ modules use. Each module has two public entries: `index.ts` (server) and
+  `client.ts` (client-safe), since use cases carry `server-only`. Tiers (Lite, Standard, Full) are picked per module. Every
+  skill now points at the new paths: `src/shared/lib/data/` for client fetches, use cases via
+  `@/modules/<f>` in routes and actions, repositories for DB access.
+- **Generated types move** to `src/server/db/database.types.ts`, imported only by
+  `infrastructure/` and `src/server/`. Use cases and UI get DTOs (`data-model`).
+- **Auth.** `getClaims()` is the default server identity check, `getUser()` for sensitive
+  operations, never `getSession()`. Auth runs inside every Server Action and Route Handler;
+  middleware/Proxy is an optimistic check only (CVE-2025-29927). `server-actions` treats actions as
+  public POST endpoints built from an `authActionClient` (next-safe-action) that rate-limits by IP
+  and user, or a `sensitiveActionClient` that uses `getUser()`, returning `{ success: true }` or a
+  minimal DTO, never the row. Webhooks, cron and jobs (under `src/app/api/{webhooks,cron,jobs}/`)
+  get their context from `makeSystemContext()` in `src/server/system-context.ts`; auth admin calls
+  (invite, delete account, ban) go through `makeAdminContext()` from server actions; only
+  `src/server/` imports the admin client. Session refresh in `proxy.ts`/`middleware.ts` is required with
+  `@supabase/ssr`.
+- **RLS.** `supabase-migrations` and `security` require RLS and app policies both: `using` on
+  SELECT and DELETE, `with check` on INSERT, both on UPDATE, never `using (true)`,
+  `(select auth.uid())`, indexed policy columns, a pgTAP test per policy, and a pgTAP test that
+  fails CI when a `public` table has RLS off, a view lacks `security_invoker`, or a materialized
+  view exists.
+- `error-handling`: the boundary rule (domain errors → use case `ServiceResult` → UI state or HTTP
+  status; no stack traces or raw DB errors to the client). `ServiceResult` stays.
+- `config`: the server schema in `src/server/env.ts` (validated at build from `next.config.ts`),
+  imported by the app through a server-only `src/server/keys.ts` (read only by `src/server/` and
+  `infrastructure/`), and a separate `NEXT_PUBLIC_` schema.
+- `testing`: coverage by layer (domain, use cases with in-memory fakes via `ctx`, repositories on
+  Supabase local, RLS with pgTAP); Playwright adds one journey per role and a tenant-isolation test;
+  a Vitest setup stub for `server-only`.
+
+### Added
+- `architecture/references/dependency-cruiser.cjs`: the dependency rule as CI checks (`no-circular`,
+  domain isolation, no layer skipping including through the server Supabase client, no deep module
+  imports, a server-free `client.ts`, Supabase and generated types only in infrastructure, the admin
+  client, system context and admin context isolated, with the factories sealed against wrappers and re-exports). Proven against a fixture in
+  `docs/proof/architecture/dependency-cruiser/`, run in CI. Run it as
+  `npx -p dependency-cruiser@18.7.2 -p typescript@6 depcruise ...`: dependency-cruiser 18 cannot load
+  TypeScript 7 and passes silently on 0 modules.
+- `pitfalls`: layer skipping, leaky repository and service locator (now fifteen).
+- `docs/adr/` 001 to 004: feature-first modules, manual composition root, RLS plus app policies,
+  keeping `ServiceResult`.
+
+### Note
+- Repos still on `lib/` stay valid. They follow the same rules under the old paths and migrate one
+  module at a time when touched; no big-bang rewrite.
+
 ## [0.4.0] - 2026-11-11
 
 ### Added

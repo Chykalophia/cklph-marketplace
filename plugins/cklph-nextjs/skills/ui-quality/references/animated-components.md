@@ -23,6 +23,8 @@ npm_config_ignore_scripts=true npx -y shadcn@4.23.0 add <registry-url-or-name> -
 - Read the registry JSON first. Check every new npm dependency (`npm view <pkg> repository license`).
 - Write `components.json` by hand in an existing project: `shadcn init` rewrites `globals.css`.
 - Magic UI imports `cn` from `@/lib/utils` without declaring it. Add `clsx` and `tailwind-merge`.
+  In the module layout, set `aliases.utils` in `components.json` to `@/shared/lib/utils` so the CLI
+  rewrites that import to where `cn` lives.
 - Keep the library's copyright notice in the file.
 
 ## Before it ships

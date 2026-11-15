@@ -27,9 +27,9 @@ Map the repo's top-level structure so the config's example units actually match 
 
 - List the top-level directories (`app/`, `lib/`, `components/`, `src/`, `packages/`, etc.) and any route tree (`app/api/**`, `pages/api/**`). **Detect the framework and its version from `package.json` and use THAT version's conventions** — don't assume from memory.
 - Identify high-risk surfaces to seed as units: **auth** (`lib/auth`, `app/api/auth`, and the framework's middleware/edge entrypoint — Next.js ≤15 `middleware.ts` **or Next.js 16+ `proxy.ts`** at root or `src/`; check the installed version, and never report a missing `middleware.ts` as noteworthy — Next 16 renamed it), **billing/payments** (`app/api/billing`, `lib/stripe`), **data mutation / webhooks**, **external I/O / cron**.
-- Identify service/repository layers (`lib/services`, `lib/data`, repos).
+- Identify service/repository layers: feature modules (`src/modules/*/application`, `src/modules/*/infrastructure`, the composition root `src/server/context.ts`, the service-role client in `src/server/admin/`) or the older layer-first `lib/services`, `lib/data`, repos.
 - Read the repo's own rule files if present (`CLAUDE.md`, `AGENTS.md`, `.coderabbit.yaml`) so `rulesFrom` lists the ones that actually exist.
-- Note conventional ignore targets: `**/__tests__/**`, generated files (`*.generated.ts`, `types/database.ts`), build output, fixtures.
+- Note conventional ignore targets: `**/__tests__/**`, generated files (`*.generated.ts`, `types/database.ts`, `database.types.ts`), build output, fixtures.
 
 This is detection for tailoring — keep it fast. You are not auditing; the scout does deeper unit inference at run time. Explicit `units.list` here is optional (the scout infers when it's absent), but seeding a couple of obvious high-risk units helps quick mode rank well.
 

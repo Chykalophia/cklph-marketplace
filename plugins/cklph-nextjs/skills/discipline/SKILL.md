@@ -20,13 +20,13 @@ These rules apply to every cklph-stack project. They are not suggestions. Most a
 
 ## Security on ALL mutations
 
-Five steps, in order — rate-limit (by IP; per user again after auth) → CSRF → `getUser()` (NEVER `getSession()`) → Zod → correct Supabase client. See **security** for the full mutation checklist.
+Five steps, in order — rate-limit (by IP; per user again after auth) → CSRF → `getClaims()`/`getUser()` (NEVER `getSession()`) → Zod → correct Supabase client. See **security** for the full mutation checklist.
 
 ## Supabase client by intent
 
-- `createServerSupabaseClient` — server components, API routes, server actions.
-- `createClient` — client components.
-- `createServiceRoleClient` — cron jobs, admin paths after `isAdmin()`. Bypasses RLS — danger zone.
+- `createServerSupabaseClient` — built once per request in `src/server/context.ts` and handed to repositories. Server components, routes and actions reach it through use cases, never directly.
+- `createClient` — client components (realtime, auth UI), from `src/shared/lib/supabase/browser.ts`.
+- `createServiceRoleClient` — webhooks, cron and jobs, through `makeSystemContext()`. Lives only in `src/server/admin/`. Bypasses RLS — danger zone.
 
 ## Stripe prices come from the DB
 
@@ -34,11 +34,11 @@ Read from a DB table (e.g. `pricing_tiers`; pick the right name per project) for
 
 ## Schema changes via CLI, not MCP
 
-`supabase migration new` then `supabase db push`. Migrations are checked-in source. The Supabase MCP is for read-only research (querying data, inspecting schema), never for DDL. **After every migration, regenerate types** — `supabase gen types typescript --linked > lib/types/database.ts` — and commit the regenerated file **in the same commit as the migration**. See **data-model** for how to consume them.
+`supabase migration new` then `supabase db push`. Migrations are checked-in source. The Supabase MCP is for read-only research (querying data, inspecting schema), never for DDL. **After every migration, regenerate types** — `supabase gen types typescript --linked > src/server/db/database.types.ts` — and commit the regenerated file **in the same commit as the migration**. See **data-model** for how to consume them.
 
 ## DRY at three
 
-One copy is fine. Two is a watch-list. Three is an extraction. Extract to `lib/utils/`, `lib/services/`, `lib/hooks/`, or the component library depending on type.
+One copy is fine. Two is a watch-list. Three is an extraction. Extract to `src/modules/<f>/application/` (logic), `src/modules/<f>/ui/` (hooks, components) when the copies sit in one module, or `src/shared/` when 3+ modules use it.
 
 ## Branch safety
 
@@ -55,14 +55,16 @@ NEVER commit directly to `dev` or `main`. Before any code, `git checkout dev && 
 
 Use specific types, generics, or `unknown` with narrowing. `as any` and `: any` are both review-blockers. If a third-party type is wrong, declare a proper override.
 
-## Client fetches through `lib/data/`
+## Client fetches through `src/shared/lib/data/`
 
-Never raw `fetch("/api/…")` from a component or hook. Use `authFetcher`, `useAuthQuery`, or `useAuthMutation`. See **data-layer** for why.
+Default to Server Component reads via the module's query use case. When the client does fetch, never raw `fetch("/api/…")` from a component or hook. Use `authFetcher`, `useAuthQuery`, or `useAuthMutation`. See **data-layer** for why.
 
 ## File size limit
 
 Hard ceiling 500 lines per file. At 400 you're already planning the split. Cohesion goes down past 500 and reviewers stop reading thoroughly.
 
 ---
+
+Paths above are the feature-module layout. Repos still on `lib/` (`lib/services/`, `lib/data/`, `lib/types/database.ts`) follow the same rules under the old paths and migrate one module at a time when touched (see **architecture**).
 
 Run through this list at the START of a task, not the end. Pair with **architecture** for layer rules, **pitfalls** for the recurring bug catalog.

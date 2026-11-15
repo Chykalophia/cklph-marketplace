@@ -26,7 +26,7 @@ Fix 4 came with a test, which caught the bug on its first run.
 | **Parallel paths drift** | A field or rule lands in one branch only: production but not the mock/sandbox/demo path, the flag-on branch but not flag-off, the confirmed path but not the unconfirmed one. The most common AI regression upstream (3 of 4). | Assert the **same contract on every path**: one `REQUIRED_FIELDS` list, one test per path. Pin paired branches against each other. |
 | **`select()` omission** | A column is added to the response or the type but not to the Supabase `.select('…')`, so it is always `undefined`. A cast (`as Profile`) hides it from tsc. | Assert every required field is defined: `expect(data.field).not.toBeUndefined()` (null still passes). `'field' in data` is enough only on a parsed JSON response; on a service's return value a key spread as `undefined` still exists. Regenerate types after the migration; never cast a partial select to the full entity (`pitfalls`: cast to `Pick<…>`). |
 | **Error state leakage** | The catch sets an error but keeps the previous data, so the UI shows the last tab's rows under an error banner. | Mock `useAuthQuery` to return `{ data: oldRows, error }` (a hook returns an error, it doesn't throw), or, in a component that calls `authFetcher` itself, have the mock resolve then reject (`mockResolvedValueOnce(rows).mockRejectedValueOnce(err)`) and switch tab or key between the two. Assert the old rows are not rendered under the error. A mock that only rejects never loads old rows, so it passes on the bug. |
-| **Optimistic update, no rollback** | The UI removes the item, the request fails, the item is still in the DB. Or the rollback restores a whole-list snapshot and wipes a newer write. | The fix rules are `click-path-audit`'s (async races): roll back only the item you changed, no refetch racing the optimistic write, invalidate only after the last related mutation settles (with `lib/data`'s declarative `invalidates`, that may mean not declaring it on this mutation). This test is the deliberate exception to `SKILL.md`'s must-mock rule: it has to run on the real hooks' cache and assert the in-flight list, then the final list. See [the concurrent-rollback test](#the-concurrent-rollback-test) below; it was verified on a real `lib/data`. |
+| **Optimistic update, no rollback** | The UI removes the item, the request fails, the item is still in the DB. Or the rollback restores a whole-list snapshot and wipes a newer write. | The fix rules are `click-path-audit`'s (async races): roll back only the item you changed, no refetch racing the optimistic write, invalidate only after the last related mutation settles (with `src/shared/lib/data`'s declarative `invalidates`, that may mean not declaring it on this mutation). This test is the deliberate exception to `SKILL.md`'s must-mock rule: it has to run on the real hooks' cache and assert the in-flight list, then the final list. See [the concurrent-rollback test](#the-concurrent-rollback-test) below; it was verified on a real data layer. |
 | **Null masked by a cast** | `data.x as string` where `x` can be null; tsc is satisfied, and the code calls a string method on it (crash) or interpolates it (the UI shows "null"). | Feed a row with `x: null`; assert the rendered fallback text appears, no literal "null", no crash. |
 
 ## How it fits the house tiers
@@ -40,9 +40,9 @@ Fix 4 came with a test, which caught the bug on its first run.
   `requireAuth`'s `getUser()` verifies a real token. A plain supabase-js client keeps the session
   in storage, not cookies, and a made-up cookie fails `getUser()`. Send a CSRF token on writes and
   give the rate limiter a test store. A route test that mocks the server client factory instead no
-  longer exercises the real backend; keep that for service tests (`SKILL.md`). On Next 15+ a dynamic route's second argument is
+  longer exercises the real backend; keep that for repository tests (`SKILL.md`). On Next 15+ a dynamic route's second argument is
   `{ params: Promise<…> }`.
-- **Mock `lib/data/`, never `fetch`** (`SKILL.md`, `data-layer`): every "make it fail" above goes
+- **Mock `src/shared/lib/data/`, never `fetch`** (`SKILL.md`, `data-layer`): every "make it fail" above goes
   through the mocked `authFetcher` (rejects) or a mocked hook (returns an `error`). Pattern 4 is
   the exception: its test keeps the real hooks (below).
 - **A regression test overrides "components: skip mostly".** Patterns 3 and 5 live in components;
@@ -67,10 +67,10 @@ where every case is pinned to its exact result; copy `reinsert`, `runCase` and t
 from `rollback.test.jsx`. The harness uses string ids; for row objects, capture the deleted row
 and match by `id` everywhere in `reinsert`: the presence check
 (`current.some((r) => r.id === row.id)`), the row's and each neighbour's position, and insert the
-captured `row`, not its id. Changing only the presence check still leaves a bare id in the list. The TanStack fix also ran on a real `lib/data`.
+captured `row`, not its id. Changing only the presence check still leaves a bare id in the list. The TanStack fix also ran on a real data layer.
 
 **Steps** (engine-neutral):
-1. **Find the engine** from what `lib/data` imports (`@tanstack/react-query` or `swr`), not from the
+1. **Find the engine** from what `src/shared/lib/data` (legacy: `lib/data`) imports (`@tanstack/react-query` or `swr`), not from the
    hook's shape: a TanStack wrapper can return `trigger` too.
 2. **Real cache, real hooks.** A fresh cache per test (a new `QueryClient`, or
    `<SWRConfig value={{ provider: () => new Map([['/api/items', { data: ['a', 'b', 'c'] }]]), dedupingInterval: 0 }}>`)
@@ -126,7 +126,7 @@ an array or object key under its serialized form, so read the cache with `unstab
 **Updates** race the same way, plus one case deletes do not have: two updates to the *same* row
 (b1 → b2, then b2 → b3) where the first fails. Restoring "the prior version" puts b1 back over b3.
 The fix is a compare-and-swap: revert the row only if it is still the object this mutation wrote,
-else leave it. Verified on the real TanStack `lib/data` (both failure directions, both settle
+else leave it. Verified on a real TanStack data layer (both failure directions, both settle
 orders), not in the harness.
 
 **Unsolved: both updates fail.** If the first fails while the second is pending, compare-and-swap

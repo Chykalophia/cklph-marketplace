@@ -1,0 +1,13 @@
+{
+  "name": "dependency-cruiser-proof",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "test": "node make.mjs && node check.mjs"
+  },
+  "devDependencies": {
+    "@supabase/supabase-js": "2.119.0",
+    "dependency-cruiser": "18.7.2",
+    "typescript": "6.0.3"
+  }
+}

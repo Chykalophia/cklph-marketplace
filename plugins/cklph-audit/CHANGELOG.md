@@ -3,6 +3,16 @@
 All notable changes to `cklph-audit` are documented here. This project adheres to
 [Semantic Versioning](https://semver.org/).
 
+## 1.3.4 - 2026-11-14
+
+### Changed
+- `audit-init` recognises the feature-module layout from `cklph-nextjs` 0.5.0 when it looks for
+  service and repository layers (`src/modules/*/application`, `src/modules/*/infrastructure`,
+  `src/server/context.ts`, `src/server/admin/`), and suggests ignoring `database.types.ts` as a
+  generated file. The `lib/` layout is still recognised.
+- `security-lens` names `getClaims()` or `getUser()` as a correct server identity source, and
+  notes that middleware/Proxy alone is not an auth gate.
+
 ## 1.3.3 - 2026-11-12
 
 ### Fixed

@@ -5,29 +5,43 @@ description: Peter's testing tiers for Next.js + Supabase apps with Vitest and P
 
 # testing — what to test, what to skip
 
-Coverage is a budget, not a goal. Spend it where bugs actually hide — services and route handlers — and skip the layers where tests add maintenance debt without catching anything real.
+Coverage is a budget, not a goal. Spend it where bugs actually hide — domain rules, use cases, repositories against a real database, and RLS — and skip the layers where tests add maintenance debt without catching anything real.
 
 ## The stack
 
 - **Vitest** — unit + integration tests. Fast, ESM-native, plays well with TypeScript and Next.js.
-- **Playwright** — E2E for the few flows worth driving in a real browser (auth, checkout, the one critical happy path per feature).
+- **Playwright** — E2E for the few flows worth driving in a real browser: one journey per role, plus a tenant-isolation test (user A signs in and cannot see or change tenant B's data by URL or request).
+- **pgTAP** — one test per RLS policy, run with `supabase test db`.
 - **Supabase branches** — preferred backend for integration tests; in-memory doubles only for hot-path unit tests.
 
 ## What to test
 
-| Layer            | Coverage     | Why                                                        |
-| ---------------- | ------------ | ---------------------------------------------------------- |
-| `lib/services/`  | High         | Pure business logic, easy to test, where bugs cost most.   |
-| `app/api/*/route.ts` | Smoke + auth | Confirm `compose()` wiring, 401/403/429 paths.        |
-| `lib/hooks/`     | Selective    | Test state machines; skip trivial wrappers.                |
-| Components       | Skip mostly  | Snapshot tests rot; Playwright covers what matters.        |
-| `lib/utils/`     | Per-helper   | Pure funcs are cheap to test — write the test.             |
+| Layer                                   | Tool                                        | Coverage     | Why                                                   |
+| --------------------------------------- | ------------------------------------------- | ------------ | ----------------------------------------------------- |
+| `modules/<f>/domain/`                   | Vitest, pure, no mocks                      | High         | Invariants live here; pure functions are cheap to test. |
+| `modules/<f>/application/use-cases/`    | Vitest, in-memory fakes of ports via `ctx`  | High         | Policies, orchestration, `ServiceResult` codes.        |
+| `modules/<f>/infrastructure/` repos     | Vitest against Supabase local               | Medium-High  | Column lists, row-to-DTO mapping, error translation.   |
+| RLS policies                            | pgTAP                                       | High         | The tenancy floor; doubles cannot see it.              |
+| `app/**/route.ts`, `actions.ts`         | Smoke + auth                                | Smoke        | Confirm `compose()` / `authActionClient` wiring, 401/403/429 paths. |
+| `modules/<f>/ui/` hooks                 | Vitest                                      | Selective    | Test state machines; skip trivial wrappers.            |
+| Components                              | Playwright                                  | Skip mostly  | Snapshot tests rot; Playwright covers what matters.    |
+| `src/shared/` utils                     | Vitest                                      | Per-helper   | Pure funcs are cheap to test — write the test.         |
+
+Legacy repos on `lib/`: `lib/services/` gets the use-case row, `lib/hooks/` the hooks row, `lib/utils/` the utils row.
 
 ## Mock the data layer, not the network
 
-Components and hooks must mock `authFetcher`, `useAuthQuery`, and `useAuthMutation` from `lib/data/`. Exception: a regression test for cache or optimistic-rollback behaviour needs the real hooks, since a mocked hook has no cache (`ai-regression.md`). Never mock `fetch` directly — that bypasses the abstraction described in **data-layer** and couples tests to transport details that change.
+Components and hooks must mock `authFetcher`, `useAuthQuery`, and `useAuthMutation` from `src/shared/lib/data/`. Exception: a regression test for cache or optimistic-rollback behaviour needs the real hooks, since a mocked hook has no cache (`ai-regression.md`). Never mock `fetch` directly — that bypasses the abstraction described in **data-layer** and couples tests to transport details that change.
 
-For service tests, mock the **repo or Supabase client factory**, not the Supabase SDK internals.
+For use-case tests, inject an in-memory fake of the repository port via `ctx`, not a mocked Supabase SDK. The fake is a second implementation of the port, which is what earns the port its place (see **architecture**).
+
+Use cases and repositories carry `import 'server-only'`, which throws under Vitest. Stub it once in the setup file:
+
+```ts
+// vitest.setup.ts (vitest.config: test.setupFiles = ["./vitest.setup.ts"])
+import { vi } from "vitest";
+vi.mock("server-only", () => ({}));
+```
 
 ## Real Supabase vs in-memory doubles
 
@@ -37,7 +51,8 @@ For service tests, mock the **repo or Supabase client factory**, not the Supabas
 
 ## When to write tests
 
-- New service → write the test first.
+- New use case → write the test first.
+- New RLS policy → pgTAP test in the same migration PR.
 - New route → smoke test (200, 401, 429) at minimum.
 - Bug fix → regression test that fails on the old code.
 - New hook with non-trivial state → test it.
@@ -57,8 +72,8 @@ updates with no rollback, nulls hidden by a cast) and how to test each: `@ai-reg
 
 ## Anti-patterns
 
-- Testing through the UI when a service test would do — slower, flakier, less specific.
-- Mocking the Supabase SDK directly — mock the **repo** or `lib/data/` layer instead.
+- Testing through the UI when a use-case test would do — slower, flakier, less specific.
+- Mocking the Supabase SDK directly — inject an in-memory fake of the repository port via `ctx`, or mock `src/shared/lib/data/` on the client.
 - Shared test database state — every test inserts its own fixtures, cleans up after itself.
 - Snapshot tests on components — they rot and nobody reads the diffs.
 - Asserting on log output as a behavior signal.

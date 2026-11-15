@@ -1,11 +1,15 @@
 ---
 name: data-layer
-description: The lib/data/ rule. Components and hooks NEVER call fetch directly. Use when adding any client-side API call or wiring a form/mutation to the backend.
+description: The client data-layer rule. Components and hooks NEVER call fetch directly — they use authFetcher / useAuthQuery / useAuthMutation from src/shared/lib/data/. Use when adding any client-side API call, wiring a form/mutation to the backend, or deciding whether data should be fetched on the client at all.
 ---
 
-# data-layer — lib/data/ is the only fetch path
+# data-layer — src/shared/lib/data/ is the only client fetch path
 
-Components and hooks never call `fetch("/api/…")`. Every client-side network call goes through `lib/data/`. A raw fetch in a component is a bug — Semgrep rule `no-raw-fetch-to-api-in-client-code` will catch it.
+Components and hooks never call `fetch("/api/…")`. Every client-side network call goes through `src/shared/lib/data/` (`authFetcher`, `useAuthQuery`, `useAuthMutation`). Feature-specific hooks live in `src/modules/<f>/ui/`, wrap those primitives, and are exported to client components through the module's `client.ts` (never `index.ts`, which carries server-only use cases). A raw fetch in a component is a bug — Semgrep rule `no-raw-fetch-to-api-in-client-code` will catch it.
+
+## First: does this need client fetching at all?
+
+Default to reading in a **Server Component** through the module's query use case (imported from `@/modules/<f>`). Reach for the client data layer only for interactive data: frequent refetch, optimistic updates, polling, or user-driven filters. `'use client'` + a fetch for data available at render is an anti-pattern (bigger bundle, waterfalls, extra endpoints to secure).
 
 ## Why this rule exists
 
@@ -39,8 +43,10 @@ const { trigger } = useAuthMutation<CreateItemInput, Item>("/api/items", {
 
 ## Migration trigger
 
-If you see `fetch("/api/…")` inside `components/`, `app/`, or `lib/hooks/`, rewrite it before doing anything else. The pattern is non-negotiable across every cklph-stack project.
+If you see `fetch("/api/…")` inside `src/app/`, `src/modules/*/ui/`, or any `'use client'` file, rewrite it before doing anything else. The pattern is non-negotiable across every cklph-stack project.
 
-Server-side data fetching (RSC, route handlers) does NOT use `lib/data/` — it talks to services or Supabase directly. The rule is for the client only.
+Server-side data fetching (Server Components, actions, route handlers) does NOT use `src/shared/lib/data/` — it calls the module's use cases through `@/modules/<f>` (its `index.ts`). It never imports Supabase or `infrastructure/` directly (that's layer skipping). The rule is for the client only.
 
-Pair with **architecture** for the lib/ layout, **api-routes** for what's on the other end of the call.
+Legacy repos still on `lib/data/`: same rule, old path. Migrate when you next touch the module.
+
+Pair with **architecture** for the module layout, **api-routes** for what's on the other end of the call.

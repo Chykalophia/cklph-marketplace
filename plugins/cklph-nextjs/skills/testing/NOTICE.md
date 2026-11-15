@@ -10,7 +10,7 @@ path to test"; the sandbox/production pattern was widened to any parallel paths;
 the fix became a presence assertion plus regenerated types; "don't test code that never had a bug"
 became "contract tests grow where bugs were found; the house smoke tier still applies"; the
 `'field' in data` check became `not.toBeUndefined()`. Added: failures expressed through the mocked
-`lib/data/` hooks, a pointer from the optimistic-rollback row to `click-path-audit`'s fix rules, in place of
+`src/shared/lib/data/` hooks, a pointer from the optimistic-rollback row to `click-path-audit`'s fix rules, in place of
 upstream's whole-list rollback example (which `click-path-audit` names as a bug); resolve-then-reject for
 the error-leakage test; a rendered-fallback test for the null-cast row; `@supabase/ssr` cookies for
 route tests, request context for `compose()`d
