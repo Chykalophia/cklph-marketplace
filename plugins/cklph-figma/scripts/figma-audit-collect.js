@@ -9,8 +9,11 @@ const SCREEN_TYPES = new Set(['FRAME', 'COMPONENT', 'COMPONENT_SET', 'INSTANCE']
 const WRAPPER_TYPES = new Set(['SECTION', 'GROUP']);
 const PLAIN_ID = /^\d+:\d+$/;
 // use_figma throws "no such property" when a node type lacks the member (layoutMode on TEXT,
-// child sizing on SECTION or a widget), so check for it before reading.
-const layoutRead = (n, key) => (n && key in n ? n[key] || null : null);
+// child sizing on SECTION or a widget). Catching the read works whether or not `in` reports it.
+const layoutRead = (n, key) => {
+  if (!n) return null;
+  try { return n[key] || null; } catch (e) { return null; }
+};
 const layoutModeOf = (n) => layoutRead(n, 'layoutMode');
 const childLayout = layoutRead;
 

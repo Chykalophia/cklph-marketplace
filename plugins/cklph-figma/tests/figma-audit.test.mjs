@@ -1038,7 +1038,7 @@ test('an empty --frames is refused instead of scanning the whole page', () => {
 
 test('layer names cannot inject a link or an image into the doc', async () => {
   const { scan } = await runScan();
-  const evil = '![x](https://e.test/p.png) [click](https://evil.test)';
+  const evil = '![x](https://e.test/p.png) [click](https://evil.test) www.evil.test';
   const f = scan.findings.find((x) => x.groups[0].examples.length);
   f.groups[0].name = evil;
   f.groups[0].examples[0].path = evil;
@@ -1047,7 +1047,7 @@ test('layer names cannot inject a link or an image into the doc', async () => {
   // the bang must be escaped too, and a bare URL must not auto-link.
   assert.ok(!/(?<!\\)\(https?:\/\/(?:e|evil)\.test/.test(md), 'no unescaped ( before an injected URL');
   assert.ok(!/(?<!\\)!(?:\\)?\[x/.test(md), 'no unescaped ! before the injected image');
-  assert.ok(!md.includes('https://e.test') && !md.includes('https://evil.test'), 'no bare injected URL to auto-link');
+  assert.ok(!md.includes('https://e.test') && !md.includes('https://evil.test') && !md.includes('www.evil'), 'no bare injected URL to auto-link');
 });
 
 test('script --like on an old scan without its repeat count asks for it', async () => {
@@ -1069,6 +1069,7 @@ test('script --like on an old scan without its repeat count asks for it', async 
 test('an earlier scan with no brand fonts can still be rechecked', async () => {
   const { scan: old } = await runScan({ fonts: [] });
   assert.deepEqual(old.options.fonts, []);
+  assert.match(finding(old, 'off-brand-font').title, /\(none set\)/);
   const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'figma-audit-like-empty-'));
   const oldPath = path.join(dir, 'old.json');
   fs.writeFileSync(oldPath, JSON.stringify(old));

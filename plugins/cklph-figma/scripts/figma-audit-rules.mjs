@@ -136,7 +136,7 @@ const rawPaint = (p) => p && p.type === 'SOLID' && p.visible !== false && (p.opa
 export function fillTemplate(text, opts) {
   return text
     .replace(/\{minFont\}/g, String(opts.minFont))
-    .replace(/\{fonts\}/g, opts.fonts && opts.fonts.length ? opts.fonts.join(', ') : 'inferred from usage');
+    .replace(/\{fonts\}/g, opts.fonts && opts.fonts.length ? opts.fonts.join(', ') : opts.fontsInferred === false ? 'none set' : 'inferred from usage');
 }
 
 /**
@@ -324,8 +324,8 @@ export function createAudit(options) {
       return {
         rule,
         sev: def.sev,
-        title: fillTemplate(def.title, { minFont: o.minFont, fonts }),
-        fix: fillTemplate(def.fix, { minFont: o.minFont, fonts }),
+        title: fillTemplate(def.title, { minFont: o.minFont, fonts, fontsInferred }),
+        fix: fillTemplate(def.fix, { minFont: o.minFont, fonts, fontsInferred }),
         total: gs.reduce((a, g) => a + g.count, 0),
         groupCount: gs.length,
         index: Object.fromEntries(gs.map((g) => [g.key, g.count])),

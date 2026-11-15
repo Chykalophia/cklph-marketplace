@@ -166,8 +166,8 @@ export function figmaLink(fileKey, nodeId, fileName) {
 
 // Layer names and copy come from the client's file. Escaping ! [ ] ( ) keeps a name like
 // "![x](https://...)" from rendering as an image or link, even inside link text, and breaking
-// "://" stops a bare URL from turning into a link.
-const cell = (s) => String(s == null ? '' : s).replace(/\\/g, '\\\\').replace(/[\r\n]+/g, ' ').replace(/\|/g, '\\|').replace(/</g, '\\<').replace(/([!()[\]])/g, '\\$1').replace(/:\/\//g, ':\\/\\/');
+// "://" and "www." stops a bare URL from turning into a link.
+const cell = (s) => String(s == null ? '' : s).replace(/\\/g, '\\\\').replace(/[\r\n]+/g, ' ').replace(/\|/g, '\\|').replace(/</g, '\\<').replace(/([!()[\]])/g, '\\$1').replace(/:\/\//g, ':\\/\\/').replace(/\bwww\./gi, (m) => m.slice(0, 3) + '\\.');
 const linkText = cell;
 const MUST_ROWS_PER_RULE = 8;
 
