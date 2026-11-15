@@ -27,12 +27,13 @@ the one place the order is defined; other skills reference it.
 | Request context (`src/server/context.ts`), for use cases | `createServerSupabaseClient` | Honors RLS, attaches session cookie. |
 | Client component (realtime, auth UI), `src/shared/lib/supabase/browser.ts` | `createClient` | Honors RLS for the logged-in user. |
 | Webhook / cron / job context (`src/server/system-context.ts`) | `createServiceRoleClient` | Bypasses RLS — danger zone. |
+| Auth admin calls from a server action (`src/server/admin-context.ts`) | auth admin API only | No table access; policy-gated. |
 
 Pages, routes and actions never hold a client: they call a use case, which gets one through `ctx`.
 
 Where they live (see **architecture**): the user-scoped server client is created once per request in `src/server/context.ts` and passed to repositories in `src/modules/<f>/infrastructure/`. `createServiceRoleClient` lives ONLY in `src/server/admin/` and is lint-banned everywhere else. The key never gets a `NEXT_PUBLIC_` prefix; prefer Supabase's new secret keys (rejected from browsers) and rotate on any exposure.
 
-`createServiceRoleClient` bypasses ALL row-level security. Use ONLY in webhook, cron and job handlers with no user context, for the cross-user work they do (system notifications, webhook fan-out). Never in a normal authenticated request path. Admin screens use RLS policies that grant the admin role, not the service-role client.
+`createServiceRoleClient` bypasses ALL row-level security. Use ONLY in webhook, cron and job handlers with no user context, for the cross-user work they do (system notifications, webhook fan-out). Never in a normal authenticated request path. Admin screens read and write through RLS policies that grant an admin role taken from `app_metadata` or a roles table, never `user_metadata` (users can edit it). Auth admin calls (invite, delete account, ban, list users) go through `makeAdminContext()` from a server action on `sensitiveActionClient`: its gateway exposes only those calls, and the use case's policy decides who may make them.
 
 ## RLS as defense in depth
 

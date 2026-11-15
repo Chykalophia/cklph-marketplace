@@ -32,8 +32,9 @@ Enforce access in both layers, always:
 - **The service-role client lives only in `src/server/admin/`.** Only `src/server/` imports it.
   Webhook, cron and job routes get a context from `makeSystemContext()` in
   `src/server/system-context.ts` instead, and only routes under `src/app/api/{webhooks,cron,jobs}/`
-  may import that. dependency-cruiser enforces both import boundaries; a lint rule bans reading the
-  key anywhere else.
+  may import that. Auth admin calls (invite, delete account, ban) go through `makeAdminContext()`
+  from server actions, which exposes nothing else. dependency-cruiser enforces these boundaries
+  through any chain of imports; a lint rule bans reading the key anywhere else.
   The key never gets a `NEXT_PUBLIC_` prefix.
 
 ## Consequences

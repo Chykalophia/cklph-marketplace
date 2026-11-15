@@ -21,8 +21,9 @@ Format: [Keep a Changelog](https://keepachangelog.com); versioning follows [SemV
   public POST endpoints built from an `authActionClient` (next-safe-action) that rate-limits by IP
   and user, or a `sensitiveActionClient` that uses `getUser()`, returning `{ success: true }` or a
   minimal DTO, never the row. Webhooks, cron and jobs (under `src/app/api/{webhooks,cron,jobs}/`)
-  get their context from `makeSystemContext()` in `src/server/system-context.ts`; only `src/server/`
-  imports the admin client. Session refresh in `proxy.ts`/`middleware.ts` is required with
+  get their context from `makeSystemContext()` in `src/server/system-context.ts`; auth admin calls
+  (invite, delete account, ban) go through `makeAdminContext()` from server actions; only
+  `src/server/` imports the admin client. Session refresh in `proxy.ts`/`middleware.ts` is required with
   `@supabase/ssr`.
 - **RLS.** `supabase-migrations` and `security` require RLS and app policies both: `using` on
   SELECT and DELETE, `with check` on INSERT, both on UPDATE, never `using (true)`,
@@ -42,7 +43,7 @@ Format: [Keep a Changelog](https://keepachangelog.com); versioning follows [SemV
 - `architecture/references/dependency-cruiser.cjs`: the dependency rule as CI checks (`no-circular`,
   domain isolation, no layer skipping including through the server Supabase client, no deep module
   imports, a server-free `client.ts`, Supabase and generated types only in infrastructure, the admin
-  client and the system context isolated). Proven against a fixture in
+  client, system context and admin context isolated through any chain of imports). Proven against a fixture in
   `docs/proof/architecture/dependency-cruiser/`, run in CI. Run it as
   `npx -p dependency-cruiser@18.7.2 -p typescript@6 depcruise ...`: dependency-cruiser 18 cannot load
   TypeScript 7 and passes silently on 0 modules.

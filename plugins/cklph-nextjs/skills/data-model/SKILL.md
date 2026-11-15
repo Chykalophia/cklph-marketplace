@@ -26,7 +26,7 @@ migration**, so reviewers see schema + types together. (Codified in `discipline`
   **NOT NULL** columns as **required**; columns with `DEFAULT` or NULLABLE as **optional**. Forget a
   required column → TS yells **before** runtime.
 - `Database['public']['Tables']['<name>']['Update']` — all optional (partial update).
-- `Database['public']['Enums']['<name>']` — the enum literal union. Use this, never a raw string.
+- `Database['public']['Enums']['<name>']` — the enum literal union. Use this, never a raw string. DTOs and domain code get it re-exported from `src/shared/types/db-enums.ts` (`export type ItemStatus = Database['public']['Enums']['item_status']`), the one file outside the repositories allowed to import the generated types.
 - `Database['public']['Functions']['<name>']` — RPC return types.
 
 Use these row types **only in `infrastructure/` repositories** (and `src/server/`) — never hand-roll a

@@ -34,6 +34,7 @@ src/
   server/
     context.ts              # composition root, built per request (user-scoped)
     system-context.ts       # makeSystemContext(): service-role ctx for webhooks, cron, jobs
+    admin-context.ts        # makeAdminContext(): auth admin API only, for server actions
     supabase/               # server.ts (user-scoped client), proxy.ts (session refresh)
     admin/                  # service-role Supabase client, isolated
     db/database.types.ts    # generated Supabase types (see data-model)
@@ -47,13 +48,13 @@ ARCHITECTURE.md  AGENTS.md
 ## Dependency rule (CI-enforced)
 
 ```
-app → modules/*/index.ts → application → domain ← infrastructure
-                                            (implements domain/application ports)
+app → modules/*/{index,client}.ts → application → domain ← infrastructure
+                                                     (implements domain/application ports)
 ```
 
 - `domain/` imports nothing outside itself except branded types in `src/shared/types/`: no `next/*`, no `@supabase/*`.
 - `application/` never imports `infrastructure/` — it receives implementations via `ctx` from `src/server/context.ts`.
-- `@supabase/*` only in `infrastructure/`, `src/server/` and the browser client in `src/shared/lib/supabase/`. Service-role key only in `src/server/admin/`; only `src/server/` imports it, and only routes under `src/app/api/{webhooks,cron,jobs}/` import `makeSystemContext()`.
+- `@supabase/*` only in `infrastructure/`, `src/server/` and the browser client in `src/shared/lib/supabase/`. Service-role key only in `src/server/admin/`; only `src/server/` imports it, and only routes under `src/app/api/{webhooks,cron,jobs}/` reach `makeSystemContext()`, and only server actions reach `makeAdminContext()`, checked through any chain of imports.
 - No deep imports into a module; go through `index.ts` (server code) or `client.ts` (client components). `index.ts` re-exports use cases, which carry `import 'server-only'`, so a client component importing it breaks `next build`. Neither entry re-exports `infrastructure/`.
 - `app/**` never imports `infrastructure/**` or `@supabase/*` (layer skipping = IDOR risk).
 - Components never `fetch("/api/…")` directly — read in Server Components via query use cases; client hooks only for interactive data (see **data-layer**).
@@ -74,7 +75,8 @@ app → modules/*/index.ts → application → domain ← infrastructure
 | Describes something the core needs from outside | port (interface) in `domain/` or `application/` |
 | Reads/writes the DB | `modules/<f>/infrastructure/*.repository.ts` |
 | Talks to a vendor | `modules/<f>/infrastructure/*.gateway.ts` |
-| Needs the service-role key | `src/server/admin/`, reached through `makeSystemContext()` in `src/server/system-context.ts` |
+| Needs the service-role key | `src/server/admin/`, reached through `makeSystemContext()` in `src/server/system-context.ts` (webhooks, cron, jobs) |
+| Calls the auth admin API (invite, delete account, ban, list users) | a server action on `sensitiveActionClient`, through `makeAdminContext()` in `src/server/admin-context.ts` |
 | Wires implementations to ports | `src/server/context.ts` |
 | Refreshes the Supabase session cookie | `src/proxy.ts` (`middleware.ts` before Next 16), calling `src/server/supabase/proxy.ts` |
 | Is used by 3+ modules | `src/shared/` |
@@ -82,7 +84,7 @@ app → modules/*/index.ts → application → domain ← infrastructure
 
 ## Non-negotiables (every tier)
 
-1. `import 'server-only'` in every application, infrastructure and DAL file. `client.ts` re-exports DTO types with `export type`, which is erased, so it stays client-safe.
+1. `import 'server-only'` in every application, infrastructure and DAL file, except `application/schemas.ts`, which client forms share and holds only Zod schemas. `client.ts` re-exports DTO types with `export type`, which is erased, so it stays client-safe.
 2. Auth **inside** every Server Action and Route Handler — actions are public POST endpoints; page-level auth does not cover them. Build actions from an authenticated action client (next-safe-action `authActionClient` pattern). Middleware/Proxy is for optimistic checks only (CVE-2025-29927).
 3. Controllers: parse with Zod → call ONE use case → map Result → revalidate. Nothing else.
 4. Use cases take `(ctx, input)`, typed by the slice they need and declared in `application/` (`type Ctx = { user: AuthedUser; rules: RuleRepository }`), so `application/` never imports `src/server/` and a use case that needs a user cannot get a null one. They authorize via `policies.ts` (resource ownership — IDOR), return `ServiceResult<DTO>` (`{ success, data }` / `{ success, error, code }`, see **error-handling**). Expected failures are Results; only unexpected ones throw. Moving to neverthrow `Result<DTO, AppError>` is an ADR decision, not a per-repo one.

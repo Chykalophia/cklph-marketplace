@@ -25,6 +25,8 @@ const MODULE = "^src/modules/([^/]+)/";
 const MODULE_ENTRY = "^src/modules/[^/]+/(index|client)\\.(ts|tsx)$";
 const INFRASTRUCTURE = "^src/modules/[^/]+/infrastructure/";
 const LITE_DAL = "^src/features/[^/]+/data\\.ts$";
+const SYSTEM_ROUTES = "^src/app/api/(webhooks|cron|jobs)/";
+const ACTIONS = "^src/app/.+/actions\\.ts$";
 const SUPABASE = "(^|node_modules/)@supabase/";
 
 module.exports = {
@@ -102,10 +104,16 @@ module.exports = {
       name: "client-entry-server-free",
       severity: "error",
       comment:
-        "client.ts is imported by client components. Use cases carry import 'server-only', " +
-        "so re-exporting one breaks next build. Re-export DTO types with export type.",
+        "client.ts is imported by client components. application/ files carry import 'server-only', " +
+        "so a value re-export breaks next build. Re-export DTO types with export type (erased); " +
+        "application/schemas.ts is the one client-shared file. next build still catches a " +
+        "server-only file reached through ui/, which this rule does not follow.",
       from: { path: "^src/modules/([^/]+)/client\\.(ts|tsx)$" },
-      to: { path: "^src/modules/$1/application/(use-cases/|policies)" },
+      to: {
+        path: "^src/modules/$1/application/",
+        pathNot: "^src/modules/$1/application/schemas\\.ts$",
+        dependencyTypesNot: ["type-only"],
+      },
     },
     {
       name: "supabase-only-in-infra",
@@ -122,27 +130,51 @@ module.exports = {
     {
       name: "db-types-only-in-infra",
       severity: "error",
-      comment: "Generated row types stay in repositories and src/server/. Everything else gets DTOs.",
-      from: { path: "^src/", pathNot: [INFRASTRUCTURE, "^src/server/", LITE_DAL] },
+      comment:
+        "Generated row types stay in repositories and src/server/. Everything else gets DTOs. " +
+        "The typed browser client and src/shared/types/db-enums.ts (enum unions) are the exceptions.",
+      from: {
+        path: "^src/",
+        pathNot: [INFRASTRUCTURE, "^src/server/", LITE_DAL, "^src/shared/lib/supabase/", "^src/shared/types/db-enums\\.ts$"],
+      },
       to: { path: "^src/server/db/" },
     },
     {
       name: "admin-client-isolated",
       severity: "error",
-      comment:
-        "The service-role client bypasses RLS. Only src/server/ may import src/server/admin/. " +
-        "Ban the secret key itself outside src/server/admin/ with a lint rule; imports cannot see it.",
+      comment: "Only src/server/ imports src/server/admin/ directly; everything else goes through a context factory.",
       from: { path: "^src/", pathNot: "^src/server/" },
       to: { path: "^src/server/admin/" },
+    },
+    {
+      name: "admin-client-unreachable",
+      severity: "error",
+      comment:
+        "The service-role client bypasses RLS. Outside src/server/, only webhook, cron and job routes " +
+        "(through makeSystemContext) may reach it, directly or through any chain of imports. " +
+        "src/server/admin/auth-admin.ts (auth admin API only) has its own rule below. " +
+        "Ban the secret key itself outside src/server/admin/ with a lint rule; imports cannot see it.",
+      from: { path: "^src/", pathNot: ["^src/server/", SYSTEM_ROUTES] },
+      to: { path: "^src/server/admin/", pathNot: "^src/server/admin/auth-admin\\.ts$", reachable: true },
     },
     {
       name: "system-context-only-in-system-routes",
       severity: "error",
       comment:
-        "makeSystemContext() runs on the service-role client. Only webhook, cron and job routes " +
-        "(src/app/api/webhooks|cron|jobs/) and src/server/ may import it.",
-      from: { path: "^src/", pathNot: ["^src/server/", "^src/app/api/(webhooks|cron|jobs)/"] },
-      to: { path: "^src/server/system-context\\.(ts|js)$" },
+        "makeSystemContext() gives full service-role table access. Only webhook, cron and job routes " +
+        "and src/server/ may reach it, directly or through a re-export or wrapper in src/server/.",
+      from: { path: "^src/", pathNot: ["^src/server/", SYSTEM_ROUTES] },
+      to: { path: "^src/server/system-context\\.(ts|js)$", reachable: true },
+    },
+    {
+      name: "admin-context-only-in-actions",
+      severity: "error",
+      comment:
+        "makeAdminContext() exposes only the auth admin API (invite, delete, ban) from " +
+        "src/server/admin/auth-admin.ts and requires a getUser() identity. Only server actions, " +
+        "system routes and src/server/ may reach either.",
+      from: { path: "^src/", pathNot: ["^src/server/", SYSTEM_ROUTES, ACTIONS] },
+      to: { path: ["^src/server/admin-context\\.(ts|js)$", "^src/server/admin/auth-admin\\.ts$"], reachable: true },
     },
   ],
   options: {

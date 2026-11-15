@@ -20,9 +20,10 @@ should not carry the same structure.
 
 Every cklph Next.js + Supabase app is a modular monolith: one deployable, one module per business
 area under `src/modules/<f>/`, each layered inside (`ui/`, `application/`, optional `domain/`,
-`infrastructure/`, and an `index.ts` that is the module's only public import path).
+`infrastructure/`, plus two public entries: `index.ts` for server code and `client.ts` for client
+components, since use cases are server-only).
 
-Dependencies point inward: `app → modules/*/index.ts → application → domain ← infrastructure`.
+Dependencies point inward: `app → modules/*/{index,client}.ts → application → domain ← infrastructure`.
 `src/server/` holds the composition root, the isolated admin client and the generated DB types.
 `src/shared/` holds what 3+ modules use. dependency-cruiser enforces the rule in CI.
 
@@ -35,7 +36,7 @@ migrate one module at a time when touched.
 
 ## Consequences
 
-- A feature change stays inside one folder, and a module's surface is its `index.ts`.
+- A feature change stays inside one folder, and a module's surface is its `index.ts` and `client.ts`.
 - The dependency rule is checked by a tool, not by memory.
 - Lite modules keep small features cheap; the tiers stop over-layering as well as under-layering.
 - More files and folders per feature, and more indirection for simple CRUD than the old layout.

@@ -57,7 +57,7 @@ If the happy path sets a row to `"in_progress"`, the catch block MUST set it to 
 
 ## 9. Service-role client in auth routes
 
-A service-role client bypasses RLS. In an auth or signup route, use the factory that returns a session-aware client by default. Service-role is a sledgehammer; reserve it for webhooks, cron and jobs through `makeSystemContext()`. Admin screens get an RLS policy for the admin role instead.
+A service-role client bypasses RLS. In an auth or signup route, use the factory that returns a session-aware client by default. Service-role is a sledgehammer; reserve it for webhooks, cron and jobs through `makeSystemContext()`. Admin screens get an RLS policy for an admin role from `app_metadata` (never `user_metadata`); auth admin calls go through `makeAdminContext()`.
 
 `// app/api/auth/signup/route.ts → const sb = createServiceRoleClient();` // bypasses RLS on a public route
 

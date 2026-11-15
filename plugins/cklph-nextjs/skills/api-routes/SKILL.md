@@ -28,7 +28,7 @@ import {
 } from "@/shared/lib/middleware";
 import { z } from "zod";
 import { createItem } from "@/modules/items"; // the module's index.ts — never a deep import
-import { makeRequestContext } from "@/server/context"; // composition root
+import { makeAuthedContext } from "@/server/context"; // composition root
 
 const CreateItemSchema = z.object({
   name: z.string().min(1).max(100),
@@ -65,7 +65,7 @@ export const POST = compose(
     }
 
     // The use case authorizes the actor against the resource (IDOR) and returns a DTO, never a raw row.
-    const ctx = await makeRequestContext();
+    const ctx = await makeAuthedContext(); // ctx.user is non-null; throws APIErrors.unauthorized() if there is none
     const result = await createItem(ctx, parsed.data);
     if (!result.success) {
       const status = HTTP_STATUS[result.code] ?? 500;

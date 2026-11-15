@@ -33,7 +33,7 @@ Top-of-file `"use server"` in `actions.ts` under `src/app/`, next to the page th
 import "server-only";
 import { headers } from "next/headers";
 import { createSafeActionClient } from "next-safe-action";
-import { makeRequestContext } from "@/server/context";
+import { makeAuthedContext } from "@/server/context";
 import { limit } from "@/shared/lib/rate-limit"; // (key, bucket) => Promise<boolean>; the limiter behind rateLimit()
 
 // 1. Rate-limit FIRST, keyed by IP. On Vercel the first x-forwarded-for entry is the client; behind
@@ -46,10 +46,9 @@ export const actionClient = createSafeActionClient().use(async ({ next }) => {
 
 // 2. Auth inside the action, then the per-user limit.
 async function requireUser(fresh: boolean) {
-  const ctx = await makeRequestContext({ fresh }); // fresh: getUser(); otherwise getClaims()
-  if (!ctx.user) throw new Error("Unauthorized");
+  const ctx = await makeAuthedContext({ fresh }); // non-null user or it throws; fresh: getUser(), else getClaims()
   if (await limit(`user:${ctx.user.id}`, "default")) throw new Error("Too many requests");
-  return { ...ctx, user: ctx.user }; // re-spread so the non-null user survives next({ ctx })
+  return ctx;
 }
 
 export const authActionClient = actionClient.use(async ({ next }) => next({ ctx: await requireUser(false) }));
