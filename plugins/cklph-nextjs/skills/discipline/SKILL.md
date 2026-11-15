@@ -25,8 +25,8 @@ Five steps, in order — rate-limit (by IP; per user again after auth) → CSRF 
 ## Supabase client by intent
 
 - `createServerSupabaseClient` — built once per request in `src/server/context.ts` and handed to repositories. Server components, routes and actions reach it through use cases, never directly.
-- `createClient` — client components.
-- `createServiceRoleClient` — cron jobs, admin paths after `isAdmin()`. Lives only in `src/server/admin/`. Bypasses RLS — danger zone.
+- `createClient` — client components (realtime, auth UI), from `src/shared/lib/supabase/browser.ts`.
+- `createServiceRoleClient` — webhooks, cron and jobs, through `makeSystemContext()`. Lives only in `src/server/admin/`. Bypasses RLS — danger zone.
 
 ## Stripe prices come from the DB
 

@@ -14,7 +14,7 @@ the one place the order is defined; other skills reference it.
    traffic and credential stuffing that never gets past auth.
 2. **CSRF on state-change.** All POST/PUT/PATCH/DELETE from a browser session must carry a CSRF token. Exempt only OAuth callbacks, signed webhooks, and cron paths.
 3. **Auth with `getClaims()` or `getUser()` — NEVER `getSession()`.** `getSession()` reads a cookie without verifying it. `getClaims()` verifies the JWT signature locally (fast default); `getUser()` calls the auth server for the freshest record (use it for sensitive operations).
-   Auth runs **inside** every route handler and server action. Server actions are public POST endpoints: page-level auth does not cover them. Middleware/Proxy auth is an optimistic check only, never the gate (CVE-2025-29927 bypassed it with a spoofed header).
+   Auth runs **inside** every route handler and server action. Server actions are public POST endpoints: page-level auth does not cover them. Signed webhooks and cron have no user session: there, verifying the provider signature or the cron secret is the auth step. Middleware/Proxy auth is an optimistic check only, never the gate (CVE-2025-29927 bypassed it with a spoofed header).
    Once you have the user, apply any **per-user** limit (a user ID is a stable key; an IP is not).
    This is an extra limit for costly buckets (`ai`, `email`), not a replacement for step 1.
 4. **Zod on all input.** Use `.strict()` on objects so unknown fields fail closed. Validate URL params (UUID regex) before they hit a query.
@@ -24,19 +24,21 @@ the one place the order is defined; other skills reference it.
 
 | Where                       | Client                       | Why                                  |
 | --------------------------- | ---------------------------- | ------------------------------------ |
-| Server component / API route | `createServerSupabaseClient` | Honors RLS, attaches session cookie. |
-| Client component            | `createClient`               | Honors RLS for the logged-in user.   |
-| Cron / admin path           | `createServiceRoleClient`    | Bypasses RLS — danger zone.          |
+| Request context (`src/server/context.ts`), for use cases | `createServerSupabaseClient` | Honors RLS, attaches session cookie. |
+| Client component (realtime, auth UI), `src/shared/lib/supabase/browser.ts` | `createClient` | Honors RLS for the logged-in user. |
+| Webhook / cron / job context (`src/server/system-context.ts`) | `createServiceRoleClient` | Bypasses RLS — danger zone. |
+
+Pages, routes and actions never hold a client: they call a use case, which gets one through `ctx`.
 
 Where they live (see **architecture**): the user-scoped server client is created once per request in `src/server/context.ts` and passed to repositories in `src/modules/<f>/infrastructure/`. `createServiceRoleClient` lives ONLY in `src/server/admin/` and is lint-banned everywhere else. The key never gets a `NEXT_PUBLIC_` prefix; prefer Supabase's new secret keys (rejected from browsers) and rotate on any exposure.
 
-`createServiceRoleClient` bypasses ALL row-level security. Use ONLY after an `isAdmin()` check, in a cron handler with no user context, or for explicit cross-user operations (system notifications, webhook fan-out). Never in a normal authenticated request path.
+`createServiceRoleClient` bypasses ALL row-level security. Use ONLY in webhook, cron and job handlers with no user context, for the cross-user work they do (system notifications, webhook fan-out). Never in a normal authenticated request path. Admin screens use RLS policies that grant the admin role, not the service-role client.
 
 ## RLS as defense in depth
 
 Even with verified identity + correct client, write the query as if RLS doesn't exist — `.eq("user_id", user.id)` on every read and write of user data, and an ownership check in the use case's policy. RLS is the safety net, not the gate. Both layers, always:
 
-- **RLS = tenancy and ownership floor.** Enabled on every exposed table, explicit per-operation policies (`using` AND `with check`; never `using (true)`), tested with pgTAP. A CI check fails if any `public` table has RLS off.
+- **RLS = tenancy and ownership floor.** Enabled on every exposed table, explicit per-operation policies (`using` on SELECT and DELETE, `with check` on INSERT, both on UPDATE; never `using (true)`), tested with pgTAP. A CI check fails if any `public` table has RLS off.
 - **App policies = business rules** (roles, plan limits, step-up auth) in `src/modules/<f>/application/policies.ts`.
 - **RLS performance:** write `(select auth.uid())`, not bare `auth.uid()`; index every column a policy filters on; put membership lookups in `security definer` functions in a private schema.
 

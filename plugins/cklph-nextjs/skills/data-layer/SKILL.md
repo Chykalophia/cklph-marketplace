@@ -5,7 +5,7 @@ description: The client data-layer rule. Components and hooks NEVER call fetch d
 
 # data-layer — src/shared/lib/data/ is the only client fetch path
 
-Components and hooks never call `fetch("/api/…")`. Every client-side network call goes through `src/shared/lib/data/` (`authFetcher`, `useAuthQuery`, `useAuthMutation`). Feature-specific hooks live in `src/modules/<f>/ui/` and wrap those primitives. A raw fetch in a component is a bug — Semgrep rule `no-raw-fetch-to-api-in-client-code` will catch it.
+Components and hooks never call `fetch("/api/…")`. Every client-side network call goes through `src/shared/lib/data/` (`authFetcher`, `useAuthQuery`, `useAuthMutation`). Feature-specific hooks live in `src/modules/<f>/ui/`, wrap those primitives, and are exported to client components through the module's `client.ts` (never `index.ts`, which carries server-only use cases). A raw fetch in a component is a bug — Semgrep rule `no-raw-fetch-to-api-in-client-code` will catch it.
 
 ## First: does this need client fetching at all?
 

@@ -18,15 +18,20 @@ Each layer has one job with errors, and nothing crosses a boundary in raw form:
 
 The client never sees a stack trace or raw DB error text.
 
-## Use cases return ServiceResult — never throw to callers
+## Use cases return ServiceResult for expected failures
+
+Expected failures (bad input, not found, forbidden, a rule broken) come back as `failure(...)`. Unexpected ones (a bug, a dead network) are not caught here: they throw to the action or route, which captures them.
 
 ```ts
 // application/use-cases/get-rule.ts
-export async function getRule(ctx: RequestContext, ruleId: string): Promise<ServiceResult<RuleDTO>> {
+type GetRuleCtx = { user: AuthedUser; rules: RuleRepository }; // the slice this use case needs
+
+export async function getRule(ctx: GetRuleCtx, ruleId: string): Promise<ServiceResult<RuleDTO>> {
   if (!validateUUID(ruleId)) return failure("INVALID_ID", "Invalid rule ID");
   const found = await ctx.rules.findOwned(ctx.user.id, ruleId);
   if (!found.success) return found; // already translated and logged by the repository
   if (!found.data) return failure("NOT_FOUND", "Rule not found");
+  if (!canViewRule(ctx.user, found.data)) return failure("FORBIDDEN", "You can't view this rule"); // application/policies.ts
   return success(toRuleDTO(found.data));
 }
 

@@ -20,9 +20,13 @@ the team and every client handover would have to learn.
 ## Decision
 
 Wire dependencies by hand in `src/server/context.ts`. A `makeRequestContext()` function creates the
-user-scoped Supabase client, resolves identity (`getClaims()`, or `getUser()` for sensitive
-operations), constructs repositories and gateways, and returns a typed `ctx`. Use cases take
-`(ctx, input)`. Tests build a `ctx` with in-memory fakes.
+user-scoped Supabase client, resolves identity (`getClaims()` by default,
+`makeRequestContext({ fresh: true })` for `getUser()` on sensitive operations), constructs
+repositories and gateways, and returns a typed `ctx`. `makeSystemContext()`, in its own file
+`src/server/system-context.ts`, builds the same shape on the service-role client from
+`src/server/admin/` for webhooks, cron and jobs, which have no user. Only routes under
+`src/app/api/{webhooks,cron,jobs}/` may import it.
+Use cases take `(ctx, input)`. Tests build a `ctx` with in-memory fakes.
 
 No tsyringe or Inversify. No `container.resolve()` outside `context.ts`. Effect only through a
 separate ADR for a specific module.

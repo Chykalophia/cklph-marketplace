@@ -29,18 +29,33 @@ Top-of-file `"use server"` in `actions.ts` under `src/app/`, next to the page th
 `actions.ts` imports only from `@/modules/<f>` (the module's `index.ts`) and `@/server/*`. Never Supabase, never `src/modules/*/infrastructure/`.
 
 ```ts
-// src/server/action-client.ts: the one place actions get their identity
+// src/server/action-client.ts: the one place actions get their identity and rate limits
 import "server-only";
+import { headers } from "next/headers";
 import { createSafeActionClient } from "next-safe-action";
 import { makeRequestContext } from "@/server/context";
+import { limit } from "@/shared/lib/rate-limit"; // (key, bucket) => Promise<boolean>; the limiter behind rateLimit()
 
-export const actionClient = createSafeActionClient();
-
-export const authActionClient = actionClient.use(async ({ next }) => {
-  const ctx = await makeRequestContext(); // identity via getClaims(); getUser() for sensitive ops
-  if (!ctx.user) throw new Error("Unauthorized");
-  return next({ ctx });
+// 1. Rate-limit FIRST, keyed by IP. On Vercel the first x-forwarded-for entry is the client; behind
+//    your own proxy, use the address that proxy appends, or callers can spoof their bucket.
+export const actionClient = createSafeActionClient().use(async ({ next }) => {
+  const ip = (await headers()).get("x-forwarded-for")?.split(",")[0]?.trim() ?? "unknown";
+  if (await limit(`ip:${ip}`, "ip")) throw new Error("Too many requests");
+  return next();
 });
+
+// 2. Auth inside the action, then the per-user limit.
+async function requireUser(fresh: boolean) {
+  const ctx = await makeRequestContext({ fresh }); // fresh: getUser(); otherwise getClaims()
+  if (!ctx.user) throw new Error("Unauthorized");
+  if (await limit(`user:${ctx.user.id}`, "default")) throw new Error("Too many requests");
+  return { ...ctx, user: ctx.user }; // re-spread so the non-null user survives next({ ctx })
+}
+
+export const authActionClient = actionClient.use(async ({ next }) => next({ ctx: await requireUser(false) }));
+
+// Billing, role changes, deletes, anything irreversible: identity re-checked with the auth server.
+export const sensitiveActionClient = actionClient.use(async ({ next }) => next({ ctx: await requireUser(true) }));
 ```
 
 ```ts
@@ -67,27 +82,34 @@ export const createItemAction = authActionClient
 
 Whatever an action returns is serialized to the browser. Return `{ success: true }`, or the few fields the UI needs (an `id` to navigate to). Never the inserted or updated row: it leaks columns the user should not see and couples the UI to the schema.
 
-## Return `ServiceResult`, never throw
+## Return `ServiceResult` for expected failures
 
-Throwing bubbles to the React error boundary and kills the form. Return `{ success, data }` or `{ success, error, code }` — the form reads `result.success` and renders feedback in place.
+next-safe-action wraps what the action returns. The client gets one of:
+
+- `result.data`: your `ServiceResult`. Read `result.data?.success`, not `result.success`.
+- `result.validationErrors`: the Zod failures, per field.
+- `result.serverError`: anything thrown, with the message masked by default.
+
+Return expected failures (not found, forbidden, a business rule) as `failure(...)` so the form can show the message in place. Throw only for the unexpected: the middleware rejects above, or a bug.
 
 ## Form-action pattern
 
-Wire it with next-safe-action's `useAction` hook, or `<form action={...}>` with a FormData-aware schema (`zod-form-data`) when the form must work without JS. For a plain `<form action>`, use `useFormStatus()` in a client child component for the pending state — `const { pending } = useFormStatus()` disables the button while the action runs.
+Wire it with next-safe-action's `useAction` hook. When the form must work without JS, define it with `.stateAction()` and a `zod-form-data` schema (`zfd.formData(...)`), and bind it with React's `useActionState(action, {})`, passing the returned `dispatch` to `<form action={dispatch}>`. A plain `.action()` is not a `<form action>` handler. Show the pending state with the `isPending` value from `useActionState`, or `useFormStatus()` in a client child component.
 
 ## Security is the same checklist
 
-Server actions are NOT a security shortcut. Every exported action is a public POST endpoint: anyone can call it with a crafted request, whatever page renders it. Page-level or layout auth does not cover it, and middleware/Proxy is an optimistic check only (CVE-2025-29927). Auth runs **inside** the action, which is why every action starts from `authActionClient`.
+Server actions are NOT a security shortcut. Every exported action is a public POST endpoint: anyone can call it with a crafted request, whatever page renders it. Page-level or layout auth does not cover it, and middleware/Proxy is an optimistic check only (CVE-2025-29927). Auth runs **inside** the action, which is why every action starts from `authActionClient` or `sensitiveActionClient`.
 
 Run the full **security** checklist — rate-limit, auth with `getClaims()` (or `getUser()` for sensitive operations), Zod-validate with `.strict()`, and let the use case's policy check ownership.
 
 ## Anti-patterns
 
-- Throwing instead of returning `failure` — breaks the form lifecycle.
+- Throwing for an expected failure: the user sees a masked `serverError` instead of the message.
 - Importing actions into client utility files that don't render — the `"use server"` boundary only protects components that actually render.
 - Using an action when an API route fits better (cron, webhooks, third-party callbacks).
 - Skipping rate-limit "because it's an action" — actions don't auto-rate-limit.
 - A bare `export async function` action that skips `authActionClient` — relying on the page to have checked auth.
+- A sensitive action (billing, roles, deletes) built from `authActionClient` instead of `sensitiveActionClient`.
 - Importing `createServerSupabaseClient` or a repository into `actions.ts` — layer skipping; call the use case.
 - Returning the inserted/updated row to the client.
 

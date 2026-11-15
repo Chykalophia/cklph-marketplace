@@ -35,15 +35,15 @@ export async function GET(request: Request) {
   const code = searchParams.get("code");
   const next = safeNext(searchParams.get("next"), origin);
   if (code) {
-    const supabase = await createServerSupabaseClient();
-    const { error } = await supabase.auth.exchangeCodeForSession(code);
-    if (!error) return NextResponse.redirect(`${origin}${next}`);
+    // @/modules/auth: the use case calls ctx.auth.exchangeCodeForSession(code) in its gateway.
+    const result = await completeSignIn(await makeRequestContext(), code);
+    if (result.success) return NextResponse.redirect(`${origin}${next}`);
   }
   return NextResponse.redirect(`${origin}/auth/error`);
 }
 ```
 
-PKCE is handled by `@supabase/ssr`. The exchange must run server-side (HttpOnly cookie).
+PKCE is handled by `@supabase/ssr`. The exchange must run server-side (HttpOnly cookie). Like every route, the callback calls a use case; the Supabase auth calls live in the auth module's `infrastructure/` gateway.
 
 ## Three entry points, one callback
 
@@ -59,8 +59,9 @@ RLS predicates include both `auth.uid()` AND `organization_id`. Verify membershi
 
 ## Where auth code lives
 
-- **Redirect-if-unauthenticated** → `middleware.ts` (`proxy.ts` on Next 16) or `app/(authed)/layout.tsx`. One boundary check, for UX only: it does not protect actions or routes.
-- **Per-mutation auth** → `requireAuth` in route handlers (see **api-routes**, **security**), `authActionClient` in server actions (see **server-actions**).
+- **Session refresh** → `src/proxy.ts` (`middleware.ts` before Next 16), calling `updateSession` from `src/server/supabase/proxy.ts`. Required with `@supabase/ssr`: Server Components cannot write cookies, so without it expired tokens are never refreshed.
+- **Redirect-if-unauthenticated** → the same proxy, or `app/(authed)/layout.tsx`. One boundary check, for UX only: it does not protect actions or routes.
+- **Per-mutation auth** → `requireAuth` in route handlers (see **api-routes**, **security**), `authActionClient` in server actions, `sensitiveActionClient` for sensitive ones (see **server-actions**).
 - **Never** scatter auth checks inside leaf components.
 
 ## Anti-patterns

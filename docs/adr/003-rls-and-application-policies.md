@@ -29,9 +29,12 @@ Enforce access in both layers, always:
 - **Auth runs inside every Server Action and Route Handler.** Middleware is an optimistic redirect
   only. Identity comes from `getClaims()`, or `getUser()` for sensitive operations, never
   `getSession()`.
-- **The service-role client lives only in `src/server/admin/`.** Only the composition root and
-  webhook/cron route handlers import it; dependency-cruiser and lint enforce that. The key never
-  gets a `NEXT_PUBLIC_` prefix.
+- **The service-role client lives only in `src/server/admin/`.** Only `src/server/` imports it.
+  Webhook, cron and job routes get a context from `makeSystemContext()` in
+  `src/server/system-context.ts` instead, and only routes under `src/app/api/{webhooks,cron,jobs}/`
+  may import that. dependency-cruiser enforces both import boundaries; a lint rule bans reading the
+  key anywhere else.
+  The key never gets a `NEXT_PUBLIC_` prefix.
 
 ## Consequences
 
@@ -41,5 +44,5 @@ Enforce access in both layers, always:
   and use-case tests both have to change when the rule changes.
 - RLS adds query cost. The `(select auth.uid())` form and policy indexes keep it small, but
   complex membership policies need `security definer` helpers and profiling.
-- Webhooks and cron that need cross-user access must go through `src/server/admin/`, which adds a
-  step compared with creating a client inline.
+- Webhooks and cron that need cross-user access must go through `makeSystemContext()`, which adds
+  a step compared with creating a client inline.

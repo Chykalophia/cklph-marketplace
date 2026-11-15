@@ -36,15 +36,19 @@ src/
     application/        use-cases/, policies.ts, dto.ts, schemas.ts
     domain/             optional: entities, value objects, errors, ports
     infrastructure/     supabase-*.repository.ts, <vendor>.gateway.ts
-    index.ts            the module's public API
+    index.ts            server public API (use cases, DTO types)
+    client.ts           client-safe public API (components, hooks, DTO types)
   server/
     context.ts          composition root, built per request
+    system-context.ts   service-role context for webhooks, cron, jobs
+    supabase/           user-scoped server client, session refresh for proxy.ts
     admin/              service-role Supabase client, isolated
     db/database.types.ts
-  shared/               ui kit, lib/data, lib/middleware, result, branded types
+  proxy.ts              session refresh + optimistic redirect (middleware.ts before Next 16)
+  shared/               ui kit, lib/data, lib/middleware, lib/supabase/browser.ts, result, types/
 ```
 
-`app → modules/*/index.ts → application → domain ← infrastructure`, checked in CI with the
+`app → modules/*/{index,client}.ts → application → domain ← infrastructure`, checked in CI with the
 dependency-cruiser config in `skills/architecture/references/`. Repos still on the older `lib/`
 layout follow the same rules under the old paths and migrate one module at a time. Decisions behind
 it: `docs/adr/` 001 to 004 at the repo root.

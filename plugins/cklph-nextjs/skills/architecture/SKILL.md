@@ -29,12 +29,16 @@ src/
     application/            # use-cases/*.ts, policies.ts, dto.ts, schemas.ts (Zod)
     domain/                 # optional: entities, value objects, errors, ports (interfaces) — framework-free
     infrastructure/         # supabase-*.repository.ts, <vendor>.gateway.ts
-    index.ts                # the module's public API — the ONLY import path for other code
+    index.ts                # server public API: use cases, DTO types
+    client.ts               # client-safe public API: components, hooks, DTO types (export type)
   server/
-    context.ts              # composition root, built per request
+    context.ts              # composition root, built per request (user-scoped)
+    system-context.ts       # makeSystemContext(): service-role ctx for webhooks, cron, jobs
+    supabase/               # server.ts (user-scoped client), proxy.ts (session refresh)
     admin/                  # service-role Supabase client, isolated
     db/database.types.ts    # generated Supabase types (see data-model)
-  shared/                   # ui kit, lib (result, logger, flags), branded types
+  proxy.ts                  # middleware.ts before Next 16: session refresh + optimistic redirect
+  shared/                   # ui kit, lib (result, logger, flags, supabase/browser.ts), types/ (branded)
 supabase/migrations/        # schema + RLS, migrations only
 docs/adr/                   # Nygard-format ADRs
 ARCHITECTURE.md  AGENTS.md
@@ -47,10 +51,10 @@ app → modules/*/index.ts → application → domain ← infrastructure
                                             (implements domain/application ports)
 ```
 
-- `domain/` imports nothing outside itself: no `next/*`, no `@supabase/*`.
+- `domain/` imports nothing outside itself except branded types in `src/shared/types/`: no `next/*`, no `@supabase/*`.
 - `application/` never imports `infrastructure/` — it receives implementations via `ctx` from `src/server/context.ts`.
-- `@supabase/*` only in `infrastructure/` and `src/server/`. Service-role key only in `src/server/admin/`.
-- No cross-module deep imports; go through `index.ts`.
+- `@supabase/*` only in `infrastructure/`, `src/server/` and the browser client in `src/shared/lib/supabase/`. Service-role key only in `src/server/admin/`; only `src/server/` imports it, and only routes under `src/app/api/{webhooks,cron,jobs}/` import `makeSystemContext()`.
+- No deep imports into a module; go through `index.ts` (server code) or `client.ts` (client components). `index.ts` re-exports use cases, which carry `import 'server-only'`, so a client component importing it breaks `next build`. Neither entry re-exports `infrastructure/`.
 - `app/**` never imports `infrastructure/**` or `@supabase/*` (layer skipping = IDOR risk).
 - Components never `fetch("/api/…")` directly — read in Server Components via query use cases; client hooks only for interactive data (see **data-layer**).
 
@@ -70,17 +74,18 @@ app → modules/*/index.ts → application → domain ← infrastructure
 | Describes something the core needs from outside | port (interface) in `domain/` or `application/` |
 | Reads/writes the DB | `modules/<f>/infrastructure/*.repository.ts` |
 | Talks to a vendor | `modules/<f>/infrastructure/*.gateway.ts` |
-| Needs the service-role key | `src/server/admin/` |
+| Needs the service-role key | `src/server/admin/`, reached through `makeSystemContext()` in `src/server/system-context.ts` |
 | Wires implementations to ports | `src/server/context.ts` |
+| Refreshes the Supabase session cookie | `src/proxy.ts` (`middleware.ts` before Next 16), calling `src/server/supabase/proxy.ts` |
 | Is used by 3+ modules | `src/shared/` |
 | Is tenancy/ownership that must hold for every writer | RLS policy in `supabase/migrations/` |
 
 ## Non-negotiables (every tier)
 
-1. `import 'server-only'` in every application, infrastructure and DAL file.
+1. `import 'server-only'` in every application, infrastructure and DAL file. `client.ts` re-exports DTO types with `export type`, which is erased, so it stays client-safe.
 2. Auth **inside** every Server Action and Route Handler — actions are public POST endpoints; page-level auth does not cover them. Build actions from an authenticated action client (next-safe-action `authActionClient` pattern). Middleware/Proxy is for optimistic checks only (CVE-2025-29927).
 3. Controllers: parse with Zod → call ONE use case → map Result → revalidate. Nothing else.
-4. Use cases take `(ctx, input)`, authorize via `policies.ts` (resource ownership — IDOR), return `ServiceResult<DTO>` (`{ success, data }` / `{ success, error, code }`, see **error-handling**). Expected failures are Results; only unexpected ones throw. Moving to neverthrow `Result<DTO, AppError>` is an ADR decision, not a per-repo one.
+4. Use cases take `(ctx, input)`, typed by the slice they need and declared in `application/` (`type Ctx = { user: AuthedUser; rules: RuleRepository }`), so `application/` never imports `src/server/` and a use case that needs a user cannot get a null one. They authorize via `policies.ts` (resource ownership — IDOR), return `ServiceResult<DTO>` (`{ success, data }` / `{ success, error, code }`, see **error-handling**). Expected failures are Results; only unexpected ones throw. Moving to neverthrow `Result<DTO, AppError>` is an ADR decision, not a per-repo one.
 5. DTOs to the client. Never pass raw rows as props or return them from actions. Only server code reads `process.env`.
 6. RLS on every exposed table, explicit per-operation policies, tested with pgTAP. Use `(select auth.uid())` and index policy columns. RLS = tenancy floor; app policies = business rules. Both, always.
 7. User-scoped Supabase client by default. Identity via `getClaims()` / `getUser()` — never `getSession()` on the server.
@@ -97,9 +102,9 @@ app → modules/*/index.ts → application → domain ← infrastructure
 
 ## Enforcement
 
-- dependency-cruiser rules matching the dependency rule above (`no-circular` set to `error`; confirm TypeScript is installed so it scans > 0 modules, and that it is below 7: dependency-cruiser 18 cannot load TypeScript 7 and passes silently on 0 modules). Starting config: [`references/dependency-cruiser.cjs`](references/dependency-cruiser.cjs). Copy it to the app root as `.dependency-cruiser.cjs` and run `npx depcruise src --config .dependency-cruiser.cjs` in CI.
+- dependency-cruiser rules matching the dependency rule above (`no-circular` set to `error`; dependency-cruiser 18 cannot load TypeScript 7 and passes silently on 0 modules, so check the summary reports more than 0). Starting config: [`references/dependency-cruiser.cjs`](references/dependency-cruiser.cjs). Copy it to the app root as `.dependency-cruiser.cjs` and run `npx -p dependency-cruiser@18.7.2 -p typescript@6 depcruise src --config .dependency-cruiser.cjs` in CI. Pin both on the command line: the app's own TypeScript gets bumped to 7 sooner or later, and bare `npx depcruise` without the package installed fetches an unrelated placeholder.
 - eslint-plugin-boundaries or `import/no-restricted-paths` for in-editor feedback.
-- On legacy apps: record a violations baseline, fail CI only on new ones, burn down.
+- On legacy apps: record a violations baseline, fail CI only on new ones, burn down. The reference config's paths are for `src/modules/`: on a `lib/` repo, point its scan and rule paths at the old folders first, or the baseline checks nothing.
 
 ## Legacy repos on `lib/`
 

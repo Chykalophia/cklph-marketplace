@@ -49,23 +49,28 @@ Write `(select auth.uid()) = user_id`, not bare `auth.uid() = user_id`: an uncor
 RLS is the tenancy and ownership floor; app policies in `application/policies.ts` sit on top of it. Both, always (see **security**).
 
 - **RLS on** for every table in `public`, in the same migration that creates it.
-- **Explicit per-operation policies.** Writes need `with check`; UPDATE needs `using` AND `with check`.
+- **Explicit per-operation policies.** SELECT and DELETE take `using`; INSERT takes `with check`; UPDATE needs `using` AND `with check`. Postgres rejects the clause an operation cannot have.
 - **Never `using (true)`** or `with check (true)` on user data — that is RLS switched off with extra steps.
 - **`(select auth.uid())`**, never bare `auth.uid()`.
 - **Index every policy column.**
-- **Membership lookups** go in a `security definer` function in a private schema, not an inline subquery on a table that has its own RLS.
+- **Membership lookups** go in a `security definer` function in a private schema, not an inline subquery on a table that has its own RLS. Give it `set search_path = ''` (schema-qualify every name inside), then `revoke execute on function ... from public, anon` and `grant execute ... to authenticated`.
 - **One pgTAP test per policy**, in `supabase/tests/`, in the same PR as the migration:
 
 ```sql
 -- supabase/tests/rls_projects.test.sql
 begin;
-select plan(2);
+select plan(4);
 -- Seed rows for user A and user B as postgres first, then act as A:
 set local role authenticated;
 select set_config('request.jwt.claims', '{"sub":"<user-a-uuid>"}', true);
 
+select is((select count(*) from public.projects), <a-row-count>::bigint,
+  'A sees exactly its own seeded rows'); -- fails on an empty table, so the next check is not vacuous
 select is((select count(*) from public.projects where user_id = '<user-b-uuid>'), 0::bigint,
   'A cannot read B''s projects');
+-- The allowed insert proves the role has the grant, so the 42501 below is RLS, not a missing grant.
+select lives_ok($$ insert into public.projects (user_id, name) values ('<user-a-uuid>', 'x') $$,
+  'A can insert a row owned by A');
 select throws_ok($$ insert into public.projects (user_id, name) values ('<user-b-uuid>', 'x') $$,
   '42501', null, 'A cannot insert a row owned by B');
 
@@ -73,7 +78,7 @@ select * from finish();
 rollback;
 ```
 
-- **CI fails if any `public` table has RLS off.** Keep this test next to the policy tests, so `supabase test db` in CI catches a table someone forgot:
+- **CI fails if anything in `public` leaks past RLS.** A table with RLS off, a view without `security_invoker` (it runs as its owner, so it returns every tenant's rows), or a materialized view (no RLS at all). Extension-owned tables such as PostGIS's `spatial_ref_sys` are skipped, since you cannot alter them. Keep this test next to the policy tests, so `supabase test db` in CI catches what someone forgot:
 
 ```sql
 -- supabase/tests/rls_enabled.test.sql
@@ -81,9 +86,15 @@ begin;
 select plan(1);
 select is(
   array(select c.relname from pg_class c join pg_namespace n on n.oid = c.relnamespace
-        where n.nspname = 'public' and c.relkind in ('r', 'p') and not c.relrowsecurity),
+        where n.nspname = 'public'
+          and not exists (select 1 from pg_depend d where d.objid = c.oid and d.deptype = 'e')
+          and ((c.relkind in ('r', 'p') and not c.relrowsecurity)
+            or (c.relkind = 'v' and not coalesce(c.reloptions && array[
+                  'security_invoker=true', 'security_invoker=on', 'security_invoker=1', 'security_invoker=yes'], false))
+            or c.relkind = 'm')
+        order by 1),
   '{}'::name[],
-  'every public table has RLS enabled');
+  'public: RLS on every table, security_invoker on every view, no materialized views');
 select * from finish();
 rollback;
 ```

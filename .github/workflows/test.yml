@@ -25,7 +25,8 @@ jobs:
         run: bats test/
 
   plugins:
-    runs-on: ubuntu-latest
+    # Playwright 1.60 cannot install Chromium's dependencies on ubuntu-26.04, which ubuntu-latest now is.
+    runs-on: ubuntu-24.04
     steps:
       - uses: actions/checkout@v5
       - uses: actions/setup-node@v4

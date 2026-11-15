@@ -7,18 +7,17 @@ description: Peter's pattern for typed env vars and graceful-degradation config 
 
 Env vars get validated once, at boot, with Zod. Everything else imports the typed `env` object. Optional integrations fail closed — missing key means the feature is off, not the site is down.
 
-## Typed env via t3-env — two schemas, two files
+## Typed env via t3-env — a server schema and a public schema
 
 ```ts
-// src/server/keys.ts — server-only; runs at import time, throws if invalid
-import "server-only";
+// src/server/env.ts: the server schema. No 'server-only' here, so next.config.ts can import it.
 import { createEnv } from "@t3-oss/env-nextjs";
 import { z } from "zod";
 
 export const env = createEnv({
   server: {
     DATABASE_URL: z.string().url(),                   // required — site won't boot without it
-    SUPABASE_SECRET_KEY: z.string().min(1),           // service-role; read only by src/server/admin/
+    SUPABASE_SECRET_KEY: z.string().min(1).optional(), // service-role; src/server/admin/ throws if it is missing
     STRIPE_SECRET_KEY: z.string().min(1).optional(),  // optional integration
     RESEND_API_KEY: z.string().min(1).optional(),
     SENTRY_DSN: z.string().url().optional(),
@@ -29,7 +28,18 @@ export const env = createEnv({
 ```
 
 ```ts
-// src/shared/public-keys.ts — client-safe values only
+// src/server/keys.ts: what the app imports
+import "server-only";
+export { env } from "./env";
+```
+
+```ts
+// next.config.ts: validate at build, so a missing required var fails the deploy, not the first request
+import "./src/server/env";
+```
+
+```ts
+// src/shared/public-keys.ts: client-safe values only
 import { createEnv } from "@t3-oss/env-nextjs";
 import { z } from "zod";
 
@@ -43,7 +53,7 @@ Anything not in a schema is invisible. No more `process.env.MAYBE_SET` scattered
 
 ## Who may read `env`
 
-`src/server/keys.ts` carries `import 'server-only'`, so a client module that imports it fails the build instead of leaking. Only `src/server/` and `src/modules/*/infrastructure/` import it. Use cases get configured gateways on `ctx`, never raw keys; UI and `domain/` never see `env`. Client code reads `publicEnv` only.
+`src/server/keys.ts` carries `import 'server-only'`, so a client module that imports it fails the build instead of leaking. Only `src/server/` and `src/modules/*/infrastructure/` import it. Nothing but `keys.ts` and `next.config.ts` imports `env.ts`. Use cases get configured gateways on `ctx`, never raw keys; UI and `domain/` never see `env`. Client code reads `publicEnv` only.
 
 ## Public vs private — the hard wall
 

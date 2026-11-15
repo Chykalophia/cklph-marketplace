@@ -77,7 +77,7 @@ Gmail watches expire in 7 days. Run a cron at the 6-day mark per user. A missed 
 - `Number(historyId)` — precision loss above 2^53.
 - Skipping JWT verification — your endpoint is public; anyone can spoof Google.
 - Processing without dedup — duplicates corrupt counters and re-trigger downstream work.
-- Cookie-based Supabase client in the webhook — no cookies; the request context uses the service-role client from `src/server/admin/`, never one created in the handler.
+- Cookie-based Supabase client in the webhook — no cookies; the handler (under `src/app/api/webhooks/`) calls `makeSystemContext()` from `src/server/system-context.ts`, which uses the service-role client from `src/server/admin/`. Never create one in the handler.
 - Forgetting watch renewal — feature dies silently in 7 days.
 
 Pair with **api-routes** for the webhook shape and **qstash** for queueing the heavy work this webhook fans out to.

@@ -35,6 +35,14 @@ Components and hooks must mock `authFetcher`, `useAuthQuery`, and `useAuthMutati
 
 For use-case tests, inject an in-memory fake of the repository port via `ctx`, not a mocked Supabase SDK. The fake is a second implementation of the port, which is what earns the port its place (see **architecture**).
 
+Use cases and repositories carry `import 'server-only'`, which throws under Vitest. Stub it once in the setup file:
+
+```ts
+// vitest.setup.ts (vitest.config: test.setupFiles = ["./vitest.setup.ts"])
+import { vi } from "vitest";
+vi.mock("server-only", () => ({}));
+```
+
 ## Real Supabase vs in-memory doubles
 
 - **Default to real Supabase** via a per-PR branch. RLS bugs, type-coercion quirks, and trigger order are invisible to doubles.

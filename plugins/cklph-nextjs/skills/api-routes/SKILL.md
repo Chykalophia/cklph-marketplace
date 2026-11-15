@@ -35,6 +35,10 @@ const CreateItemSchema = z.object({
   enabled: z.boolean().default(true),
 }).strict();
 
+const HTTP_STATUS: Record<string, number> = {
+  VALIDATION_ERROR: 400, INVALID_ID: 400, UNAUTHORIZED: 401, FORBIDDEN: 403, NOT_FOUND: 404,
+};
+
 // Order is owned by the security skill: IP rate-limit -> CSRF -> auth -> per-user limit -> Zod.
 const limitByIp = (request: MiddlewareRequest) =>
   rateLimit(request, getUserIdentifier(request), "ip"); // no user yet, so this keys on IP
@@ -61,10 +65,10 @@ export const POST = compose(
     }
 
     // The use case authorizes the actor against the resource (IDOR) and returns a DTO, never a raw row.
-    const ctx = await makeRequestContext(request);
+    const ctx = await makeRequestContext();
     const result = await createItem(ctx, parsed.data);
     if (!result.success) {
-      const status = result.code === "VALIDATION_ERROR" ? 400 : 500;
+      const status = HTTP_STATUS[result.code] ?? 500;
       return NextResponse.json({ error: result.error }, { status });
     }
     return NextResponse.json({ data: result.data }, { status: 201 });
@@ -86,7 +90,7 @@ Use cases return `{ success, data }` or `{ success, error, code }`, where `data`
 
 ## Special handlers
 
-- **Webhooks** (Stripe, QStash, Pub/Sub) — add `export const dynamic = "force-dynamic"`, verify the provider signature in lieu of CSRF, and return 200 even on internal errors to avoid retry storms.
+- **Webhooks** (Stripe, QStash, Pub/Sub; `app/api/webhooks/`, or `app/api/jobs/` for QStash) — add `export const dynamic = "force-dynamic"`, verify the provider signature in lieu of CSRF, and return 200 even on internal errors to avoid retry storms.
 - **Cron** (`app/api/cron/`) — wrap in `verifyCronAuth` (CRON_SECRET header). Return fast; enqueue the heavy work to the job queue.
 - **Dynamic params** (`[id]`) — validate UUID format BEFORE the query, otherwise you get noisy PostgREST errors.
 
@@ -96,7 +100,7 @@ Use cases return `{ success, data }` or `{ success, error, code }`, where `data`
 - Per-user rate-limit applied with a bucket appropriate to cost.
 - Zod schema with `.strict()`.
 - Calls exactly one use case via `@/modules/<f>`; no Supabase, no `infrastructure/` imports.
-- Webhook/cron routes that need the service-role client get it from `src/server/admin/` only.
+- Webhook/cron/job routes that need the service-role client live under `src/app/api/{webhooks,cron,jobs}/` and get it through `makeSystemContext()` in `src/server/system-context.ts`. Nothing else imports either.
 - Error responses don't leak stack traces or PostgREST internals.
 - File is under 100 lines.
 
