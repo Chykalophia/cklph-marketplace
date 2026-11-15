@@ -33,7 +33,8 @@ Enforce access in both layers, always:
   Webhook, cron and job routes get a context from `makeSystemContext()` in
   `src/server/system-context.ts` instead, and only routes under `src/app/api/{webhooks,cron,jobs}/`
   may import that. Auth admin calls (invite, delete account, ban) go through `makeAdminContext()`
-  from server actions, which exposes nothing else. dependency-cruiser enforces these boundaries,
+  from server actions. Its gateway exposes nothing else and re-checks the admin policy in every
+  method; import rules cannot see what a gateway returns, so review checks that shape. dependency-cruiser enforces these boundaries,
   and seals the factories so no helper in `src/server/` can re-export or wrap them; a lint rule bans reading the key anywhere else.
   The key never gets a `NEXT_PUBLIC_` prefix.
 

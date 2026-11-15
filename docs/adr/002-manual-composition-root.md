@@ -24,8 +24,8 @@ user-scoped Supabase client, resolves identity (`getClaims()` by default,
 `makeRequestContext({ fresh: true })` for `getUser()` on sensitive operations), constructs
 repositories and gateways, and returns a typed `ctx`. `makeAuthedContext()` is the same with a
 non-null user, throwing when there is none; routes and actions that need a user call it.
-`makeAdminContext()` (`src/server/admin-context.ts`) adds a gateway for the auth admin API only
-(invite, delete, ban), for server actions on `getUser()`. `makeSystemContext()`, in its own file
+`makeAdminContext(actor)` (`src/server/admin-context.ts`) adds a gateway for the auth admin API only
+(invite, delete, ban), for server actions on `getUser()`; each method re-checks the admin policy. `makeSystemContext()`, in its own file
 `src/server/system-context.ts`, builds the same shape on the service-role client from
 `src/server/admin/` for webhooks, cron and jobs, which have no user. Only routes under
 `src/app/api/{webhooks,cron,jobs}/` may import it.

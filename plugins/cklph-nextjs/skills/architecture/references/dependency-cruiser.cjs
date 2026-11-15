@@ -169,6 +169,15 @@ module.exports = {
       to: { path: "^src/server/admin/auth-admin\\.ts$" },
     },
     {
+      name: "auth-admin-own-client",
+      severity: "error",
+      comment:
+        "auth-admin.ts builds its own client and returns only client.auth.admin behind fixed methods, " +
+        "so it never touches the full client. What a gateway returns is beyond import rules: review it.",
+      from: { path: "^src/server/admin/auth-admin\\.ts$" },
+      to: { path: "^src/server/admin/", pathNot: "^src/server/admin/auth-admin\\.ts$" },
+    },
+    {
       name: "system-context-only-in-system-routes",
       severity: "error",
       comment:
@@ -182,7 +191,9 @@ module.exports = {
       severity: "error",
       comment:
         "makeAdminContext() exposes fixed auth admin calls (invite, delete, ban) and requires a " +
-        "getUser() identity. Only server action files import it; nothing in src/server/ wraps it.",
+        "getUser() identity. Only server action files import it; nothing in src/server/ wraps it. " +
+        "The exemption goes by file name, so the factory itself takes the verified actor and every " +
+        "gateway method re-checks the admin policy: a leaked import is useless without one.",
       from: { path: "^src/", pathNot: ACTIONS },
       to: { path: "^src/server/admin-context\\.ts$" },
     },
