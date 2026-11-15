@@ -1163,7 +1163,7 @@ test('a hidden layer is drawn dashed and its caption says why the box looks empt
   const plan = planShots(scan);
   const hidden = plan.find((p) => p.key.includes('-hidden-layer-'));
   assert.equal(hidden.dashed, true);
-  assert.match(hidden.caption, /\(hidden, outline shows where it sits\)$/);
+  assert.match(hidden.caption, /\(hidden, dashed outline\)$/);
   assert.ok(hidden.caption.length <= 70);
   assert.ok(plan.filter((p) => !p.key.includes('-hidden-layer-')).every((p) => !p.dashed));
 });
@@ -1186,6 +1186,31 @@ test('captions are cut at a word and end in an ellipsis', () => {
   assert.ok(long.startsWith(c.slice(0, -1).trimEnd()), 'a prefix of the original');
   assert.ok(!/\S…$/.test(c) || long[c.length - 1] === ' ' || long.charAt(c.length - 1) === ' ', 'cut falls on a space');
   assert.equal(clipCaption('#2 short', 70), '#2 short');
+});
+
+test('a long path with a note keeps the flagged layer name whole', () => {
+  // From the real run: the caption came out as "#6 Home — Desktop › … ›… (hidden, …)".
+  const scan = {
+    options: {},
+    scope: { screens: { '2:1': { name: 'Home — Desktop', bbox: { x: 0, y: 0, w: 1440, h: 4000 } } } },
+    findings: [{ rule: 'hidden-layer', sev: 'house', title: 'Hidden layer', fix: 'Delete it.', total: 1, groupCount: 1, index: { 'hidden-layer|section|2:20': 1 },
+      groups: [{ key: 'hidden-layer|section|2:20', kind: 'section', id: '2:20', name: 'hero', screen: { id: '2:1', name: 'Home — Desktop' }, family: null, count: 1, values: [], examples: [{ id: '2:90', path: 'Home — Desktop › hero › hero-layout › home-hero-image-placeholder', value: 'FRAME, 0% opacity', bbox: { x: 0, y: 0, w: 520, h: 400 }, screenId: '2:1' }] }] }],
+  };
+  const c = planShots(scan)[0].caption;
+  assert.ok(c.length <= 70, c);
+  assert.match(c, /home-hero-image-placeholder \(hidden, dashed outline\)$/);
+});
+
+test('a text exception still matches when the designer spaced the letters out', async () => {
+  const { figma, nodes } = makeFile();
+  const credit = addChild(nodes, nodes.get('2:1'), { id: '2:95', type: 'TEXT', name: 'credit', characters: 'Website by C H Y K A L O P H I A', hasMissingFont: false, width: 214, height: 22 });
+  credit.getStyledTextSegments = () => [{ fontName: { family: 'Inter', style: 'Regular' }, fontSize: 14, textStyleId: '', fills: [BOUND], fillStyleId: '' }];
+  const run = async (exceptions) => joinParts(await scanParts(figma, { pageId: '0:1', options: { exceptions } }));
+  const before = await run([]);
+  assert.ok(finding(before, 'off-brand-font').groups.some((g) => g.family === 'Inter'));
+  const after = await run(parseExceptions('ignore text: Website by Chykalophia').exceptions);
+  assert.ok(!finding(after, 'off-brand-font').groups.some((g) => g.family === 'Inter'));
+  assert.equal(after.ignored[0], 2, 'the off-brand font and the missing text style');
 });
 
 test('the report says "1 more place", not "1 more places"', async () => {

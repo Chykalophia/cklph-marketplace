@@ -289,8 +289,15 @@ function patternTest(e) {
     const r = new RegExp(e.pattern, 'i');
     return (s) => s != null && r.test(String(s));
   }
+  // Designers fake letter-spacing with spaces ("C H Y K A L O P H I A") and break lines by hand,
+  // so a pattern also matches with all whitespace removed from both sides.
   const p = String(e.pattern).toLowerCase();
-  return (s) => s != null && String(s).toLowerCase().includes(p);
+  const squeezed = p.replace(/\s+/g, '');
+  return (s) => {
+    if (s == null) return false;
+    const v = String(s).toLowerCase();
+    return v.includes(p) || (squeezed.length > 0 && v.replace(/\s+/g, '').includes(squeezed));
+  };
 }
 
 /** Fills {minFont} and {fonts} in a rule's title or fix text. */

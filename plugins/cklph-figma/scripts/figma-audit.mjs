@@ -249,6 +249,20 @@ export function clipCaption(text, max) {
   return s.slice(0, cut > max / 2 ? cut : max - 1).trimEnd() + '…';
 }
 
+// The flagged layer's own name is what a designer searches for, so drop the middle of the path
+// before cutting into the last name.
+function captionFor(n, layerPath, note) {
+  const parts = String(layerPath).split(' › ');
+  const last = parts[parts.length - 1];
+  const tries = [shortPath(layerPath)];
+  if (parts.length > 2) tries.push(parts[0] + ' › … › ' + last, '… › ' + last);
+  for (const t of tries) {
+    const c = '#' + n + ' ' + t + note;
+    if (c.length <= CAPTION_MAX) return c;
+  }
+  return clipCaption('#' + n + ' ' + tries[tries.length - 1], CAPTION_MAX - note.length) + note;
+}
+
 /** Screenshot plan: which screen to render and which boxes to draw for each row. */
 export function planShots(scan) {
   const screens = (scan.scope && scan.scope.screens) || {};
@@ -262,7 +276,7 @@ export function planShots(scan) {
     // why the box looks empty. A box that is the whole section says so too.
     const hidden = r.finding.rule === 'hidden-layer';
     const whole = (r.shotGroup.kind === 'section' || r.shotGroup.kind === 'screen') && first.id === r.shotGroup.id;
-    const note = hidden ? ' (hidden, outline shows where it sits)' : whole ? ' (the whole ' + r.shotGroup.kind + ')' : '';
+    const note = hidden ? ' (hidden, dashed outline)' : whole ? ' (the whole ' + r.shotGroup.kind + ')' : '';
     plan.push({
       key: r.shotKey,
       row: r.n,
@@ -271,7 +285,7 @@ export function planShots(scan) {
       screenBbox: screens[first.screenId].bbox,
       boxes,
       dashed: hidden,
-      caption: clipCaption('#' + r.n + ' ' + shortPath(first.path), CAPTION_MAX - note.length) + note,
+      caption: captionFor(r.n, first.path, note),
     });
   }
   return plan;

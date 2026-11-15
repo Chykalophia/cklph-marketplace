@@ -28,8 +28,10 @@ headings and blank lines are skipped, so the list can sit inside a normal task o
 | `collection` | a variable collection name | unused collection |
 | `rule` | a rule id, or several separated by commas | that rule everywhere |
 
-Patterns match anywhere in the name, ignoring case. Put a pattern in slashes for a regular
-expression: `ignore screen: /^Navigation/`. Rule ids are in [rules.md](rules.md).
+Patterns match anywhere in the name, ignoring case and spacing: `Website by Chykalophia` also
+matches "Website by C H Y K A L O P H I A", where a designer spaced the letters by hand. Put a
+pattern in slashes for a regular expression: `ignore screen: /^Navigation/`. Rule ids are in
+[rules.md](rules.md).
 
 `for small-text, raw-color` limits a line to those rules. `because ...` is kept as the reason and
 shown in the report.

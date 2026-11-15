@@ -14,7 +14,8 @@ From the first real-file run (A Safe Place, Dev Hand-off page, 27 screens).
   `for <rule>` and `because <reason>`. The `exceptions` command shows how a file parses; the agent
   rewrites prose as ignore lines and shows the list before scanning. `script --exceptions FILE`
   and `--allow TEXT` apply it. The report lists each exception with the problems it hid and flags
-  any that matched nothing. `--like` carries exceptions into a recheck.
+  any that matched nothing. `--like` carries exceptions into a recheck. Patterns ignore case and
+  spacing, since the real footer credit reads "Website by C H Y K A L O P H I A".
 - `contact-sheet`: tiles every screenshot nine to a sheet, and the skill now checks all of them
   before publishing instead of two or three.
 - `--unused-styles full|summary`.
@@ -23,7 +24,8 @@ From the first real-file run (A Safe Place, Dev Hand-off page, 27 screens).
 - Unused text styles are one row with a count by default; they are file-wide and usually used on
   other pages. `--unused-styles full` lists each, for the design-system page.
 - The scan returns a compact form that `join` expands, as one plain object when it fits. The
-  A Safe Place scan went from 42 KB to 24 KB to copy.
+  A Safe Place scan went from 42 KB to 24 KB to copy, and at `--max-groups 6 --max-examples 3`
+  it now fits one part (29 KB) where it took two.
 - A recheck also refuses scans made with different exceptions or unused-styles mode.
 
 ### Fixed
