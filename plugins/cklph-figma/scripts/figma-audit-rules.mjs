@@ -254,7 +254,8 @@ export function createAudit(options) {
 
   function finish(file) {
     const f = file || {};
-    let fonts = o.fonts && o.fonts.length ? o.fonts : null;
+    // An explicit list, even an empty one from an earlier scan, is never re-inferred.
+    let fonts = Array.isArray(o.fonts) ? o.fonts : null;
     const fontsInferred = !fonts;
     if (!fonts) {
       const total = [...familyCounts.values()].reduce((a, b) => a + b, 0) || 1;

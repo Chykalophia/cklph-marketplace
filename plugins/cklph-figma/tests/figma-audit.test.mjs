@@ -875,18 +875,64 @@ test('a recheck names groups that were never listed instead of showing a bare id
 
 // ---- review fixes: recheck settings, sandbox property reads, doc escaping ----------------
 
-// use_figma throws on a member the node type lacks, where the plain mock returns undefined.
+// In use_figma a member the node type lacks is absent to `in` and throws on read, where the
+// plain mock returns undefined. Wraps every node so the mock behaves the same way.
 function strictLayout(nodes) {
-  const AUTO = new Set(['FRAME', 'COMPONENT', 'COMPONENT_SET', 'INSTANCE']);
-  for (const n of new Set(nodes.values())) {
-    const lacks = AUTO.has(n.type) ? [] : ['layoutMode'];
-    if (n.type === 'SECTION' || n.type === 'PAGE') lacks.push('layoutSizingHorizontal', 'layoutSizingVertical', 'layoutPositioning');
-    for (const k of lacks) {
-      delete n[k];
-      Object.defineProperty(n, k, { get() { throw new TypeError('node.' + k + ": no such property '" + k + "' on " + n.type + ' node'); } });
+  const AUTO = new Set(['FRAME', 'COMPONENT', 'COMPONENT_SET', 'INSTANCE', 'SLOT']);
+  const CHILD_KEYS = new Set(['layoutSizingHorizontal', 'layoutSizingVertical', 'layoutPositioning']);
+  const NO_CHILD = new Set(['SECTION', 'PAGE', 'WIDGET', 'STICKY']);
+  const lacks = (t, k) => (k === 'layoutMode' && !AUTO.has(t.type)) || (CHILD_KEYS.has(k) && NO_CHILD.has(t.type));
+  const proxies = new Map();
+  const wrap = (n) => {
+    if (!n || typeof n !== 'object') return n;
+    if (!proxies.has(n)) {
+      proxies.set(n, new Proxy(n, {
+        has: (t, k) => !lacks(t, k) && k in t,
+        get: (t, k, r) => {
+          if (lacks(t, k)) throw new TypeError('node.' + String(k) + ": no such property '" + String(k) + "' on " + t.type + ' node');
+          return Reflect.get(t, k, r);
+        },
+      }));
     }
+    return proxies.get(n);
+  };
+  const raw = [...new Set(nodes.values())];
+  for (const n of raw) {
+    if (n.children) n.children = n.children.map(wrap);
+    n.parent = wrap(n.parent);
   }
+  for (const [id, n] of nodes) nodes.set(id, wrap(n));
 }
+
+// Adds a raw mock node under a parent, as makeFile would.
+function addChild(nodes, parent, props) {
+  const n = {
+    visible: true, x: 0, y: 0, width: 10, height: 10, fills: [], strokes: [], fillStyleId: '', strokeStyleId: '',
+    boundVariables: {}, detachedInfo: null, inferredAutoLayout: null, ...props, parent,
+  };
+  n.absoluteBoundingBox = { x: n.x, y: n.y, width: n.width, height: n.height };
+  parent.children = (parent.children || []).concat(n);
+  nodes.set(n.id, n);
+  return n;
+}
+
+test('children of an auto-layout slot get no half-pixel position finding', async () => {
+  const { figma, nodes } = makeFile();
+  const slot = addChild(nodes, nodes.get('2:20'), { id: '2:80', type: 'SLOT', name: 'slot', layoutMode: 'VERTICAL', children: [] });
+  addChild(nodes, slot, { id: '2:81', type: 'RECTANGLE', name: 'r', x: 100.5, width: 200, height: 50, fills: [BOUND] });
+  strictLayout(nodes);
+  const scan = joinParts(await scanParts(figma, { pageId: '0:1', options: {} }));
+  const { scan: baseline } = await runScan();
+  assert.equal(finding(scan, 'fractional-size').total, finding(baseline, 'fractional-size').total);
+});
+
+test('a widget inside a screen does not break the scan', async () => {
+  const { figma, nodes } = makeFile();
+  addChild(nodes, nodes.get('2:20'), { id: '2:82', type: 'WIDGET', name: 'widget' });
+  strictLayout(nodes);
+  const scan = joinParts(await scanParts(figma, { pageId: '0:1', options: {} }));
+  assert.ok(scan.findings.length);
+});
 
 test('the scan reads auto layout only on node types that have it, with the same findings', async () => {
   const { figma, nodes } = makeFile();
@@ -997,8 +1043,41 @@ test('layer names cannot inject a link or an image into the doc', async () => {
   f.groups[0].name = evil;
   f.groups[0].examples[0].path = evil;
   const md = renderReport(scan, { fileKey: 'K' });
-  assert.ok(!md.includes('![x]('), 'image escaped');
-  assert.ok(!md.includes('[click]('), 'link escaped');
+  // Lenient parsers render "!\[x\](url)" inside link text as an image, so the parenthesis and
+  // the bang must be escaped too, and a bare URL must not auto-link.
+  assert.ok(!/(?<!\\)\(https?:\/\/(?:e|evil)\.test/.test(md), 'no unescaped ( before an injected URL');
+  assert.ok(!/(?<!\\)!(?:\\)?\[x/.test(md), 'no unescaped ! before the injected image');
+  assert.ok(!md.includes('https://e.test') && !md.includes('https://evil.test'), 'no bare injected URL to auto-link');
+});
+
+test('script --like on an old scan without its repeat count asks for it', async () => {
+  const { scan: old } = await runScan({ fonts: ['Brand Sans'] });
+  delete old.options.repeatMin;
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'figma-audit-like-old-'));
+  const oldPath = path.join(dir, 'old.json');
+  fs.writeFileSync(oldPath, JSON.stringify(old));
+  const r = spawnSync(process.execPath, [CLI, 'script', '--like', oldPath], { encoding: 'utf8' });
+  assert.equal(r.status, 1);
+  assert.match(r.stderr, /does not record its --repeat-min/);
+  const ok = spawnSync(process.execPath, [CLI, 'script', '--like', oldPath, '--repeat-min', '2'], { encoding: 'utf8' });
+  assert.equal(ok.status, 0, ok.stderr);
+  assert.match(ok.stdout, /"repeatMin":2/);
+  const bare = spawnSync(process.execPath, [CLI, 'script', '--like'], { encoding: 'utf8' });
+  assert.match(bare.stderr, /--like needs the path/);
+});
+
+test('an earlier scan with no brand fonts can still be rechecked', async () => {
+  const { scan: old } = await runScan({ fonts: [] });
+  assert.deepEqual(old.options.fonts, []);
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'figma-audit-like-empty-'));
+  const oldPath = path.join(dir, 'old.json');
+  fs.writeFileSync(oldPath, JSON.stringify(old));
+  const { figma } = makeFile();
+  const r = spawnSync(process.execPath, [CLI, 'script', '--like', oldPath], { encoding: 'utf8' });
+  assert.equal(r.status, 0, r.stderr);
+  const first = await new AsyncFunction('figma', r.stdout)(figma);
+  assert.equal(first.parts, 1);
+  assert.doesNotThrow(() => compareScans(old, joinParts([first]), {}));
 });
 
 test('the exists check treats a removed node as missing', async () => {

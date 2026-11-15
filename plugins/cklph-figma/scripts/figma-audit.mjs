@@ -164,9 +164,10 @@ export function figmaLink(fileKey, nodeId, fileName) {
   return 'https://www.figma.com/design/' + fileKey + '/' + slug + '?node-id=' + String(nodeId).replace(/:/g, '-');
 }
 
-// Layer names and copy come from the client's file: escaping the brackets keeps a name like
-// "![x](https://...)" from rendering as an image or link in the doc.
-const cell = (s) => String(s == null ? '' : s).replace(/\\/g, '\\\\').replace(/[\r\n]+/g, ' ').replace(/\|/g, '\\|').replace(/</g, '\\<').replace(/([[\]])/g, '\\$1');
+// Layer names and copy come from the client's file. Escaping ! [ ] ( ) keeps a name like
+// "![x](https://...)" from rendering as an image or link, even inside link text, and breaking
+// "://" stops a bare URL from turning into a link.
+const cell = (s) => String(s == null ? '' : s).replace(/\\/g, '\\\\').replace(/[\r\n]+/g, ' ').replace(/\|/g, '\\|').replace(/</g, '\\<').replace(/([!()[\]])/g, '\\$1').replace(/:\/\//g, ':\\/\\/');
 const linkText = cell;
 const MUST_ROWS_PER_RULE = 8;
 
@@ -496,11 +497,15 @@ async function main(argv) {
     return 0;
   }
   if (cmd === 'script') {
+    if (a.like === true) throw new Error('--like needs the path of the earlier scan.json');
     const like = a.like ? readJson(a.like) : null;
     if (like) {
-      const clash = ['page', 'frames', 'exclude-screens', 'fonts', 'min-font', 'repeat-min'].filter((k) => k in a);
-      if (clash.length) throw new Error('--like sets ' + clash.map((k) => '--' + k).join(', ') + ' from the earlier scan; drop them');
       if (!like.scope || !like.options) throw new Error('--like needs a joined scan.json');
+      // Scans from before repeatMin was recorded cannot say what they used, so ask.
+      const repeatKnown = like.options.repeatMin != null;
+      const clash = ['page', 'frames', 'exclude-screens', 'fonts', 'min-font'].concat(repeatKnown ? ['repeat-min'] : []).filter((k) => k in a);
+      if (clash.length) throw new Error('--like sets ' + clash.map((k) => '--' + k).join(', ') + ' from the earlier scan; drop them');
+      if (!repeatKnown && !('repeat-min' in a)) throw new Error('the earlier scan does not record its --repeat-min; pass the value it was made with (default 3)');
     } else need(a, ['page']);
     const page = like ? like.scope.pageId : String(a.page).replace('-', ':');
     if (!NODE_ID.test(page)) throw new Error('--page must be a node id like 123:456');
@@ -509,12 +514,13 @@ async function main(argv) {
     const exclude = like ? like.scope.excludeScreens || null : typeof a['exclude-screens'] === 'string' && a['exclude-screens'] ? a['exclude-screens'] : null;
     if (exclude) new RegExp(exclude, 'i');
     const options = like
-      ? { minFont: like.options.minFont, repeatMin: like.options.repeatMin == null ? 3 : like.options.repeatMin }
+      ? { minFont: like.options.minFont, repeatMin: like.options.repeatMin == null ? num(a['repeat-min'], 3, { min: 2 }) : like.options.repeatMin }
       : { minFont: num(a['min-font'], 12, { min: 1, whole: false }), repeatMin: num(a['repeat-min'], 3, { min: 2 }) };
     options.maxGroups = num(a['max-groups'], like ? like.options.maxGroups || 20 : 20, { min: 1 });
     options.maxExamples = num(a['max-examples'], 3, { min: 1 });
-    const fonts = like ? like.options.fonts : list(a.fonts);
-    if (fonts && fonts.length) options.fonts = fonts;
+    // --like passes the earlier brand set even when it is empty, so nothing is inferred again.
+    if (like) options.fonts = like.options.fonts || [];
+    else if ((list(a.fonts) || []).length) options.fonts = list(a.fonts);
     const part = num(a.part, 0);
     process.stdout.write(buildScanScript({ pageId: page, frames, excludeScreens: exclude, part, options }));
     return 0;
