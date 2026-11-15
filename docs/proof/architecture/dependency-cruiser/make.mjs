@@ -36,9 +36,16 @@ const files = {
   "src/server/admin/auth-admin.ts": `${SB}\nexport const authAdmin = createClient;`,
   "src/server/admin-context.ts": `import { authAdmin } from "./admin/auth-admin";\nexport const makeAdminContext = () => authAdmin;`,
   "src/app/settings/actions.ts": `"use server";\nimport { makeAdminContext } from "@/server/admin-context";\nexport const invite = makeAdminContext;`,
+  "src/app/settings/invite-form.tsx": `"use client";\nimport { invite } from "./actions";\nexport const InviteForm = invite;`,
+  "src/app/settings/page.tsx": `import { InviteForm } from "./invite-form";\nexport default InviteForm;`,
+  "src/app/account/actions/delete-account.ts": `"use server";\nimport { makeAdminContext } from "@/server/admin-context";\nexport const del = makeAdminContext;`,
+  "src/app/team/team.actions.ts": `"use server";\nimport { makeAdminContext } from "@/server/admin-context";\nexport const ban = makeAdminContext;`,
+  "src/app/actions.ts": `"use server";\nimport { makeAdminContext } from "@/server/admin-context";\nexport const root = makeAdminContext;`,
   "src/server/run-as-system.ts": `import { makeSystemContext } from "./system-context";\nexport const runAsSystem = () => makeSystemContext();`,
   "src/server/helpers.ts": `export { makeSystemContext } from "./system-context";`,
   "src/server/run-as-admin.ts": `import { admin } from "./admin/client";\nexport const runAsAdmin = admin;`,
+  "src/server/run-as-auth-admin.ts": `import { authAdmin } from "./admin/auth-admin";\nexport const runAsAuthAdmin = authAdmin;`,
+  "src/server/admin-helpers.ts": `export { makeAdminContext } from "./admin-context";`,
   "src/server/context.ts": `import { createServerSupabaseClient } from "./supabase/server";\nimport { repo } from "@/modules/items/infrastructure/supabase-item.repository";\nexport const makeRequestContext = () => [createServerSupabaseClient, repo];`,
   "src/server/system-context.ts": `import { admin } from "./admin/client";\nimport { repo } from "@/modules/items/infrastructure/supabase-item.repository";\nexport const makeSystemContext = () => [admin, repo];`,
   "src/app/api/cron/cleanup/route.ts": `${SYSTEM}\nexport const GET = makeSystemContext;`,
@@ -46,7 +53,8 @@ const files = {
   "src/features/notes/data.ts": `import type { SupabaseClient } from "@supabase/supabase-js";\nimport { createServerSupabaseClient } from "@/server/supabase/server";\nexport const notes = createServerSupabaseClient;\nexport type C = SupabaseClient;`,
   "src/modules/billing/application/use-cases/charge-ok.ts": `import { createItem } from "@/modules/items";\nexport const ok = createItem;`,
   "src/modules/billing/infrastructure/stripe.gateway.ts": `export const gateway = 1;`,
-  // Violations. check.mjs lists the rules each one must trip.
+  // Violations. check.mjs lists the rules each one must trip. A wrapper or re-export in src/server/
+  // trips at the wrapper, so the actions that import one below are not themselves flagged.
   "src/modules/items/domain/bad-reach.ts": `import { dto } from "../application/dto";\nexport const x = dto;`,
   "src/modules/items/domain/bad-supabase.ts": `${SB}\nexport const x = createClient;`,
   "src/modules/items/application/use-cases/bad-infra.ts": `import { repo } from "../../infrastructure/supabase-item.repository";\nexport const x = repo;`,

@@ -24,7 +24,7 @@ If you'd ever `curl` it, use an API route. If only a React form calls it, server
 
 ## File convention
 
-Top-of-file `"use server"` in `actions.ts` under `src/app/`, next to the page that uses it. Each export is built from the authenticated action client, validates input, calls ONE use case and returns a `ServiceResult<T>`.
+Top-of-file `"use server"` in `actions.ts` under `src/app/`, next to the page that uses it (a file in an `actions/` folder or a `*.actions.ts` file also counts; the dependency-cruiser config recognises all three). Each export is built from the authenticated action client, validates input, calls ONE use case and returns a `ServiceResult<T>`.
 
 `actions.ts` imports only from `@/modules/<f>` (the module's `index.ts`) and `@/server/*`. Never Supabase, never `src/modules/*/infrastructure/`.
 

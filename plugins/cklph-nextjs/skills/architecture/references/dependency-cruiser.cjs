@@ -26,7 +26,10 @@ const MODULE_ENTRY = "^src/modules/[^/]+/(index|client)\\.(ts|tsx)$";
 const INFRASTRUCTURE = "^src/modules/[^/]+/infrastructure/";
 const LITE_DAL = "^src/features/[^/]+/data\\.ts$";
 const SYSTEM_ROUTES = "^src/app/api/(webhooks|cron|jobs)/";
-const ACTIONS = "^src/app/.+/actions\\.ts$";
+// actions.ts anywhere under src/app/, files in an actions/ folder, or *.actions.ts.
+const ACTIONS = [
+  "^src/app/actions\\.ts$", "^src/app/.+/actions\\.ts$", "^src/app/actions/[^/]+\\.ts$", "^src/app/.+/actions/[^/]+\\.ts$", "^src/app/.+\\.actions\\.ts$",
+];
 const SUPABASE = "(^|node_modules/)@supabase/";
 
 module.exports = {
@@ -142,39 +145,46 @@ module.exports = {
     {
       name: "admin-client-isolated",
       severity: "error",
-      comment: "Only src/server/ imports src/server/admin/ directly; everything else goes through a context factory.",
+      comment:
+        "The service-role client bypasses RLS. Only src/server/ imports src/server/admin/. " +
+        "Ban the secret key itself outside src/server/admin/ with a lint rule; imports cannot see it.",
       from: { path: "^src/", pathNot: "^src/server/" },
       to: { path: "^src/server/admin/" },
     },
     {
-      name: "admin-client-unreachable",
+      name: "admin-client-sealed",
       severity: "error",
       comment:
-        "The service-role client bypasses RLS. Outside src/server/, only webhook, cron and job routes " +
-        "(through makeSystemContext) may reach it, directly or through any chain of imports. " +
-        "src/server/admin/auth-admin.ts (auth admin API only) has its own rule below. " +
-        "Ban the secret key itself outside src/server/admin/ with a lint rule; imports cannot see it.",
-      from: { path: "^src/", pathNot: ["^src/server/", SYSTEM_ROUTES] },
-      to: { path: "^src/server/admin/", pathNot: "^src/server/admin/auth-admin\\.ts$", reachable: true },
+        "Inside src/server/, only system-context.ts holds the full service-role client, so no " +
+        "helper can pass it further. This seal replaces following import chains, which would " +
+        "also flag every page that imports a server action.",
+      from: { path: "^src/server/", pathNot: ["^src/server/admin/", "^src/server/system-context\\.ts$"] },
+      to: { path: "^src/server/admin/", pathNot: "^src/server/admin/auth-admin\\.ts$" },
+    },
+    {
+      name: "auth-admin-sealed",
+      severity: "error",
+      comment: "Only admin-context.ts uses auth-admin.ts, the auth admin API without table access.",
+      from: { path: "^src/server/", pathNot: ["^src/server/admin/", "^src/server/admin-context\\.ts$"] },
+      to: { path: "^src/server/admin/auth-admin\\.ts$" },
     },
     {
       name: "system-context-only-in-system-routes",
       severity: "error",
       comment:
-        "makeSystemContext() gives full service-role table access. Only webhook, cron and job routes " +
-        "and src/server/ may reach it, directly or through a re-export or wrapper in src/server/.",
-      from: { path: "^src/", pathNot: ["^src/server/", SYSTEM_ROUTES] },
-      to: { path: "^src/server/system-context\\.(ts|js)$", reachable: true },
+        "makeSystemContext() gives full service-role table access. Only webhook, cron and job " +
+        "routes import it; nothing in src/server/ re-exports or wraps it.",
+      from: { path: "^src/", pathNot: SYSTEM_ROUTES },
+      to: { path: "^src/server/system-context\\.ts$" },
     },
     {
       name: "admin-context-only-in-actions",
       severity: "error",
       comment:
-        "makeAdminContext() exposes only the auth admin API (invite, delete, ban) from " +
-        "src/server/admin/auth-admin.ts and requires a getUser() identity. Only server actions, " +
-        "system routes and src/server/ may reach either.",
-      from: { path: "^src/", pathNot: ["^src/server/", SYSTEM_ROUTES, ACTIONS] },
-      to: { path: ["^src/server/admin-context\\.(ts|js)$", "^src/server/admin/auth-admin\\.ts$"], reachable: true },
+        "makeAdminContext() exposes fixed auth admin calls (invite, delete, ban) and requires a " +
+        "getUser() identity. Only server action files import it; nothing in src/server/ wraps it.",
+      from: { path: "^src/", pathNot: ACTIONS },
+      to: { path: "^src/server/admin-context\\.ts$" },
     },
   ],
   options: {

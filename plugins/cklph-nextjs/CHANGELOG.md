@@ -43,7 +43,7 @@ Format: [Keep a Changelog](https://keepachangelog.com); versioning follows [SemV
 - `architecture/references/dependency-cruiser.cjs`: the dependency rule as CI checks (`no-circular`,
   domain isolation, no layer skipping including through the server Supabase client, no deep module
   imports, a server-free `client.ts`, Supabase and generated types only in infrastructure, the admin
-  client, system context and admin context isolated through any chain of imports). Proven against a fixture in
+  client, system context and admin context isolated, with the factories sealed against wrappers and re-exports). Proven against a fixture in
   `docs/proof/architecture/dependency-cruiser/`, run in CI. Run it as
   `npx -p dependency-cruiser@18.7.2 -p typescript@6 depcruise ...`: dependency-cruiser 18 cannot load
   TypeScript 7 and passes silently on 0 modules.

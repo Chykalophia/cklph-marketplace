@@ -54,7 +54,7 @@ app → modules/*/{index,client}.ts → application → domain ← infrastructur
 
 - `domain/` imports nothing outside itself except branded types in `src/shared/types/`: no `next/*`, no `@supabase/*`.
 - `application/` never imports `infrastructure/` — it receives implementations via `ctx` from `src/server/context.ts`.
-- `@supabase/*` only in `infrastructure/`, `src/server/` and the browser client in `src/shared/lib/supabase/`. Service-role key only in `src/server/admin/`; only `src/server/` imports it, and only routes under `src/app/api/{webhooks,cron,jobs}/` reach `makeSystemContext()`, and only server actions reach `makeAdminContext()`, checked through any chain of imports.
+- `@supabase/*` only in `infrastructure/`, `src/server/` and the browser client in `src/shared/lib/supabase/`. Service-role key only in `src/server/admin/`; only `src/server/` imports it, and only routes under `src/app/api/{webhooks,cron,jobs}/` reach `makeSystemContext()`, and only server action files import `makeAdminContext()`. Nothing in `src/server/` re-exports or wraps either factory or the admin client, so no helper can pass the service-role client further.
 - No deep imports into a module; go through `index.ts` (server code) or `client.ts` (client components). `index.ts` re-exports use cases, which carry `import 'server-only'`, so a client component importing it breaks `next build`. Neither entry re-exports `infrastructure/`.
 - `app/**` never imports `infrastructure/**` or `@supabase/*` (layer skipping = IDOR risk).
 - Components never `fetch("/api/…")` directly — read in Server Components via query use cases; client hooks only for interactive data (see **data-layer**).
