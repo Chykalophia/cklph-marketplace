@@ -44,7 +44,7 @@
 | --- | --- | --- |
 | **`cklph-wp`** | wp-cli over SSH (`cwp`): managed-host connections, posts/meta/options/media, hosting gotchas. | foundation for the rest |
 | **`cklph-elementor`** | Read and write Elementor data programmatically: the `_elementor_data` model, CSS/responsive gotchas, templates and conditions, the Kit. | `cklph-wp`, `cklph-visual-qa` |
-| **`cklph-figma`** | Read designs and tokens from the Figma MCP, and preflight and verify Figma writes. | — |
+| **`cklph-figma`** | Read designs and tokens from the Figma MCP, audit a file for dev hand-off into a ClickUp fix list, and preflight and verify Figma writes. | — |
 | **`cklph-visual-qa`** | Headless-Chrome screenshots, crop/compare, overflow probes, and an adversarial visual-reviewer agent. | `cklph-figma` |
 | **`cklph-figma-to-wp`** | Orchestrates design → tokens → Elementor JSON → draft → visual check. | all four above |
 

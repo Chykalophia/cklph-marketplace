@@ -47,7 +47,7 @@ jobs:
           bash plugins/cklph-elementor/tests/el-tools.test.sh
       - name: cklph-audit (scanner wrappers against fake scanners, engine flow)
         run: node --test plugins/cklph-audit/tests/*.test.mjs
-      - name: cklph-figma (contrast.mjs)
+      - name: cklph-figma (contrast.mjs, figma-audit.mjs)
         run: node --test plugins/cklph-figma/tests/*.test.mjs
       - name: cklph-nextjs dependency-cruiser reference (each rule fires on a fixture)
         working-directory: docs/proof/architecture/dependency-cruiser
