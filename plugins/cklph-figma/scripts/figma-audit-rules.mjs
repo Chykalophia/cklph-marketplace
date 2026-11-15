@@ -56,6 +56,9 @@ export const DEFAULTS = {
   maxGroups: 20,
   maxExamples: 3,
   repeatMin: 3,
+  exceptions: [],
+  // 'summary' reports unused text styles as one row; 'full' lists each (for the design-system page).
+  unusedStyles: 'summary',
   placeholder: /lorem ipsum|placeholder|\[[^\]]*(?:tbd|todo|copy|text|image)[^\]]*\]|\bTBD\b/i,
   wireframe: /wire ?frame|lo-?fi|\bwf\b/i,
   defaultName: /^(?:Frame|Group|Rectangle|Ellipse|Vector|Line|Polygon|Star|Image|Union|Subtract|Intersect|Exclude|Component|Instance)(?: \d+)?$/,
@@ -111,6 +114,97 @@ export function chunkBounds(str, maxBytes) {
   return out;
 }
 
+/**
+ * The scan result in its wire form: everything join can rebuild is left out (titles and fixes,
+ * group keys, screen names, the screen at the start of each layer path, nulls), because every
+ * byte returned from use_figma is copied by hand. expandScan is its exact inverse.
+ */
+export function compactScan(r) {
+  const screens = (r.scope && r.scope.screens) || {};
+  const box = (b) => (b ? [b.x, b.y, b.w, b.h] : undefined);
+  const findings = r.findings.map((f) => ({
+    r: f.rule, t: f.total, n: f.groupCount,
+    i: Object.fromEntries(Object.entries(f.index).map(([k, n]) => [k.slice(f.rule.length + 1), n])),
+    g: f.groups.map((g) => {
+      const w = { k: g.kind, id: g.id, nm: g.name, c: g.count };
+      const key = f.rule + '|' + g.kind + '|' + g.id + (g.family ? '|' + g.family : '');
+      if (g.key !== key) w.K = g.key;
+      if (g.screen) {
+        if (screens[g.screen.id] && screens[g.screen.id].name === g.screen.name) w.s = g.screen.id;
+        else w.S = g.screen;
+      }
+      if (g.family) w.f = g.family;
+      if (g.remote) w.rm = 1;
+      if (g.deleted) w.dl = 1;
+      if (g.layers !== undefined) w.ly = g.layers;
+      if (g.copies !== undefined) w.cp = g.copies;
+      if (g.values.length) w.v = g.values;
+      if (g.examples.length) {
+        w.x = g.examples.map((e) => {
+          const x = { id: e.id };
+          const pre = e.screenId && screens[e.screenId] ? screens[e.screenId].name + ' › ' : null;
+          if (pre && e.path.startsWith(pre)) x.p = e.path.slice(pre.length);
+          else x.P = e.path;
+          if (e.value != null) x.v = e.value;
+          if (e.bbox) x.b = box(e.bbox);
+          if (e.screenId) x.s = e.screenId;
+          if (e.layerId) x.l = e.layerId;
+          return x;
+        });
+      }
+      return w;
+    }),
+  }));
+  const out = { w: 1, version: r.version, options: r.options, counts: r.counts, findings };
+  if (r.ignored) out.ignored = r.ignored;
+  if (r.scope) out.scope = r.scope;
+  return out;
+}
+
+/** Rebuilds the full scan from compactScan's wire form; a full scan passes through as is. */
+export function expandScan(w) {
+  if (!w || w.w !== 1) return w;
+  const screens = (w.scope && w.scope.screens) || {};
+  const findings = w.findings.map((f) => {
+    const def = RULES[f.r];
+    if (!def) throw new Error('unknown rule in scan: ' + f.r);
+    return {
+      rule: f.r,
+      sev: def.sev,
+      title: fillTemplate(def.title, w.options),
+      fix: fillTemplate(def.fix, w.options),
+      total: f.t,
+      groupCount: f.n,
+      index: Object.fromEntries(Object.entries(f.i).map(([k, n]) => [f.r + '|' + k, n])),
+      groups: f.g.map((g) => {
+        const family = g.f || null;
+        const out = {
+          key: g.K || f.r + '|' + g.k + '|' + g.id + (family ? '|' + family : ''),
+          kind: g.k, id: g.id, name: g.nm,
+          screen: g.s ? { id: g.s, name: screens[g.s].name } : g.S || null,
+          family, count: g.c,
+        };
+        if (g.rm) out.remote = true;
+        if (g.dl) out.deleted = true;
+        if (g.ly !== undefined) out.layers = g.ly;
+        if (g.cp !== undefined) out.copies = g.cp;
+        out.values = g.v || [];
+        out.examples = (g.x || []).map((x) => {
+          const e = { id: x.id, path: x.P != null ? x.P : screens[x.s].name + ' › ' + x.p, value: x.v != null ? x.v : null, bbox: x.b ? { x: x.b[0], y: x.b[1], w: x.b[2], h: x.b[3] } : null, screenId: x.s || null };
+          if (x.l) e.layerId = x.l;
+          return e;
+        });
+        return out;
+      }),
+    };
+  });
+  const out = { version: w.version, options: w.options, counts: w.counts };
+  if (w.ignored) out.ignored = w.ignored;
+  out.findings = findings;
+  if (w.scope) out.scope = w.scope;
+  return out;
+}
+
 const roundBox = (b) => (b ? { x: Math.round(b.x), y: Math.round(b.y), w: Math.round(b.w), h: Math.round(b.h) } : null);
 
 // Icon internals: renaming, regrouping or auto-laying-out a 20px glyph helps nobody.
@@ -132,6 +226,73 @@ export function handSetFractions(f) {
 const isFraction = (v) => typeof v === 'number' && Math.abs(v - Math.round(v)) > 0.01;
 const rawPaint = (p) => p && p.type === 'SOLID' && p.visible !== false && (p.opacity == null || p.opacity > 0) && !p.bound;
 
+// Kinds an exception line can name, and the rules a kind applies to when the line names none.
+const EXCEPTION_KINDS = {
+  any: null, rule: null, text: null, layer: null, screen: null, component: null,
+  font: ['off-brand-font'], color: ['raw-color'], style: ['unused-text-style'], collection: ['unused-collection'],
+};
+const EXCEPTION_LINE = /^(?:ignore|allow|skip)\s*(?:(rule|text|layer|screen|component|font|colou?r|style|collection)s?)?\s*:\s*(.+)$/i;
+
+/**
+ * Parses an exceptions list, one per line: "ignore <kind>: <pattern>", optionally followed by
+ * " for <rule>, <rule>" and " because <note>". Kinds: rule, text, layer, screen, component,
+ * font, color, style, collection; with no kind the pattern is matched against text, layer
+ * path and component. A /pattern/ is a case-insensitive regex, anything else a substring.
+ * List markers, checkboxes, headings and blank lines are skipped. Returns { exceptions,
+ * unparsed }; unparsed lines are prose for the agent to turn into ignore lines.
+ */
+export function parseExceptions(text) {
+  const exceptions = [];
+  const unparsed = [];
+  for (const raw of String(text == null ? '' : text).split(/\r?\n/)) {
+    let line = raw.trim();
+    for (let prev = null; prev !== line;) { prev = line; line = line.replace(/^(?:[-*•+]|\d+[.)]|\[[ xX]?\])\s*/, ''); }
+    if (!line || /^#{1,6}\s|^#{1,6}$|^<!--|^-{3,}$|^={3,}$/.test(line)) continue;
+    const m = line.match(EXCEPTION_LINE);
+    if (!m) { unparsed.push(raw.trim()); continue; }
+    let kind = (m[1] || 'any').toLowerCase().replace('colour', 'color');
+    let body = m[2].trim();
+    let note = null;
+    const because = body.match(/\s+because\s+(.+)$/i);
+    if (because) { note = because[1].trim(); body = body.slice(0, because.index).trim(); }
+    let rules = null;
+    const scope = body.match(/\s+for\s+([a-z-]+(?:\s*,\s*[a-z-]+)*)$/i);
+    if (scope) {
+      const ids = scope[1].split(',').map((s) => s.trim().toLowerCase());
+      if (ids.every((id) => RULES[id])) { rules = ids; body = body.slice(0, scope.index).trim(); }
+    }
+    let pattern = body.replace(/^(["'`“])(.*)(["'`”])$/, '$2').trim();
+    let re = false;
+    if (kind === 'rule') {
+      const ids = pattern.split(',').map((s) => s.trim().toLowerCase());
+      if (!ids.every((id) => RULES[id])) { unparsed.push(raw.trim()); continue; }
+      exceptions.push({ kind, pattern: null, re: false, rules: ids, note, line });
+      continue;
+    }
+    const rx = pattern.match(/^\/(.+)\/i?$/);
+    if (rx) {
+      try { new RegExp(rx[1], 'i'); } catch (e) { unparsed.push(raw.trim()); continue; }
+      pattern = rx[1];
+      re = true;
+    }
+    if (!pattern) { unparsed.push(raw.trim()); continue; }
+    exceptions.push({ kind, pattern, re, rules: rules || (EXCEPTION_KINDS[kind] ? EXCEPTION_KINDS[kind].slice() : null), note, line });
+  }
+  return { exceptions, unparsed };
+}
+
+const exceptionShape = (list) => JSON.stringify((list || []).map((e) => [e.kind, e.pattern, !!e.re, (e.rules || []).slice().sort()]));
+
+function patternTest(e) {
+  if (e.pattern == null) return () => true;
+  if (e.re) {
+    const r = new RegExp(e.pattern, 'i');
+    return (s) => s != null && r.test(String(s));
+  }
+  const p = String(e.pattern).toLowerCase();
+  return (s) => s != null && String(s).toLowerCase().includes(p);
+}
+
 /** Fills {minFont} and {fonts} in a rule's title or fix text. */
 export function fillTemplate(text, opts) {
   return text
@@ -151,8 +312,44 @@ export function createAudit(options) {
   const familyCounts = new Map();
   const variableUses = new Map();
   const styleUses = new Map();
+  const exceptions = (o.exceptions || []).map((e) => ({ ...e, test: patternTest(e) }));
+  const exceptionHits = exceptions.map(() => 0);
+  // Off-brand hits are only known after the brand set is settled in finish, so skips wait here.
+  const fontSkips = new Map();
+  const ignoredFrames = new Map();
   let nodes = 0;
   let texts = 0;
+
+  function exceptionFor(rule, fact, value, family) {
+    const text = fact.text ? fact.text.chars : null;
+    const comps = (fact.via ? [fact.via.name] : []).concat(fact.main ? [fact.main.name, fact.main.setName] : []);
+    const path = fact.path || [];
+    for (let i = 0; i < exceptions.length; i++) {
+      const e = exceptions[i];
+      if (e.rules && !e.rules.includes(rule)) continue;
+      const t = e.test;
+      let ok = false;
+      if (e.kind === 'rule') ok = true;
+      else if (e.kind === 'text') ok = t(text);
+      else if (e.kind === 'layer') ok = path.some(t);
+      else if (e.kind === 'screen') ok = t(fact.screen ? fact.screen.name : fact.isScreen ? fact.name : null);
+      else if (e.kind === 'component') ok = comps.some(t);
+      else if (e.kind === 'font') ok = t(family);
+      else if (e.kind === 'color') ok = t(value);
+      else if (e.kind === 'any') ok = t(text) || path.some(t) || comps.some(t);
+      if (ok) return i;
+    }
+    return -1;
+  }
+
+  function fileExceptionFor(rule, name) {
+    for (let i = 0; i < exceptions.length; i++) {
+      const e = exceptions[i];
+      if (e.rules && !e.rules.includes(rule)) continue;
+      if (e.kind === 'rule' || (['style', 'collection', 'any'].includes(e.kind) && e.test(name))) return i;
+    }
+    return -1;
+  }
 
   function target(rule, fact) {
     if (fact.via && COMPONENT_SCOPED.has(rule)) {
@@ -164,6 +361,12 @@ export function createAudit(options) {
   }
 
   function hit(rule, fact, value, family) {
+    const ix = exceptionFor(rule, fact, value, family);
+    if (ix >= 0) {
+      if (rule === 'off-brand-font') fontSkips.set(ix + '|' + family, (fontSkips.get(ix + '|' + family) || 0) + 1);
+      else exceptionHits[ix]++;
+      return;
+    }
     const t = target(rule, fact);
     const key = rule + '|' + t.kind + '|' + t.id + (family ? '|' + family : '');
     let g = groups.get(key);
@@ -189,7 +392,7 @@ export function createAudit(options) {
     const can = (rule) => !(inside && SKIP_INSIDE_INSTANCE.has(rule));
 
     if (fact.visible === false) {
-      if (can('hidden-layer')) hit('hidden-layer', fact, fact.type);
+      if (can('hidden-layer')) hit('hidden-layer', fact, fact.zeroOpacity ? fact.type + ', 0% opacity' : fact.type);
       return;
     }
 
@@ -242,7 +445,11 @@ export function createAudit(options) {
       const sig = frameSignature(fact);
       let e = framesByName.get(sig);
       if (!e) { e = new Map(); framesByName.set(sig, e); }
-      if (!e.has(fact.screen.id)) e.set(fact.screen.id, fact);
+      if (!e.has(fact.screen.id)) {
+        e.set(fact.screen.id, fact);
+        const ix = exceptionFor('repeated-frame', fact, null, null);
+        if (ix >= 0) ignoredFrames.set(fact.id, ix);
+      }
     }
     if (!inside && fact.type === 'INSTANCE' && fact.parentIsScreen && fact.main && fact.screen) {
       const k = fact.screen.id + '|' + fact.main.id;
@@ -263,9 +470,25 @@ export function createAudit(options) {
     }
     const brand = new Set(fonts.map((x) => x.toLowerCase()));
     for (const [key, g] of groups) if (g.rule === 'off-brand-font' && brand.has(String(g.family).toLowerCase())) groups.delete(key);
+    for (const [k, n] of fontSkips) {
+      const cut = k.indexOf('|');
+      if (!brand.has(k.slice(cut + 1).toLowerCase())) exceptionHits[Number(k.slice(0, cut))] += n;
+    }
 
-    const repeated = [...framesByName.entries()].filter(([, byScreen]) => byScreen.size >= o.repeatMin);
-    const repeatedIds = new Set(repeated.flatMap(([, byScreen]) => [...byScreen.values()].map((x) => x.id)));
+    // A frame an exception covers still counts toward the repeat, so ignoring one copy does not
+    // hide the others; it is only left out of the report.
+    const repeated = [];
+    const repeatedIds = new Set();
+    for (const [sig, byScreen] of framesByName) {
+      if (byScreen.size < o.repeatMin) continue;
+      const kept = new Map();
+      for (const [sid, x] of byScreen) {
+        repeatedIds.add(x.id);
+        if (ignoredFrames.has(x.id)) exceptionHits[ignoredFrames.get(x.id)]++;
+        else kept.set(sid, x);
+      }
+      if (kept.size) repeated.push([sig, kept]);
+    }
     // Detection needs name, size and children to match; the key is the name alone, so a 1px
     // resize between audits still reads as the same finding in a recheck.
     const byName = new Map();
@@ -301,15 +524,35 @@ export function createAudit(options) {
     const fileFindings = [];
     if (anyBound) {
       for (const c of collections) {
-        if (bindings.get(c.id) === 0) fileFindings.push({ rule: 'unused-collection', id: c.id, name: c.name, value: c.variableCount + ' variables' });
+        if (bindings.get(c.id) !== 0) continue;
+        const ix = fileExceptionFor('unused-collection', c.name);
+        if (ix >= 0) { exceptionHits[ix]++; continue; }
+        fileFindings.push({ rule: 'unused-collection', id: c.id, name: c.name, value: c.variableCount + ' variables' });
       }
     }
+    const unusedStyles = [];
     for (const s of f.textStyles || []) {
-      if (!styleUses.has(s.id)) fileFindings.push({ rule: 'unused-text-style', id: s.id, name: s.name, value: s.family || null });
+      if (styleUses.has(s.id)) continue;
+      const ix = fileExceptionFor('unused-text-style', s.name);
+      if (ix >= 0) { exceptionHits[ix]++; continue; }
+      unusedStyles.push(s);
     }
+    if (o.unusedStyles === 'full') {
+      for (const s of unusedStyles) fileFindings.push({ rule: 'unused-text-style', id: s.id, name: s.name, value: s.family || null });
+    }
+    const fileGroup = (rule, id, name, count, values) => ({ key: rule + '|file|' + id, rule, kind: 'file', id, name, screen: null, family: null, count, layers: new Set(), copies: new Set(), values, examples: [] });
     for (const ff of fileFindings) {
-      const key = ff.rule + '|file|' + ff.id;
-      groups.set(key, { key, rule: ff.rule, kind: 'file', id: ff.id, name: ff.name, screen: null, family: null, count: 1, layers: new Set(), copies: new Set(), values: new Map(ff.value ? [[ff.value, 1]] : []), examples: [] });
+      const g = fileGroup(ff.rule, ff.id, ff.name, 1, new Map(ff.value ? [[ff.value, 1]] : []));
+      groups.set(g.key, g);
+    }
+    // Text styles are file-wide, so most are used on some other page; one row with a count is
+    // enough unless this is the page that holds the system.
+    if (o.unusedStyles !== 'full' && unusedStyles.length) {
+      const shown = unusedStyles.slice(0, 3).map((s) => s.name);
+      const more = unusedStyles.length - shown.length;
+      const name = unusedStyles.length + (unusedStyles.length === 1 ? ' text style' : ' text styles') + ', e.g. ' + shown.join(', ') + (more > 0 ? ' and ' + more + ' more' : '');
+      const g = fileGroup('unused-text-style', '*', name, unusedStyles.length, new Map());
+      groups.set(g.key, g);
     }
 
     const byRule = new Map();
@@ -341,8 +584,13 @@ export function createAudit(options) {
 
     return {
       version: 1,
-      options: { minFont: o.minFont, fonts, fontsInferred, maxGroups: o.maxGroups, repeatMin: o.repeatMin },
+      options: {
+        minFont: o.minFont, fonts, fontsInferred, maxGroups: o.maxGroups, repeatMin: o.repeatMin,
+        unusedStyles: o.unusedStyles,
+        exceptions: exceptions.map((e) => ({ kind: e.kind, pattern: e.pattern, re: !!e.re, rules: e.rules || null, note: e.note || null, line: e.line || null })),
+      },
       counts: { nodes, texts, families: Object.fromEntries(familyCounts), bindingsOnPage: anyBound },
+      ignored: exceptionHits,
       findings,
     };
   }
@@ -390,6 +638,9 @@ export function scanMismatch(prev, curr) {
   if (po.minFont !== co.minFont) out.push('--min-font ' + po.minFont + ' vs ' + co.minFont);
   if (!sameList(po.fonts, co.fonts)) out.push('brand fonts "' + (po.fonts || []).join(', ') + '" vs "' + (co.fonts || []).join(', ') + '"');
   if (po.repeatMin != null && co.repeatMin != null && po.repeatMin !== co.repeatMin) out.push('--repeat-min ' + po.repeatMin + ' vs ' + co.repeatMin);
+  // Scans from before these options existed listed every unused style and ignored nothing.
+  if ((po.unusedStyles || 'full') !== (co.unusedStyles || 'full')) out.push('--unused-styles ' + (po.unusedStyles || 'full') + ' vs ' + (co.unusedStyles || 'full'));
+  if (exceptionShape(po.exceptions) !== exceptionShape(co.exceptions)) out.push('exceptions');
   const ps = prev.scope;
   const cs = curr.scope;
   if (ps && cs) {

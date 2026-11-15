@@ -3,6 +3,36 @@
 All notable changes to `cklph-figma` are documented here.
 Format: [Keep a Changelog](https://keepachangelog.com); versioning follows [SemVer](https://semver.org).
 
+## [0.5.0] - 2026-11-15
+
+From the first real-file run (A Safe Place, Dev Hand-off page, 27 screens).
+
+### Added
+- Exceptions list: an optional list of things to leave alone, from a ClickUp task or doc, a
+  Google Doc, a local file or a message, formatted or as prose. `ignore <kind>: <pattern>` lines,
+  kinds text, layer, screen, component, font, color, style, collection and rule, with optional
+  `for <rule>` and `because <reason>`. The `exceptions` command shows how a file parses; the agent
+  rewrites prose as ignore lines and shows the list before scanning. `script --exceptions FILE`
+  and `--allow TEXT` apply it. The report lists each exception with the problems it hid and flags
+  any that matched nothing. `--like` carries exceptions into a recheck.
+- `contact-sheet`: tiles every screenshot nine to a sheet, and the skill now checks all of them
+  before publishing instead of two or three.
+- `--unused-styles full|summary`.
+
+### Changed
+- Unused text styles are one row with a count by default; they are file-wide and usually used on
+  other pages. `--unused-styles full` lists each, for the design-system page.
+- The scan returns a compact form that `join` expands, as one plain object when it fits. The
+  A Safe Place scan went from 42 KB to 24 KB to copy.
+- A recheck also refuses scans made with different exceptions or unused-styles mode.
+
+### Fixed
+- A layer at 0% opacity counts as hidden. Four invisible image placeholders were reported as
+  11px text, an off-brand font and hardcoded greys, with screenshots boxing empty space.
+- Hidden layers get a dashed outline and a caption saying they are hidden.
+- Captions are cut at a word with an ellipsis; a box that is the whole section says so; the
+  report says "1 more place".
+
 ## [0.4.0] - 2026-11-13
 
 ### Added

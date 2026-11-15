@@ -16,6 +16,10 @@ const layoutRead = (n, key) => {
 };
 const layoutModeOf = (n) => layoutRead(n, 'layoutMode');
 const childLayout = layoutRead;
+// A layer at 0% opacity is as invisible as a hidden one, though its visible flag says otherwise.
+const opacityOf = (n) => {
+  try { return typeof n.opacity === 'number' ? n.opacity : 1; } catch (e) { return 1; }
+};
 
 const hex = (c) => '#' + [c.r, c.g, c.b].map((v) => Math.round(v * 255).toString(16).padStart(2, '0')).join('').toUpperCase();
 
@@ -97,9 +101,10 @@ async function scan(page, params) {
   async function walk(node, ctx) {
     const isScreen = ctx.depth === 0;
     const b = node.absoluteBoundingBox;
+    const zeroOpacity = node.visible !== false && opacityOf(node) <= 0.001;
     const fact = {
       id: node.id, name: node.name, type: node.type,
-      visible: node.visible !== false,
+      visible: node.visible !== false && !zeroOpacity, zeroOpacity,
       x: node.x, y: node.y, w: node.width, h: node.height,
       bbox: b ? { x: b.x, y: b.y, w: b.width, h: b.height } : null,
       screen: ctx.screen, section: ctx.section, path: ctx.path.concat(node.name), ancestorIds: ctx.ancestors,
@@ -221,11 +226,19 @@ async function scan(page, params) {
       return [s.id, { name: s.name, bbox: b ? { x: Math.round(b.x), y: Math.round(b.y), w: Math.round(b.width), h: Math.round(b.height) } : null }];
     })),
   };
-  // use_figma refuses a return value over 48,000 bytes, so the result always comes back in
-  // hashed chunks small enough to survive JSON string escaping. figma-audit.mjs join rebuilds it.
-  const json = JSON.stringify(result);
-  const bounds = chunkBounds(json, params.chunkBytes || 44000);
+  // use_figma refuses a return value over 48,000 bytes. A scan that fits comes back as one plain
+  // object; a string chunk would escape every quote and cost a fifth more to copy. A bigger scan
+  // comes back in hashed chunks small enough to survive that escaping. figma-audit.mjs join
+  // rebuilds either.
+  const json = JSON.stringify(compactScan(result));
+  const limit = params.chunkBytes || 44000;
   const part = params.part || 0;
+  const hash = fnv1a(json);
+  if (utf8Length(json) <= limit) {
+    if (part) throw new Error('part ' + part + ' asked for, but the scan has 1 part');
+    return { figmaAudit: 1, part: 0, parts: 1, hash, scan: JSON.parse(json) };
+  }
+  const bounds = chunkBounds(json, limit);
   if (part >= bounds.length) throw new Error('part ' + part + ' asked for, but the scan has ' + bounds.length + ' parts');
-  return { figmaAudit: 1, part, parts: bounds.length, hash: fnv1a(json), chunk: json.slice(bounds[part][0], bounds[part][1]) };
+  return { figmaAudit: 1, part, parts: bounds.length, hash, chunk: json.slice(bounds[part][0], bounds[part][1]) };
 }
