@@ -14,8 +14,9 @@ From the first real-file run (A Safe Place, Dev Hand-off page, 27 screens).
   `for <rule>` and `because <reason>`. The `exceptions` command shows how a file parses; the agent
   rewrites prose as ignore lines and shows the list before scanning. `script --exceptions FILE`
   and `--allow TEXT` apply it. The report lists each exception with the problems it hid and flags
-  any that matched nothing. `--like` carries exceptions into a recheck. Patterns ignore case and
-  spacing, since the real footer credit reads "Website by C H Y K A L O P H I A".
+  any that matched nothing. `--like` carries exceptions into a recheck. Patterns ignore case, and
+  a text pattern of eight characters or more also ignores spacing, since the real footer credit
+  reads "Website by C H Y K A L O P H I A".
 - `contact-sheet`: tiles every screenshot nine to a sheet, and the skill now checks all of them
   before publishing instead of two or three.
 - `--unused-styles full|summary`.
@@ -26,16 +27,18 @@ From the first real-file run (A Safe Place, Dev Hand-off page, 27 screens).
 - The scan returns a compact form that `join` expands, as one plain object when it fits. The
   A Safe Place scan went from 42 KB to 24 KB to copy, and at `--max-groups 6 --max-examples 3`
   it now fits one part (29 KB) where it took two.
-- A recheck also refuses scans made with different exceptions or unused-styles mode, and scans
-  made by an older scanner (scan version 2): 0.4.0 read 0% opacity layers as visible, so a recheck
-  of an unchanged file would have called those rows fixed. Run a fresh audit instead.
-- A recheck says "Now covered by an exception" when a renamed layer falls under an exception,
-  instead of "Fixed".
+- Scans now carry version 2. A recheck also refuses scans made with different exceptions or
+  unused-styles mode, and any scan from 0.4.0 (version 1): 0.4.0 read 0% opacity layers as
+  visible, so a recheck of an unchanged file would have called those rows fixed. Run a fresh
+  audit instead.
+- A recheck says "Now covered by an exception" when fewer problems show in a place because an
+  exception now hides some there, instead of "Fixed".
 - Exceptions: `layer` no longer matches the screen name, `font` matches the whole family, a
-  pattern needs three letters, a quoted pattern keeps " for " and " because ", nested-repeat
-  regexes are refused, and `text` also names hidden text layers. Counts are exact, and the report
-  breaks them down by rule, flags a line that hides a quarter of everything, and tells a line that
-  a line above covers from a typo. `--allow` refuses what it cannot use.
+  `color` line matches only the flagged paint, a pattern needs three characters, a quoted pattern
+  (straight or curly quotes) keeps " for " and " because ", a regex may not repeat a group, and
+  `text` also names hidden text layers. Counts are exact, and the report breaks them down by rule,
+  flags a line that hides ten or more problems and over a quarter of everything, and tells a line
+  that a line above covers from a typo. `--allow` refuses what it cannot use.
 - Exceptions travel to Figma as their lines and indentation is stripped from the scan script,
   which leaves room for a 45-line list under the 50,000 character limit. `--chunk-bytes` lowers
   the part size if use_figma ever refuses one.

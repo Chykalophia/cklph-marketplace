@@ -1347,6 +1347,38 @@ test('the compact form keeps a screen outside the scope and a path that does not
   assert.deepStrictEqual(expandScan(JSON.parse(JSON.stringify(compactScan(scan)))), JSON.parse(JSON.stringify(scan)));
 });
 
+test('a color exception hides only the color it names, not another paint on the layer', () => {
+  const rect = textFactAt({
+    id: '2:97', name: 'swatch', type: 'RECTANGLE', text: null, w: 100, h: 100,
+    fills: [{ type: 'SOLID', visible: true, opacity: 1, hex: '#FF0000', bound: false }],
+    strokes: [{ type: 'SOLID', visible: true, opacity: 1, hex: '#A2A2A2', bound: true }],
+  });
+  const a = createAudit({ fonts: ['Brand Sans'], exceptions: parseExceptions('ignore color: #A2A2A2').exceptions });
+  a.visit(rect);
+  const scan = a.finish({});
+  assert.equal(scan.findings.find((f) => f.rule === 'raw-color').total, 1, 'the raw red fill is still reported');
+  assert.equal(scan.ignored[0], 0);
+});
+
+test('a repeated group is refused at any depth, plain groups are fine', () => {
+  const { exceptions, unparsed } = parseExceptions('ignore layer: /((a+))+$/\nignore layer: /(a|aa)+$/\nignore layer: /^(nav|menu)$/');
+  assert.deepEqual(unparsed, ['ignore layer: /((a+))+$/', 'ignore layer: /(a|aa)+$/']);
+  assert.deepEqual(exceptions.map((e) => e.pattern), ['^(nav|menu)$']);
+});
+
+test('curly single quotes from Docs or ClickUp count as quotes', () => {
+  const { exceptions } = parseExceptions('ignore text: ‘We exist because you matter’ because tagline');
+  assert.deepEqual([exceptions[0].pattern, exceptions[0].note], ['We exist because you matter', 'tagline']);
+});
+
+test('contact-sheet can write into the folder it tiles, run after run', { skip: !hasMagick && 'needs ImageMagick 7' }, () => {
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'figma-audit-sheet-in-'));
+  for (let i = 1; i <= 3; i++) execFileSync('magick', ['-size', '200x120', 'xc:#dddddd', path.join(dir, i + '-raw-color-abc123.png')]);
+  contactSheet(dir, path.join(dir, 'sheet.png'));
+  const second = contactSheet(dir, path.join(dir, 'sheet.png'));
+  assert.equal(second.shots, 3, 'the old sheet is not tiled in');
+});
+
 test('the report says "1 more place", not "1 more places"', async () => {
   const { scan } = await runScan({ maxGroups: 1 });
   const f = scan.findings.find((x) => x.groupCount === x.groups.length + 1);

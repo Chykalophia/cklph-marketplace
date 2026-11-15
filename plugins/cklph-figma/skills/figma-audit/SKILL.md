@@ -194,8 +194,9 @@ When the designers say they are done:
    `scan-<date>.json`.
 
 Statuses: still open, fewer but not done, new, fixed, "layer removed" (the flagged section is
-gone, which usually means it was rebuilt or deleted), "now covered by an exception" (still in the
-file, but renamed or changed so an exception on the list hides it), and "not checkable now" (an
+gone, which usually means it was rebuilt or deleted), "now covered by an exception" (fewer show in
+that place because an exception now hides some; fixed or renamed, check in Figma), and "not
+checkable now" (an
 unused variable collection, when nothing on the page is bound to any variable any more). The
 recheck page has no screenshots; for a fresh fix list of what is left, run a new audit instead.
 

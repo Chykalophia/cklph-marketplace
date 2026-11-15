@@ -253,7 +253,8 @@ export function parseExceptions(text) {
     const body = m[2].trim();
     // A quoted pattern is taken literally, so copy like "We exist because you matter" keeps its
     // "because"; only what follows the closing quote is read as " for ..." and " because ...".
-    const quoted = body.match(/^(["'`“])(.+?)(["'`”])(?=\s|$)(.*)$/);
+    // Docs and ClickUp turn straight quotes into curly ones, so those count as quotes too.
+    const quoted = body.match(/^(["'`“‘«„])(.+?)(["'`”’»“])(?=\s|$)(.*)$/);
     let rest = quoted ? quoted[4] : body;
     let note = null;
     const because = rest.match(/(?:^|\s+)because\s+(.+)$/i);
@@ -275,8 +276,9 @@ export function parseExceptions(text) {
     }
     const rx = quoted ? null : pattern.match(/^\/(.+)\/i?$/);
     if (rx) {
-      // A nested quantifier such as (a+)+ can backtrack for minutes and hang use_figma.
-      if (rx[1].length > 200 || /\([^)]*[+*][^)]*\)\s*[+*{]/.test(rx[1])) { unparsed.push(raw.trim()); continue; }
+      // A repeated group such as (a+)+ or (a|aa)+ can backtrack for minutes and hang use_figma,
+      // and nesting hides it from any simple check, so no group may be repeated at all.
+      if (rx[1].length > 200 || /\)\s*[+*?{]/.test(rx[1])) { unparsed.push(raw.trim()); continue; }
       try { new RegExp(rx[1], 'i'); } catch (e) { unparsed.push(raw.trim()); continue; }
       pattern = rx[1];
       re = true;
@@ -375,7 +377,9 @@ export function createAudit(options) {
     // whole screen whose name happens to contain it.
     const path = (fact.path || []).slice(fact.screen || fact.isScreen ? 1 : 0);
     const families = family ? [family] : fact.text ? (fact.text.segments || []).map((s) => s.family) : [];
-    const colors = [value].concat((fact.fills || []).concat(fact.strokes || []).map((p) => p.hex));
+    // For a hardcoded color the flagged paint is the one to match; another paint on the same
+    // layer (a white stroke, say) must not hide it. Other rules look at every paint.
+    const colors = rule === 'raw-color' ? [String(value).replace(/ border$/, '')] : (fact.fills || []).concat(fact.strokes || []).map((p) => p.hex);
     let first = -1;
     for (let i = 0; i < exceptions.length; i++) {
       const e = exceptions[i];

@@ -420,7 +420,7 @@ export function renderRecheck(rows, meta) {
   const out = ['# Recheck ' + (m.date || new Date().toISOString().slice(0, 10)), ''];
   out.push(STATUS_ORDER.filter((s) => tally[s]).map((s) => STATUS_LABEL[s] + ': ' + tally[s]).join(' · '), '');
   out.push('"Layer removed" means the flagged section is gone, which usually means it was fixed by deleting or rebuilding it.', '');
-  if (tally.excepted) out.push('"Now covered by an exception" means the problem is still in the file, but a layer was renamed or changed so that an exception on the list now hides it. Check that is intended.', '');
+  if (tally.excepted) out.push('"Now covered by an exception" means fewer problems show in that place, but an exception on the list now hides some there. They may have been fixed, or renamed into the exception; check in Figma.', '');
   if (tally.unchecked) out.push('"Not checkable now" means nothing on the page is bound to a variable any more, so an unused collection can no longer be told apart from the one in use.', '');
   out.push('| Status | What | Where | Before | Now |');
   out.push('| --- | --- | --- | --- | --- |');
@@ -517,14 +517,15 @@ const SHEET_PER_PAGE = 9;
  * from an earlier run, so a stale sheet is never the one checked.
  */
 export function contactSheet(dir, out) {
+  const base = path.resolve(out.replace(/\.png$/i, ''));
+  const stale = new RegExp('^' + path.basename(base).replace(/[.*+?^${}()|[\]\\]/g, '\\$&') + '-\\d+\\.png$');
+  for (const f of fs.readdirSync(path.dirname(base))) if (stale.test(f)) fs.unlinkSync(path.join(path.dirname(base), f));
+  // Listed after the old sheets are gone, so a sheet written inside dir is never tiled into the next one.
   const files = fs.readdirSync(dir).filter((f) => f.toLowerCase().endsWith('.png')).sort((a, b) => parseInt(a, 10) - parseInt(b, 10) || a.localeCompare(b));
   if (!files.length) throw new Error('no PNG files in ' + dir);
   const font = CAPTION_FONTS.find((f) => fs.existsSync(f));
   const pages = [];
   for (let i = 0; i < files.length; i += SHEET_PER_PAGE) pages.push(files.slice(i, i + SHEET_PER_PAGE));
-  const base = path.resolve(out.replace(/\.png$/i, ''));
-  const stale = new RegExp('^' + path.basename(base).replace(/[.*+?^${}()|[\]\\]/g, '\\$&') + '-\\d+\\.png$');
-  for (const f of fs.readdirSync(path.dirname(base))) if (stale.test(f)) fs.unlinkSync(path.join(path.dirname(base), f));
   const written = [];
   pages.forEach((page, n) => {
     const target = base + '-' + (n + 1) + '.png';
