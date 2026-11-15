@@ -129,7 +129,8 @@ caption saying so, since there is nothing to see inside it. Needs ImageMagick 7 
 node S contact-sheet --dir shots --out sheet.png
 ```
 
-It tiles the shots nine to a sheet (`sheet-1.png`, `sheet-2.png`, ...). Read each sheet and ask of
+It tiles the shots nine to a sheet (`sheet-1.png`, `sheet-2.png`, ...) and deletes sheets left from
+an earlier run, so the one you read is current. Read each sheet and ask of
 every tile: does the box frame the problem the row describes, and can a designer see it? A solid
 box around empty space means the scan thought something was visible that is not; drop that
 screenshot and find out why before publishing. Boxes also assume the render starts at the frame's
@@ -182,6 +183,9 @@ When the designers say they are done:
    exceptions and unused-styles mode. `recheck` refuses two scans made with different settings,
    because a count that drops when `--min-font` changes, the inferred brand fonts shift or a new
    exception hides it is not a fix. To add exceptions, run a fresh audit instead of a recheck.
+   A scan made by an older version of this skill cannot be rechecked: its rules differ (0.5.0
+   treats a layer at 0% opacity as hidden, for one), so unchanged problems would read as fixed.
+   `--like` and `recheck` both refuse it; run a fresh audit and start a new doc page.
 3. Check whether the earlier nodes still exist: `node S exists-script --from old.json`, run it,
    save as `exists-old-0.json` (and `exists-old-1.json`… if stderr says there are more parts).
 4. `node S recheck --prev old.json --curr new.json --exists exists-old-0.json[,exists-old-1.json…] --file-key KEY > recheck.md`.
@@ -190,9 +194,10 @@ When the designers say they are done:
    `scan-<date>.json`.
 
 Statuses: still open, fewer but not done, new, fixed, "layer removed" (the flagged section is
-gone, which usually means it was rebuilt or deleted), and "not checkable now" (an unused variable
-collection, when nothing on the page is bound to any variable any more). The recheck page has no screenshots; for a
-fresh fix list of what is left, run a new audit instead.
+gone, which usually means it was rebuilt or deleted), "now covered by an exception" (still in the
+file, but renamed or changed so an exception on the list hides it), and "not checkable now" (an
+unused variable collection, when nothing on the page is bound to any variable any more). The
+recheck page has no screenshots; for a fresh fix list of what is left, run a new audit instead.
 
 ## Known limits
 

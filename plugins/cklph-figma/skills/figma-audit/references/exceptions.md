@@ -17,24 +17,33 @@ headings and blank lines are skipped, so the list can sit inside a normal task o
 
 | Kind | Matches | Applies to |
 | --- | --- | --- |
-| *(none)*, e.g. `ignore: chykalophia` | the text, any layer name on the path, or the component name | every rule |
-| `text` | what a text layer says | every rule |
-| `layer` | any layer name on the path, so a frame takes everything inside it | every rule |
+| *(none)*, e.g. `ignore: chykalophia` | the text, any layer name on the path, the component name, or a text style or collection name | every rule |
+| `text` | what a text layer says, hidden text layers included | every rule |
+| `layer` | any layer name on the path below the screen, so a frame takes everything inside it | every rule |
 | `screen` | the screen name | every rule |
 | `component` | the component a layer belongs to | every rule |
-| `font` | the font family | off-brand font |
+| `font` | the whole font family name: `Inter` does not cover "Inter Tight" | off-brand font |
 | `color` | the hex value, e.g. `#A2A2A2` | hardcoded color |
 | `style` | a text style name | unused text style |
 | `collection` | a variable collection name | unused collection |
 | `rule` | a rule id, or several separated by commas | that rule everywhere |
 
-Patterns match anywhere in the name, ignoring case and spacing: `Website by Chykalophia` also
-matches "Website by C H Y K A L O P H I A", where a designer spaced the letters by hand. Put a
-pattern in slashes for a regular expression: `ignore screen: /^Navigation/`. Rule ids are in
+Patterns match anywhere in the name, ignoring case, and need at least three letters: one or two
+match nearly every layer. In text, a pattern of eight letters or more also ignores spacing, so
+`Website by Chykalophia` matches "Website by C H Y K A L O P H I A", where a designer spaced the
+letters by hand. The screen name is not part of a `layer` path; use `screen` for that.
+
+Put a pattern in slashes for a regular expression: `ignore screen: /^Navigation/`. To match text
+that really has slashes in it, such as `/blog/`, quote it: `ignore text: "/blog/"`. A regular
+expression with a nested repeat like `(a+)+` is refused, because it can hang Figma. Rule ids are in
 [rules.md](rules.md).
 
 `for small-text, raw-color` limits a line to those rules. `because ...` is kept as the reason and
-shown in the report.
+shown in the report. When the pattern itself contains " for " or " because ", quote it:
+`ignore text: "We exist because you matter" because tagline`.
+
+When two lines match the same layer, the first one gets it. The report then says the second line
+left nothing out because a line above covers it, rather than calling it a typo.
 
 ## Example
 
@@ -60,6 +69,9 @@ ignore screen: Navigation — Mobile — Open because the open-menu frame is jus
 
 ## What the report shows
 
-An "Ignored on purpose" section lists every line with how many problems it hid. A line that hid
-nothing is flagged, since that is usually a typo. Exceptions are part of a scan's settings:
+An "Ignored on purpose" section lists every line with how many problems it hid, by rule. A line
+that matched nothing is flagged, since that is usually a typo, and a line that hides a quarter or
+more of everything is flagged as possibly too broad. Exceptions are part of a scan's settings:
 `script --like` carries them into a recheck, and a recheck with different exceptions is refused.
+If a layer is renamed so that an existing exception now covers it, the recheck says "Now covered
+by an exception" instead of "Fixed".

@@ -156,8 +156,7 @@ export function compactScan(r) {
     }),
   }));
   const out = { w: 1, version: r.version, options: r.options, counts: r.counts, findings };
-  if (r.ignored) out.ignored = r.ignored;
-  if (r.scope) out.scope = r.scope;
+  for (const k of ['ignored', 'ignoredDetail', 'hiddenKeys', 'scope']) if (r[k]) out[k] = r[k];
   return out;
 }
 
@@ -201,7 +200,7 @@ export function expandScan(w) {
   const out = { version: w.version, options: w.options, counts: w.counts };
   if (w.ignored) out.ignored = w.ignored;
   out.findings = findings;
-  if (w.scope) out.scope = w.scope;
+  for (const k of ['ignoredDetail', 'hiddenKeys', 'scope']) if (w[k]) out[k] = w[k];
   return out;
 }
 
@@ -250,18 +249,23 @@ export function parseExceptions(text) {
     if (!line || /^#{1,6}\s|^#{1,6}$|^<!--|^-{3,}$|^={3,}$/.test(line)) continue;
     const m = line.match(EXCEPTION_LINE);
     if (!m) { unparsed.push(raw.trim()); continue; }
-    let kind = (m[1] || 'any').toLowerCase().replace('colour', 'color');
-    let body = m[2].trim();
+    const kind = (m[1] || 'any').toLowerCase().replace('colour', 'color');
+    const body = m[2].trim();
+    // A quoted pattern is taken literally, so copy like "We exist because you matter" keeps its
+    // "because"; only what follows the closing quote is read as " for ..." and " because ...".
+    const quoted = body.match(/^(["'`“])(.+?)(["'`”])(?=\s|$)(.*)$/);
+    let rest = quoted ? quoted[4] : body;
     let note = null;
-    const because = body.match(/\s+because\s+(.+)$/i);
-    if (because) { note = because[1].trim(); body = body.slice(0, because.index).trim(); }
+    const because = rest.match(/(?:^|\s+)because\s+(.+)$/i);
+    if (because) { note = because[1].trim(); rest = rest.slice(0, because.index); }
     let rules = null;
-    const scope = body.match(/\s+for\s+([a-z-]+(?:\s*,\s*[a-z-]+)*)$/i);
+    const scope = rest.match(/(?:^|\s+)for\s+([a-z-]+(?:\s*,\s*[a-z-]+)*)\s*$/i);
     if (scope) {
       const ids = scope[1].split(',').map((s) => s.trim().toLowerCase());
-      if (ids.every((id) => RULES[id])) { rules = ids; body = body.slice(0, scope.index).trim(); }
+      if (ids.every((id) => RULES[id])) { rules = ids; rest = rest.slice(0, scope.index); }
     }
-    let pattern = body.replace(/^(["'`“])(.*)(["'`”])$/, '$2').trim();
+    if (quoted && rest.trim()) { unparsed.push(raw.trim()); continue; }
+    let pattern = quoted ? quoted[2] : rest.trim();
     let re = false;
     if (kind === 'rule') {
       const ids = pattern.split(',').map((s) => s.trim().toLowerCase());
@@ -269,13 +273,16 @@ export function parseExceptions(text) {
       exceptions.push({ kind, pattern: null, re: false, rules: ids, note, line });
       continue;
     }
-    const rx = pattern.match(/^\/(.+)\/i?$/);
+    const rx = quoted ? null : pattern.match(/^\/(.+)\/i?$/);
     if (rx) {
+      // A nested quantifier such as (a+)+ can backtrack for minutes and hang use_figma.
+      if (rx[1].length > 200 || /\([^)]*[+*][^)]*\)\s*[+*{]/.test(rx[1])) { unparsed.push(raw.trim()); continue; }
       try { new RegExp(rx[1], 'i'); } catch (e) { unparsed.push(raw.trim()); continue; }
       pattern = rx[1];
       re = true;
     }
-    if (!pattern) { unparsed.push(raw.trim()); continue; }
+    // One or two letters match nearly every layer, which hides real problems.
+    if (!pattern || (!re && pattern.replace(/\s+/g, '').length < 3)) { unparsed.push(raw.trim()); continue; }
     exceptions.push({ kind, pattern, re, rules: rules || (EXCEPTION_KINDS[kind] ? EXCEPTION_KINDS[kind].slice() : null), note, line });
   }
   return { exceptions, unparsed };
@@ -283,22 +290,42 @@ export function parseExceptions(text) {
 
 const exceptionShape = (list) => JSON.stringify((list || []).map((e) => [e.kind, e.pattern, !!e.re, (e.rules || []).slice().sort()]));
 
+// Three ways to match: names by substring, text content also with spacing removed, and fonts
+// by the whole family name ("Inter" must not hide "Inter Tight").
 function patternTest(e) {
-  if (e.pattern == null) return () => true;
+  if (e.pattern == null) {
+    const all = () => true;
+    return { name: all, text: all, exact: all };
+  }
   if (e.re) {
     const r = new RegExp(e.pattern, 'i');
-    return (s) => s != null && r.test(String(s));
+    const f = (s) => s != null && r.test(String(s));
+    return { name: f, text: f, exact: f };
   }
-  // Designers fake letter-spacing with spaces ("C H Y K A L O P H I A") and break lines by hand,
-  // so a pattern also matches with all whitespace removed from both sides.
   const p = String(e.pattern).toLowerCase();
   const squeezed = p.replace(/\s+/g, '');
-  return (s) => {
+  const name = (s) => s != null && String(s).toLowerCase().includes(p);
+  // Designers fake letter-spacing with spaces ("C H Y K A L O P H I A"). Squeezing joins words
+  // too ("Join a Venture" holds "nav"), so only a long pattern is compared without spaces.
+  const text = (s) => {
     if (s == null) return false;
     const v = String(s).toLowerCase();
-    return v.includes(p) || (squeezed.length > 0 && v.replace(/\s+/g, '').includes(squeezed));
+    return v.includes(p) || (squeezed.length >= 8 && v.replace(/\s+/g, '').includes(squeezed));
   };
+  const exact = (s) => s != null && String(s).toLowerCase() === p;
+  return { name, text, exact };
 }
+
+/** Cuts s to at most n UTF-16 units without splitting a surrogate pair, which would not survive JSON transport. */
+export function cutText(s, n) {
+  const t = String(s);
+  if (t.length <= n) return t;
+  const c = t.charCodeAt(n - 1);
+  return t.slice(0, c >= 0xd800 && c <= 0xdbff ? n - 1 : n);
+}
+
+/** Scan format version. Bump it whenever a rule's meaning changes, so a recheck never diffs two rule sets. */
+export const SCAN_VERSION = 2;
 
 /** Fills {minFont} and {fonts} in a rule's title or fix text. */
 export function fillTemplate(text, opts) {
@@ -319,43 +346,69 @@ export function createAudit(options) {
   const familyCounts = new Map();
   const variableUses = new Map();
   const styleUses = new Map();
-  const exceptions = (o.exceptions || []).map((e) => ({ ...e, test: patternTest(e) }));
+  // The CLI sends the raw lines, which are shorter than parsed objects in the use_figma script.
+  const parsed = o.exceptionLines ? parseExceptions(o.exceptionLines.join('\n')).exceptions : (o.exceptions || []);
+  const exceptions = parsed.map((e) => ({ ...e, test: patternTest(e) }));
   const exceptionHits = exceptions.map(() => 0);
+  const exceptionRules = exceptions.map(() => ({}));
+  const exceptionMatched = exceptions.map(() => false);
+  // Group keys an exception hid, so a recheck can tell "now hidden" from "fixed".
+  const hiddenKeys = {};
   // Off-brand hits are only known after the brand set is settled in finish, so skips wait here.
   const fontSkips = new Map();
   const ignoredFrames = new Map();
   let nodes = 0;
   let texts = 0;
 
+  function hide(ix, rule, key, n) {
+    exceptionHits[ix] += n;
+    exceptionRules[ix][rule] = (exceptionRules[ix][rule] || 0) + n;
+    hiddenKeys[key] = (hiddenKeys[key] || 0) + n;
+  }
+
+  // Returns the first exception that matches, and marks every one that does, so a line that a
+  // line above already covers is not reported as matching nothing.
   function exceptionFor(rule, fact, value, family) {
-    const text = fact.text ? fact.text.chars : null;
+    const text = fact.text ? fact.text.chars : fact.hiddenChars || null;
     const comps = (fact.via ? [fact.via.name] : []).concat(fact.main ? [fact.main.name, fact.main.setName] : []);
-    const path = fact.path || [];
+    // The screen name is the screen kind's job; on the path it would let a layer pattern hide a
+    // whole screen whose name happens to contain it.
+    const path = (fact.path || []).slice(fact.screen || fact.isScreen ? 1 : 0);
+    const families = family ? [family] : fact.text ? (fact.text.segments || []).map((s) => s.family) : [];
+    const colors = [value].concat((fact.fills || []).concat(fact.strokes || []).map((p) => p.hex));
+    let first = -1;
     for (let i = 0; i < exceptions.length; i++) {
       const e = exceptions[i];
       if (e.rules && !e.rules.includes(rule)) continue;
       const t = e.test;
       let ok = false;
       if (e.kind === 'rule') ok = true;
-      else if (e.kind === 'text') ok = t(text);
-      else if (e.kind === 'layer') ok = path.some(t);
-      else if (e.kind === 'screen') ok = t(fact.screen ? fact.screen.name : fact.isScreen ? fact.name : null);
-      else if (e.kind === 'component') ok = comps.some(t);
-      else if (e.kind === 'font') ok = t(family);
-      else if (e.kind === 'color') ok = t(value);
-      else if (e.kind === 'any') ok = t(text) || path.some(t) || comps.some(t);
-      if (ok) return i;
+      else if (e.kind === 'text') ok = t.text(text);
+      else if (e.kind === 'layer') ok = path.some(t.name);
+      else if (e.kind === 'screen') ok = t.name(fact.screen ? fact.screen.name : fact.isScreen ? fact.name : null);
+      else if (e.kind === 'component') ok = comps.some(t.name);
+      else if (e.kind === 'font') ok = families.some(t.exact);
+      else if (e.kind === 'color') ok = colors.some(t.name);
+      else if (e.kind === 'any') ok = t.text(text) || path.some(t.name) || comps.some(t.name);
+      if (ok) {
+        exceptionMatched[i] = true;
+        if (first < 0) first = i;
+      }
     }
-    return -1;
+    return first;
   }
 
   function fileExceptionFor(rule, name) {
+    let first = -1;
     for (let i = 0; i < exceptions.length; i++) {
       const e = exceptions[i];
       if (e.rules && !e.rules.includes(rule)) continue;
-      if (e.kind === 'rule' || (['style', 'collection', 'any'].includes(e.kind) && e.test(name))) return i;
+      if (e.kind === 'rule' || (['style', 'collection', 'any'].includes(e.kind) && e.test.name(name))) {
+        exceptionMatched[i] = true;
+        if (first < 0) first = i;
+      }
     }
-    return -1;
+    return first;
   }
 
   function target(rule, fact) {
@@ -368,14 +421,16 @@ export function createAudit(options) {
   }
 
   function hit(rule, fact, value, family) {
-    const ix = exceptionFor(rule, fact, value, family);
-    if (ix >= 0) {
-      if (rule === 'off-brand-font') fontSkips.set(ix + '|' + family, (fontSkips.get(ix + '|' + family) || 0) + 1);
-      else exceptionHits[ix]++;
-      return;
-    }
     const t = target(rule, fact);
     const key = rule + '|' + t.kind + '|' + t.id + (family ? '|' + family : '');
+    const ix = exceptionFor(rule, fact, value, family);
+    if (ix >= 0) {
+      if (rule === 'off-brand-font') {
+        const k = ix + '\u0000' + family + '\u0000' + key;
+        fontSkips.set(k, (fontSkips.get(k) || 0) + 1);
+      } else hide(ix, rule, key, 1);
+      return;
+    }
     let g = groups.get(key);
     if (!g) {
       g = { key, rule, kind: t.kind, id: t.id, name: t.name, screen: t.screen, remote: !!t.remote, deleted: !!t.deleted, family: family || null, count: 0, layers: new Set(), copies: new Set(), values: new Map(), examples: [] };
@@ -386,7 +441,7 @@ export function createAudit(options) {
     if (value != null) g.values.set(String(value), (g.values.get(String(value)) || 0) + 1);
     const exId = fact.via ? fact.via.instanceId : fact.id;
     if (g.examples.length < o.maxExamples && !g.examples.some((e) => e.id === exId)) {
-      const ex = { id: exId, path: fact.path.join(' › '), value: value == null ? null : String(value).slice(0, 60), bbox: roundBox(fact.bbox), screenId: fact.screen ? fact.screen.id : null };
+      const ex = { id: exId, path: fact.path.join(' › '), value: value == null ? null : cutText(value, 60), bbox: roundBox(fact.bbox), screenId: fact.screen ? fact.screen.id : null };
       if (fact.id !== exId) ex.layerId = fact.id;
       g.examples.push(ex);
     }
@@ -408,7 +463,7 @@ export function createAudit(options) {
       const segs = fact.text.segments || [];
       const chars = fact.text.chars || '';
       // Inside a component a layer named "Placeholder" is usually an input's hint text, so only content counts there.
-      if (o.placeholder.test(chars) || (!inside && o.placeholder.test(fact.name))) hit('placeholder-content', fact, chars.slice(0, 60));
+      if (o.placeholder.test(chars) || (!inside && o.placeholder.test(fact.name))) hit('placeholder-content', fact, cutText(chars, 60));
       const small = segs.find((s) => typeof s.size === 'number' && s.size < o.minFont);
       if (small) hit('small-text', fact, small.size + 'px');
       if (fact.missingFont) hit('missing-font', fact, segs.map((s) => s.family).join(', '));
@@ -478,37 +533,42 @@ export function createAudit(options) {
     const brand = new Set(fonts.map((x) => x.toLowerCase()));
     for (const [key, g] of groups) if (g.rule === 'off-brand-font' && brand.has(String(g.family).toLowerCase())) groups.delete(key);
     for (const [k, n] of fontSkips) {
-      const cut = k.indexOf('|');
-      if (!brand.has(k.slice(cut + 1).toLowerCase())) exceptionHits[Number(k.slice(0, cut))] += n;
+      const [ix, family, key] = k.split('\u0000');
+      if (!brand.has(family.toLowerCase())) hide(Number(ix), 'off-brand-font', key, n);
     }
 
     // A frame an exception covers still counts toward the repeat, so ignoring one copy does not
     // hide the others; it is only left out of the report.
     const repeated = [];
     const repeatedIds = new Set();
-    for (const [sig, byScreen] of framesByName) {
+    for (const [, byScreen] of framesByName) {
       if (byScreen.size < o.repeatMin) continue;
-      const kept = new Map();
-      for (const [sid, x] of byScreen) {
-        repeatedIds.add(x.id);
-        if (ignoredFrames.has(x.id)) exceptionHits[ignoredFrames.get(x.id)]++;
-        else kept.set(sid, x);
-      }
-      if (kept.size) repeated.push([sig, kept]);
+      repeated.push([...byScreen.values()]);
+      for (const x of byScreen.values()) repeatedIds.add(x.id);
     }
     // Detection needs name, size and children to match; the key is the name alone, so a 1px
     // resize between audits still reads as the same finding in a recheck.
     const byName = new Map();
-    for (const [, byScreen] of repeated) {
-      const facts = [...byScreen.values()];
-      // A frame inside a repeated frame repeats with it; report the outer one only.
+    const hiddenByName = new Map();
+    for (const facts of repeated) {
+      // A frame inside a repeated frame repeats with it; report the outer one only. Copies an
+      // exception covers are counted here, after the fold, so a nested frame is not counted twice.
       if (facts.every((x) => (x.ancestorIds || []).some((id) => repeatedIds.has(id)))) continue;
       const name = facts[0].name;
       const merged = byName.get(name) || new Map();
-      for (const x of facts) if (!merged.has(x.screen.id)) merged.set(x.screen.id, x);
+      const hidden = hiddenByName.get(name) || new Map();
+      for (const x of facts) {
+        if (ignoredFrames.has(x.id)) { if (!hidden.has(x.screen.id)) hidden.set(x.screen.id, ignoredFrames.get(x.id)); }
+        else if (!merged.has(x.screen.id)) merged.set(x.screen.id, x);
+      }
       byName.set(name, merged);
+      hiddenByName.set(name, hidden);
+    }
+    for (const [name, hidden] of hiddenByName) {
+      for (const ix of hidden.values()) hide(ix, 'repeated-frame', 'repeated-frame|name|' + name, 1);
     }
     for (const [name, merged] of byName) {
+      if (!merged.size) continue;
       const facts = [...merged.values()];
       const key = 'repeated-frame|name|' + name;
       groups.set(key, {
@@ -533,7 +593,7 @@ export function createAudit(options) {
       for (const c of collections) {
         if (bindings.get(c.id) !== 0) continue;
         const ix = fileExceptionFor('unused-collection', c.name);
-        if (ix >= 0) { exceptionHits[ix]++; continue; }
+        if (ix >= 0) { hide(ix, 'unused-collection', 'unused-collection|file|' + c.id, 1); continue; }
         fileFindings.push({ rule: 'unused-collection', id: c.id, name: c.name, value: c.variableCount + ' variables' });
       }
     }
@@ -541,7 +601,7 @@ export function createAudit(options) {
     for (const s of f.textStyles || []) {
       if (styleUses.has(s.id)) continue;
       const ix = fileExceptionFor('unused-text-style', s.name);
-      if (ix >= 0) { exceptionHits[ix]++; continue; }
+      if (ix >= 0) { hide(ix, 'unused-text-style', 'unused-text-style|file|' + (o.unusedStyles === 'full' ? s.id : '*'), 1); continue; }
       unusedStyles.push(s);
     }
     if (o.unusedStyles === 'full') {
@@ -589,8 +649,8 @@ export function createAudit(options) {
       };
     }).sort((a, b) => sevOrder.indexOf(a.sev) - sevOrder.indexOf(b.sev) || b.total - a.total);
 
-    return {
-      version: 1,
+    const out = {
+      version: SCAN_VERSION,
       options: {
         minFont: o.minFont, fonts, fontsInferred, maxGroups: o.maxGroups, repeatMin: o.repeatMin,
         unusedStyles: o.unusedStyles,
@@ -600,6 +660,11 @@ export function createAudit(options) {
       ignored: exceptionHits,
       findings,
     };
+    if (exceptions.length) {
+      out.ignoredDetail = exceptions.map((e, i) => ({ matched: exceptionMatched[i], rules: exceptionRules[i] }));
+      out.hiddenKeys = hiddenKeys;
+    }
+    return out;
   }
 
   return { visit, finish };
@@ -642,10 +707,11 @@ export function scanMismatch(prev, curr) {
   const po = prev.options || {};
   const co = curr.options || {};
   const out = [];
+  if (prev.version != null && curr.version != null && prev.version !== curr.version) out.push('scanner version ' + prev.version + ' vs ' + curr.version);
   if (po.minFont !== co.minFont) out.push('--min-font ' + po.minFont + ' vs ' + co.minFont);
   if (!sameList(po.fonts, co.fonts)) out.push('brand fonts "' + (po.fonts || []).join(', ') + '" vs "' + (co.fonts || []).join(', ') + '"');
   if (po.repeatMin != null && co.repeatMin != null && po.repeatMin !== co.repeatMin) out.push('--repeat-min ' + po.repeatMin + ' vs ' + co.repeatMin);
-  // Scans from before these options existed listed every unused style and ignored nothing.
+  // A scan without these options listed every unused style and had no exceptions.
   if ((po.unusedStyles || 'full') !== (co.unusedStyles || 'full')) out.push('--unused-styles ' + (po.unusedStyles || 'full') + ' vs ' + (co.unusedStyles || 'full'));
   if (exceptionShape(po.exceptions) !== exceptionShape(co.exceptions)) out.push('exceptions');
   const ps = prev.scope;
@@ -665,8 +731,16 @@ export function scanMismatch(prev, curr) {
  */
 export function compareScans(prev, curr, exists) {
   const mismatch = scanMismatch(prev, curr);
+  if (mismatch && /scanner version/.test(mismatch)) {
+    throw new Error('the earlier scan was made by a scanner whose rules differ (' + mismatch + '), so unchanged problems could read as fixed; run a fresh audit instead of a recheck');
+  }
   if (mismatch) throw new Error('the two scans used different settings (' + mismatch + '); rescan with script --like <earlier scan.json>');
   const e = exists || {};
+  // A count can drop because an exception now covers it (a layer renamed into a pattern, say);
+  // that is not a fix, so the growth in what each key's exceptions hide is added back.
+  const hiddenPrev = prev.hiddenKeys || {};
+  const hiddenCurr = curr.hiddenKeys || {};
+  const newlyHidden = (key) => Math.max(0, (hiddenCurr[key] || 0) - (hiddenPrev[key] || 0));
   // With nothing bound on the page, unused collections are not reported at all, so their
   // absence says nothing about whether one was cleaned up.
   const collectionsUnjudged = curr.counts && curr.counts.bindingsOnPage === false;
@@ -681,10 +755,13 @@ export function compareScans(prev, curr, exists) {
       const g = prevGroups.get(key);
       const id = key.split('|')[2];
       const linkId = g ? groupLink(g) : keyLink(key);
+      const grew = newlyHidden(key);
+      const counted = after + grew;
       let status;
       if (after === 0 && f.rule === 'unused-collection' && collectionsUnjudged) status = 'unchecked';
-      else if (after === 0) status = linkId && e[linkId] === false ? 'removed' : 'fixed';
-      else if (after < before) status = 'improved';
+      else if (after === 0 && grew > 0) status = 'excepted';
+      else if (counted === 0) status = linkId && e[linkId] === false ? 'removed' : 'fixed';
+      else if (counted < before) status = 'improved';
       else status = 'open';
       rows.push({ key, rule: f.rule, sev: f.sev, title: f.title, name: g ? g.name : unlistedName(key), id, linkId, before, after, status });
     }

@@ -6,6 +6,7 @@
 //                               [--fonts "A,B"] [--min-font 12] [--max-groups 20]
 //                               [--max-examples 3] [--repeat-min 3] [--part N]
 //                               [--exceptions FILE] [--allow TEXT] [--unused-styles summary|full]
+//                               [--chunk-bytes 44000]
 //   node figma-audit.mjs script --like old.json [--max-groups 20] [--max-examples 3] [--part N]
 //       Prints the read-only use_figma code for one page. Pass it as use_figma's
 //       `code`. Save its result verbatim as part-0.json. When it says parts > 1, rerun
@@ -16,7 +17,8 @@
 //       every unused text style, for the design-system page; the default is one row.
 //       --like takes the page, frames, exclusions, brand fonts, thresholds, exceptions
 //       and unused-styles mode from an earlier scan. A recheck needs it: recheck
-//       refuses scans made with other settings.
+//       refuses scans made with other settings, or by an older version of the scanner.
+//       --chunk-bytes lowers the size of each returned part, if use_figma ever refuses one.
 //   node figma-audit.mjs exceptions --file FILE
 //       Prints how FILE parses as an exceptions list: one "ignore <kind>: <pattern>" per
 //       line, kinds rule, text, layer, screen, component, font, color, style, collection
@@ -45,8 +47,9 @@
 //       named by screen id with ":" as "-" (e.g. 123-456.png). Prints what it wrote
 //       and which screens still need a render. Hidden layers get a dashed outline.
 //   node figma-audit.mjs contact-sheet --dir DIR --out sheet.png
-//       Tiles every PNG in DIR, nine to a sheet, labelled by file name, so every
-//       screenshot can be checked in one look before anything is published.
+//       Tiles every PNG in DIR, nine to a sheet, labelled by file name, as sheet-1.png,
+//       sheet-2.png..., so every screenshot can be checked in one look before anything is
+//       published. Sheets from an earlier run under the same name are deleted first.
 //   node figma-audit.mjs upload --tickets tickets.json --dir DIR --out shots.json
 //       POSTs each file in DIR to ClickUp with the upload tickets from the ClickUp
 //       connector's clickup_request_attachment_upload, one ticket per file:
@@ -71,7 +74,7 @@ import fs from 'node:fs';
 import path from 'node:path';
 import { execFileSync } from 'node:child_process';
 import { fileURLToPath } from 'node:url';
-import { SEVERITIES, compareScans, expandScan, fnv1a, groupLink, parseExceptions } from './figma-audit-rules.mjs';
+import { SCAN_VERSION, SEVERITIES, compareScans, expandScan, fnv1a, groupLink, parseExceptions } from './figma-audit-rules.mjs';
 
 export { groupLink };
 
@@ -90,8 +93,9 @@ export function buildScanScript(params) {
 }
 
 function stripComments(src) {
-  // Whole-line comments only, so nothing inside a string or regex is touched.
-  return src.split('\n').filter((l) => !/^\s*(\/\/|\/\*\*|\*\/|\* |\*$)/.test(l) && l.trim() !== '').join('\n');
+  // Whole-line comments and leading indentation only, so nothing inside a string or regex is
+  // touched (no string in the pasted files spans lines). Indentation is a fifth of the script.
+  return src.split('\n').filter((l) => !/^\s*(\/\/|\/\*\*|\*\/|\* |\*$)/.test(l) && l.trim() !== '').map((l) => l.trimStart()).join('\n');
 }
 
 /** Rebuilds a scan from the parts the use_figma script returned, in any order. */
@@ -182,7 +186,7 @@ export function figmaLink(fileKey, nodeId, fileName) {
 // Layer names and copy come from the client's file. Escaping ! [ ] ( ) keeps a name like
 // "![x](https://...)" from rendering as an image or link, even inside link text, and breaking
 // "://" and "www." stops a bare URL from turning into a link.
-const cell = (s) => String(s == null ? '' : s).replace(/\\/g, '\\\\').replace(/[\r\n]+/g, ' ').replace(/\|/g, '\\|').replace(/</g, '\\<').replace(/([!()[\]])/g, '\\$1').replace(/:\/\//g, ':\\/\\/').replace(/\bwww\./gi, (m) => m.slice(0, 3) + '\\.');
+const cell = (s) => String(s == null ? '' : s).replace(/\\/g, '\\\\').replace(/[\r\n]+/g, ' ').replace(/\|/g, '\\|').replace(/</g, '\\<').replace(/([!()[\]@])/g, '\\$1').replace(/:\/\//g, ':\\/\\/').replace(/\bwww\./gi, (m) => m.slice(0, 3) + '\\.');
 const linkText = cell;
 const MUST_ROWS_PER_RULE = 8;
 
@@ -326,11 +330,24 @@ export function renderReport(scan, meta) {
   const exceptions = scan.options.exceptions || [];
   if (exceptions.length) {
     out.push('## Ignored on purpose', '');
-    out.push('These were left out because the team listed them as known exceptions. Counts are the problems each one hid.', '');
+    out.push('These were left out because the team listed them as known exceptions. Counts are the problems each one hid; when two lines match the same layer, the first one gets it.', '');
+    const shown = scan.findings.reduce((n, f) => n + f.total, 0);
+    const hidden = (scan.ignored || []).reduce((n, x) => n + x, 0);
     exceptions.forEach((e, i) => {
       const n = (scan.ignored || [])[i] || 0;
-      const what = n ? n + (n === 1 ? ' problem' : ' problems') + ' left out' : 'matched nothing in this scope; check the wording';
-      out.push('* ' + cell(e.line || e.kind + ': ' + e.pattern) + ' (' + what + ')');
+      const detail = (scan.ignoredDetail || [])[i] || {};
+      const byRule = Object.entries(detail.rules || {}).sort((a, b) => b[1] - a[1]).map(([r, c]) => c + ' ' + r.replace(/-/g, ' '));
+      let what;
+      if (n) {
+        what = n + (n === 1 ? ' problem' : ' problems') + ' left out' + (byRule.length ? ': ' + byRule.join(', ') : '');
+        // One line hiding a quarter of everything is more often a pattern that is too short.
+        if (n >= 10 && n > (shown + hidden) / 4) what += '. That is a lot for one line; check it is not too broad';
+      } else if (detail.matched) {
+        what = 'nothing left out: what it matches is not a problem here, or a line above already covers it';
+      } else {
+        what = 'matched nothing in this scope; check the wording';
+      }
+      out.push('* ' + cell(e.line || e.kind + ': ' + e.pattern) + ' (' + cell(what) + ')');
     });
     out.push('');
   }
@@ -391,8 +408,8 @@ function mergeValues(groups) {
   return [...m.entries()].sort((a, b) => b[1] - a[1]);
 }
 
-const STATUS_ORDER = ['open', 'improved', 'new', 'unchecked', 'fixed', 'removed'];
-const STATUS_LABEL = { open: '⛔ Still open', improved: '🔁 Fewer, not done', new: '🆕 New', unchecked: '❔ Not checkable now', fixed: '✅ Fixed', removed: '✅ Layer removed' };
+const STATUS_ORDER = ['open', 'improved', 'new', 'unchecked', 'excepted', 'fixed', 'removed'];
+const STATUS_LABEL = { open: '⛔ Still open', improved: '🔁 Fewer, not done', new: '🆕 New', unchecked: '❔ Not checkable now', excepted: '➖ Now covered by an exception', fixed: '✅ Fixed', removed: '✅ Layer removed' };
 
 /** Markdown for a recheck page, from compareScans rows. */
 export function renderRecheck(rows, meta) {
@@ -403,6 +420,7 @@ export function renderRecheck(rows, meta) {
   const out = ['# Recheck ' + (m.date || new Date().toISOString().slice(0, 10)), ''];
   out.push(STATUS_ORDER.filter((s) => tally[s]).map((s) => STATUS_LABEL[s] + ': ' + tally[s]).join(' · '), '');
   out.push('"Layer removed" means the flagged section is gone, which usually means it was fixed by deleting or rebuilding it.', '');
+  if (tally.excepted) out.push('"Now covered by an exception" means the problem is still in the file, but a layer was renamed or changed so that an exception on the list now hides it. Check that is intended.', '');
   if (tally.unchecked) out.push('"Not checkable now" means nothing on the page is bound to a variable any more, so an unused collection can no longer be told apart from the one in use.', '');
   out.push('| Status | What | Where | Before | Now |');
   out.push('| --- | --- | --- | --- | --- |');
@@ -495,7 +513,8 @@ const SHEET_PER_PAGE = 9;
 
 /**
  * Tiles every PNG in dir into contact sheets of up to nine, labelled with the file name, so
- * one look checks every screenshot. Writes out, or out-1.png, out-2.png... when there are more.
+ * one look checks every screenshot. Writes out-1.png, out-2.png... and removes sheets left
+ * from an earlier run, so a stale sheet is never the one checked.
  */
 export function contactSheet(dir, out) {
   const files = fs.readdirSync(dir).filter((f) => f.toLowerCase().endsWith('.png')).sort((a, b) => parseInt(a, 10) - parseInt(b, 10) || a.localeCompare(b));
@@ -503,15 +522,18 @@ export function contactSheet(dir, out) {
   const font = CAPTION_FONTS.find((f) => fs.existsSync(f));
   const pages = [];
   for (let i = 0; i < files.length; i += SHEET_PER_PAGE) pages.push(files.slice(i, i + SHEET_PER_PAGE));
-  const base = out.replace(/\.png$/i, '');
+  const base = path.resolve(out.replace(/\.png$/i, ''));
+  const stale = new RegExp('^' + path.basename(base).replace(/[.*+?^${}()|[\]\\]/g, '\\$&') + '-\\d+\\.png$');
+  for (const f of fs.readdirSync(path.dirname(base))) if (stale.test(f)) fs.unlinkSync(path.join(path.dirname(base), f));
   const written = [];
   pages.forEach((page, n) => {
-    const target = pages.length === 1 ? base + '.png' : base + '-' + (n + 1) + '.png';
+    const target = base + '-' + (n + 1) + '.png';
     const args = ['montage'];
     if (font) args.push('-font', font, '-pointsize', '16');
     for (const f of page) {
       if (font) args.push('-label', magickText(f.replace(/\.png$/i, '')));
-      args.push(path.join(dir, f));
+      // An absolute path, so a file named like "msl:x.png" is never read as a coder prefix.
+      args.push(path.resolve(dir, f));
     }
     args.push('-tile', '3x', '-geometry', '520x520+10+10', '-background', '#f2f2f2', target);
     execFileSync('magick', args, { stdio: ['ignore', 'ignore', 'pipe'], timeout: 120000 });
@@ -590,7 +612,10 @@ async function main(argv) {
     const like = a.like ? readJson(a.like) : null;
     if (like) {
       if (!like.scope || !like.options) throw new Error('--like needs a joined scan.json');
-      // Scans from before repeatMin was recorded cannot say what they used, so ask.
+      if (like.version !== SCAN_VERSION) {
+        throw new Error('the earlier scan was made by a scanner whose rules differ (version ' + like.version + ', now ' + SCAN_VERSION + '), so a recheck could call unchanged problems fixed; run a fresh audit instead');
+      }
+      // A scan that does not record repeatMin cannot say what it used, so ask.
       const repeatKnown = like.options.repeatMin != null;
       const clash = ['page', 'frames', 'exclude-screens', 'fonts', 'min-font', 'exceptions', 'allow', 'unused-styles'].concat(repeatKnown ? ['repeat-min'] : []).filter((k) => k in a);
       if (clash.length) throw new Error('--like sets ' + clash.map((k) => '--' + k).join(', ') + ' from the earlier scan; drop them');
@@ -610,30 +635,40 @@ async function main(argv) {
     // --like passes the earlier brand set even when it is empty, so nothing is inferred again.
     if (like) options.fonts = like.options.fonts || [];
     else if ((list(a.fonts) || []).length) options.fonts = list(a.fonts);
-    // Scans from before these options existed listed every unused style and ignored nothing.
+    // Exceptions travel as their lines and are parsed again inside use_figma: lines are about half
+    // the size of parsed objects, and the script has a 50,000 character limit.
+    let lines = [];
     if (like) {
+      // A scan without these options listed every unused style and had no exceptions.
       options.unusedStyles = like.options.unusedStyles || 'full';
-      options.exceptions = like.options.exceptions || [];
+      lines = (like.options.exceptions || []).map((e) => e.line);
     } else {
       const mode = a['unused-styles'] === undefined ? 'summary' : a['unused-styles'];
       if (mode !== 'summary' && mode !== 'full') throw new Error('--unused-styles is summary or full, got ' + (mode === true ? 'no value' : '"' + mode + '"'));
       options.unusedStyles = mode;
-      options.exceptions = [];
+      const take = (text, source) => {
+        const parsed = parseExceptions(text);
+        if (parsed.unparsed.length) {
+          throw new Error(source + ' has ' + parsed.unparsed.length + ' line(s) that are not a usable "ignore <kind>: <pattern>": ' + parsed.unparsed.slice(0, 5).map((l) => JSON.stringify(l)).join(', ') + '. Turn each into an ignore line or delete it (run exceptions --file to see the parse).');
+        }
+        lines.push(...parsed.exceptions.map((e) => e.line));
+      };
       if (a.exceptions !== undefined) {
         if (a.exceptions === true) throw new Error('--exceptions needs a file path');
-        const parsed = parseExceptions(fs.readFileSync(a.exceptions, 'utf8'));
-        if (parsed.unparsed.length) {
-          throw new Error(a.exceptions + ' has ' + parsed.unparsed.length + ' line(s) that are not "ignore <kind>: <pattern>": ' + parsed.unparsed.slice(0, 5).map((l) => JSON.stringify(l)).join(', ') + '. Turn each into an ignore line or delete it (run exceptions --file to see the parse).');
-        }
-        options.exceptions = parsed.exceptions;
+        take(fs.readFileSync(a.exceptions, 'utf8'), a.exceptions);
       }
       if (a.allow !== undefined) {
-        if (a.allow === true || !String(a.allow).trim()) throw new Error('--allow needs text to match');
-        options.exceptions.push(...parseExceptions('ignore: ' + a.allow).exceptions);
+        if (a.allow === true || !String(a.allow).trim() || /[\r\n]/.test(a.allow)) throw new Error('--allow needs one line of text to match');
+        take('ignore: ' + a.allow, '--allow');
       }
     }
+    if (lines.some((l) => !l)) throw new Error('the earlier scan has an exception without its line; run a fresh audit');
+    options.exceptionLines = lines;
     const part = num(a.part, 0);
-    process.stdout.write(buildScanScript({ pageId: page, frames, excludeScreens: exclude, part, options }));
+    const params = { pageId: page, frames, excludeScreens: exclude, part, options };
+    if (a['chunk-bytes'] !== undefined) params.chunkBytes = num(a['chunk-bytes'], 44000, { min: 2000 });
+    if (params.chunkBytes > 44000) throw new Error('--chunk-bytes is at most 44000, under use_figma\'s 48,000 byte return limit');
+    process.stdout.write(buildScanScript(params));
     return 0;
   }
   if (cmd === 'exceptions') {

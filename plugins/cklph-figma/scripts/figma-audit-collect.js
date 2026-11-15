@@ -129,12 +129,14 @@ async function scan(page, params) {
     if (node.type === 'TEXT' && fact.visible) {
       const segs = node.getStyledTextSegments(['fontName', 'fontSize', 'textStyleId', 'fills', 'fillStyleId']);
       fact.text = {
-        chars: node.characters.slice(0, 200),
+        chars: cutText(node.characters, 200),
         segments: segs.map((s) => ({ family: s.fontName && s.fontName.family, size: s.fontSize, textStyleId: s.textStyleId, fills: paints(s.fills), fillStyled: styled(s.fillStyleId) })),
       };
       for (const s of segs) fact.varIds.push(...paintVarIds(s.fills));
       fact.missingFont = !!node.hasMissingFont;
     }
+    // A hidden text layer is not checked, but a text exception can still name what it says.
+    if (node.type === 'TEXT' && !fact.visible) fact.hiddenChars = cutText(node.characters, 200);
     if (node.type === 'INSTANCE') fact.main = await mainOf(node);
     if (node.type === 'FRAME' && fact.visible) {
       fact.detachedFrom = await detachedName(node.detachedInfo);
@@ -144,7 +146,7 @@ async function scan(page, params) {
       }
     }
     const kids = 'children' in node ? node.children : [];
-    fact.visibleChildren = kids.filter((c) => c.visible !== false).length;
+    fact.visibleChildren = kids.filter((c) => c.visible !== false && opacityOf(c) > 0.001).length;
     fact.childNames = kids.slice(0, 12).map((c) => c.name);
     audit.visit(fact);
     if (!fact.visible) return;

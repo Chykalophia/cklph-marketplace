@@ -15,7 +15,7 @@ import { fileURLToPath } from 'node:url';
 import {
   buildScanScript, buildExistsScript, linkedIds, renderReport, renderRecheck, planShots, cropPlan, annotate, pngSize, buildRows, joinParts, uploadWithTickets, existsParts, existsMap, magickText, groupLink,
 } from '../scripts/figma-audit.mjs';
-import { compareScans, chunkBounds, utf8Length, createAudit, compactScan, expandScan, parseExceptions } from '../scripts/figma-audit-rules.mjs';
+import { compareScans, chunkBounds, utf8Length, createAudit, compactScan, expandScan, parseExceptions, cutText } from '../scripts/figma-audit-rules.mjs';
 import { clipCaption, contactSheet } from '../scripts/figma-audit.mjs';
 
 const HERE = path.dirname(fileURLToPath(import.meta.url));
@@ -1213,6 +1213,140 @@ test('a text exception still matches when the designer spaced the letters out', 
   assert.equal(after.ignored[0], 2, 'the off-brand font and the missing text style');
 });
 
+// ---- red-team round on 0.5.0 -----------------------------------------------------------------
+
+const textFactAt = (over) => ({
+  id: '2:91', name: 'PLACEHOLDER', type: 'TEXT', visible: true, x: 0, y: 0, w: 73, h: 14,
+  bbox: { x: 20, y: 150, w: 73, h: 14 }, screen: { id: '2:1', name: 'Home' }, section: { id: '2:20', name: 'hero' },
+  path: ['Home', 'hero', 'PLACEHOLDER'], ancestorIds: ['2:1', '2:20'], isScreen: false, parentIsScreen: false, via: null,
+  text: { chars: 'PLACEHOLDER', segments: [{ family: 'Brand Sans', size: 11, textStyleId: 'S:1', fills: [], fillStyled: true }] },
+  fills: [], fillStyled: false, strokes: [], strokeStyled: false, missingFont: false, detachedFrom: null, layoutMode: null,
+  inferredLayout: null, visibleChildren: 0, childNames: [], main: null, sizingH: null, sizingV: null, parentAuto: false, varIds: [],
+  ...over,
+});
+
+test('a scan from an older scanner is never rechecked, since its rules differ', () => {
+  // 0.4.0 read a 0% opacity frame as visible; diffing it against 0.5.0 called its contents fixed.
+  const a = createAudit({ fonts: ['Brand Sans'] });
+  a.visit(textFactAt({}));
+  const prev = { ...a.finish({}), version: 1 };
+  const b = createAudit({ fonts: ['Brand Sans'] });
+  b.visit(textFactAt({ id: '2:90', type: 'FRAME', name: 'hero-image-placeholder', visible: false, zeroOpacity: true, text: null }));
+  const curr = b.finish({});
+  assert.throws(() => compareScans(prev, curr, {}), /run a fresh audit/);
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'figma-audit-ver-'));
+  const old = path.join(dir, 'old.json');
+  fs.writeFileSync(old, JSON.stringify({ ...prev, scope: { pageId: '0:1', screens: {} } }));
+  const r = spawnSync(process.execPath, [CLI, 'script', '--like', old], { encoding: 'utf8' });
+  assert.equal(r.status, 1);
+  assert.match(r.stderr, /run a fresh audit/);
+});
+
+test('a problem an exception newly covers reads "now covered", not fixed', () => {
+  const ex = parseExceptions('ignore layer: placeholder-area').exceptions;
+  const a = createAudit({ fonts: ['Brand Sans'], exceptions: ex });
+  a.visit(textFactAt({}));
+  const prev = a.finish({});
+  const b = createAudit({ fonts: ['Brand Sans'], exceptions: ex });
+  b.visit(textFactAt({ path: ['Home', 'placeholder-area', 'PLACEHOLDER'], section: { id: '2:20', name: 'placeholder-area' } }));
+  const curr = b.finish({});
+  const rows = compareScans(prev, curr, {});
+  const small = rows.find((r) => r.rule === 'small-text');
+  assert.equal(small.status, 'excepted');
+  assert.ok(!rows.some((r) => r.status === 'fixed'));
+  assert.match(renderRecheck(rows, {}), /Now covered by an exception/);
+});
+
+test('a quoted pattern keeps "because" and "for"; junk after the quote is refused', () => {
+  const { exceptions, unparsed } = parseExceptions([
+    'ignore text: "We exist because you matter" because tagline',
+    'ignore text: "Give for good" for placeholder-content',
+    'ignore text: "Hi there" trailing words',
+  ].join('\n'));
+  assert.deepEqual(exceptions.map((e) => [e.pattern, e.note, e.rules]), [
+    ['We exist because you matter', 'tagline', null],
+    ['Give for good', null, ['placeholder-content']],
+  ]);
+  assert.deepEqual(unparsed, ['ignore text: "Hi there" trailing words']);
+});
+
+test('too-short patterns and runaway regexes are refused', () => {
+  const { exceptions, unparsed } = parseExceptions('ignore: a\nignore layer: /(a+)+$/\nignore layer: /^hero$/\nignore text: ok!');
+  assert.deepEqual(exceptions.map((e) => e.pattern), ['^hero$', 'ok!']);
+  assert.deepEqual(unparsed, ['ignore: a', 'ignore layer: /(a+)+$/']);
+});
+
+test('layer patterns skip the screen name, and fonts match the whole family', async () => {
+  const { scan: baseline } = await runScan();
+  const { scan: byScreenName } = await runScan({ exceptions: parseExceptions('ignore layer: Home').exceptions });
+  assert.equal(byScreenName.ignored[0], 0, 'the screen name "Home — Mobile" is not a layer match');
+  const geist = (s) => finding(s, 'off-brand-font').groups.filter((g) => g.family === 'Geist Mono').length;
+  const { scan: prefix } = await runScan({ exceptions: parseExceptions('ignore font: Geist').exceptions });
+  assert.equal(geist(prefix), geist(baseline), '"Geist" does not hide "Geist Mono"');
+  const { scan: whole } = await runScan({ exceptions: parseExceptions('ignore font: geist mono').exceptions });
+  assert.equal(geist(whole), 0);
+});
+
+test('what an exception reports as left out equals what disappears from the report', async () => {
+  const total = (s) => s.findings.reduce((n, f) => n + f.total, 0);
+  const { scan: baseline } = await runScan();
+  for (const line of ['ignore screen: About', 'ignore text: Notice', 'ignore: notice']) {
+    const { scan } = await runScan({ exceptions: parseExceptions(line).exceptions });
+    assert.equal(total(baseline) - total(scan), scan.ignored[0], line);
+  }
+});
+
+test('a line that a line above already covers is not called a typo', async () => {
+  const { scan } = await runScan({ exceptions: parseExceptions('ignore layer: hero\nignore text: PLACEHOLDER').exceptions });
+  assert.equal(scan.ignored[1], 0);
+  assert.equal(scan.ignoredDetail[1].matched, true);
+  assert.match(renderReport(scan, { fileKey: 'K' }), /ignore text: PLACEHOLDER \(nothing left out: what it matches is not a problem here, or a line above already covers it\)/);
+});
+
+test('a text exception can name a hidden text layer', async () => {
+  const { figma, nodes } = makeFile();
+  addChild(nodes, nodes.get('2:1'), { id: '2:96', type: 'TEXT', name: 'note', visible: false, characters: 'Draft note for the client', hasMissingFont: false });
+  const run = async (lines) => joinParts(await scanParts(figma, { pageId: '0:1', options: { exceptionLines: lines } }));
+  const hiddenIds = (s) => finding(s, 'hidden-layer').groups.flatMap((g) => g.examples.map((e) => e.id));
+  assert.ok(hiddenIds(await run([])).includes('2:96'));
+  const after = await run(['ignore text: draft note']);
+  assert.ok(!hiddenIds(after).includes('2:96'));
+  assert.equal(after.ignored[0], 1);
+});
+
+test('cut text never splits an emoji, which would break the hash after transport', () => {
+  const s = 'a'.repeat(59) + '🎉 and more';
+  const c = cutText(s, 60);
+  assert.equal(c, 'a'.repeat(59));
+  assert.doesNotThrow(() => encodeURIComponent(c));
+});
+
+test('--allow refuses what it cannot use instead of dropping it', () => {
+  const r = spawnSync(process.execPath, [CLI, 'script', '--page', '0:1', '--allow', '/[/'], { encoding: 'utf8' });
+  assert.equal(r.status, 1);
+  assert.match(r.stderr, /--allow has 1 line/);
+});
+
+test('a long exceptions list still fits the use_figma script limit', () => {
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'figma-audit-long-'));
+  const file = path.join(dir, 'exceptions.md');
+  fs.writeFileSync(file, Array.from({ length: 45 }, (_, i) => '- ignore text: The approved campaign line number ' + i + ' for this client because the team signed it off').join('\n'));
+  const r = spawnSync(process.execPath, [CLI, 'script', '--page', '0:1', '--exceptions', file], { encoding: 'utf8' });
+  assert.equal(r.status, 0, r.stderr);
+  assert.ok(r.stdout.length < 50000, r.stdout.length + ' chars');
+});
+
+test('the compact form keeps a screen outside the scope and a path that does not start with it', () => {
+  const scan = {
+    version: 2, options: { minFont: 12, fonts: ['A'], fontsInferred: false }, counts: {},
+    scope: { screens: { '2:1': { name: 'Home', bbox: null } } },
+    findings: [{ rule: 'raw-color', sev: 'system', title: 'Hardcoded color instead of a variable', fix: 'Bind it to the matching color variable.', total: 2, groupCount: 1, index: { 'raw-color|section|5:5': 2 },
+      groups: [{ key: 'raw-color|section|5:5', kind: 'section', id: '5:5', name: 'x', screen: { id: '9:9', name: 'Gone' }, family: null, count: 2, values: [['#FFFFFF', 2]],
+        examples: [{ id: '5:6', path: 'Elsewhere › x', value: '#FFFFFF', bbox: { x: 0, y: 0, w: 1, h: 1 }, screenId: '2:1' }] }] }],
+  };
+  assert.deepStrictEqual(expandScan(JSON.parse(JSON.stringify(compactScan(scan)))), JSON.parse(JSON.stringify(scan)));
+});
+
 test('the report says "1 more place", not "1 more places"', async () => {
   const { scan } = await runScan({ maxGroups: 1 });
   const f = scan.findings.find((x) => x.groupCount === x.groups.length + 1);
@@ -1323,7 +1457,7 @@ test('exceptions leave out what they name, count it, and the report lists them',
   assert.deepEqual(scan.ignored, [finding(baseline, 'fractional-size').total, figtree, 1, 1, 0]);
   const md = renderReport(scan, { fileKey: 'K' });
   assert.match(md, /## Ignored on purpose/);
-  assert.match(md, /ignore font: Figtree \(\d+ problems? left out\)/);
+  assert.match(md, /ignore font: Figtree \(\d+ problems? left out: \d+ off brand font\)/);
   assert.match(md, /ignore text: words that appear nowhere \(matched nothing in this scope; check the wording\)/);
 });
 

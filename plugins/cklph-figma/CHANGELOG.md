@@ -26,7 +26,21 @@ From the first real-file run (A Safe Place, Dev Hand-off page, 27 screens).
 - The scan returns a compact form that `join` expands, as one plain object when it fits. The
   A Safe Place scan went from 42 KB to 24 KB to copy, and at `--max-groups 6 --max-examples 3`
   it now fits one part (29 KB) where it took two.
-- A recheck also refuses scans made with different exceptions or unused-styles mode.
+- A recheck also refuses scans made with different exceptions or unused-styles mode, and scans
+  made by an older scanner (scan version 2): 0.4.0 read 0% opacity layers as visible, so a recheck
+  of an unchanged file would have called those rows fixed. Run a fresh audit instead.
+- A recheck says "Now covered by an exception" when a renamed layer falls under an exception,
+  instead of "Fixed".
+- Exceptions: `layer` no longer matches the screen name, `font` matches the whole family, a
+  pattern needs three letters, a quoted pattern keeps " for " and " because ", nested-repeat
+  regexes are refused, and `text` also names hidden text layers. Counts are exact, and the report
+  breaks them down by rule, flags a line that hides a quarter of everything, and tells a line that
+  a line above covers from a typo. `--allow` refuses what it cannot use.
+- Exceptions travel to Figma as their lines and indentation is stripped from the scan script,
+  which leaves room for a 45-line list under the 50,000 character limit. `--chunk-bytes` lowers
+  the part size if use_figma ever refuses one.
+- Text cut for the scan never splits an emoji, which would break the hash after transport.
+- Layers at 0% opacity no longer count as visible children of their frame.
 
 ### Fixed
 - A layer at 0% opacity counts as hidden. Four invisible image placeholders were reported as
