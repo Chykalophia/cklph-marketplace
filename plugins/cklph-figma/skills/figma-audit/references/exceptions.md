@@ -35,8 +35,9 @@ letters by hand. The screen name is not part of a `layer` path; use `screen` for
 
 Put a pattern in slashes for a regular expression: `ignore screen: /^Navigation/`. To match text
 that really has slashes in it, such as `/blog/`, quote it: `ignore text: "/blog/"`. A regular
-expression may not repeat a group, as in `(a+)+` or `(a|b)*`, because that can hang Figma; plain
-groups like `^(nav|menu)$` are fine. Rule ids are in
+expression may not repeat a group, as in `(a+)+` or `(a|b)*`, or use more than three repeats
+(`*`, `+`, `{n}`), because those can hang Figma. Plain and optional groups like `^(nav|menu)$` or
+`^(Home|About)? Mobile` are fine. Rule ids are in
 [rules.md](rules.md).
 
 `for small-text, raw-color` limits a line to those rules. `because ...` is kept as the reason and

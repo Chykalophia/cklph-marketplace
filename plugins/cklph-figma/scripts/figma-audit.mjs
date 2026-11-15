@@ -650,7 +650,7 @@ async function main(argv) {
       const take = (text, source) => {
         const parsed = parseExceptions(text);
         if (parsed.unparsed.length) {
-          throw new Error(source + ' has ' + parsed.unparsed.length + ' line(s) that are not a usable "ignore <kind>: <pattern>": ' + parsed.unparsed.slice(0, 5).map((l) => JSON.stringify(l)).join(', ') + '. Turn each into an ignore line or delete it (run exceptions --file to see the parse).');
+          throw new Error(source + ' has ' + parsed.unparsed.length + ' line(s) that are not a usable "ignore <kind>: <pattern>": ' + parsed.unparsed.slice(0, 5).map((l) => JSON.stringify(l)).join(', ') + '. Turn each into an ignore line or delete it (run exceptions --file to see the parse). An ignore line is refused when its pattern is under three characters, a quoted pattern has words after the closing quote, a rule id is unknown, or a /regex/ repeats a group or has more than three repeats.');
         }
         lines.push(...parsed.exceptions.map((e) => e.line));
       };

@@ -1366,6 +1366,26 @@ test('a repeated group is refused at any depth, plain groups are fine', () => {
   assert.deepEqual(exceptions.map((e) => e.pattern), ['^(nav|menu)$']);
 });
 
+test('safe regexes pass; runs of repeats are refused', () => {
+  const { exceptions, unparsed } = parseExceptions([
+    'ignore screen: /^(Home|About)? — Mobile/',
+    'ignore text: /\\)+/',
+    'ignore text: /\\s*\\s*\\s*\\s*\\s*x$/',
+  ].join('\n'));
+  assert.deepEqual(exceptions.map((e) => e.pattern), ['^(Home|About)? — Mobile', '\\)+']);
+  assert.deepEqual(unparsed, ['ignore text: /\\s*\\s*\\s*\\s*\\s*x$/']);
+});
+
+test('a color line scoped to a text rule matches the text color', () => {
+  const grey = { type: 'SOLID', visible: true, opacity: 1, hex: '#545454', bound: false };
+  const text = textFactAt({ text: { chars: 'Small grey note', segments: [{ family: 'Brand Sans', size: 11, textStyleId: 'S:1', fills: [grey], fillStyled: true }] } });
+  const a = createAudit({ fonts: ['Brand Sans'], exceptions: parseExceptions('ignore color: #545454 for small-text').exceptions });
+  a.visit(text);
+  const scan = a.finish({});
+  assert.equal(scan.findings.find((f) => f.rule === 'small-text'), undefined);
+  assert.equal(scan.ignored[0], 1);
+});
+
 test('curly single quotes from Docs or ClickUp count as quotes', () => {
   const { exceptions } = parseExceptions('ignore text: ‘We exist because you matter’ because tagline');
   assert.deepEqual([exceptions[0].pattern, exceptions[0].note], ['We exist because you matter', 'tagline']);

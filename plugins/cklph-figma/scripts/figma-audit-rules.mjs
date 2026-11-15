@@ -276,9 +276,11 @@ export function parseExceptions(text) {
     }
     const rx = quoted ? null : pattern.match(/^\/(.+)\/i?$/);
     if (rx) {
-      // A repeated group such as (a+)+ or (a|aa)+ can backtrack for minutes and hang use_figma,
-      // and nesting hides it from any simple check, so no group may be repeated at all.
-      if (rx[1].length > 200 || /\)\s*[+*?{]/.test(rx[1])) { unparsed.push(raw.trim()); continue; }
+      // A repeated group such as (a+)+ or (a|aa)+, or a run of repeats like \s*\s*\s*\s*, can
+      // backtrack for minutes and hang use_figma. Nesting hides the first from any simple check,
+      // so no group may repeat (an optional one is fine) and there may be at most three repeats.
+      const bare = rx[1].replace(/\\./g, '_');
+      if (rx[1].length > 200 || /\)\s*[+*{]/.test(bare) || (bare.match(/[+*{]/g) || []).length > 3) { unparsed.push(raw.trim()); continue; }
       try { new RegExp(rx[1], 'i'); } catch (e) { unparsed.push(raw.trim()); continue; }
       pattern = rx[1];
       re = true;
@@ -379,7 +381,8 @@ export function createAudit(options) {
     const families = family ? [family] : fact.text ? (fact.text.segments || []).map((s) => s.family) : [];
     // For a hardcoded color the flagged paint is the one to match; another paint on the same
     // layer (a white stroke, say) must not hide it. Other rules look at every paint.
-    const colors = rule === 'raw-color' ? [String(value).replace(/ border$/, '')] : (fact.fills || []).concat(fact.strokes || []).map((p) => p.hex);
+    const paintsOf = (fact.fills || []).concat(fact.strokes || []).concat(fact.text ? (fact.text.segments || []).flatMap((s) => s.fills || []) : []);
+    const colors = rule === 'raw-color' ? [String(value).replace(/ border$/, '')] : paintsOf.map((p) => p.hex);
     let first = -1;
     for (let i = 0; i < exceptions.length; i++) {
       const e = exceptions[i];
