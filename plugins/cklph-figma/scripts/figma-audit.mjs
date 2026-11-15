@@ -5,10 +5,13 @@
 //   node figma-audit.mjs script --page ID [--frames ID,ID] [--exclude-screens REGEX]
 //                               [--fonts "A,B"] [--min-font 12] [--max-groups 20]
 //                               [--max-examples 3] [--repeat-min 3] [--part N]
+//   node figma-audit.mjs script --like old.json [--max-groups 20] [--max-examples 3] [--part N]
 //       Prints the read-only use_figma code for one page. Pass it as use_figma's
 //       `code`. It returns part 0 of `parts`; save each part's result verbatim as
 //       part-N.json. For the rest, rerun the same command plus --part N, then join.
 //       --exclude-screens skips screens whose name matches, case-insensitive.
+//       --like takes the page, frames, exclusions, brand fonts and thresholds from an
+//       earlier scan. A recheck needs it: recheck refuses scans made with other settings.
 //   node figma-audit.mjs join part-0.json [part-1.json ...] --out scan.json
 //       Rebuilds the scan from its parts and checks the hash, so a part copied
 //       wrong fails here instead of producing a wrong report.
@@ -18,9 +21,10 @@
 //       stderr says how many. Save each result verbatim as exists-N.json.
 //   node figma-audit.mjs report --scan scan.json --file-key KEY [--file-name NAME]
 //                               [--title TEXT] [--date YYYY-MM-DD] [--target TEXT]
-//                               [--shots shots.json] [--exists exists-0.json,...]
-//       Prints the fix-list markdown for a ClickUp doc page. With --exists it refuses
-//       to print a report that links to a missing or unchecked node.
+//                               [--shots shots.json] (--exists exists-0.json,... | --unchecked-links)
+//       Prints the fix-list markdown for a ClickUp doc page. It refuses to print a report
+//       that links to a missing or unchecked node. --unchecked-links skips that check, for
+//       a draft nobody else will see.
 //   node figma-audit.mjs shots --scan scan.json
 //       Prints the screenshot plan as JSON: one entry per report row that has a layer to box.
 //   node figma-audit.mjs annotate --png SCREEN.png --screen x,y,w,h --boxes JSON
@@ -44,7 +48,9 @@
 //   node figma-audit.mjs --help
 //
 // shots.json maps a shot key from the plan to the uploaded image:
-//   { "3-small-text": { "url": "https://...png", "thumb": "https://..._small.png" } }
+//   { "3-small-text-1a2b3c": { "url": "https://...png", "thumb": "https://..._small.png" } }
+// The key ends in a hash of the finding, so a rescan that renumbers the rows drops a stale
+// screenshot instead of showing it on the wrong row.
 //
 // Exit codes: 0 ok, 1 bad input or a failed check.
 
@@ -128,7 +134,7 @@ export function existsParts(ids) {
 /** use_figma code that checks one part of ids and returns only the missing ones. */
 export function buildExistsScript(ids, part, parts) {
   return 'const ids = ' + JSON.stringify(ids) + ';\nconst missing = [];\n' +
-    'for (const id of ids) { let n = null; try { n = await figma.getNodeByIdAsync(id); } catch (e) { n = null; } if (!n) missing.push(id); }\n' +
+    'for (const id of ids) { let n = null; try { n = await figma.getNodeByIdAsync(id); } catch (e) { n = null; } if (!n || n.removed) missing.push(id); }\n' +
     'return { figmaAuditExists: 1, part: ' + part + ', parts: ' + parts + ', idsHash: ' + JSON.stringify(fnv1a(ids.join(','))) + ', missing };\n';
 }
 
@@ -158,8 +164,10 @@ export function figmaLink(fileKey, nodeId, fileName) {
   return 'https://www.figma.com/design/' + fileKey + '/' + slug + '?node-id=' + String(nodeId).replace(/:/g, '-');
 }
 
-const cell = (s) => String(s == null ? '' : s).replace(/\\/g, '\\\\').replace(/[\r\n]+/g, ' ').replace(/\|/g, '\\|').replace(/</g, '\\<');
-const linkText = (s) => cell(s).replace(/([[\]])/g, '\\$1');
+// Layer names and copy come from the client's file: escaping the brackets keeps a name like
+// "![x](https://...)" from rendering as an image or link in the doc.
+const cell = (s) => String(s == null ? '' : s).replace(/\\/g, '\\\\').replace(/[\r\n]+/g, ' ').replace(/\|/g, '\\|').replace(/</g, '\\<').replace(/([[\]])/g, '\\$1');
+const linkText = cell;
 const MUST_ROWS_PER_RULE = 8;
 
 function groupLabel(g) {
@@ -204,7 +212,7 @@ export function buildRows(scan) {
     for (const c of chunks) {
       const n = rows.length + 1;
       const shotGroup = c.groups.find((g) => g.examples.some((e) => e.bbox && e.screenId));
-      rows.push({ n, finding: f, groups: c.groups, places: c.places, count: c.count, shotKey: shotGroup ? n + '-' + f.rule : null, shotGroup: shotGroup || null });
+      rows.push({ n, finding: f, groups: c.groups, places: c.places, count: c.count, shotKey: shotGroup ? n + '-' + f.rule + '-' + fnv1a(shotGroup.key).slice(0, 6) : null, shotGroup: shotGroup || null });
     }
   }
   return rows;
@@ -257,7 +265,7 @@ export function renderReport(scan, meta) {
   out.push('**Scope:** the "' + cell(scope.pageName) + '" page only, ' + screenCount + ' screens' + (scope.frames ? ' (chosen frames)' : '') + skipped + '. Counts cover nothing outside it.' + loose + '  ');
   out.push('**Audited:** ' + (m.date || new Date().toISOString().slice(0, 10)) + ' (technical review of the Figma file, not the visual design)  ');
   if (m.target) out.push('**Build target:** ' + cell(m.target) + '  ');
-  if (scan.options.fontsInferred) out.push('**Brand fonts:** inferred from usage as ' + scan.options.fonts.join(', ') + '. Tell us if that is wrong.  ');
+  if (scan.options.fontsInferred && scan.options.fonts.length) out.push('**Brand fonts:** inferred from usage as ' + cell(scan.options.fonts.join(', ')) + '. Tell us if that is wrong.  ');
   out.push('');
   out.push('## How to use this list', '');
   out.push('* **Where** opens the section in Figma. **Layer** gives the exact layer path; if a link ever misses, paste the last part into the layers search.');
@@ -296,6 +304,7 @@ export function renderReport(scan, meta) {
   }
 
   out.push('## Where to look', '');
+  if (!scan.findings.length) out.push('No problems found in this scope.', '');
   for (const f of scan.findings) {
     out.push('### ' + cell(f.title) + ' (' + f.total + ')', '');
     for (const g of f.groups) {
@@ -322,8 +331,8 @@ function mergeValues(groups) {
   return [...m.entries()].sort((a, b) => b[1] - a[1]);
 }
 
-const STATUS_ORDER = ['open', 'improved', 'new', 'fixed', 'removed'];
-const STATUS_LABEL = { open: '⛔ Still open', improved: '🔁 Fewer, not done', new: '🆕 New', fixed: '✅ Fixed', removed: '✅ Layer removed' };
+const STATUS_ORDER = ['open', 'improved', 'new', 'unchecked', 'fixed', 'removed'];
+const STATUS_LABEL = { open: '⛔ Still open', improved: '🔁 Fewer, not done', new: '🆕 New', unchecked: '❔ Not checkable now', fixed: '✅ Fixed', removed: '✅ Layer removed' };
 
 /** Markdown for a recheck page, from compareScans rows. */
 export function renderRecheck(rows, meta) {
@@ -334,6 +343,7 @@ export function renderRecheck(rows, meta) {
   const out = ['# Recheck ' + (m.date || new Date().toISOString().slice(0, 10)), ''];
   out.push(STATUS_ORDER.filter((s) => tally[s]).map((s) => STATUS_LABEL[s] + ': ' + tally[s]).join(' · '), '');
   out.push('"Layer removed" means the flagged section is gone, which usually means it was fixed by deleting or rebuilding it.', '');
+  if (tally.unchecked) out.push('"Not checkable now" means nothing on the page is bound to a variable any more, so an unused collection can no longer be told apart from the one in use.', '');
   out.push('| Status | What | Where | Before | Now |');
   out.push('| --- | --- | --- | --- | --- |');
   for (const r of sorted) {
@@ -426,7 +436,7 @@ function parseArgs(argv) {
     const t = argv[i];
     if (t.startsWith('--')) {
       const k = t.slice(2);
-      const v = argv[i + 1] && !argv[i + 1].startsWith('--') ? argv[++i] : true;
+      const v = argv[i + 1] !== undefined && !argv[i + 1].startsWith('--') ? argv[++i] : true;
       a[k] = v;
     } else a._.push(t);
   }
@@ -486,14 +496,25 @@ async function main(argv) {
     return 0;
   }
   if (cmd === 'script') {
-    need(a, ['page']);
-    const page = String(a.page).replace('-', ':');
+    const like = a.like ? readJson(a.like) : null;
+    if (like) {
+      const clash = ['page', 'frames', 'exclude-screens', 'fonts', 'min-font', 'repeat-min'].filter((k) => k in a);
+      if (clash.length) throw new Error('--like sets ' + clash.map((k) => '--' + k).join(', ') + ' from the earlier scan; drop them');
+      if (!like.scope || !like.options) throw new Error('--like needs a joined scan.json');
+    } else need(a, ['page']);
+    const page = like ? like.scope.pageId : String(a.page).replace('-', ':');
     if (!NODE_ID.test(page)) throw new Error('--page must be a node id like 123:456');
-    const frames = list(a.frames) ? list(a.frames).map((f) => f.replace('-', ':')) : null;
-    const exclude = typeof a['exclude-screens'] === 'string' ? a['exclude-screens'] : null;
+    if ('frames' in a && !(list(a.frames) || []).length) throw new Error('--frames is empty; leave it out to scan the whole page');
+    const frames = like ? like.scope.frames || null : list(a.frames) ? list(a.frames).map((f) => f.replace('-', ':')) : null;
+    const exclude = like ? like.scope.excludeScreens || null : typeof a['exclude-screens'] === 'string' && a['exclude-screens'] ? a['exclude-screens'] : null;
     if (exclude) new RegExp(exclude, 'i');
-    const options = { minFont: num(a['min-font'], 12, { min: 1, whole: false }), maxGroups: num(a['max-groups'], 20, { min: 1 }), maxExamples: num(a['max-examples'], 3, { min: 1 }), repeatMin: num(a['repeat-min'], 3, { min: 2 }) };
-    if (list(a.fonts)) options.fonts = list(a.fonts);
+    const options = like
+      ? { minFont: like.options.minFont, repeatMin: like.options.repeatMin == null ? 3 : like.options.repeatMin }
+      : { minFont: num(a['min-font'], 12, { min: 1, whole: false }), repeatMin: num(a['repeat-min'], 3, { min: 2 }) };
+    options.maxGroups = num(a['max-groups'], like ? like.options.maxGroups || 20 : 20, { min: 1 });
+    options.maxExamples = num(a['max-examples'], 3, { min: 1 });
+    const fonts = like ? like.options.fonts : list(a.fonts);
+    if (fonts && fonts.length) options.fonts = fonts;
     const part = num(a.part, 0);
     process.stdout.write(buildScanScript({ pageId: page, frames, excludeScreens: exclude, part, options }));
     return 0;
@@ -519,6 +540,7 @@ async function main(argv) {
   if (cmd === 'report') {
     need(a, ['scan', 'file-key']);
     const scan = readJson(a.scan);
+    if (!a.exists && !a['unchecked-links']) throw new Error('missing --exists (from exists-script --from ' + a.scan + '), or --unchecked-links for a private draft');
     if (a.exists) {
       const ex = existsMap(scan, list(a.exists).map(readJson));
       const missing = linkedIds(scan).filter((id) => ex.get(id) !== true);
@@ -551,15 +573,21 @@ async function main(argv) {
     fs.mkdirSync(a.out, { recursive: true });
     const wrote = [];
     const missing = new Set();
+    const failed = [];
     for (const p of readJson(a.plan)) {
       const png = path.join(a.renders, p.screenId.replace(/:/g, '-') + '.png');
       if (!fs.existsSync(png)) { missing.add(p.screenId + ' (' + p.screenName + ')'); continue; }
       const out = path.join(a.out, p.key + '.png');
-      annotate({ png, screen: p.screenBbox, boxes: p.boxes, caption: p.caption, out });
-      wrote.push(out);
+      try {
+        if (!p.screenBbox) throw new Error('screen has no bounds (hidden or empty)');
+        annotate({ png, screen: p.screenBbox, boxes: p.boxes, caption: p.caption, out });
+        wrote.push(out);
+      } catch (e) {
+        failed.push({ key: p.key, error: e.message });
+      }
     }
-    process.stdout.write(JSON.stringify({ wrote, missingRenders: [...missing] }, null, 1) + '\n');
-    return missing.size ? 1 : 0;
+    process.stdout.write(JSON.stringify({ wrote, missingRenders: [...missing], failed }, null, 1) + '\n');
+    return missing.size || failed.length ? 1 : 0;
   }
   if (cmd === 'upload') {
     need(a, ['tickets', 'dir', 'out']);

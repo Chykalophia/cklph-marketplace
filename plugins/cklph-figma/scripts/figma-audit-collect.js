@@ -8,6 +8,12 @@ const SCREEN_TYPES = new Set(['FRAME', 'COMPONENT', 'COMPONENT_SET', 'INSTANCE']
 // Containers that hold screens rather than being one.
 const WRAPPER_TYPES = new Set(['SECTION', 'GROUP']);
 const PLAIN_ID = /^\d+:\d+$/;
+// use_figma throws "no such property" when a node type lacks the member, so read
+// auto layout only on the types that have it. SECTION and PAGE have no layout child sizing.
+const AUTO_LAYOUT_TYPES = new Set(['FRAME', 'COMPONENT', 'COMPONENT_SET', 'INSTANCE']);
+const NO_LAYOUT_CHILD = new Set(['SECTION', 'PAGE', 'DOCUMENT']);
+const layoutModeOf = (n) => (n && AUTO_LAYOUT_TYPES.has(n.type) ? n.layoutMode || null : null);
+const childLayout = (n, key) => (NO_LAYOUT_CHILD.has(n.type) ? null : n[key] || null);
 
 const hex = (c) => '#' + [c.r, c.g, c.b].map((v) => Math.round(v * 255).toString(16).padStart(2, '0')).join('').toUpperCase();
 
@@ -98,10 +104,10 @@ async function scan(page, params) {
       isScreen, parentIsScreen: ctx.depth === 1,
       via: ctx.via,
       text: null, fills: [], fillStyled: false, strokes: [], strokeStyled: false,
-      missingFont: false, detachedFrom: null, layoutMode: node.layoutMode || null,
+      missingFont: false, detachedFrom: null, layoutMode: layoutModeOf(node),
       inferredLayout: null, visibleChildren: 0, main: null, varIds: boundVarIds(node),
-      sizingH: node.layoutSizingHorizontal || null, sizingV: node.layoutSizingVertical || null,
-      parentAuto: !!(node.parent && node.parent.layoutMode && node.parent.layoutMode !== 'NONE' && node.layoutPositioning !== 'ABSOLUTE'),
+      sizingH: childLayout(node, 'layoutSizingHorizontal'), sizingV: childLayout(node, 'layoutSizingVertical'),
+      parentAuto: !!(layoutModeOf(node.parent) && layoutModeOf(node.parent) !== 'NONE' && childLayout(node, 'layoutPositioning') !== 'ABSOLUTE'),
     };
     if ('fills' in node && node.type !== 'TEXT') {
       fact.fills = typeof node.fills === 'symbol' ? [] : paints(node.fills);

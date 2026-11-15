@@ -15,7 +15,7 @@ import { fileURLToPath } from 'node:url';
 import {
   buildScanScript, buildExistsScript, linkedIds, renderReport, renderRecheck, planShots, cropPlan, annotate, pngSize, buildRows, joinParts, uploadWithTickets, existsParts, existsMap, magickText, groupLink,
 } from '../scripts/figma-audit.mjs';
-import { compareScans, chunkBounds, utf8Length } from '../scripts/figma-audit-rules.mjs';
+import { compareScans, chunkBounds, utf8Length, createAudit } from '../scripts/figma-audit-rules.mjs';
 
 const HERE = path.dirname(fileURLToPath(import.meta.url));
 const CLI = path.join(HERE, '..', 'scripts', 'figma-audit.mjs');
@@ -423,7 +423,7 @@ test('screenshot plan keys match report rows, and uploaded shots are embedded', 
     assert.ok(scan.scope.screens[p.screenId]);
     assert.ok(p.boxes.length >= 1);
   }
-  const smallRow = plan.find((p) => p.key.endsWith('small-text'));
+  const smallRow = plan.find((p) => p.key.includes('-small-text-'));
   const shots = { [smallRow.key]: { url: 'https://x.test/full.png', thumb: 'https://x.test/thumb.png' } };
   const md = renderReport(scan, { fileKey: 'K', shots });
   assert.match(md, /!\[#\d+\]\(https:\/\/x\.test\/thumb\.png\)/, 'thumbnail in the table');
@@ -872,3 +872,170 @@ test('a recheck names groups that were never listed instead of showing a bare id
   const rows = compareScans(prev, { findings: [] }, {});
   assert.equal(rows[0].name, 'a component not listed in the report (9:3)');
 });
+
+// ---- review fixes: recheck settings, sandbox property reads, doc escaping ----------------
+
+// use_figma throws on a member the node type lacks, where the plain mock returns undefined.
+function strictLayout(nodes) {
+  const AUTO = new Set(['FRAME', 'COMPONENT', 'COMPONENT_SET', 'INSTANCE']);
+  for (const n of new Set(nodes.values())) {
+    const lacks = AUTO.has(n.type) ? [] : ['layoutMode'];
+    if (n.type === 'SECTION' || n.type === 'PAGE') lacks.push('layoutSizingHorizontal', 'layoutSizingVertical', 'layoutPositioning');
+    for (const k of lacks) {
+      delete n[k];
+      Object.defineProperty(n, k, { get() { throw new TypeError('node.' + k + ": no such property '" + k + "' on " + n.type + ' node'); } });
+    }
+  }
+}
+
+test('the scan reads auto layout only on node types that have it, with the same findings', async () => {
+  const { figma, nodes } = makeFile();
+  strictLayout(nodes);
+  const strict = joinParts(await scanParts(figma, { pageId: '0:1', options: {} }));
+  const { scan } = await runScan();
+  assert.deepEqual(strict.findings, scan.findings);
+});
+
+let factSeq = 100;
+function textFact(family, size, varIds) {
+  const id = '5:' + factSeq++;
+  return {
+    id, name: 'copy', type: 'TEXT', visible: true, x: 0, y: 0, w: 10, h: 10, bbox: { x: 0, y: 0, w: 10, h: 10 },
+    screen: { id: '2:1', name: 'Home' }, section: { id: '2:20', name: 'hero' }, path: ['Home', 'hero', 'copy'], ancestorIds: ['2:1', '2:20'],
+    isScreen: false, parentIsScreen: false, via: null,
+    text: { chars: 'Final copy', segments: [{ family, size: size || 16, textStyleId: 'S:1', fills: [{ type: 'SOLID', visible: true, opacity: 1, hex: '#FFFFFF', bound: true }], fillStyled: false }] },
+    fills: [], strokes: [], fillStyled: false, strokeStyled: false, missingFont: false, detachedFrom: null, layoutMode: null,
+    inferredLayout: null, visibleChildren: 0, childNames: [], main: null, varIds: varIds || [], sizingH: null, sizingV: null, parentAuto: true,
+  };
+}
+const fontScan = (counts, options) => {
+  const a = createAudit(options || {});
+  for (const [family, n] of Object.entries(counts)) for (let i = 0; i < n; i++) a.visit(textFact(family));
+  return a.finish({});
+};
+
+test('a recheck refuses scans whose inferred brand fonts differ, rather than call off-brand text fixed', () => {
+  // Comic grows from 9% to 11% of the text, which would move it into the inferred brand set.
+  const prev = fontScan({ 'Brand Sans': 91, Comic: 9 });
+  const curr = fontScan({ 'Brand Sans': 89, Comic: 11 });
+  assert.throws(() => compareScans(prev, curr, {}), /brand fonts/);
+  const pinned = fontScan({ 'Brand Sans': 89, Comic: 11 }, { fonts: prev.options.fonts });
+  const row = compareScans(prev, pinned, {}).find((r) => r.rule === 'off-brand-font');
+  assert.equal(row.status, 'open');
+  assert.equal(row.after, 11);
+});
+
+test('a recheck refuses a different --min-font or scope', () => {
+  const mk = (minFont) => {
+    const a = createAudit({ minFont, fonts: ['Brand Sans'] });
+    a.visit(textFact('Brand Sans', 11));
+    return a.finish({});
+  };
+  assert.throws(() => compareScans(mk(12), mk(10), {}), /--min-font 12 vs 10/);
+  const prev = { ...mk(12), scope: { pageId: '0:1', frames: null, excludeScreens: null } };
+  assert.throws(() => compareScans(prev, { ...mk(12), scope: { pageId: '0:1', frames: ['2:1'], excludeScreens: null } }, {}), /--frames/);
+  assert.throws(() => compareScans(prev, { ...mk(12), scope: { pageId: '0:1', frames: null, excludeScreens: 'old' } }, {}), /--exclude-screens/);
+});
+
+test('an unused collection does not read fixed when the page lost every binding', () => {
+  const file = { collections: [{ id: 'C:1', name: 'Primitives', variableCount: 1 }, { id: 'C:2', name: 'Old', variableCount: 4 }], variableCollectionOf: { 'V:1': 'C:1' } };
+  const a = createAudit({ fonts: ['Brand Sans'] });
+  a.visit(textFact('Brand Sans', 16, ['V:1']));
+  const prev = a.finish(file);
+  const b = createAudit({ fonts: ['Brand Sans'] });
+  b.visit(textFact('Brand Sans', 16, []));
+  const rows = compareScans(prev, b.finish(file), {});
+  assert.equal(rows.find((r) => r.rule === 'unused-collection').status, 'unchecked');
+  assert.match(renderRecheck(rows, {}), /Not checkable now/);
+});
+
+test('script --like rescans with the earlier settings, so the recheck accepts it', async () => {
+  const { scan: old } = await runScan({ minFont: 14, fonts: ['Brand Sans'], repeatMin: 2 }, null, { excludeScreens: 'News' });
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'figma-audit-like-'));
+  const oldPath = path.join(dir, 'old.json');
+  fs.writeFileSync(oldPath, JSON.stringify(old));
+  const { figma } = makeFile();
+  const emit = (part) => {
+    const r = spawnSync(process.execPath, [CLI, 'script', '--like', oldPath, '--part', String(part)], { encoding: 'utf8' });
+    assert.equal(r.status, 0, r.stderr);
+    return new AsyncFunction('figma', r.stdout)(figma);
+  };
+  const first = await emit(0);
+  const parts = [first];
+  for (let i = 1; i < first.parts; i++) parts.push(await emit(i));
+  const curr = joinParts(parts);
+  assert.deepEqual(curr.options, old.options);
+  assert.equal(curr.scope.excludeScreens, 'News');
+  assert.ok(compareScans(old, curr, {}).every((r) => r.status === 'open'));
+  const clash = spawnSync(process.execPath, [CLI, 'script', '--like', oldPath, '--min-font', '10'], { encoding: 'utf8' });
+  assert.equal(clash.status, 1);
+  assert.match(clash.stderr, /--like sets --min-font/);
+});
+
+test('report refuses to run without the link check unless told it is a draft', async () => {
+  const { scan } = await runScan();
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'figma-audit-noexists-'));
+  fs.writeFileSync(path.join(dir, 'scan.json'), JSON.stringify(scan));
+  const base = [CLI, 'report', '--scan', path.join(dir, 'scan.json'), '--file-key', 'K'];
+  const r = spawnSync(process.execPath, base, { encoding: 'utf8' });
+  assert.equal(r.status, 1);
+  assert.match(r.stderr, /missing --exists/);
+  const draft = spawnSync(process.execPath, [...base, '--unchecked-links'], { encoding: 'utf8' });
+  assert.equal(draft.status, 0, draft.stderr);
+});
+
+test('an empty --frames is refused instead of scanning the whole page', () => {
+  const r = spawnSync(process.execPath, [CLI, 'script', '--page', '1:1', '--frames', ''], { encoding: 'utf8' });
+  assert.equal(r.status, 1);
+  assert.match(r.stderr, /--frames is empty/);
+});
+
+test('layer names cannot inject a link or an image into the doc', async () => {
+  const { scan } = await runScan();
+  const evil = '![x](https://e.test/p.png) [click](https://evil.test)';
+  const f = scan.findings.find((x) => x.groups[0].examples.length);
+  f.groups[0].name = evil;
+  f.groups[0].examples[0].path = evil;
+  const md = renderReport(scan, { fileKey: 'K' });
+  assert.ok(!md.includes('![x]('), 'image escaped');
+  assert.ok(!md.includes('[click]('), 'link escaped');
+});
+
+test('the exists check treats a removed node as missing', async () => {
+  const { figma, nodes } = makeFile();
+  nodes.get('2:21').removed = true;
+  const r = await new AsyncFunction('figma', buildExistsScript(['2:20', '2:21'], 0, 1))(figma);
+  assert.deepEqual(r.missing, ['2:21']);
+});
+
+test('annotate-all skips a screen with no bounds and still writes the rest', { skip: !hasMagick && 'needs ImageMagick 7' }, () => {
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'figma-audit-all-'));
+  const renders = path.join(dir, 'renders');
+  fs.mkdirSync(renders);
+  execFileSync('magick', ['-size', '390x800', 'xc:#eeeeee', path.join(renders, '2-1.png')]);
+  const box = { x: 20, y: 150, w: 73, h: 14 };
+  const plan = [
+    { key: '1-a-000000', screenId: '2:1', screenName: 'Home', screenBbox: null, boxes: [box], caption: '#1' },
+    { key: '2-b-000000', screenId: '2:1', screenName: 'Home', screenBbox: { x: 0, y: 0, w: 390, h: 800 }, boxes: [box], caption: '#2' },
+  ];
+  fs.writeFileSync(path.join(dir, 'plan.json'), JSON.stringify(plan));
+  const r = spawnSync(process.execPath, [CLI, 'annotate-all', '--plan', path.join(dir, 'plan.json'), '--renders', renders, '--out', path.join(dir, 'out')], { encoding: 'utf8' });
+  assert.equal(r.status, 1);
+  const out = JSON.parse(r.stdout);
+  assert.equal(out.wrote.length, 1);
+  assert.equal(out.failed[0].key, '1-a-000000');
+  assert.ok(fs.existsSync(path.join(dir, 'out', '2-b-000000.png')));
+});
+
+test('a caption with an ImageMagick expression renders literally', { skip: !hasMagick && 'needs ImageMagick 7' }, () => {
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'figma-audit-fx-'));
+  const png = path.join(dir, 's.png');
+  execFileSync('magick', ['-size', '390x800', 'xc:#eeeeee', png]);
+  const shot = (caption) => {
+    const out = path.join(dir, fnvName(caption) + '.png');
+    annotate({ png, screen: { x: 0, y: 0, w: 390, h: 800 }, boxes: [{ x: 20, y: 150, w: 73, h: 14 }], caption, out });
+    return fs.readFileSync(out);
+  };
+  assert.ok(!shot('#1 %[fx:6*7]').equals(shot('#1 42')), 'the expression was not evaluated');
+});
+const fnvName = (s) => Buffer.from(s).toString('hex');

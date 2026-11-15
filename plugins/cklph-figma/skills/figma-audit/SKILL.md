@@ -89,7 +89,10 @@ node S annotate-all --plan plan.json --renders renders --out shots
 ```
 
 Each image is a crop of the screen around the problem, red boxes on every example layer, and the
-layer path as a caption. Needs ImageMagick 7 (`magick`). Look at two or three before uploading.
+layer path as a caption. Needs ImageMagick 7 (`magick`). Look at two or three before uploading:
+the boxes assume the render starts at the frame's top-left corner, so a frame with a drop shadow or
+content outside its clip renders larger and the boxes shift. `annotate-all` lists any entry it could
+not draw under `failed` and still writes the rest.
 
 ## 5. Publish to ClickUp
 
@@ -115,8 +118,11 @@ task. Never one sub-task per finding.
    node S report --scan scan.json --exists exists-0.json --shots shots.json \
      --file-key KEY --file-name "File name" --target "Squarespace 7.1" > report.md
    ```
-3. Create the doc page with `clickup_cklph` (`clickup_create_doc` for a new doc, or
-   `clickup_create_doc_page` in the client's existing doc) with `report.md` as markdown content.
+   `report` refuses to run without `--exists`, so a published list never links a missing layer.
+   `--unchecked-links` skips the check for a draft only you will see.
+3. Create the doc page with `report.md` as markdown content: `clickup_cklph`'s `clickup_create_doc`
+   or `clickup_create_doc_page`, or the ClickUp connector's `clickup_create_document` or
+   `clickup_create_document_page`. Use a new doc, or a new page in the client's existing doc.
    Thumbnails sit in the table; full-size images are under "Screenshots" at the end.
 4. Give the user the doc link and say what the audit did not cover (other pages, tablet frames).
 
@@ -127,8 +133,12 @@ anyone outside the workspace.
 
 When the designers say they are done:
 
-1. Get the earlier `scan-<date>.json` from the host task, as `old.json`.
-2. Scan again with **the same options and scope**, and join it to `new.json`.
+1. Get the earlier `scan-<date>.json` from the host task, as `old.json`: the ClickUp connector's
+   `clickup_download_task_attachment`, or ask the user to download it.
+2. Scan again with `node S script --like old.json` (plus `--part N` as in step 2), and join it to
+   `new.json`. `--like` reuses the earlier page, frames, exclusions, brand fonts and thresholds.
+   `recheck` refuses two scans made with different settings, because a count that drops when
+   `--min-font` changes or the inferred brand fonts shift is not a fix.
 3. Check whether the earlier nodes still exist: `node S exists-script --from old.json`, run it,
    save as `exists-old-0.json` (and `exists-old-1.json`… if stderr says there are more parts).
 4. `node S recheck --prev old.json --curr new.json --exists exists-old-0.json[,exists-old-1.json…] --file-key KEY > recheck.md`.
@@ -136,8 +146,9 @@ When the designers say they are done:
 5. Add `recheck.md` as a **new page** in the same doc, and upload `new.json` as the next
    `scan-<date>.json`.
 
-Statuses: still open, fewer but not done, new, fixed, and "layer removed" (the flagged section is
-gone, which usually means it was rebuilt or deleted). The recheck page has no screenshots; for a
+Statuses: still open, fewer but not done, new, fixed, "layer removed" (the flagged section is
+gone, which usually means it was rebuilt or deleted), and "not checkable now" (an unused variable
+collection, when nothing on the page is bound to any variable any more). The recheck page has no screenshots; for a
 fresh fix list of what is left, run a new audit instead.
 
 ## Known limits

@@ -18,6 +18,9 @@ Format: [Keep a Changelog](https://keepachangelog.com); versioning follows [SemV
   connector tickets, and diff a recheck. Zero dependencies. Tests run the emitted scan against a
   mock Figma file. Rule skips (auto-layout fill widths, icon internals, nested repeats) come from
   false positives on a real file.
+- A recheck rescans with `script --like old.json` and refuses two scans made with different
+  settings, so a changed threshold or a shift in the inferred brand fonts never reads as fixed.
+  `report` requires the link check unless `--unchecked-links` marks a private draft.
 
 ## [0.3.0] - 2026-11-11
 

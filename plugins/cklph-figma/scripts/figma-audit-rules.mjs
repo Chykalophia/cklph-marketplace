@@ -340,8 +340,8 @@ export function createAudit(options) {
 
     return {
       version: 1,
-      options: { minFont: o.minFont, fonts, fontsInferred, maxGroups: o.maxGroups },
-      counts: { nodes, texts, families: Object.fromEntries(familyCounts) },
+      options: { minFont: o.minFont, fonts, fontsInferred, maxGroups: o.maxGroups, repeatMin: o.repeatMin },
+      counts: { nodes, texts, families: Object.fromEntries(familyCounts), bindingsOnPage: anyBound },
       findings,
     };
   }
@@ -376,12 +376,41 @@ function unlistedName(key) {
   return 'a ' + kind + ' not listed in the report (' + id + ')';
 }
 
+const sameList = (a, b) => JSON.stringify((a || []).map((x) => String(x).toLowerCase()).sort()) === JSON.stringify((b || []).map((x) => String(x).toLowerCase()).sort());
+
 /**
- * Diffs two scans of the same scope. exists maps node ids from the previous scan to
- * whether they still exist, so a group that vanished can read "removed" rather than "fixed".
+ * Why two scans cannot be diffed, or null. A count that drops because the threshold, the
+ * brand fonts or the scope changed is not a fix, so the recheck must reuse all of them.
+ */
+export function scanMismatch(prev, curr) {
+  const po = prev.options || {};
+  const co = curr.options || {};
+  const out = [];
+  if (po.minFont !== co.minFont) out.push('--min-font ' + po.minFont + ' vs ' + co.minFont);
+  if (!sameList(po.fonts, co.fonts)) out.push('brand fonts "' + (po.fonts || []).join(', ') + '" vs "' + (co.fonts || []).join(', ') + '"');
+  if (po.repeatMin != null && co.repeatMin != null && po.repeatMin !== co.repeatMin) out.push('--repeat-min ' + po.repeatMin + ' vs ' + co.repeatMin);
+  const ps = prev.scope;
+  const cs = curr.scope;
+  if (ps && cs) {
+    if (ps.pageId !== cs.pageId) out.push('page ' + ps.pageId + ' vs ' + cs.pageId);
+    if (!sameList(ps.frames, cs.frames)) out.push('--frames');
+    if ((ps.excludeScreens || null) !== (cs.excludeScreens || null)) out.push('--exclude-screens');
+  }
+  return out.length ? out.join('; ') : null;
+}
+
+/**
+ * Diffs two scans of the same scope and options; throws when they differ (see scanMismatch).
+ * exists maps node ids from the previous scan to whether they still exist, so a group that
+ * vanished can read "removed" rather than "fixed".
  */
 export function compareScans(prev, curr, exists) {
+  const mismatch = scanMismatch(prev, curr);
+  if (mismatch) throw new Error('the two scans used different settings (' + mismatch + '); rescan with script --like <earlier scan.json>');
   const e = exists || {};
+  // With nothing bound on the page, unused collections are not reported at all, so their
+  // absence says nothing about whether one was cleaned up.
+  const collectionsUnjudged = curr.counts && curr.counts.bindingsOnPage === false;
   const currIndex = new Map();
   for (const f of curr.findings) for (const [k, n] of Object.entries(f.index)) currIndex.set(k, n);
   const prevGroups = new Map();
@@ -394,7 +423,8 @@ export function compareScans(prev, curr, exists) {
       const id = key.split('|')[2];
       const linkId = g ? groupLink(g) : keyLink(key);
       let status;
-      if (after === 0) status = linkId && e[linkId] === false ? 'removed' : 'fixed';
+      if (after === 0 && f.rule === 'unused-collection' && collectionsUnjudged) status = 'unchecked';
+      else if (after === 0) status = linkId && e[linkId] === false ? 'removed' : 'fixed';
       else if (after < before) status = 'improved';
       else status = 'open';
       rows.push({ key, rule: f.rule, sev: f.sev, title: f.title, name: g ? g.name : unlistedName(key), id, linkId, before, after, status });
