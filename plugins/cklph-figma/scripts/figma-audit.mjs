@@ -5,13 +5,25 @@
 //   node figma-audit.mjs script --page ID [--frames ID,ID] [--exclude-screens REGEX]
 //                               [--fonts "A,B"] [--min-font 12] [--max-groups 20]
 //                               [--max-examples 3] [--repeat-min 3] [--part N]
+//                               [--exceptions FILE] [--allow TEXT] [--unused-styles summary|full]
+//                               [--chunk-bytes 44000]
 //   node figma-audit.mjs script --like old.json [--max-groups 20] [--max-examples 3] [--part N]
 //       Prints the read-only use_figma code for one page. Pass it as use_figma's
-//       `code`. It returns part 0 of `parts`; save each part's result verbatim as
-//       part-N.json. For the rest, rerun the same command plus --part N, then join.
+//       `code`. Save its result verbatim as part-0.json. When it says parts > 1, rerun
+//       the same command plus --part N for each other part, then join.
 //       --exclude-screens skips screens whose name matches, case-insensitive.
-//       --like takes the page, frames, exclusions, brand fonts and thresholds from an
-//       earlier scan. A recheck needs it: recheck refuses scans made with other settings.
+//       --exceptions leaves out what an exceptions list names (see the exceptions
+//       command); --allow TEXT is one "ignore: TEXT" line. --unused-styles full lists
+//       every unused text style, for the design-system page; the default is one row.
+//       --like takes the page, frames, exclusions, brand fonts, thresholds, exceptions
+//       and unused-styles mode from an earlier scan. A recheck needs it: recheck
+//       refuses scans made with other settings, or by an older version of the scanner.
+//       --chunk-bytes lowers the size of each returned part, if use_figma ever refuses one.
+//   node figma-audit.mjs exceptions --file FILE
+//       Prints how FILE parses as an exceptions list: one "ignore <kind>: <pattern>" per
+//       line, kinds rule, text, layer, screen, component, font, color, style, collection
+//       (none matches text, layer path and component), with optional " for <rule>, ..."
+//       and " because <note>". Exits 1 when a line is prose that still needs rewriting.
 //   node figma-audit.mjs join part-0.json [part-1.json ...] --out scan.json
 //       Rebuilds the scan from its parts and checks the hash, so a part copied
 //       wrong fails here instead of producing a wrong report.
@@ -33,7 +45,11 @@
 //   node figma-audit.mjs annotate-all --plan plan.json --renders DIR --out DIR
 //       Runs annotate for every plan entry. DIR holds one 1x render per screen,
 //       named by screen id with ":" as "-" (e.g. 123-456.png). Prints what it wrote
-//       and which screens still need a render.
+//       and which screens still need a render. Hidden layers get a dashed outline.
+//   node figma-audit.mjs contact-sheet --dir DIR --out sheet.png
+//       Tiles every PNG in DIR, nine to a sheet, labelled by file name, as sheet-1.png,
+//       sheet-2.png..., so every screenshot can be checked in one look before anything is
+//       published. Sheets from an earlier run under the same name are deleted first.
 //   node figma-audit.mjs upload --tickets tickets.json --dir DIR --out shots.json
 //       POSTs each file in DIR to ClickUp with the upload tickets from the ClickUp
 //       connector's clickup_request_attachment_upload, one ticket per file:
@@ -58,7 +74,7 @@ import fs from 'node:fs';
 import path from 'node:path';
 import { execFileSync } from 'node:child_process';
 import { fileURLToPath } from 'node:url';
-import { SEVERITIES, compareScans, fnv1a, groupLink } from './figma-audit-rules.mjs';
+import { SCAN_VERSION, SEVERITIES, compareScans, expandScan, fnv1a, groupLink, parseExceptions } from './figma-audit-rules.mjs';
 
 export { groupLink };
 
@@ -77,8 +93,9 @@ export function buildScanScript(params) {
 }
 
 function stripComments(src) {
-  // Whole-line comments only, so nothing inside a string or regex is touched.
-  return src.split('\n').filter((l) => !/^\s*(\/\/|\/\*\*|\*\/|\* |\*$)/.test(l) && l.trim() !== '').join('\n');
+  // Whole-line comments and leading indentation only, so nothing inside a string or regex is
+  // touched (no string in the pasted files spans lines). Indentation is a fifth of the script.
+  return src.split('\n').filter((l) => !/^\s*(\/\/|\/\*\*|\*\/|\* |\*$)/.test(l) && l.trim() !== '').map((l) => l.trimStart()).join('\n');
 }
 
 /** Rebuilds a scan from the parts the use_figma script returned, in any order. */
@@ -86,13 +103,15 @@ export function joinParts(parts) {
   if (!parts.length) throw new Error('no parts given');
   const { parts: total, hash } = parts[0];
   if (parts.some((p) => p.figmaAudit !== 1 || p.hash !== hash || p.parts !== total)) throw new Error('these parts come from different scans');
-  const byPart = new Map(parts.map((p) => [p.part, p.chunk]));
+  // A one-part scan carries the object itself; serialising it again gives back the exact text
+  // the hash was taken over, because JSON keeps key order.
+  const byPart = new Map(parts.map((p) => [p.part, p.scan !== undefined ? JSON.stringify(p.scan) : p.chunk]));
   const missing = [];
-  for (let i = 0; i < total; i++) if (!byPart.has(i)) missing.push(i);
+  for (let i = 0; i < total; i++) if (typeof byPart.get(i) !== 'string') missing.push(i);
   if (missing.length) throw new Error('missing part(s) ' + missing.join(', ') + ' of ' + total + '; rerun the scan with --part N');
   const json = Array.from({ length: total }, (_, i) => byPart.get(i)).join('');
   if (fnv1a(json) !== hash) throw new Error('hash mismatch: a part was changed while it was copied. Save each use_figma result exactly as returned.');
-  return JSON.parse(json);
+  return expandScan(JSON.parse(json));
 }
 
 /**
@@ -167,7 +186,7 @@ export function figmaLink(fileKey, nodeId, fileName) {
 // Layer names and copy come from the client's file. Escaping ! [ ] ( ) keeps a name like
 // "![x](https://...)" from rendering as an image or link, even inside link text, and breaking
 // "://" and "www." stops a bare URL from turning into a link.
-const cell = (s) => String(s == null ? '' : s).replace(/\\/g, '\\\\').replace(/[\r\n]+/g, ' ').replace(/\|/g, '\\|').replace(/</g, '\\<').replace(/([!()[\]])/g, '\\$1').replace(/:\/\//g, ':\\/\\/').replace(/\bwww\./gi, (m) => m.slice(0, 3) + '\\.');
+const cell = (s) => String(s == null ? '' : s).replace(/\\/g, '\\\\').replace(/[\r\n]+/g, ' ').replace(/\|/g, '\\|').replace(/</g, '\\<').replace(/([!()[\]@])/g, '\\$1').replace(/:\/\//g, ':\\/\\/').replace(/\bwww\./gi, (m) => m.slice(0, 3) + '\\.');
 const linkText = cell;
 const MUST_ROWS_PER_RULE = 8;
 
@@ -224,6 +243,30 @@ function shortPath(p) {
   return parts.length <= 3 ? parts.join(' › ') : parts[0] + ' › … › ' + parts.slice(-2).join(' › ');
 }
 
+const CAPTION_MAX = 70;
+
+/** Shortens text to max characters at a word break, ending in an ellipsis. */
+export function clipCaption(text, max) {
+  const s = String(text);
+  if (s.length <= max) return s;
+  const cut = s.lastIndexOf(' ', max - 1);
+  return s.slice(0, cut > max / 2 ? cut : max - 1).trimEnd() + '…';
+}
+
+// The flagged layer's own name is what a designer searches for, so drop the middle of the path
+// before cutting into the last name.
+function captionFor(n, layerPath, note) {
+  const parts = String(layerPath).split(' › ');
+  const last = parts[parts.length - 1];
+  const tries = [shortPath(layerPath)];
+  if (parts.length > 2) tries.push(parts[0] + ' › … › ' + last, '… › ' + last);
+  for (const t of tries) {
+    const c = '#' + n + ' ' + t + note;
+    if (c.length <= CAPTION_MAX) return c;
+  }
+  return clipCaption('#' + n + ' ' + tries[tries.length - 1], CAPTION_MAX - note.length) + note;
+}
+
 /** Screenshot plan: which screen to render and which boxes to draw for each row. */
 export function planShots(scan) {
   const screens = (scan.scope && scan.scope.screens) || {};
@@ -233,6 +276,11 @@ export function planShots(scan) {
     const first = r.shotGroup.examples.find((e) => e.bbox && e.screenId && screens[e.screenId]);
     if (!first) continue;
     const boxes = r.shotGroup.examples.filter((e) => e.screenId === first.screenId && e.bbox).map((e) => e.bbox);
+    // A hidden layer shows nothing in the render, so its outline is dashed and the caption says
+    // why the box looks empty. A box that is the whole section says so too.
+    const hidden = r.finding.rule === 'hidden-layer';
+    const whole = (r.shotGroup.kind === 'section' || r.shotGroup.kind === 'screen') && first.id === r.shotGroup.id;
+    const note = hidden ? ' (hidden, dashed outline)' : whole ? ' (the whole ' + r.shotGroup.kind + ')' : '';
     plan.push({
       key: r.shotKey,
       row: r.n,
@@ -240,7 +288,8 @@ export function planShots(scan) {
       screenName: screens[first.screenId].name,
       screenBbox: screens[first.screenId].bbox,
       boxes,
-      caption: '#' + r.n + ' ' + shortPath(first.path),
+      dashed: hidden,
+      caption: captionFor(r.n, first.path, note),
     });
   }
   return plan;
@@ -278,6 +327,31 @@ export function renderReport(scan, meta) {
   for (const s of SEVERITIES) out.push('* ' + s.label);
   out.push('');
 
+  const exceptions = scan.options.exceptions || [];
+  if (exceptions.length) {
+    out.push('## Ignored on purpose', '');
+    out.push('These were left out because the team listed them as known exceptions. Counts are the problems each one hid; when two lines match the same layer, the first one gets it.', '');
+    const shown = scan.findings.reduce((n, f) => n + f.total, 0);
+    const hidden = (scan.ignored || []).reduce((n, x) => n + x, 0);
+    exceptions.forEach((e, i) => {
+      const n = (scan.ignored || [])[i] || 0;
+      const detail = (scan.ignoredDetail || [])[i] || {};
+      const byRule = Object.entries(detail.rules || {}).sort((a, b) => b[1] - a[1]).map(([r, c]) => c + ' ' + r.replace(/-/g, ' '));
+      let what;
+      if (n) {
+        what = n + (n === 1 ? ' problem' : ' problems') + ' left out' + (byRule.length ? ': ' + byRule.join(', ') : '');
+        // One line hiding a quarter of everything is more often a pattern that is too short.
+        if (n >= 10 && n > (shown + hidden) / 4) what += '. That is a lot for one line; check it is not too broad';
+      } else if (detail.matched) {
+        what = 'nothing left out: what it matches is not a problem here, or a line above already covers it';
+      } else {
+        what = 'matched nothing in this scope; check the wording';
+      }
+      out.push('* ' + cell(e.line || e.kind + ': ' + e.pattern) + ' (' + cell(what) + ')');
+    });
+    out.push('');
+  }
+
   for (const s of SEVERITIES) {
     const sevRows = rows.filter((r) => r.finding.sev === s.id);
     if (!sevRows.length) continue;
@@ -312,9 +386,11 @@ export function renderReport(scan, meta) {
       const target = placeLink(g);
       const eg = g.examples[0] ? ', e.g. ' + cell(g.examples[0].path) : '';
       const vals = g.values.length && g.kind !== 'file' ? ' [' + cell(valuesText(g.values)) + ']' : '';
-      out.push('* ' + target + ': ' + groupCount(g, f) + vals + eg);
+      const count = groupCount(g, f);
+      out.push('* ' + target + (count ? ': ' + count : '') + vals + eg);
     }
-    if (f.groupCount > f.groups.length) out.push('* and ' + (f.groupCount - f.groups.length) + ' more places, not listed. Rerun the scan with a higher --max-groups to see them.');
+    const unlisted = f.groupCount - f.groups.length;
+    if (unlisted > 0) out.push('* and ' + unlisted + ' more ' + (unlisted === 1 ? 'place' : 'places') + ', not listed. Rerun the scan with a higher --max-groups to see them.');
     out.push('');
   }
 
@@ -332,8 +408,8 @@ function mergeValues(groups) {
   return [...m.entries()].sort((a, b) => b[1] - a[1]);
 }
 
-const STATUS_ORDER = ['open', 'improved', 'new', 'unchecked', 'fixed', 'removed'];
-const STATUS_LABEL = { open: '⛔ Still open', improved: '🔁 Fewer, not done', new: '🆕 New', unchecked: '❔ Not checkable now', fixed: '✅ Fixed', removed: '✅ Layer removed' };
+const STATUS_ORDER = ['open', 'improved', 'new', 'unchecked', 'excepted', 'fixed', 'removed'];
+const STATUS_LABEL = { open: '⛔ Still open', improved: '🔁 Fewer, not done', new: '🆕 New', unchecked: '❔ Not checkable now', excepted: '➖ Now covered by an exception', fixed: '✅ Fixed', removed: '✅ Layer removed' };
 
 /** Markdown for a recheck page, from compareScans rows. */
 export function renderRecheck(rows, meta) {
@@ -344,6 +420,7 @@ export function renderRecheck(rows, meta) {
   const out = ['# Recheck ' + (m.date || new Date().toISOString().slice(0, 10)), ''];
   out.push(STATUS_ORDER.filter((s) => tally[s]).map((s) => STATUS_LABEL[s] + ': ' + tally[s]).join(' · '), '');
   out.push('"Layer removed" means the flagged section is gone, which usually means it was fixed by deleting or rebuilding it.', '');
+  if (tally.excepted) out.push('"Now covered by an exception" means fewer problems show in that place, but an exception on the list now hides some there. They may have been fixed, or renamed into the exception; check in Figma.', '');
   if (tally.unchecked) out.push('"Not checkable now" means nothing on the page is bound to a variable any more, so an unused collection can no longer be told apart from the one in use.', '');
   out.push('| Status | What | Where | Before | Now |');
   out.push('| --- | --- | --- | --- | --- |');
@@ -415,20 +492,55 @@ export function magickText(s) {
 }
 
 /** Writes the annotated crop with ImageMagick. Returns the crop plan used. */
-export function annotate({ png, screen, boxes, caption, out }) {
+export function annotate({ png, screen, boxes, caption, out, dashed }) {
   const size = pngSize(fs.readFileSync(png));
   const p = cropPlan(screen, boxes, size.w, size.h);
   const args = [png, '-crop', p.crop.w + 'x' + p.crop.h + '+' + p.crop.x + '+' + p.crop.y, '+repage'];
   if (p.resize > 1) args.push('-resize', p.out.w + 'x' + p.out.h + '!');
   args.push('-fill', 'none', '-stroke', '#E11D48', '-strokewidth', '4');
-  for (const r of p.rects) args.push('-draw', 'rectangle ' + r.x0 + ',' + r.y0 + ' ' + r.x1 + ',' + r.y1);
+  const dash = dashed ? 'stroke-dasharray 14 8 ' : '';
+  for (const r of p.rects) args.push('-draw', dash + 'rectangle ' + r.x0 + ',' + r.y0 + ' ' + r.x1 + ',' + r.y1);
   const font = CAPTION_FONTS.find((f) => fs.existsSync(f));
   if (caption && font) {
-    args.push('-background', 'white', '-gravity', 'north', '-splice', '0x56', '-font', font, '-pointsize', '22', '-fill', '#111111', '-stroke', 'none', '-annotate', '+0+16', magickText(caption.slice(0, 70)));
+    args.push('-background', 'white', '-gravity', 'north', '-splice', '0x56', '-font', font, '-pointsize', '22', '-fill', '#111111', '-stroke', 'none', '-annotate', '+0+16', magickText(clipCaption(caption, CAPTION_MAX)));
   }
   args.push(out);
   execFileSync('magick', args, { stdio: ['ignore', 'ignore', 'pipe'], timeout: 60000 });
   return p;
+}
+
+const SHEET_PER_PAGE = 9;
+
+/**
+ * Tiles every PNG in dir into contact sheets of up to nine, labelled with the file name, so
+ * one look checks every screenshot. Writes out-1.png, out-2.png... and removes sheets left
+ * from an earlier run, so a stale sheet is never the one checked.
+ */
+export function contactSheet(dir, out) {
+  const base = path.resolve(out.replace(/\.png$/i, ''));
+  const stale = new RegExp('^' + path.basename(base).replace(/[.*+?^${}()|[\]\\]/g, '\\$&') + '-\\d+\\.png$');
+  for (const f of fs.readdirSync(path.dirname(base))) if (stale.test(f)) fs.unlinkSync(path.join(path.dirname(base), f));
+  // Listed after the old sheets are gone, so a sheet written inside dir is never tiled into the next one.
+  const files = fs.readdirSync(dir).filter((f) => f.toLowerCase().endsWith('.png')).sort((a, b) => parseInt(a, 10) - parseInt(b, 10) || a.localeCompare(b));
+  if (!files.length) throw new Error('no PNG files in ' + dir);
+  const font = CAPTION_FONTS.find((f) => fs.existsSync(f));
+  const pages = [];
+  for (let i = 0; i < files.length; i += SHEET_PER_PAGE) pages.push(files.slice(i, i + SHEET_PER_PAGE));
+  const written = [];
+  pages.forEach((page, n) => {
+    const target = base + '-' + (n + 1) + '.png';
+    const args = ['montage'];
+    if (font) args.push('-font', font, '-pointsize', '16');
+    for (const f of page) {
+      if (font) args.push('-label', magickText(f.replace(/\.png$/i, '')));
+      // An absolute path, so a file named like "msl:x.png" is never read as a coder prefix.
+      args.push(path.resolve(dir, f));
+    }
+    args.push('-tile', '3x', '-geometry', '520x520+10+10', '-background', '#f2f2f2', target);
+    execFileSync('magick', args, { stdio: ['ignore', 'ignore', 'pipe'], timeout: 120000 });
+    written.push(target);
+  });
+  return { sheets: written, shots: files.length };
 }
 
 function parseArgs(argv) {
@@ -501,9 +613,12 @@ async function main(argv) {
     const like = a.like ? readJson(a.like) : null;
     if (like) {
       if (!like.scope || !like.options) throw new Error('--like needs a joined scan.json');
-      // Scans from before repeatMin was recorded cannot say what they used, so ask.
+      if (like.version !== SCAN_VERSION) {
+        throw new Error('the earlier scan was made by a scanner whose rules differ (version ' + like.version + ', now ' + SCAN_VERSION + '), so a recheck could call unchanged problems fixed; run a fresh audit instead');
+      }
+      // A scan that does not record repeatMin cannot say what it used, so ask.
       const repeatKnown = like.options.repeatMin != null;
-      const clash = ['page', 'frames', 'exclude-screens', 'fonts', 'min-font'].concat(repeatKnown ? ['repeat-min'] : []).filter((k) => k in a);
+      const clash = ['page', 'frames', 'exclude-screens', 'fonts', 'min-font', 'exceptions', 'allow', 'unused-styles'].concat(repeatKnown ? ['repeat-min'] : []).filter((k) => k in a);
       if (clash.length) throw new Error('--like sets ' + clash.map((k) => '--' + k).join(', ') + ' from the earlier scan; drop them');
       if (!repeatKnown && !('repeat-min' in a)) throw new Error('the earlier scan does not record its --repeat-min; pass the value it was made with (default 3)');
     } else need(a, ['page']);
@@ -521,8 +636,51 @@ async function main(argv) {
     // --like passes the earlier brand set even when it is empty, so nothing is inferred again.
     if (like) options.fonts = like.options.fonts || [];
     else if ((list(a.fonts) || []).length) options.fonts = list(a.fonts);
+    // Exceptions travel as their lines and are parsed again inside use_figma: lines are about half
+    // the size of parsed objects, and the script has a 50,000 character limit.
+    let lines = [];
+    if (like) {
+      // A scan without these options listed every unused style and had no exceptions.
+      options.unusedStyles = like.options.unusedStyles || 'full';
+      lines = (like.options.exceptions || []).map((e) => e.line);
+    } else {
+      const mode = a['unused-styles'] === undefined ? 'summary' : a['unused-styles'];
+      if (mode !== 'summary' && mode !== 'full') throw new Error('--unused-styles is summary or full, got ' + (mode === true ? 'no value' : '"' + mode + '"'));
+      options.unusedStyles = mode;
+      const take = (text, source) => {
+        const parsed = parseExceptions(text);
+        if (parsed.unparsed.length) {
+          throw new Error(source + ' has ' + parsed.unparsed.length + ' line(s) that are not a usable "ignore <kind>: <pattern>": ' + parsed.unparsed.slice(0, 5).map((l) => JSON.stringify(l)).join(', ') + '. Turn each into an ignore line or delete it (run exceptions --file to see the parse). An ignore line is refused when its pattern is under three characters, a quoted pattern has words after the closing quote, a rule id is unknown, or a /regex/ repeats a group or has more than three repeats.');
+        }
+        lines.push(...parsed.exceptions.map((e) => e.line));
+      };
+      if (a.exceptions !== undefined) {
+        if (a.exceptions === true) throw new Error('--exceptions needs a file path');
+        take(fs.readFileSync(a.exceptions, 'utf8'), a.exceptions);
+      }
+      if (a.allow !== undefined) {
+        if (a.allow === true || !String(a.allow).trim() || /[\r\n]/.test(a.allow)) throw new Error('--allow needs one line of text to match');
+        take('ignore: ' + a.allow, '--allow');
+      }
+    }
+    if (lines.some((l) => !l)) throw new Error('the earlier scan has an exception without its line; run a fresh audit');
+    options.exceptionLines = lines;
     const part = num(a.part, 0);
-    process.stdout.write(buildScanScript({ pageId: page, frames, excludeScreens: exclude, part, options }));
+    const params = { pageId: page, frames, excludeScreens: exclude, part, options };
+    if (a['chunk-bytes'] !== undefined) params.chunkBytes = num(a['chunk-bytes'], 44000, { min: 2000 });
+    if (params.chunkBytes > 44000) throw new Error('--chunk-bytes is at most 44000, under use_figma\'s 48,000 byte return limit');
+    process.stdout.write(buildScanScript(params));
+    return 0;
+  }
+  if (cmd === 'exceptions') {
+    need(a, ['file']);
+    const parsed = parseExceptions(fs.readFileSync(a.file, 'utf8'));
+    process.stdout.write(JSON.stringify(parsed, null, 1) + '\n');
+    return parsed.unparsed.length ? 1 : 0;
+  }
+  if (cmd === 'contact-sheet') {
+    need(a, ['dir', 'out']);
+    process.stdout.write(JSON.stringify(contactSheet(a.dir, a.out), null, 1) + '\n');
     return 0;
   }
   if (cmd === 'join') {
@@ -586,7 +744,7 @@ async function main(argv) {
       const out = path.join(a.out, p.key + '.png');
       try {
         if (!p.screenBbox) throw new Error('screen has no bounds (hidden or empty)');
-        annotate({ png, screen: p.screenBbox, boxes: p.boxes, caption: p.caption, out });
+        annotate({ png, screen: p.screenBbox, boxes: p.boxes, caption: p.caption, out, dashed: !!p.dashed });
         wrote.push(out);
       } catch (e) {
         failed.push({ key: p.key, error: e.message });

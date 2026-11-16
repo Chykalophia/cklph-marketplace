@@ -14,11 +14,15 @@ on a real client file.
   "N layers × M copies". One fix there covers every copy. The link opens the main component, or the
   first instance when the component comes from a library.
 - **By name:** a copy-pasted frame is one row listing the screens it appears on.
-- **File level:** unused text styles and variable collections, listed by name.
+- **File level:** variable collections, listed by name. Unused text styles are one row with a
+  count, or listed by name with `--unused-styles full`.
 
 Inside instances, the structure rules (hidden, default names, groups, half pixels, auto layout,
-detached, wireframe) are skipped: the main component owns them. Hidden layers are reported once,
-and nothing under them is checked.
+detached, wireframe) are skipped: the main component owns them. Hidden layers, including layers at
+0% opacity, are reported once, and nothing under them is checked.
+
+Anything an exceptions list names is left out of every rule it applies to; see
+[exceptions.md](exceptions.md).
 
 ## 🔴 Must fix before dev starts
 
@@ -40,13 +44,13 @@ and nothing under them is checked.
 | `no-auto-layout` | Frames with 2+ visible layers and no auto layout | Frames Figma says no auto layout fits; icon-sized frames (48px or less) |
 | `repeated-frame` | The same frame (name, size and child names) on `--repeat-min` (3) or more screens, not a component. Reported by name, so a recheck still matches it after a small resize | Frames that only repeat because a repeated parent does; frames with default names |
 | `unused-collection` | A variable collection with no bindings on the page, when another collection has some | Files where nothing is bound at all |
-| `unused-text-style` | A local text style no text on the page uses | |
+| `unused-text-style` | Local text styles no text on the page uses: one row with a count, or one per style with `--unused-styles full` | |
 
 ## 🟡 Housekeeping
 
 | Rule | Catches | Skips |
 | --- | --- | --- |
-| `hidden-layer` | Hidden layers outside instances | Hidden layers inside instances (variant and property toggles) |
+| `hidden-layer` | Hidden layers and layers at 0% opacity outside instances; the screenshot draws a dashed outline | Hidden layers inside instances (variant and property toggles) |
 | `default-name` | Frames, groups, components, rectangles and sections named "Frame 123", "Group", "Rectangle 4"… | Vectors and other shapes; icon-sized layers |
 | `group-layer` | Groups | Icon-sized groups |
 | `fractional-size` | Half-pixel x, y, width or height that a designer set | Positions inside auto layout; FILL and HUG sizes (three FILL cards in 1216px are 405.33 each, correctly); text; icons |

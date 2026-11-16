@@ -3,6 +3,55 @@
 All notable changes to `cklph-figma` are documented here.
 Format: [Keep a Changelog](https://keepachangelog.com); versioning follows [SemVer](https://semver.org).
 
+## [0.5.0] - 2026-11-15
+
+From the first real-file run (A Safe Place, Dev Hand-off page, 27 screens).
+
+### Added
+- Exceptions list: an optional list of things to leave alone, from a ClickUp task or doc, a
+  Google Doc, a local file or a message, formatted or as prose. `ignore <kind>: <pattern>` lines,
+  kinds text, layer, screen, component, font, color, style, collection and rule, with optional
+  `for <rule>` and `because <reason>`. The `exceptions` command shows how a file parses; the agent
+  rewrites prose as ignore lines and shows the list before scanning. `script --exceptions FILE`
+  and `--allow TEXT` apply it. The report lists each exception with the problems it hid and flags
+  any that matched nothing. `--like` carries exceptions into a recheck. Patterns ignore case, and
+  a text pattern of eight characters or more also ignores spacing, since the real footer credit
+  reads "Website by C H Y K A L O P H I A".
+- `contact-sheet`: tiles every screenshot nine to a sheet, and the skill now checks all of them
+  before publishing instead of two or three.
+- `--unused-styles full|summary`.
+
+### Changed
+- Unused text styles are one row with a count by default; they are file-wide and usually used on
+  other pages. `--unused-styles full` lists each, for the design-system page.
+- The scan returns a compact form that `join` expands, as one plain object when it fits. The
+  A Safe Place scan went from 42 KB to 24 KB to copy, and at `--max-groups 6 --max-examples 3`
+  it now fits one part (29 KB) where it took two.
+- Scans now carry version 2. A recheck also refuses scans made with different exceptions or
+  unused-styles mode, and any scan from 0.4.0 (version 1): 0.4.0 read 0% opacity layers as
+  visible, so a recheck of an unchanged file would have called those rows fixed. Run a fresh
+  audit instead.
+- A recheck says "Now covered by an exception" when fewer problems show in a place because an
+  exception now hides some there, instead of "Fixed".
+- Exceptions: `layer` no longer matches the screen name, `font` matches the whole family, a
+  `color` line matches only the flagged paint, a pattern needs three characters, a quoted pattern
+  (straight or curly quotes) keeps " for " and " because ", a regex may not repeat a group, and
+  `text` also names hidden text layers. Counts are exact, and the report breaks them down by rule,
+  flags a line that hides ten or more problems and over a quarter of everything, and tells a line
+  that a line above covers from a typo. `--allow` refuses what it cannot use.
+- Exceptions travel to Figma as their lines and indentation is stripped from the scan script,
+  which leaves room for a 45-line list under the 50,000 character limit. `--chunk-bytes` lowers
+  the part size if use_figma ever refuses one.
+- Text cut for the scan never splits an emoji, which would break the hash after transport.
+- Layers at 0% opacity no longer count as visible children of their frame.
+
+### Fixed
+- A layer at 0% opacity counts as hidden. Four invisible image placeholders were reported as
+  11px text, an off-brand font and hardcoded greys, with screenshots boxing empty space.
+- Hidden layers get a dashed outline and a caption saying they are hidden.
+- Captions are cut at a word with an ellipsis; a box that is the whole section says so; the
+  report says "1 more place".
+
 ## [0.4.0] - 2026-11-13
 
 ### Added
