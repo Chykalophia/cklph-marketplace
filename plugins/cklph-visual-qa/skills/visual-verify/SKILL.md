@@ -23,6 +23,17 @@ Compare the **specific things**: spacing, alignment (do edges line up?), color, 
 border radius, icon presence, element order. Don't declare "done" from the data — declare it from a
 screenshot that matches.
 
+## Check four widths, not two
+
+Capture **1440** (desktop), **1920** (wide monitor), **768** (tablet, upright) and **500** (phone,
+Chrome's floor). Desktop and phone alone miss the bugs that live in between. On chykalophia.com a
+hero that was fine at 1440 and 390 scrolled 37px sideways at 768, and at 1920 the text sat 64px from
+the screen edge with no capped container.
+
+A screenshot can't show sideways scroll, because the window is the viewport. At 768, inject the
+`shot probe` script below and read `docW`: anything above `VW` means the page scrolls sideways.
+`design-lint`'s `hallmark-lint` checks the same thing at five widths without injecting anything.
+
 ## Headless Chrome clamps to ~500px — the phantom-overflow trap
 
 Chrome won't size its window below ~500px. A `375` capture **renders at 500px** and the screenshot

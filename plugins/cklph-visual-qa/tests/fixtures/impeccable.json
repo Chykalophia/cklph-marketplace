@@ -1,0 +1,145 @@
+[
+ {
+  "antipattern": "italic-serif-display",
+  "name": "Italic serif display headline",
+  "severity": "warning",
+  "category": "slop",
+  "file": "https://www.chykalophia.com/",
+  "line": 0,
+  "snippet": "italic serif h1 (the silver editorial) at 59px \"Look great. Sell more. Carry less.\"",
+  "selector": "h1.JMD6Aq_title",
+  "description": "Oversized italic serif (Fraunces, Recoleta, Playfair, Newsreader-italic) as the primary hero headline reads as taste in isolation but has become the universal AI-startup landing page hero. Set roman, "
+ },
+ {
+  "antipattern": "hero-eyebrow-chip",
+  "name": "Hero eyebrow / pill chip",
+  "severity": "warning",
+  "category": "slop",
+  "file": "https://www.chykalophia.com/",
+  "line": 0,
+  "snippet": "eyebrow chip (tracked-caps) \"Fractional leadership & growth partner f\" above h1 \"Look great. Sell more. Carry less.\"",
+  "selector": "div.JMD6Aq_copy.grid > span.font-mono.text-p5",
+  "description": "A tiny uppercase letter-spaced label sitting immediately above an oversized hero headline \u2014 or the same shape rendered as a pill chip \u2014 is now the default AI SaaS hero. Drop the eyebrow, integrate the"
+ },
+ {
+  "antipattern": "italic-serif-display",
+  "name": "Italic serif display headline",
+  "severity": "warning",
+  "category": "slop",
+  "file": "https://www.chykalophia.com/",
+  "line": 0,
+  "snippet": "italic serif h2 (the silver editorial) at 64px \"Proven process backed by real outcomes.\"",
+  "selector": "h2.text-display-h1.text-neutral-950",
+  "description": "Oversized italic serif (Fraunces, Recoleta, Playfair, Newsreader-italic) as the primary hero headline reads as taste in isolation but has become the universal AI-startup landing page hero. Set roman, "
+ },
+ {
+  "antipattern": "unbalanced-heading",
+  "name": "Unbalanced heading",
+  "severity": "advisory",
+  "category": "quality",
+  "file": "https://www.chykalophia.com/",
+  "line": 0,
+  "snippet": "last of 2 lines is 34% as wide as the line above",
+  "selector": "h2.text-display-h1.text-neutral-950",
+  "description": "This heading wraps with its last line far shorter than the line above, often one word alone. Set text-wrap: balance on headings so the lines come out near even, or rewrite it to fit. Keep it if the br"
+ },
+ {
+  "antipattern": "tight-leading",
+  "name": "Tight line height",
+  "severity": "warning",
+  "category": "quality",
+  "file": "https://www.chykalophia.com/",
+  "line": 0,
+  "snippet": "line-height 1.14x (need >=1.3)",
+  "selector": "div.shrink-0.snap-start:nth-of-type(1) > article.group.relative > div.flex.flex-1 > p.text-p4.text-neutral-700",
+  "description": "Line height below 1.3x the font size makes multi-line text hard to read. Use 1.5 to 1.7 for body text so lines have room to breathe."
+ },
+ {
+  "antipattern": "tight-leading",
+  "name": "Tight line height",
+  "severity": "warning",
+  "category": "quality",
+  "file": "https://www.chykalophia.com/",
+  "line": 0,
+  "snippet": "line-height 1.14x (need >=1.3)",
+  "selector": "div.shrink-0.snap-start:nth-of-type(2) > article.group.relative > div.flex.flex-1 > p.text-p4.text-neutral-700",
+  "description": "Line height below 1.3x the font size makes multi-line text hard to read. Use 1.5 to 1.7 for body text so lines have room to breathe."
+ },
+ {
+  "antipattern": "straggler",
+  "name": "Straggler",
+  "severity": "advisory",
+  "category": "quality",
+  "file": "https://www.chykalophia.com/",
+  "line": 0,
+  "snippet": "\"caliber.\" alone on the last of 2 lines (16% of the measure)",
+  "selector": "div.shrink-0.snap-start:nth-of-type(2) > article.group.relative > div.flex.flex-1 > p.text-p4.text-neutral-700",
+  "description": "The last line of this paragraph holds one word, which leaves a hole under the block. Set text-wrap: pretty on body copy (Chrome, Safari) to pull a word down beside it. Where a browser ignores it, edit"
+ },
+ {
+  "antipattern": "line-length",
+  "name": "Line length too long",
+  "severity": "warning",
+  "category": "quality",
+  "file": "https://www.chykalophia.com/",
+  "line": 0,
+  "snippet": "~91 chars on 2 of 3 rendered lines (aim for <80)",
+  "selector": "p.max-w-content.text-p2",
+  "description": "Text lines wider than ~80 characters are hard to read. The eye loses its place tracking back to the start of the next line, so it is measured on the lines that rendered and charged when more than one "
+ },
+ {
+  "antipattern": "straggler",
+  "name": "Straggler",
+  "severity": "advisory",
+  "category": "quality",
+  "file": "https://www.chykalophia.com/",
+  "line": 0,
+  "snippet": "\"like.\" alone on the last of 3 lines (5% of the measure)",
+  "selector": "p.max-w-content.text-p2",
+  "description": "The last line of this paragraph holds one word, which leaves a hole under the block. Set text-wrap: pretty on body copy (Chrome, Safari) to pull a word down beside it. Where a browser ignores it, edit"
+ },
+ {
+  "antipattern": "cramped-padding",
+  "name": "Cramped padding",
+  "severity": "warning",
+  "category": "quality",
+  "file": "https://www.chykalophia.com/",
+  "line": 0,
+  "snippet": "0px of space beside the text (need \u22658.0px for 12px text)",
+  "selector": "tr:nth-of-type(4) > th.w-\\[31\\%\\].pr-8",
+  "description": "Text is too close to the edge of its container. Two shapes: (1) an element with its own text where the space between the rendered text and the border box is too small for the font size, and (2) a wrap"
+ },
+ {
+  "antipattern": "cramped-padding",
+  "name": "Cramped padding",
+  "severity": "warning",
+  "category": "quality",
+  "file": "https://www.chykalophia.com/",
+  "line": 0,
+  "snippet": "0px of space beside the text (need \u22658.0px for 12px text)",
+  "selector": "tr:nth-of-type(7) > th.w-\\[31\\%\\].pr-8",
+  "description": "Text is too close to the edge of its container. Two shapes: (1) an element with its own text where the space between the rendered text and the border box is too small for the font size, and (2) a wrap"
+ },
+ {
+  "antipattern": "kicker-above-heading",
+  "name": "Kicker / eyebrow label above heading",
+  "severity": "warning",
+  "category": "slop",
+  "file": "https://www.chykalophia.com/",
+  "line": 0,
+  "snippet": "kicker \"who you'll actually work with\" above h2 \"The people on your project, by name.\"",
+  "selector": "section.w-full.py-12:nth-of-type(3) > div.mx-auto.w-full > div.transition-all.duration-700 > span.inline-flex.items-center",
+  "description": "A tiny tracked uppercase or small-caps label sitting as its own block directly above a heading is banned outright, repeated or not. Generated kickers never earn their place: the heading carries its ow"
+ },
+ {
+  "antipattern": "kicker-above-heading",
+  "name": "Kicker / eyebrow label above heading",
+  "severity": "warning",
+  "category": "slop",
+  "file": "https://www.chykalophia.com/",
+  "line": 0,
+  "snippet": "kicker \"our process\" above h2 \"Strategy \u2192 Build \u2192 Launch \u2192 Results\"",
+  "selector": "section.px-page-padding-fluid.pt-8 > div.mx-auto.max-w-page > div.flex.flex-col > span.inline-flex.items-center",
+  "description": "A tiny tracked uppercase or small-caps label sitting as its own block directly above a heading is banned outright, repeated or not. Generated kickers never earn their place: the heading carries its ow"
+ }
+]
