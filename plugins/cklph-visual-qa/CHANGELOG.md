@@ -7,7 +7,7 @@ Format: [Keep a Changelog](https://keepachangelog.com); versioning follows [SemV
 
 ### Added
 - `scripts/hallmark-lint`: runs Hallmark's page checker (`sloplint --url`, render tier) on a live
-  page at five widths, 320 to 1920. Hallmark is pinned to commit `04977e1`, and only its scripts
+  page at eight widths, 320, 375, 414, 768, 1024, 1280, 1440 and 1920. Hallmark is pinned to commit `04977e1`, and only its scripts
   folder is fetched. `puppeteer-core` is installed beside it with install scripts off. In a root
   container it adds Chrome's `--no-sandbox`, which Hallmark can't pass itself.
 - `scripts/lint-filter.mjs` and a per-site `.cklph/design-exceptions.json`: deliberate brand choices

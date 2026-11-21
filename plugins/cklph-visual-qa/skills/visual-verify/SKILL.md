@@ -33,7 +33,8 @@ the screen edge with no capped container.
 A screenshot can't show sideways scroll, because the window is the viewport. Inject the `shot probe`
 script below at each width you capture and read `docW`: anything above `VW` means the page scrolls
 sideways. A probe only covers the widths you ran it at, so report the others as unchecked.
-`design-lint`'s `hallmark-lint` checks 320 to 1920 without injecting anything.
+`design-lint`'s `hallmark-lint` checks 320, 375, 414, 768, 1024, 1280, 1440 and 1920 without injecting anything. Other widths are still
+unchecked.
 
 ## Headless Chrome clamps to ~500px — the phantom-overflow trap
 

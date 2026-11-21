@@ -13,7 +13,7 @@ model, the same result every run:
 | Detector | Catches best | Time |
 |---|---|---|
 | `impeccable` 4.8.2 (62 rules) | Readability: leading, line length, cramped padding, stub lines | ~11s a width |
-| Hallmark's `sloplint` (render tier, via `hallmark-lint`) | Layout at 5 widths (320 to 1920): sideways scroll, container width, wrapping buttons, section count, words per screen, how the page ends | ~20s |
+| Hallmark's `sloplint` (render tier, via `hallmark-lint`) | Layout at 8 widths (320 to 1920): sideways scroll, container width, wrapping buttons, section count, words per screen, how the page ends | ~20s |
 
 Run both. In the first trial (chykalophia.com, 2026-11-21) each caught real problems the other
 missed: impeccable found long lines and cramped table cells, and Hallmark found a 37px sideways

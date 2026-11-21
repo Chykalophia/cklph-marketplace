@@ -38,8 +38,8 @@ captures, and give the number, not an impression.
 1. **The hero fits a laptop.** At 1280x800, the headline, its one supporting sentence and the primary
    action are all visible without scrolling.
 2. **No sideways scroll at any width.** Run `"${CLAUDE_PLUGIN_ROOT}/scripts/hallmark-lint" '<url>'`;
-   its gate 34 checks 320 to 1920, and only that counts as "any width". Without it, inject the
-   `shot probe` script at each of 1920, 1440, 768 and 500, report those widths, and list the rest as
+   its gate 34 samples 320, 375, 414, 768, 1024, 1280, 1440 and 1920. Without it, inject the `shot probe` script at
+   each of 1920, 1440, 768 and 500. Either way, report the widths you checked and call the rest
    unchecked. `docW` above `VW` is a blocker.
 3. **The content width is capped.** At 1920 the text column and grids stop growing and the margins
    grow instead. Text that starts within ~100px of the screen edge at 1920 is a visible finding.
