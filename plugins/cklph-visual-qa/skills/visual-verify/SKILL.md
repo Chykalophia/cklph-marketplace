@@ -30,9 +30,10 @@ Chrome's floor). Desktop and phone alone miss the bugs that live in between. On 
 hero that was fine at 1440 and 390 scrolled 37px sideways at 768, and at 1920 the text sat 64px from
 the screen edge with no capped container.
 
-A screenshot can't show sideways scroll, because the window is the viewport. At 768, inject the
-`shot probe` script below and read `docW`: anything above `VW` means the page scrolls sideways.
-`design-lint`'s `hallmark-lint` checks the same thing at five widths without injecting anything.
+A screenshot can't show sideways scroll, because the window is the viewport. Inject the `shot probe`
+script below at each width you capture and read `docW`: anything above `VW` means the page scrolls
+sideways. A probe only covers the widths you ran it at, so report the others as unchecked.
+`design-lint`'s `hallmark-lint` checks 320 to 1920 without injecting anything.
 
 ## Headless Chrome clamps to ~500px — the phantom-overflow trap
 

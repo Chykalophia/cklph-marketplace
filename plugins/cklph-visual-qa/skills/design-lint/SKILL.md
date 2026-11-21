@@ -24,12 +24,21 @@ scroll at 768px.
 ```bash
 export DO_NOT_TRACK=1 IMPECCABLE_NO_TELEMETRY=1 npm_config_ignore_scripts=true
 F="${CLAUDE_PLUGIN_ROOT}/scripts/lint-filter.mjs"
+URL='https://staging.site/page?v=1'
+worst=0
 for vp in 1440x900 1920x1080 768x1024 390x844; do
-  npx --yes impeccable@4.8.2 detect 'https://staging.site/page?v=1' --viewport "$vp" --json > "/tmp/lint-$vp.json"
-  node "$F" --tool impeccable < "/tmp/lint-$vp.json"
+  npx --yes impeccable@4.8.2 detect "$URL" --viewport "$vp" --json > "/tmp/lint-$vp.json"
+  [ $? -eq 1 ] && { echo "impeccable could not scan $vp"; worst=1; continue; }
+  node "$F" --tool impeccable < "/tmp/lint-$vp.json"; rc=$?
+  [ $rc -eq 1 ] && worst=1; [ $rc -eq 2 ] && [ $worst -eq 0 ] && worst=2
 done
-"${CLAUDE_PLUGIN_ROOT}/scripts/hallmark-lint" 'https://staging.site/page?v=1'
+"${CLAUDE_PLUGIN_ROOT}/scripts/hallmark-lint" "$URL"; rc=$?
+[ $rc -eq 1 ] && worst=1; [ $rc -eq 2 ] && [ $worst -eq 0 ] && worst=2
+echo "design-lint: exit $worst"
 ```
+
+The whole run's result is the worst of the five: 1 if any scan failed, else 2 if anything is left
+to check, else 0. Every scan runs even after one fails.
 
 - Check all four widths. Desktop and phone alone miss tablet-only bugs, and a wide monitor shows
   whether the content width is capped.

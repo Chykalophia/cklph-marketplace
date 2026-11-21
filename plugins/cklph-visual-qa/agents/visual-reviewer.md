@@ -37,9 +37,10 @@ These judge the page as a whole, which a design comparison never asks. Measure e
 captures, and give the number, not an impression.
 1. **The hero fits a laptop.** At 1280x800, the headline, its one supporting sentence and the primary
    action are all visible without scrolling.
-2. **No sideways scroll at any width.** Run `"${CLAUDE_PLUGIN_ROOT}/scripts/hallmark-lint" '<url>'`
-   (it checks 320 to 1920, gate 34), or inject the `shot probe` script at 768 and 500 where you can.
-   `docW` above `VW` is a blocker.
+2. **No sideways scroll at any width.** Run `"${CLAUDE_PLUGIN_ROOT}/scripts/hallmark-lint" '<url>'`;
+   its gate 34 checks 320 to 1920, and only that counts as "any width". Without it, inject the
+   `shot probe` script at each of 1920, 1440, 768 and 500, report those widths, and list the rest as
+   unchecked. `docW` above `VW` is a blocker.
 3. **The content width is capped.** At 1920 the text column and grids stop growing and the margins
    grow instead. Text that starts within ~100px of the screen edge at 1920 is a visible finding.
 4. **Section count.** Count the bands between the header and the footer. More than about 9 is a

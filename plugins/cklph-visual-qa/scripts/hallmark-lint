@@ -58,22 +58,32 @@ _chrome() {
   echo "hallmark-lint: no Chrome/Chromium found (set CKLPH_CHROME)" >&2; exit 1
 }
 
-if [ ! -f "$HM/skills/hallmark/scripts/sloplint.mjs" ]; then
-  echo "hallmark-lint: fetching Hallmark ${HALLMARK_SHA:0:7} (scripts only) into $HM" >&2
-  rm -rf "$HM.tmp"; mkdir -p "$HM.tmp"
-  git -C "$HM.tmp" init -q
-  git -C "$HM.tmp" remote add origin "$HALLMARK_REPO"
-  git -C "$HM.tmp" sparse-checkout set skills/hallmark/scripts
-  git -C "$HM.tmp" fetch -q --depth 1 --filter=blob:none origin "$HALLMARK_SHA"
-  git -C "$HM.tmp" checkout -q FETCH_HEAD
-  [ "$(git -C "$HM.tmp" rev-parse HEAD)" = "$HALLMARK_SHA" ] || { echo "hallmark-lint: fetched commit does not match the pin" >&2; exit 1; }
-  rm -rf "$HM"; mv "$HM.tmp" "$HM"
-fi
+_ready() { [ -f "$HM/skills/hallmark/scripts/sloplint.mjs" ] && [ -d "$PP/node_modules/puppeteer-core" ]; }
 
-if [ ! -d "$PP/node_modules/puppeteer-core" ]; then
-  echo "hallmark-lint: installing puppeteer-core $PUPPETEER_VERSION into $PP" >&2
-  mkdir -p "$PP"
-  npm install --prefix "$PP" --ignore-scripts --no-audit --no-fund --silent "puppeteer-core@$PUPPETEER_VERSION" >&2
+# Two first runs at once would share $HM.tmp, so setup happens under a lock and is rechecked inside it.
+if ! _ready; then
+  mkdir -p "$CACHE"
+  lock="$CACHE/.setup.lock"
+  for _ in $(seq 1 300); do mkdir "$lock" 2>/dev/null && break; sleep 1; done
+  [ -d "$lock" ] || { echo "hallmark-lint: timed out waiting for $lock (remove it if no other run is going)" >&2; exit 1; }
+  trap 'rmdir "$lock" 2>/dev/null || true' EXIT
+  if [ ! -f "$HM/skills/hallmark/scripts/sloplint.mjs" ]; then
+    echo "hallmark-lint: fetching Hallmark ${HALLMARK_SHA:0:7} (scripts only) into $HM" >&2
+    rm -rf "$HM.tmp"; mkdir -p "$HM.tmp"
+    git -C "$HM.tmp" init -q
+    git -C "$HM.tmp" remote add origin "$HALLMARK_REPO"
+    git -C "$HM.tmp" sparse-checkout set skills/hallmark/scripts
+    git -C "$HM.tmp" fetch -q --depth 1 --filter=blob:none origin "$HALLMARK_SHA"
+    git -C "$HM.tmp" checkout -q FETCH_HEAD
+    [ "$(git -C "$HM.tmp" rev-parse HEAD)" = "$HALLMARK_SHA" ] || { echo "hallmark-lint: fetched commit does not match the pin" >&2; exit 1; }
+    rm -rf "$HM"; mv "$HM.tmp" "$HM"
+  fi
+  if [ ! -d "$PP/node_modules/puppeteer-core" ]; then
+    echo "hallmark-lint: installing puppeteer-core $PUPPETEER_VERSION into $PP" >&2
+    mkdir -p "$PP"
+    npm install --prefix "$PP" --ignore-scripts --no-audit --no-fund --silent "puppeteer-core@$PUPPETEER_VERSION" >&2
+  fi
+  rmdir "$lock"; trap - EXIT
 fi
 
 chrome="$(_chrome)"
@@ -86,12 +96,14 @@ fi
 
 [ -n "$out" ] || out="$(mktemp -d "${TMPDIR:-/tmp}/hallmark-lint.XXXXXX")"
 mkdir -p "$out"
+out="$(cd "$out" && pwd)"
 raw="$out/sloplint.json"
 
-# Hallmark exits 1 when it has findings, so the run is judged by whether it wrote JSON.
+# Hallmark exits 1 when it has findings, so the run is judged by its JSON. A page that failed to
+# load still reports render "ran", with a render FAIL saying it did not render.
 ( cd "$out" && HALLMARK_PUPPETEER="$PP" CHROME_PATH="$chrome" \
     node "$HM/skills/hallmark/scripts/sloplint.mjs" --url "$url" --json > "$raw" 2> "$out/sloplint.log" ) || true
-if ! node -e 'const j=JSON.parse(require("fs").readFileSync(process.argv[1],"utf8")); if(!Array.isArray(j.findings)) process.exit(1); if(j.summary&&j.summary.render!=="ran") process.exit(3)' "$raw" 2>/dev/null; then
+if ! node -e 'const j=JSON.parse(require("fs").readFileSync(process.argv[1],"utf8")); if(!Array.isArray(j.findings)) process.exit(1); if(j.summary&&j.summary.render!=="ran") process.exit(3); if(j.findings.some(f=>f.gate==="render"&&f.grade==="FAIL"&&/did not render/.test(f.evidence||""))) process.exit(4)' "$raw" 2>/dev/null; then
   echo "hallmark-lint: the page could not be checked; see $out/sloplint.log" >&2
   tail -5 "$out/sloplint.log" >&2 || true
   exit 1
