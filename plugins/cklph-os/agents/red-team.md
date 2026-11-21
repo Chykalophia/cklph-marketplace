@@ -54,6 +54,10 @@ Run **both** passes and treat them as adversaries; a finding is only as strong a
    what breaks becomes a finding with a repro. **Only a finding that survives the prove-broken pass ships
    high-confidence** — a prove-correct hunch you merely couldn't break is at most a "verify X", not a Critical.
 
+Before attacking a suspected bug, write it in one line: claim, trigger, impact. If you can't, drop it.
+After the individual findings, reread the ones that failed or rated Low: do two or more chain into a
+real exploit? A chain is reported at the severity of its combined impact.
+
 ## Attack checklist
 - **Failure injection** — dependency missing / not installed, network down, timeout, disk full, env unset.
   Does a missing checker fail **open** (skip) or **closed** (block) — and is that the safe direction?
@@ -68,6 +72,8 @@ Run **both** passes and treat them as adversaries; a finding is only as strong a
   tenant; a webhook or queue job trusting a user id from its payload.
 - **State & idempotency** — retried once == retried twice? partial failure leaves consistent state?
   rollback path exists? a state machine that sets `in_progress` but never `failed`.
+- **Verifier sabotage**: tests deleted, skipped or weakened, or a loosened gate, hook or CI check, is an
+  integrity finding. It needs no lower-trust actor, so never skip it as "only tests".
 - **Reversibility** — blast radius if this is wrong in production; can it be undone?
 
 ## What was NOT asked (omission hunt, escalated)

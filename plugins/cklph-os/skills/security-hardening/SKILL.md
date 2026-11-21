@@ -11,7 +11,19 @@ description: Security review checklist. Pull in during review or before shipping
   (e.g. service-role only after an admin check, never in a normal request path).
 - **Secrets** — none in code, logs, or error messages; sourced from env / secret store; never echoed.
 - **Data** — no sensitive data / PII in logs; safe defaults; correct encryption at rest/in transit.
-- **Deps & headers** — no known-vuln dependencies; security headers where relevant.
+- **Deps & headers** — no known-vuln dependencies; security headers where relevant. A new package
+  that does not exist, is under 30 days old, or has one maintainer may be a hallucinated or squatted
+  name: check the registry before installing.
+- **Supabase**: a `TO authenticated` policy still needs an ownership predicate; an UPDATE
+  `WITH CHECK` must be no weaker than its `USING` (omitted, Postgres reuses `USING`); views need `security_invoker`; a `SECURITY DEFINER` function in `public` needs
+  `revoke execute ... from public, anon, authenticated` (Supabase grants EXECUTE to `anon` and
+  `authenticated` directly, so revoking from `public` alone leaves it callable) and a fixed `search_path`. Never authorize on `user_metadata` (users can edit it).
+  Banning or deleting a user does not revoke JWTs already issued.
+- **Next.js**: every Server Action is a public POST endpoint; auth on the page does not cover it.
+  Per-user data is never cached under a key shared across users. `revalidateTag`/`revalidatePath` from a request is
+  a mutation and needs auth. `images.remotePatterns` fields left out act as wildcards.
+  `productionBrowserSourceMaps` exposes source; acceptable only if the code is already public or the
+  maps are uploaded privately to an error tracker.
 - **Copies of data**: caches, search indexes, signed URLs, exports and logs carry the tenant or
   owner in their key or filter, and deletion reaches them too.
 - **Model features**: content one user writes never drives tools or reads data for another user;
@@ -26,7 +38,8 @@ description: Security review checklist. Pull in during review or before shipping
 Name the lower-trust actor, what they control, the control meant to stop it, and who or what is
 affected with the concrete result. Can't name the affected party and result? It is a hardening
 note, not a finding. A gap behind a control that already holds is a note too; cite that control.
-A user touching only their own data is not a finding.
+A user touching only their own data is not a finding. Weakened tests, gates, hooks or CI checks are
+an integrity finding exempt from this actor test; never skip them as "only tests".
 
 Severity: **Critical** = unauthenticated code execution, full data access, or arbitrary account
 takeover. **High** = a control fully defeated with real consequences (auth bypass, cross-tenant

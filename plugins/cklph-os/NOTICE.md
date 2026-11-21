@@ -27,3 +27,12 @@ AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
 LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
 OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 SOFTWARE.
+
+## Other sources (0.17.1)
+
+`agents/cklph-reviewer.md`, `agents/red-team.md` and `skills/security-hardening/SKILL.md` also
+adapt, in our own words: Supabase rules from supabase/agent-skills (MIT, commit c9be0e9); trust
+precedents from anthropics/claude-code-security-review (MIT, commit 0c6a49f); the two-pass trace
+and finding gate from google gemini-cli-extensions/security (Apache-2.0, commit 2227f3c). Ideas
+only, no text: trailofbits/skills (CC BY-SA 4.0: removed-guard checks, chain check, restate the
+claim), the OWASP Next.js cheat sheet (CC BY-SA 4.0), promptfoo (test weakening).
