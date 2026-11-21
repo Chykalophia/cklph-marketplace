@@ -8,7 +8,8 @@ import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
-import { fromHtml, fromMarkdown, checkDoc, checkRepeats, isReframe } from '../scripts/copy-lint.mjs';
+import { fromHtml, fromMarkdown, checkDoc, checkRepeats, groupRepeats, isReframe } from '../scripts/copy-lint.mjs';
+import { applyExceptions, normalize } from '../scripts/lint-filter.mjs';
 
 const HERE = path.dirname(fileURLToPath(import.meta.url));
 const SCRIPT = path.join(HERE, '..', 'scripts', 'copy-lint.mjs');
@@ -64,16 +65,37 @@ test('checkDoc allows one reframe heading and reports a clean article as clean',
   assert.deepEqual(checkDoc('a', fromMarkdown(fs.readFileSync(MDX, 'utf8'))), []);
 });
 
-test('checkRepeats groups blocks shared by the same pages and needs the minimum', () => {
+test('checkRepeats finds each shared block, and needs the minimum number of pages', () => {
   const shared = 'Every account, credential, file and line of code stays in your name, and you can leave any time.';
   const second = 'Projects run on a deposit and a payment schedule, and retainers are billed at the start of each month.';
   const doc = (extra) => ({ blocks: [shared, second, extra] });
   const docs = [{ name: '/a', doc: doc('one') }, { name: '/b', doc: doc('two') }, { name: '/c', doc: doc('three') }];
   const f = checkRepeats(docs, 3);
-  assert.equal(f.length, 1);
-  assert.match(f[0].evidence, /^2 blocks on 3 pages \(\/a, \/b, \/c\)/);
-  assert.equal(f[0].grade, 'WARN');
+  assert.equal(f.length, 2);
+  assert.ok(f.every((x) => x.grade === 'WARN' && x.evidence.startsWith('on 3 pages (/a, /b, /c): "')));
   assert.deepEqual(checkRepeats(docs.slice(0, 2), 3), []);
+
+  const grouped = groupRepeats(normalize('copy', { findings: f }));
+  assert.equal(grouped.length, 1);
+  assert.match(grouped[0].text, /^2 blocks on 3 pages \(\/a, \/b, \/c\), first: "Every account/);
+
+  const exc = [{ tool: 'copy', rule: 'repeated-block', match: 'Projects run on a deposit', reason: 'Terms on purpose.' }];
+  const { kept, excused } = applyExceptions(normalize('copy', { findings: f }), exc);
+  assert.equal(excused.length, 1, 'only the matched block is excused');
+  const left = groupRepeats(kept);
+  assert.equal(left.length, 1);
+  assert.match(left[0].text, /^1 block on 3 pages .*first: "Every account/);
+});
+
+test('fromMarkdown handles CRLF files and scans heading text', () => {
+  const crlf = fs.readFileSync(MDX, 'utf8').replace(/\n/g, '\r\n');
+  assert.deepEqual(checkDoc('a', fromMarkdown(crlf)), []);
+  const tmp = fs.mkdtempSync(path.join(os.tmpdir(), 'copy-lint-'));
+  const file = path.join(tmp, 'crlf.mdx');
+  fs.writeFileSync(file, crlf);
+  assert.equal(run([file], tmp).status, 0);
+  const f = checkDoc('b', fromMarkdown('# Seamless growth\n\nWe plan the work, then we build it.\n'));
+  assert.ok(f.some((x) => x.gate === 'ai-vocabulary' && x.evidence.includes('"seamless"')));
 });
 
 test('CLI exits 2 on findings, 0 on a clean file, 1 on a missing file', () => {

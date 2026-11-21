@@ -27,19 +27,19 @@ F="${CLAUDE_PLUGIN_ROOT}/scripts/lint-filter.mjs"
 URL='https://staging.site/page?v=1'
 worst=0
 for vp in 1440x900 1920x1080 768x1024 390x844; do
-  npx --yes impeccable@4.8.2 detect "$URL" --viewport "$vp" --json > "/tmp/lint-$vp.json"
-  [ $? -eq 1 ] && { echo "impeccable could not scan $vp"; worst=1; continue; }
-  node "$F" --tool impeccable < "/tmp/lint-$vp.json"; rc=$?
-  [ $rc -eq 1 ] && worst=1; [ $rc -eq 2 ] && [ $worst -eq 0 ] && worst=2
+  rc=0; npx --yes impeccable@4.8.2 detect "$URL" --viewport "$vp" --json > "/tmp/lint-$vp.json" || rc=$?
+  if [ $rc -eq 1 ]; then echo "impeccable could not scan $vp"; worst=1; continue; fi
+  rc=0; node "$F" --tool impeccable < "/tmp/lint-$vp.json" || rc=$?
+  if [ $rc -eq 1 ]; then worst=1; elif [ $rc -eq 2 ] && [ $worst -eq 0 ]; then worst=2; fi
 done
-"${CLAUDE_PLUGIN_ROOT}/scripts/hallmark-lint" "$URL"; rc=$?
-[ $rc -eq 1 ] && worst=1; [ $rc -eq 2 ] && [ $worst -eq 0 ] && worst=2
+rc=0; "${CLAUDE_PLUGIN_ROOT}/scripts/hallmark-lint" "$URL" || rc=$?
+if [ $rc -eq 1 ]; then worst=1; elif [ $rc -eq 2 ] && [ $worst -eq 0 ]; then worst=2; fi
 echo "design-lint: exit $worst"
 exit "$worst"
 ```
 
 The whole run's result is the worst of the five: 1 if any scan failed, else 2 if anything is left
-to check, else 0. Every scan runs even after one fails.
+to check, else 0. Every scan runs even after one fails, and the loop is safe under `set -e`.
 
 - Check all four widths. Desktop and phone alone miss tablet-only bugs, and a wide monitor shows
   whether the content width is capped.

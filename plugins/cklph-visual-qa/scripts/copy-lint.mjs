@@ -74,7 +74,7 @@ export function fromHtml(html) {
  * @returns {{headings: string[], blocks: string[], labels: string[]}}
  */
 export function fromMarkdown(text) {
-  const src = text.replace(/^---\n[\s\S]*?\n---\n/, '').replace(/```[\s\S]*?```/g, '\n');
+  const src = text.replace(/\r\n?/g, '\n').replace(/^---\n[\s\S]*?\n---\n/, '').replace(/```[\s\S]*?```/g, '\n');
   const headings = [];
   const blocks = [];
   for (const para of src.split(/\n\s*\n/)) {
@@ -83,7 +83,7 @@ export function fromMarkdown(text) {
       const h = line.match(/^#{1,6}\s+(.*)$/);
       if (h) headings.push(mdText(h[1]));
     }
-    const prose = mdText(lines.filter((l) => !/^#{1,6}\s/.test(l)).join(' '));
+    const prose = mdText(lines.map((l) => l.replace(/^#{1,6}\s+/, '')).join(' '));
     if (prose) blocks.push(prose);
   }
   return { headings: headings.filter(Boolean), blocks, labels: [] };
@@ -182,8 +182,8 @@ export function checkDoc(name, doc) {
 }
 
 /**
- * Find blocks of 12 or more words that appear on at least `min` sources. Blocks shared by the
- * same set of pages are one finding, since they are usually one repeated section.
+ * Find blocks of 12 or more words that appear on at least `min` sources, one finding per block.
+ * Exceptions apply per block, so `groupRepeats` merges them for the report only afterwards.
  * @param {{name: string, doc: {blocks: string[]}}[]} docs
  */
 export function checkRepeats(docs, min = 3) {
@@ -197,20 +197,38 @@ export function checkRepeats(docs, min = 3) {
       seen.set(key, e);
     }
   }
-  const groups = new Map();
-  for (const e of seen.values()) {
-    if (e.names.length < min) continue;
-    const key = e.names.join('\n');
-    const g = groups.get(key) ?? { names: e.names, texts: [] };
-    g.texts.push(e.text);
-    groups.set(key, g);
-  }
-  return [...groups.values()].map((g) => ({
+  return [...seen.values()].filter((e) => e.names.length >= min).map((e) => ({
     gate: 'repeated-block',
     grade: 'WARN',
-    evidence: `${g.texts.length} block${g.texts.length > 1 ? 's' : ''} on ${g.names.length} pages (${g.names.slice(0, 5).join(', ')}${g.names.length > 5 ? ', ...' : ''}), first: "${snip(g.texts[0], 0, 90)}"`,
-    fix: 'A section on many pages reads as filler. Keep it where it does the most work and link to it, or write it for each page.',
+    evidence: `on ${e.names.length} pages (${e.names.join(', ')}): "${snip(e.text, 0, 200)}"`,
+    fix: REPEAT_FIX,
   }));
+}
+const REPEAT_FIX = 'A section on many pages reads as filler. Keep it where it does the most work and link to it, or write it for each page.';
+
+/**
+ * Merge kept repeated-block findings that share the same pages into one, since they are
+ * usually one repeated section. Other findings pass through unchanged.
+ * @param {{rule: string, text: string}[]} kept normalized findings
+ */
+export function groupRepeats(kept) {
+  const out = [];
+  const groups = new Map();
+  for (const f of kept) {
+    const m = f.rule === 'repeated-block' && f.text.match(/^on (\d+) pages \((.*?)\): "(.*)"$/s);
+    if (!m) { out.push(f); continue; }
+    const g = groups.get(m[2]);
+    if (g) { g.n++; continue; }
+    const entry = { ...f, n: 1, pages: Number(m[1]), names: m[2].split(', '), first: m[3] };
+    groups.set(m[2], entry);
+    out.push(entry);
+  }
+  return out.map((f) => {
+    if (!f.names) return f;
+    const { n, pages, names, first, ...rest } = f;
+    const list = `${names.slice(0, 5).join(', ')}${names.length > 5 ? ', ...' : ''}`;
+    return { ...rest, text: `${n} block${n > 1 ? 's' : ''} on ${pages} pages (${list}), first: "${first.slice(0, 90)}${first.length > 90 ? '...' : ''}"` };
+  });
 }
 
 async function load(src) {
@@ -257,6 +275,7 @@ async function main(argv) {
   if (raw) { console.log(JSON.stringify({ findings }, null, 1)); return findings.some((f) => f.grade === 'FAIL') ? 2 : 0; }
   try {
     const result = applyExceptions(normalize('copy', { findings }), loadExceptions(file));
+    result.kept = groupRepeats(result.kept);
     console.log(json ? JSON.stringify(result, null, 1) : report(result));
     return result.kept.some((f) => f.blocking) ? 2 : 0;
   } catch (e) {
