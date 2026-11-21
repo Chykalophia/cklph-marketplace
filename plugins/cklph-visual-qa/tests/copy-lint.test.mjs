@@ -98,6 +98,15 @@ test('fromMarkdown handles CRLF files and scans heading text', () => {
   assert.ok(f.some((x) => x.gate === 'ai-vocabulary' && x.evidence.includes('"seamless"')));
 });
 
+test('a paragraph under different Markdown headings still counts as repeated', () => {
+  const para = 'Every account, credential, file and line of code stays in your name, and you can leave any time.';
+  const docs = ['One', 'Two', 'Three'].map((h, i) => ({ name: `/${i}`, doc: fromMarkdown(`## ${h} heading\n${para}\n`) }));
+  assert.deepEqual(docs[0].doc.blocks, ['One heading', para]);
+  const f = checkRepeats(docs, 3);
+  assert.equal(f.length, 1);
+  assert.match(f[0].evidence, /Every account/);
+});
+
 test('CLI exits 2 on findings, 0 on a clean file, 1 on a missing file', () => {
   const tmp = fs.mkdtempSync(path.join(os.tmpdir(), 'copy-lint-'));
   assert.equal(run([HTML], tmp).status, 2);

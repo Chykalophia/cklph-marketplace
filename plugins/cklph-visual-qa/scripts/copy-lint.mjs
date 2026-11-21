@@ -81,12 +81,13 @@ export function fromMarkdown(text) {
     const lines = para.split('\n').filter((l) => !/^\s*(import|export)\s/.test(l));
     for (const line of lines) {
       const h = line.match(/^#{1,6}\s+(.*)$/);
-      if (h) headings.push(mdText(h[1]));
+      const text = h && mdText(h[1]);
+      if (text) { headings.push(text); blocks.push(text); }
     }
-    const prose = mdText(lines.map((l) => l.replace(/^#{1,6}\s+/, '')).join(' '));
+    const prose = mdText(lines.filter((l) => !/^#{1,6}\s/.test(l)).join(' '));
     if (prose) blocks.push(prose);
   }
-  return { headings: headings.filter(Boolean), blocks, labels: [] };
+  return { headings, blocks, labels: [] };
 }
 const mdText = (s) => s
   .replace(/<\/?[A-Za-z][^>]*>/g, ' ')
