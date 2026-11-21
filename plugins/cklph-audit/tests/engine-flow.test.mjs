@@ -31,6 +31,8 @@ const pipeline = async (items, ...stages) => Promise.all(items.map(async (item, 
 let synthInput = null;
 // every FINDING payload a verifier voter received, to check what the voter is and is not told
 const verifyPayloads = [];
+// full prompts by label prefix, for checks on what context each agent was handed
+const promptsSeen = [];
 function parseAfter(prompt, marker) {
   const i = prompt.indexOf(marker);
   if (i < 0) return null;
@@ -56,10 +58,11 @@ const D1 = { id: 'D1', title: 'AGENTS.md references lib/middleware/auth.ts which
 
 async function agent(prompt, opts = {}) {
   const label = opts.label || '';
+  promptsSeen.push({ label, prompt });
   if (label === 'discover:rulebook') return { rules: RULES };
   if (label === 'recon:security') return { domain: 'security', denominators: [{ pattern: '.single() by id', description: 'by-id lookups', command: "grep -rn '.eq(\\'id\\'' app/api", count: 3 }], seeds: [{ file: 'app/api/users/[id]/route.ts', line: 11, snippet: '.eq(id)', note: 'no workspace scope', suspectedRule: 'agents-md:rule-1' }, { file: 'app/api/orders/[id]/route.ts', line: 9, snippet: '.eq(id)', note: 'no workspace scope' }], safeControls: [{ file: 'lib/guarded.ts', line: 12, snippet: ".eq('workspace_id')", note: 'ownership guard present', rule: 'agents-md:rule-1' }] };
   if (label === 'recon:docs-drift') return { domain: 'docs-drift', denominators: [{ pattern: 'doc path tokens', description: 'paths referenced in docs', command: 'docsdrift.sh . AGENTS.md', count: 3 }], seeds: [{ file: 'AGENTS.md', line: 22, note: 'lib/middleware/auth.ts missing' }], safeControls: [] };
-  if (label === 'map:model') return { trustBoundaries: [{ id: 'tb-authz', where: 'proxy.ts', note: 'edge authz gate' }, { id: 'tb-api', where: 'app/api/**', note: 'route handlers' }], dataFlows: [{ source: 'params.id', sink: 'supabase.from().eq()', crossesBoundary: 'tb-api' }], invariants: [{ unit: 'api-surface', text: 'a tenant row is returned only to a member of its workspace' }], crownJewels: ['user-role mutation', 'auth gate'] };
+  if (label === 'map:model') return { trustBoundaries: [{ id: 'tb-authz', where: 'proxy.ts', note: 'edge authz gate' }, { id: 'tb-api', where: 'app/api/**', note: 'route handlers' }], dataFlows: [{ source: 'params.id', sink: 'supabase.from().eq()', crossesBoundary: 'tb-api' }], invariants: [{ unit: 'api-surface', text: 'a tenant row is returned only to a member of its workspace' }], crownJewels: ['user-role mutation', 'auth gate'], intendedUse: [{ unit: 'api-surface', text: 'staff admin route lists every workspace', evidence: { file: 'docs/admin.md', line: 4, kind: 'doc' } }, { unit: 'api-surface', text: 'users route returns any user by id', evidence: { file: 'app/api/users/[id]/route.ts', line: 11, kind: 'code' } }, { unit: 'api-surface', text: 'orders are world-readable' }] };
   if (label === 'review:api-surface:security') return {
     findings: [F1, F2, F3],
     ruleChecks: [
@@ -146,7 +149,21 @@ let problems = 0;
   if (!f3 || f3.ownerInputNeeded !== true) { problems++; console.log('  ✗ F3 (needs-owner-input) payload lacks ownerInputNeeded: true'); }
   if (!v1 || v1.lens !== 'security') { problems++; console.log(`  ✗ variant V1 payload lens is ${v1?.lens}, want its seed's lens security (never 'variant')`); }
   if (!d1 || d1.lens !== 'docs-drift') { problems++; console.log(`  ✗ D1 payload lens is ${d1?.lens}, want docs-drift`); }
-  if (!problems) console.log('  ✓ verifier payloads: lens per finding, variant under seed lens, no reviewer confidence, owner-input flag only when set');
+  const intended = 'staff admin route lists every workspace';
+  const rev = promptsSeen.find(p => p.label === 'review:api-surface:security');
+  const ver = promptsSeen.find(p => p.label.startsWith('verify:') && p.prompt.includes('IDOR: users'));
+  const docVer = promptsSeen.find(p => p.label.startsWith('verify:') && p.prompt.includes('AGENTS.md references'));
+  if (!rev?.prompt.includes('INTENDED USE') || !rev.prompt.includes(intended)) { problems++; console.log('  ✗ the api-surface reviewer prompt lacks the unit\'s INTENDED USE'); }
+  if (!ver?.prompt.includes(intended)) { problems++; console.log('  ✗ the F1 verifier prompt lacks the unit\'s INTENDED USE'); }
+  const dropped = ['users route returns any user by id', 'orders are world-readable'];
+  if (!docVer) { problems++; console.log('  ✗ no docs-drift verifier ran, so the cross-unit check proves nothing'); }
+  if (promptsSeen.some(p => dropped.some(d => p.prompt.includes(d)))) { problems++; console.log('  ✗ an intendedUse entry with code-only or no evidence reached a prompt'); }
+  if (!ver?.prompt.includes('Never refute a critical/high on intended use alone')) { problems++; console.log('  ✗ the verifier prompt lacks the critical/high guard on intended use'); }
+  if (!(synthInput?.runMeta?.intendedUse ?? []).some(i => i.text === intended)) { problems++; console.log('  ✗ RUN_META.intendedUse does not list the kept entry for the report'); }
+  if (!rev?.prompt.includes('LENSES IN THIS RUN: ["security","docs-drift"]')) { problems++; console.log('  ✗ the reviewer prompt does not name the lenses in this run, so ownership splits cannot tell when the owner is absent'); }
+  if (!rev?.prompt.includes('FILE any critical/high')) { problems++; console.log('  ✗ the reviewer prompt lets intended use drop a critical/high before the verifier sees it'); }
+  if (docVer?.prompt.includes(intended)) { problems++; console.log('  ✗ the docs-drift verifier (another unit) was handed api-surface\'s INTENDED USE'); }
+  if (!problems) console.log('  ✓ verifier payloads: lens per finding, variant under seed lens, no reviewer confidence, owner-input flag only when set; intended use needs doc/test/config/adr evidence, reaches only its own unit, carries the critical/high guard, and is listed for the report');
 }
 const freshIds = new Set((synthInput?.findings || []).map(f => f.id));
 const heldIds = new Set((synthInput?.heldUntraced || []).map(f => f.id));

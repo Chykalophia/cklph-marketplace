@@ -49,12 +49,59 @@ the new plugin-level `NOTICE.md`.
   owner, and a medium/low ships with `needs-owner-input` confidence. It never confirms or refutes
   on a guess about that fact. Ambiguity findings keep their own proof contract.
 
+### Also adapted from other security sources
+
+See `NOTICE.md` for each source, its license, and what was taken.
+
+- New `skills/trust-precedents`: settled trust calls (env vars, except values CI or a request
+  sets; random UUIDs; React escaping; client-side checks; SSRF, except string-built URLs whose
+  path can rewrite the host; URL logging) and a not-a-finding list (tests, commented-out code,
+  placeholders, generated files, unfixable-here, designed behaviour, crashes). Every entry names
+  the lenses it binds and the cases it never applies to; reviewers and verifiers load it.
+- Threat model: a per-unit `intendedUse` (what the unit is designed to allow, for whom, and its
+  limit). Each entry must cite a doc, test, config or ADR; the code itself and comments are not
+  evidence, and the engine drops entries without it. It reaches only that unit's reviewer and
+  verifiers. Verifiers never refute a critical/high on intended use alone, and it never covers
+  private networks, another tenant's data, or a wider audience. The report lists every entry so
+  the owner can check it. Reviewers still file every critical/high in such a unit for the verifier
+  to judge. `tests/engine-flow.test.mjs` covers all of this.
+- Reviewers are told which lenses are in the run. A lens skill that hands a class to another lens
+  only does so when that lens is running; otherwise the reviewer files it under its own lens and
+  names the other rule id, so an ownership split never drops a finding in a default run.
+- Verifier: Step 0 restates the claim in one line before reading code, and a critical/high trace
+  names the condition for every hop.
+- Variant hunt: match the confirmed bug first, widen one element at a time, stop when over half
+  the matches are noise.
+- security-lens: its first rule ids. Supabase (`TO authenticated` with no ownership predicate, a
+  `WITH CHECK` weaker than `USING`, views without `security_invoker`, exposed `SECURITY DEFINER`
+  functions, authorization on `user_metadata`, policy gaps), Server Actions as public endpoints,
+  Draft Mode gates, secret serialization (a credential holder plus a whole-object sink), insecure
+  defaults, path-only SSRF precision, `supabase db advisors` as recall, and variant seeds from past
+  security-fix commits. Fixture pair `supabase-policies*.example.sql`, checked against a local
+  Postgres: every planted attack worked on the flag file and failed on the safe one.
+- data-isolation-lens: cache audience in `key-collision`, and `cache-purge-authority`.
+- iac-lens: `next-image-scope` (omitted `remotePatterns` fields match anything; redirects skip
+  `remotePatterns`), `source-maps`, `action-origins`, `dynamic-destination`.
+- agent-config-lens: AI agents inside CI workflows (six rules), MCP tool-definition pinning,
+  tool shadowing, exposed local HTTP servers, token passthrough, nine skill content checks, and
+  rules-file and ignore-file checks. Its default globs now include `.github/workflows/*.y*ml` and
+  `skills/*/scripts/**`.
+- supply-chain-lens: `slopsquat`, `unlocked-install`, `test-weakening`.
+- llm-lens: `tool-output-authority`, two-stage commit in `action-binding`, strict tool schemas,
+  OAuth token passthrough, and tool descriptions that claim less than the code does.
+- omission-lens: a `process.env` read is not untrusted input; only an unsafe fallback is judged.
+- availability-lens: unbounded or deeply nested payloads to remote MCP and tool endpoints.
+
 ### Known gaps
 - `web-auth:private-response-cache` has no should-flag fixture. Whether Vercel's CDN caches a
   request that carries an `Authorization` header is not settled by its docs, so that case is left
   out rather than labelled wrong.
 - One voter's trace can still promote a critical/high that the other voters held only because an
   off-repo fact decides it. A verdict field for that hold would close it.
+- Several new rule ids have no fixture yet (most agent-config sections 7 and 9 rows, and
+  `security:secret-serialization`, `security:server-action-auth`, `security:draft-mode-gate`).
+- If every verifier voter fails, a medium or low finding is dropped unverified (logged), while a
+  critical or high one goes to Held-untraced.
 - `audit-recon`: runs the lens skill's own `Recall` commands first as denominators.
 - `audit-report-format`: the why-real names actor, boundary, affected party and result.
 - `supply-chain-lens`: expression injection, cache and artifact poisoning, token and OIDC

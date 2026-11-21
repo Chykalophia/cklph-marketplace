@@ -77,10 +77,12 @@ compliance:                      # compliance cross-mapping
   frameworks: [soc2, casa]       # SOC 2 Trust Services Criteria + CASA; add hipaa for PHI apps (opt-in)
 # agentConfig:                   # agent-config lens: override the AI-tooling globs it reviews
 #   # REPLACES the built-in default list (not merged), so list every glob you still want
+#   # keep the .github/workflows globs: supply-chain hands AI agent steps in CI to this lens
 #   # the full default list from workflows/audit.workflow.js; edit from here
 #   globs: ['**/.mcp.json', '**/mcp.json', '**/.claude/**', '**/.cursor/**', '**/.vscode/mcp.json',
 #           '**/hooks/hooks.json', '**/.claude/hooks/**', '**/plugins/*/hooks/**', '**/.claude-plugin/*.json',
-#           '**/CLAUDE.md', '**/AGENTS.md', '**/skills/**/SKILL.md', '**/agents/*.md']
+#           '**/CLAUDE.md', '**/AGENTS.md', '**/skills/**/SKILL.md', '**/skills/*/scripts/**', '**/agents/*.md',
+#           '**/.github/workflows/*.yml', '**/.github/workflows/*.yaml']
 # ambiguity:                     # ambiguity lens (opt-in)
 #   code: false                  # true = ALSO cross with units for code-level ambiguity (experimental)
 #   prose:

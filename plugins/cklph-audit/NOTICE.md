@@ -5,6 +5,40 @@
 `skills/agent-config-lens` adapts material from ECC. Its notice and license are in
 `skills/agent-config-lens/NOTICE.md`.
 
+## Other security sources (1.4.0)
+
+Rules and techniques below were rewritten in our own words for this plugin. None of the source
+text is copied. Each source is credited with its license and the commit read on 2026-11-21.
+
+Adapted (permissive licenses):
+
+- supabase/agent-skills, `skills/supabase/SKILL.md`, MIT, commit c9be0e9:
+  Supabase RLS, view, `SECURITY DEFINER` and `user_metadata` rules in `skills/security-lens`.
+- anthropics/claude-code-security-review, MIT, commit 0c6a49f: trust precedents in
+  `skills/trust-precedents`.
+- google gemini-cli-extensions/security, Apache-2.0, commit 2227f3c: the not-a-finding gate in
+  `skills/trust-precedents`.
+- GitHubSecurityLab/seclab-taskflows, MIT: per-unit `intendedUse` in the threat model.
+- getsentry/skills, `skills/secret-serialization`, Apache-2.0: `security:secret-serialization`.
+- snyk/agent-scan, Apache-2.0, commit ebf2d6f: tool shadowing and skill content checks in
+  `skills/agent-config-lens`.
+- cisco-ai-defense/skill-scanner (Apache-2.0, commit c558c42) and cisco-ai-defense/mcp-scanner
+  (Apache-2.0, commit 8c3cae1): skill content checks in `skills/agent-config-lens`, and the
+  description-versus-behaviour check in `skills/llm-lens`.
+- cosai-oasis/project-codeguard, CC BY 4.0, commit 1da7e10, "Project CodeGuard" by the Coalition
+  for Secure AI (https://creativecommons.org/licenses/by/4.0/). Changes were made: the two-stage
+  commit and approval-fatigue guidance in `llm:action-binding`, and npm install hygiene in
+  `skills/supply-chain-lens`.
+
+Ideas only (share-alike, copyleft, or unlicensed sources; no text adapted):
+
+- trailofbits/skills (CC BY-SA 4.0, commit 149d7b2): restate-the-claim, variant search
+  discipline, AI agents in CI, removed-guard checks.
+- OWASP Cheat Sheet Series (CC BY-SA 4.0): Next.js, MCP and Secure Coding with AI cheat sheets.
+- Theori RoboDuck, protectai/vulnhuntr, Team Atlanta Atlantis (AGPL or unverified): per-hop
+  reachability conditions.
+- promptfoo coding-agent plugins: test weakening.
+
 ## Cloudflare security-audit skill
 
 Adapted from https://github.com/cloudflare/security-audit-skill, commit

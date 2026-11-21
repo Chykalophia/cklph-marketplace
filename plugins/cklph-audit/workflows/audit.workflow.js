@@ -106,7 +106,9 @@ function callAgent(prompt, opts) {
 const agentConfigGlobsBase = config.agentConfig?.globs ?? [
   '**/.mcp.json', '**/mcp.json', '**/.claude/**', '**/.cursor/**', '**/.vscode/mcp.json',
   '**/hooks/hooks.json', '**/.claude/hooks/**', '**/plugins/*/hooks/**', '**/.claude-plugin/*.json',
-  '**/CLAUDE.md', '**/AGENTS.md', '**/skills/**/SKILL.md', '**/agents/*.md',
+  '**/CLAUDE.md', '**/AGENTS.md', '**/skills/**/SKILL.md', '**/skills/*/scripts/**', '**/agents/*.md',
+  // CI workflows can run an AI agent on untrusted event data; the lens drops workflows with no agent step.
+  '**/.github/workflows/*.yml', '**/.github/workflows/*.yaml',
 ]
 // honor args.path the way recon/unit inference do: scope the AI-tooling globs under it.
 // Normalize first: strip leading './' and trailing '/'; '.', './' and '' mean the whole repo.
@@ -414,6 +416,27 @@ const MAP_SCHEMA = {
       },
     },
     crownJewels: { type: 'array', items: { type: 'string' } },   // highest-value assets/flows
+    intendedUse: {                                  // what a unit is designed to allow, so it is not flagged as a defect
+      type: 'array',
+      items: {
+        type: 'object',
+        properties: {
+          unit: { type: 'string' },                 // a unit key
+          text: { type: 'string' },
+          // Intent must be stated outside the code that would be the bug: code shows capability, not intent.
+          evidence: {
+            type: 'object',
+            properties: {
+              file: { type: 'string' },
+              line: { type: 'integer' },
+              kind: { type: 'string', enum: ['doc', 'test', 'config', 'adr'] },
+            },
+            required: ['file', 'kind'],
+          },
+        },
+        required: ['unit', 'text', 'evidence'],
+      },
+    },
   },
 }
 
@@ -713,6 +736,8 @@ const AMBIGUITY_PROOF_PROMPT =
 // Voters are independent parallel calls — no within-prompt position bias to randomize.
 // The lens a voter sees: a variant sibling is judged under its seed's lens, a DAST finding as security,
 // so the verifier's lens-scoped checks apply to both.
+// Designed capabilities of a unit, from the Map phase. Empty before Map runs and for variant/DAST batches.
+const intendedFor = unitKey => (model.intendedUse ?? []).filter(i => i?.unit === unitKey)
 const voterLens = (f, lens) => lens === 'variant' ? (f.seedLens ?? 'security') : lens === 'dast' ? 'security' : lens
 
 function verifyFindings(findings, unitKey, lens, unitVoters, extraOpts = {}) {
@@ -756,6 +781,12 @@ function verifyFindings(findings, unitKey, lens, unitVoters, extraOpts = {}) {
             `"plausible" without a trace = refuted. One exception: if the in-repo path holds and only a fact ` +
             `outside the repo (proxy, CDN, provider, account setting) decides it, return refuted:false with NO ` +
             `reachabilityTrace and name that fact in reason. Voter ${i + 1}/${unitVoters}.\n`) +
+        (intendedFor(unitKey).length && !ambig
+          ? `INTENDED USE of this unit, each with its evidence: re-read the evidence before relying on it. Refute a ` +
+            `finding only when it describes designed behaviour within the stated limit, and name the entry. Never ` +
+            `refute a critical/high on intended use alone, and intended use never covers reaching private networks, ` +
+            `another tenant's data, or an audience wider than the one stated: ${JSON.stringify(intendedFor(unitKey))}\n`
+          : '') +
         `FINDING: ${JSON.stringify({ title: f.title, file: f.file, line: f.line, lens: voterLens(f, lens), rule: f.rule, severity: f.severity, ...(f.confidence === 'needs-owner-input' ? { ownerInputNeeded: true } : {}), snippet: ambig ? f.snippet : stripComments(f.snippet), rationale: f.rationale, ...(ambig && f.readings ? { readings: f.readings } : {}) })}`,
         { agentType: 'cklph-audit:audit-verifier', label: `verify:${f.id ?? f.file}`, phase: 'Verify', schema: VERDICT_SCHEMA, ...tier('verifier'), ...extraOpts },
       )))
@@ -961,7 +992,7 @@ const mapSkipReason = mode === 'quick' ? 'quick'
   : lenses.length && lenses.every(isProseOnlyLens) ? 'prose-only'
   : null
 const mapEnabled = !mapSkipReason
-let model = { trustBoundaries: [], dataFlows: [], invariants: [], crownJewels: [] }
+let model = { trustBoundaries: [], dataFlows: [], invariants: [], crownJewels: [], intendedUse: [] }
 let mapRan = false
 if (!mapEnabled) {
   log(mapSkipReason === 'quick'
@@ -976,7 +1007,13 @@ if (!mapEnabled) {
     `denominators/seeds, and the rulebook docs below, identify: trustBoundaries (where a security control ` +
     `gates a connection — { id, where (a path/glob), note }); dataFlows (external/attacker-reachable ` +
     `source → sink — { source, sink, crossesBoundary }); invariants (per-unit properties that MUST hold — ` +
-    `{ unit (prefer a key from UNITS), text }); and crownJewels (the highest-value assets/flows — strings). ` +
+    `{ unit (prefer a key from UNITS), text }); crownJewels (the highest-value assets/flows — strings); and ` +
+    `intendedUse (per unit, the capability it is DESIGNED to grant, to whom, and its stated limit, e.g. ` +
+    `"staff-only admin tool reads every tenant; staff check at lib/admin.ts:12", "image proxy fetches public ` +
+    `https URLs for signed-in users; private ranges blocked at lib/proxy.ts:30": { unit, text, evidence: ` +
+    `{ file, line, kind: doc|test|config|adr } }. The evidence must state the intent: a doc, an ADR, a test ` +
+    `asserting the behaviour, or config. The code itself and code comments are NOT evidence, and a recon seed ` +
+    `is never intended. Leave an entry out when no such evidence exists). `+
     `Read-only.\n` +
     `UNITS: ${JSON.stringify(units.map(u => ({ key: u.key, globs: u.globs, riskScore: u.riskScore })))}\n` +
     `RECON: ${JSON.stringify(Object.fromEntries(Object.entries(reconByLens).map(([l, r]) => [l, { denominators: r.denominators ?? [], seeds: (r.seeds ?? []).slice(0, 20) }])))}\n` +
@@ -991,8 +1028,11 @@ if (!mapEnabled) {
       dataFlows: mapOut.dataFlows ?? [],
       invariants: mapOut.invariants ?? [],
       crownJewels: mapOut.crownJewels ?? [],
+      intendedUse: (mapOut.intendedUse ?? []).filter(i => i?.unit && i?.text && i?.evidence?.file && ['doc', 'test', 'config', 'adr'].includes(i.evidence.kind)),
     }
     mapRan = true
+    const droppedIntended = (mapOut.intendedUse ?? []).length - model.intendedUse.length
+    if (droppedIntended) log(`map: dropped ${droppedIntended} intendedUse entr(ies) with no doc/test/config/adr evidence`)
     log(`map: ${model.trustBoundaries.length} trust boundar(ies), ${model.dataFlows.length} data-flow(s), ` +
         `${model.invariants.length} invariant(s), ${model.crownJewels.length} crown jewel(s)`)
   }
@@ -1034,6 +1074,7 @@ const reviewed = await pipeline(
     // T2.1: when the Map ran, hand this unit its invariants + the boundaries whose `where`
     // glob-matches it. Security findings SHOULD cite the boundary; each invariant is checked.
     const unitInvariants = mapRan ? model.invariants.filter(i => i.unit === job.unit.key) : []
+    const unitIntended = mapRan ? (model.intendedUse ?? []).filter(i => i.unit === job.unit.key) : []
     const unitBoundaries = mapRan
       ? model.trustBoundaries.filter(b => b?.where && globMatch(b.where.replace(/^\.\//, ''), job.unit.globs))
       : []
@@ -1080,6 +1121,14 @@ const reviewed = await pipeline(
         : '') +
       (unitInvariants.length
         ? `INVARIANTS this unit must hold — check EACH; a violation is a finding (set its invariant):\n${JSON.stringify(unitInvariants)}\n`
+        : '') +
+      `LENSES IN THIS RUN: ${JSON.stringify(lenses)}. A lens skill that hands a class to another lens only ` +
+      `hands it over when that lens is in this list; otherwise file it yourself: set rule to the closest rule id ` +
+      `of YOUR lens and name the other lens's rule id in the rationale.\n` +
+      (unitIntended.length
+        ? `INTENDED USE of this unit, with evidence. Designed behaviour within the stated limit is not a finding. ` +
+          `It never covers reaching private networks, another tenant's data, or an audience wider than the one ` +
+          `stated, and you still FILE any critical/high in this unit and let the verifier decide:\n${JSON.stringify(unitIntended)}\n`
         : '') +
       (unitBoundaries.length
         ? `TRUST BOUNDARIES gating this unit — a security finding SHOULD cite the boundary crossed (set finding.boundary):\n${JSON.stringify(unitBoundaries)}\n`
@@ -1509,7 +1558,8 @@ if (!fresh.length && !heldUntraced.length && !deferred.length && !proofContractD
   const suppressedByBaseline = deduped.filter(f => baseline.has(fingerprint(f))).length
   const yamlList = xs => `[${xs.map(x => JSON.stringify(String(x))).join(', ')}]`
   const mapLine = mapRan
-    ? `ran: ${model.trustBoundaries.length} trust boundar(ies), ${model.invariants.length} invariant(s)`
+    ? `ran: ${model.trustBoundaries.length} trust boundar(ies), ${model.invariants.length} invariant(s), ` +
+      `${model.intendedUse.length} intended-use entr(ies)${model.intendedUse.length ? ` (${model.intendedUse.map(i => `${i.unit}: ${oneLine(i.text)} [${i.evidence.kind} ${i.evidence.file}${i.evidence.line ? `:${i.evidence.line}` : ''}]`).join('; ')})` : ''}`
     : mapSkipReason
       ? `skipped (${mapSkipReason === 'prose-only' ? 'prose-only lenses, no threat model needed' : mapSkipReason === 'quick' ? 'quick mode' : 'map.enabled: false'})`
       : 'FAILED (the modeler died or returned nothing; no threat model)'
@@ -1589,7 +1639,7 @@ if (!fresh.length && !heldUntraced.length && !deferred.length && !proofContractD
     positiveControls: positiveControls.length,
     heldUntraced: 0,
     deferred: 0,
-    map: { ran: mapRan, trustBoundaries: model.trustBoundaries.length, invariants: model.invariants.length, ...(mapSkipReason ? { skipReason: mapSkipReason } : {}) },
+    map: { ran: mapRan, trustBoundaries: model.trustBoundaries.length, invariants: model.invariants.length, intendedUse: model.intendedUse, ...(mapSkipReason ? { skipReason: mapSkipReason } : {}) },
     variants: variantsConfirmed,
     dast: { ran: dastRan, findings: dastFindings.length, exploits: exploitResults.length },
     patch: { ran: patchRan, patches: patchResults.length },
@@ -1620,6 +1670,7 @@ const runMeta = {
   verifierBudget: maxVerifierAgents,             // A5b: the cap; verifierSpawns is what was actually used
   verifierSpawns,
   crownJewels: model.crownJewels,
+  intendedUse: model.intendedUse,
 }
 // E2: held (inconclusive) critical/high findings, surfaced for owner review (never silently dropped)
 const publicHeldUntraced = heldUntraced.map(f => ({ id: f.id, file: f.file, severity: f.severity, title: f.title, rule: f.rule, heldReason: f.heldReason }))
@@ -1789,7 +1840,7 @@ return {
   positiveControls: positiveControls.length,
   heldUntraced: heldUntraced.length,
   deferred: deferred.length,
-  map: { ran: mapRan, trustBoundaries: model.trustBoundaries.length, invariants: model.invariants.length, ...(mapSkipReason ? { skipReason: mapSkipReason } : {}) },
+  map: { ran: mapRan, trustBoundaries: model.trustBoundaries.length, invariants: model.invariants.length, intendedUse: model.intendedUse, ...(mapSkipReason ? { skipReason: mapSkipReason } : {}) },
   variants: variantsConfirmed,
   dast: { ran: dastRan, findings: dastFindings.length, exploits: exploitResults.length },
   patch: { ran: patchRan, patches: patchResults.length },
