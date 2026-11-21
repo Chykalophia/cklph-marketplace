@@ -3,6 +3,71 @@
 All notable changes to `cklph-audit` are documented here. This project adheres to
 [Semantic Versioning](https://semver.org/).
 
+## 1.4.0 - 2026-11-21
+
+Ideas and attack classes adapted from Cloudflare's security-audit skill (MIT). Attribution is in
+the new plugin-level `NOTICE.md`.
+
+### Added
+- Six lenses, each pure reasoning over `rg` recall, with rule ids, a split paragraph naming which
+  neighbouring lens owns an overlapping class, and should-flag/should-not-flag fixtures:
+  - `llm`: the product's own model features. Cross-principal injection, retrieval and memory
+    scope, role forgery, confused-deputy tools, approval that does not bind the executed action,
+    schema/dispatcher drift, unbounded loops, MCP identity and metadata trust, unsafe rendering,
+    context disclosure.
+  - `data-isolation`: tenant data through caches, keys, blobs and signed URLs, RLS vs
+    service-role queries, logs, exports, restores, migrations, deletion and revocation.
+  - `web-auth`: OAuth/OIDC, JWT, sessions, reset and magic-link tokens, forwarded-header trust,
+    cache poisoning and deception.
+  - `client-side`: DOM XSS, postMessage, client open redirects, prototype pollution, framing,
+    secrets shipped to the client, client-only authorization.
+  - `messaging`: webhook authenticity and replay, queue consumers, duplicate and out-of-order
+    delivery, server actions and RPC, realtime channels, outbound callbacks.
+  - `availability`: unbounded input and fan-out, ReDoS, pagination caps, tenant starvation, retry
+    storms, denial of wallet on paid APIs.
+  None of the six has run the fixture backtest gate yet (recall >= 0.8, precision >= 0.7 after
+  verify). The README marks them "not yet backtested", and `audit-init` says so when it suggests
+  them. Run `/cklph-audit:backtest LENS` before treating their output as gated.
+- `audit-init` suggests the new lenses from read-only probes and names the hit behind each one.
+- `tests/fixture-safe-redirects.test.mjs`: the should-not-flag next-path helpers keep every probe
+  on-origin, including `/.//evil.example`, which resolves to a protocol-relative path.
+
+### Changed
+- `audit-reviewer`: every security-family finding names the lower-trust actor, the input, the
+  control, the boundary, the affected party, and the result. Checklist deviations,
+  defense-in-depth gaps behind a working control, and self-impact are not findings; a deployment
+  fact that decides a finding is named and the finding kept as `needs-owner-input`. Fixed severity
+  anchors for critical, high, medium and low.
+- The engine passes each verifier voter the finding's `lens` (a variant sibling under its seed's
+  lens, a DAST finding as `security`) and, when the reviewer marked it `needs-owner-input`, a bare
+  `ownerInputNeeded: true`. It never passes the reviewer's own confidence. The inline verifier
+  prompt names the off-repo hold. `tests/engine-flow.test.mjs` checks all of this.
+- `audit-verifier`: for security-family lenses only (not concurrency or state-machine, whose findings often have no attacker), refutes a finding with no boundary or no
+  affected party, and cites a different layer that already holds as counter-evidence. For any lens,
+  when the in-repo path holds but an off-repo fact (proxy, CDN, provider, account setting) decides
+  it, the voter holds without a reachability trace: a critical/high goes to Held-untraced for the
+  owner, and a medium/low ships with `needs-owner-input` confidence. It never confirms or refutes
+  on a guess about that fact. Ambiguity findings keep their own proof contract.
+
+### Known gaps
+- `web-auth:private-response-cache` has no should-flag fixture. Whether Vercel's CDN caches a
+  request that carries an `Authorization` header is not settled by its docs, so that case is left
+  out rather than labelled wrong.
+- One voter's trace can still promote a critical/high that the other voters held only because an
+  off-repo fact decides it. A verdict field for that hold would close it.
+- `audit-recon`: runs the lens skill's own `Recall` commands first as denominators.
+- `audit-report-format`: the why-real names actor, boundary, affected party and result.
+- `supply-chain-lens`: expression injection, cache and artifact poisoning, token and OIDC
+  overreach, build-to-release substitution, mutable build inputs, build-context leaks, plugin
+  trust expansion.
+- `iac-lens`: treats `vercel.json`, `next.config.*`, middleware matchers, `supabase/config.toml`
+  and `wrangler.toml` as infrastructure. Adds event-source identity (unauthenticated cron
+  routes), trusted-proxy headers, control precedence drift, edge/runtime mismatch, workload
+  overreach, and unsafe credential fallback.
+- `security-lens`, `economic-lens`, `agent-config-lens`, `iac-lens`, `supply-chain-lens`: each
+  overlapping class has one owning lens, named in both directions, so a defect is filed once. `llm`
+  and `agent-config` share one precedence rule, word for word.
+
 ## 1.3.4 - 2026-11-14
 
 ### Changed

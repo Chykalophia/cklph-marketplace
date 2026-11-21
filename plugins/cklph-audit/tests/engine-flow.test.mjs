@@ -29,6 +29,8 @@ const pipeline = async (items, ...stages) => Promise.all(items.map(async (item, 
 
 // captured synthesizer input for cross-phase consistency checks
 let synthInput = null;
+// every FINDING payload a verifier voter received, to check what the voter is and is not told
+const verifyPayloads = [];
 function parseAfter(prompt, marker) {
   const i = prompt.indexOf(marker);
   if (i < 0) return null;
@@ -46,9 +48,9 @@ const RULES = [
   { id: 'agents-md:rule-4', source: 'AGENTS.md:18', text: 'state-changing routes must be rate-limited', lensHint: 'security' },
   { id: 'agents-md:rule-5', source: 'AGENTS.md:20', text: 'no unscoped invoice reads', lensHint: 'security' },
 ];
-const F1 = { id: 'F1', title: 'IDOR: users route reads/updates by id with no ownership check', severity: 'critical', file: 'app/api/users/[id]/route.ts', line: 11, rule: 'agents-md:rule-1', rationale: '...', snippet: ".eq('id', params.id).single()", normalizedSnippet: "eq id params.id single", suggestedFix: 'scope by workspace', source: 'reasoning', rootCause: 'no ownership predicate', invariant: 'a row is only returned to a member of its workspace' };
+const F1 = { confidence: 'confirmed', id: 'F1', title: 'IDOR: users route reads/updates by id with no ownership check', severity: 'critical', file: 'app/api/users/[id]/route.ts', line: 11, rule: 'agents-md:rule-1', rationale: '...', snippet: ".eq('id', params.id).single()", normalizedSnippet: "eq id params.id single", suggestedFix: 'scope by workspace', source: 'reasoning', rootCause: 'no ownership predicate', invariant: 'a row is only returned to a member of its workspace' };
 const F2 = { id: 'F2', title: 'getSession() used as server authz gate in proxy.ts', severity: 'high', file: 'proxy.ts', line: 11, rule: 'agents-md:rule-2', rationale: '...', snippet: 'supabase.auth.getSession()', normalizedSnippet: 'supabase.auth.getsession', suggestedFix: 'use getUser()', source: 'reasoning', rootCause: 'JWT not re-validated', invariant: 'authz decisions use a server-validated identity' };
-const F3 = { id: 'F3', title: 'IDOR in guarded.ts getInvoice', severity: 'high', file: 'lib/guarded.ts', line: 8, rule: 'agents-md:rule-1', rationale: '...(false positive)', snippet: ".eq('id', id)", normalizedSnippet: "eq id id", suggestedFix: 'n/a', source: 'reasoning', rootCause: 'looks like IDOR', invariant: 'ownership scoping' };
+const F3 = { confidence: 'needs-owner-input', id: 'F3', title: 'IDOR in guarded.ts getInvoice', severity: 'high', file: 'lib/guarded.ts', line: 8, rule: 'agents-md:rule-1', rationale: '...(false positive)', snippet: ".eq('id', id)", normalizedSnippet: "eq id id", suggestedFix: 'n/a', source: 'reasoning', rootCause: 'looks like IDOR', invariant: 'ownership scoping' };
 const SIBLING = { id: 'V1', title: 'IDOR: orders route reads by id with no ownership check', severity: 'critical', file: 'app/api/orders/[id]/route.ts', line: 9, rule: 'agents-md:rule-1', rationale: 'sibling of F1', snippet: ".eq('id', params.id).single()", normalizedSnippet: "eq id params.id single orders", suggestedFix: 'scope by workspace', source: 'tool', rootCause: 'no ownership predicate', invariant: 'row only to workspace member' };
 const D1 = { id: 'D1', title: 'AGENTS.md references lib/middleware/auth.ts which does not exist', severity: 'low', file: 'AGENTS.md', line: 22, rule: 'docs-drift:path', rationale: 'drift', snippet: '`lib/middleware/auth.ts`', normalizedSnippet: 'lib/middleware/auth.ts', suggestedFix: 'update path', source: 'tool' };
 
@@ -78,6 +80,7 @@ async function agent(prompt, opts = {}) {
     let f = {};
     const m = prompt.match(/FINDING:\s*(\{[\s\S]*\})/);
     if (m) { try { f = JSON.parse(m[1]); } catch {} }
+    verifyPayloads.push(f);
     const t = f.title || '';
     if (t.includes('users route')) return { refuted: false, reason: 'reachable', reachabilityTrace: 'GET /api/users/<victim-id> returns any user; no workspace predicate', confidence: 0.9 };
     if (t.includes('orders route')) return { refuted: false, reason: 'reachable sibling', reachabilityTrace: 'GET /api/orders/<victim-id> returns any order', confidence: 0.9 };
@@ -132,6 +135,19 @@ console.log('  runMeta:', JSON.stringify(synthInput?.runMeta));
 
 console.log('\n=== CROSS-PHASE CONSISTENCY CHECKS ===');
 let problems = 0;
+// The voter sees the lens (variants under their seed's lens), never the reviewer's own confidence
+// (the accuser vouching for itself), and only a bare owner-input flag.
+{
+  const byId = id => verifyPayloads.find(f => (f.title || '').startsWith(id === 'V1' ? 'IDOR: orders' : id === 'F1' ? 'IDOR: users' : id === 'F3' ? 'IDOR in guarded' : 'AGENTS.md references'));
+  const f1 = byId('F1'), f3 = byId('F3'), v1 = byId('V1'), d1 = byId('D1');
+  if (!f1 || f1.lens !== 'security') { problems++; console.log(`  ✗ F1 verifier payload lens is ${f1?.lens}, want security`); }
+  if (verifyPayloads.some(f => 'confidence' in f)) { problems++; console.log('  ✗ a verifier payload carries the reviewer\'s confidence'); }
+  if (f1 && 'ownerInputNeeded' in f1) { problems++; console.log('  ✗ F1 (confirmed by the reviewer) carries ownerInputNeeded'); }
+  if (!f3 || f3.ownerInputNeeded !== true) { problems++; console.log('  ✗ F3 (needs-owner-input) payload lacks ownerInputNeeded: true'); }
+  if (!v1 || v1.lens !== 'security') { problems++; console.log(`  ✗ variant V1 payload lens is ${v1?.lens}, want its seed's lens security (never 'variant')`); }
+  if (!d1 || d1.lens !== 'docs-drift') { problems++; console.log(`  ✗ D1 payload lens is ${d1?.lens}, want docs-drift`); }
+  if (!problems) console.log('  ✓ verifier payloads: lens per finding, variant under seed lens, no reviewer confidence, owner-input flag only when set');
+}
 const freshIds = new Set((synthInput?.findings || []).map(f => f.id));
 const heldIds = new Set((synthInput?.heldUntraced || []).map(f => f.id));
 const heldTitles = (synthInput?.heldUntraced || []).map(f => f.title);
@@ -458,8 +474,8 @@ console.log('\n=== SCENARIO E: ambiguity lens ===');
   // rule NOT CHECKED), so it must be the schema enum filtered in order, and carry ambiguity when it runs.
   const BASE_HINTS = ['security', 'correctness', 'architecture', 'docs-drift', 'agent-config', 'any'];
   const derived = (ls) => schemaHints.filter(h => BASE_HINTS.includes(h) || (h !== 'compliance' && ls.includes(h)));
-  if (schemaHints.length !== 17 || JSON.stringify(promptHints) !== JSON.stringify(derived(['ambiguity'])) || !promptHints.includes('ambiguity')) fail(`rulebook prompt lensHints ${JSON.stringify(promptHints)} are not the 17-value schema enum ${JSON.stringify(schemaHints)} filtered to base + running lenses (or no ambiguity)`);
-  else ok(`rulebook prompt lensHints = schema enum (17) filtered to base + running lenses, incl. ambiguity (${promptHints.join('|')})`);
+  if (schemaHints.length !== 23 || JSON.stringify(promptHints) !== JSON.stringify(derived(['ambiguity'])) || !promptHints.includes('ambiguity')) fail(`rulebook prompt lensHints ${JSON.stringify(promptHints)} are not the 23-value schema enum ${JSON.stringify(schemaHints)} filtered to base + running lenses (or no ambiguity)`);
+  else ok(`rulebook prompt lensHints = schema enum (23) filtered to base + running lenses, incl. ambiguity (${promptHints.join('|')})`);
   const reconMd = fs.readFileSync(new URL('../agents/audit-recon.md', import.meta.url), 'utf8');
   // kills: audit-recon.md keeping its own copied lensHint list
   if (reconMd.split('\n').some(l => /security`? *\| *`?correctness/.test(l))) fail('agents/audit-recon.md still carries a copied lensHint list');
@@ -620,7 +636,7 @@ console.log('\n=== SCENARIO E: ambiguity lens ===');
   if (c3.err || JSON.stringify(t3.ex) !== JSON.stringify(['**/CHANGELOG.md', 'dist/**']) || JSON.stringify(t3.globs) !== JSON.stringify(['docs/**'])) fail(`string exclude/ignore/group not read as one glob each: ${c3.err ?? JSON.stringify(t3)}`);
   else ok("string exclude, ignore and group value each read as one glob (--exclude '**/CHANGELOG.md' --exclude 'dist/**' 'docs/**')");
 
-  // kills: a rulebook prompt offering every hint (17) in a default run — rules hinted concurrency /
+  // kills: a rulebook prompt offering every hint (23) in a default run — rules hinted concurrency /
   // compliance / ambiguity reach no reviewer and close NOT CHECKED. The default run is HEAD's list.
   const hintsOf = (r) => ((r.prompt('discover:rulebook').match(/lensHint \(([^)]*)\)/) || [])[1] ?? '');
   const h1 = await runE({ lenses: ['security', 'correctness', 'architecture'] });

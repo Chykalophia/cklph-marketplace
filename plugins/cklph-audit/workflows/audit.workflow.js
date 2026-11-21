@@ -214,7 +214,7 @@ const PLAN_SCHEMA = {
 }
 
 // the ONE lens-hint list: RULEBOOK_SCHEMA's enum and the rulebook prompt both read it (never copy it)
-const LENS_HINTS = ['security','correctness','architecture','docs-drift','sca','iac','container','k8s','supply-chain','compliance','concurrency','state-machine','economic','omission','agent-config','ambiguity','any']
+const LENS_HINTS = ['security','correctness','architecture','docs-drift','sca','iac','container','k8s','supply-chain','compliance','concurrency','state-machine','economic','llm','data-isolation','web-auth','client-side','messaging','availability','omission','agent-config','ambiguity','any']
 // The rulebook prompt OFFERS the pre-v4 base hints plus every running lens that has review jobs: a rule
 // hinted for a lens with no reviewer this run closes NOT CHECKED (compliance has none, so it is never
 // offered). Filtered from LENS_HINTS, so the prompt can never drift from the schema enum (§15).
@@ -711,6 +711,10 @@ const AMBIGUITY_PROOF_PROMPT =
 // N default-refuted voters try to REFUTE each finding; evidence (not tally) promotes (T1.3):
 //   low/medium keep the majority rule; critical/high require a reachabilityTrace.
 // Voters are independent parallel calls — no within-prompt position bias to randomize.
+// The lens a voter sees: a variant sibling is judged under its seed's lens, a DAST finding as security,
+// so the verifier's lens-scoped checks apply to both.
+const voterLens = (f, lens) => lens === 'variant' ? (f.seedLens ?? 'security') : lens === 'dast' ? 'security' : lens
+
 function verifyFindings(findings, unitKey, lens, unitVoters, extraOpts = {}) {
   // Verify critical/high first WITHIN this call so they claim the budget before low/medium here.
   // NOTE: this is per-call priority only — across units (reviews land in pipeline order) and across
@@ -749,8 +753,10 @@ function verifyFindings(findings, unitKey, lens, unitVoters, extraOpts = {}) {
             `RLS, validation, an upstream caller, an existing test, a documented/accepted exception). To ` +
             `REFUTE, cite the guard file:line in counterEvidence. To CONFIRM a critical/high you MUST supply a ` +
             `reachabilityTrace (attacker-controlled input → sink, or the invariant-violation path) — ` +
-            `"plausible" without a trace = refuted. Voter ${i + 1}/${unitVoters}.\n`) +
-        `FINDING: ${JSON.stringify({ title: f.title, file: f.file, line: f.line, rule: f.rule, severity: f.severity, snippet: ambig ? f.snippet : stripComments(f.snippet), rationale: f.rationale, ...(ambig && f.readings ? { readings: f.readings } : {}) })}`,
+            `"plausible" without a trace = refuted. One exception: if the in-repo path holds and only a fact ` +
+            `outside the repo (proxy, CDN, provider, account setting) decides it, return refuted:false with NO ` +
+            `reachabilityTrace and name that fact in reason. Voter ${i + 1}/${unitVoters}.\n`) +
+        `FINDING: ${JSON.stringify({ title: f.title, file: f.file, line: f.line, lens: voterLens(f, lens), rule: f.rule, severity: f.severity, ...(f.confidence === 'needs-owner-input' ? { ownerInputNeeded: true } : {}), snippet: ambig ? f.snippet : stripComments(f.snippet), rationale: f.rationale, ...(ambig && f.readings ? { readings: f.readings } : {}) })}`,
         { agentType: 'cklph-audit:audit-verifier', label: `verify:${f.id ?? f.file}`, phase: 'Verify', schema: VERDICT_SCHEMA, ...tier('verifier'), ...extraOpts },
       )))
       .then(votes => {
@@ -1257,7 +1263,7 @@ if (!variantEnabled) {
       { agentType: 'cklph-audit:audit-reviewer', label: `variant:${seed.file}`, phase: 'Variant', schema: REVIEW_SCHEMA, ...tier('reviewer') },
     )))
     const candidates = variantOut
-      .flatMap(out => (out?.findings ?? []).slice(0, maxPerSeed))
+      .flatMap((out, i) => (out?.findings ?? []).slice(0, maxPerSeed).map(f => ({ ...f, seedLens: seeds[i]?.lens })))
     // re-verify through the SAME gate (base voters — the sibling's home unit isn't known here),
     // then dedup + baseline-suppress + drop anything already in `fresh`.
     const verifiedVariants = await verifyFindings(candidates, 'variant', 'variant', config.verify?.voters ?? 3)

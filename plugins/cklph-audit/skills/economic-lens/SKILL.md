@@ -20,6 +20,8 @@ Map every finding to a `economic:*` rule and CWE where applicable.
 - **Webhook without signature verification** — a payment webhook that doesn't verify the signature; an attacker can forge webhook calls to credit accounts. (CWE-347, `economic:webhook-no-sig`.)
 - **Race in balance update** — concurrent operations that read a balance, compute, and write back non-atomically. (CWE-362, `economic:balance-race`.)
 
+Spend the operator pays for (LLM tokens, SMS, email, enrichment calls) is a capacity problem, not a value-integrity one: file it under `availability` when that lens runs. Inbound webhook authenticity outside payments belongs to `messaging`.
+
 ## How to work
 
 1. Identify value-bearing flows in the unit (payments, credits, quotas, entitlements, tokens, subscriptions).

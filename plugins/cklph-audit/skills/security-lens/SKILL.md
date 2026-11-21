@@ -31,6 +31,19 @@ Judge each unit against these. Map every finding to a **CWE** and/or **ASVS** id
 - **Money & state** — payment/webhook **signature verification**; **idempotency** on charge paths; tier/entitlement integrity (price from DB, not client); no live side-effects triggered by untrusted input. (CWE-345/347, ASVS-9.)
 - **Surface controls** — rate-limit + **CSRF** on state-changing routes; **fail-closed** defaults (auth/cron bypass must not fail-open). (CWE-352/307/636, ASVS-2.2/13.)
 
+## Depth lenses
+
+This lens is the broad pass. When one of these lenses also runs on the unit, leave its classes to it and file each defect once:
+
+- `llm`: model features (cross-principal injection, retrieval scope, confused-deputy tools, action binding, rendering model output).
+- `data-isolation`: tenant data through caches, search, blobs, exports, logs, and deletion. This lens keeps per-route authz and RLS.
+- `web-auth`: OAuth/OIDC, JWT, sessions, reset and magic-link tokens, Host/forwarded headers, cache poisoning. This lens keeps "every mutation gated" and CSRF.
+- `client-side`: DOM XSS from URL/storage/postMessage, framing, client-shipped secrets.
+- `messaging`: webhook and queue authenticity, replay, server actions and RPC, realtime channels. Payment webhooks stay in `economic`.
+- `availability`: unbounded input, fan-out, and spend on paid APIs.
+
+Every finding here also meets the boundary-and-result contract and severity anchors in `agents/audit-reviewer.md`: name the lower-trust actor, the boundary, and who or what is affected with the concrete result.
+
 ## Compose with the repo's own rules
 
 Before judging, **load the repo's security rules**: `CLAUDE.md` / `AGENTS.md` (its critical-rules list) and any repo Semgrep rules. These encode project-specific musts (e.g. "`getUser()` not `getSession()`", "compose middleware on all mutations", "service-role only after `isAdmin()`", "prices from DB").

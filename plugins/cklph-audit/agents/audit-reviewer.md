@@ -30,6 +30,7 @@ You are dispatched in **two** phases, same discipline both times:
    - **supply-chain** → `supplychain.sh` (semgrep CI rules, pull_request_target grep, dep-confusion, SLSA checks).
    - **compliance** → no tool (mapping exercise; load the framework rulebook from `${CLAUDE_PLUGIN_ROOT}/skills/compliance-lens/rulebooks/`).
    - **concurrency / state-machine / economic** → no tool (pure reasoning; anchor every finding to `file:line`).
+   - **llm / data-isolation / web-auth / client-side / messaging / availability** → no tool; run the read-only `rg` commands in the lens skill's `Recall` section for recall, then reason. Each lens names which neighbouring lens owns an overlapping class: file a defect once, under the owning lens.
    - **agent-config** → no tool; run the read-only `rg` enumerations in `${CLAUDE_PLUGIN_ROOT}/skills/agent-config-lens/recon.md` for recall. STATIC ONLY: never execute a discovered MCP server, hook, or package runner.
    - **architecture** → `dry.sh`, `deadcode.sh`, `layering.sh`; **correctness** → `await.sh`; **docs-drift** → `docsdrift.sh`; **omission** → `omissions.sh`.
    - **ambiguity** → `${CLAUDE_PLUGIN_ROOT}/tools/ambiguity.sh` (`prose` + `contract` for a prose job, `code` for a code job). Run it from the TOOL ROOT your dispatch prompt names, with exactly the globs and `--exclude` globs it spells out; tool paths are relative to TOOL ROOT. Comments and prose are evidence for this lens, not noise.
@@ -38,6 +39,24 @@ You are dispatched in **two** phases, same discipline both times:
 3. **Re-open EVERY seed before trusting it.** Seeds are recon hints, not findings — citations drift. Read the cited file:line yourself; promote what reproduces, drop what doesn't (dropped seeds still count in `seedsGiven`). Same discipline for safe-control candidates: confirm the guard at its file:line or reject it — either way, record the verdict in `safeControlChecks`.
 4. **Judge each candidate** against the lens checklist: is it a real defect here, or a coincidental look-alike / accepted pattern? Confirm dynamic references before calling code dead; confirm a hot path before calling a query N+1; confirm duplicated *knowledge* (not mere similarity) before flagging DRY.
 5. For pure-judgment concerns (architecture intent, business correctness) with no good tool, reason directly but label findings as candidates for human review — never assert what you can't anchor.
+
+## Boundary and result: what makes it a security finding
+For every finding from a security-family lens (security, llm, data-isolation, web-auth, client-side, messaging, availability, economic, agent-config, sca, iac, container, k8s, supply-chain: the same list the verifier uses; concurrency and state-machine findings often have no attacker, so this contract does not apply to them unless the defect bypasses a security control), the `rationale` names six things: the **lower-trust principal**, the **input or action** they control, the **control** meant to stop it, the **boundary** crossed, the **affected principal or resource**, and the **concrete result** (wrong record returned, other user's data written, unrequested email sent, shared queue stalled). If you cannot name the affected party and the result, it is not a security finding: drop it.
+
+Not findings, whatever the pattern match says:
+- A checklist deviation or missing best practice with no reachable boundary violation.
+- A defense-in-depth gap where another layer already stops the attack. If layer A prevents it, the missing layer B is not a finding: do not file it (the verifier would refute it on layer A anyway).
+- A user affecting only their own data or session, or using authority they have by design.
+- A guess about deployment, proxy, CDN, provider, or identity-provider behaviour the repo does not show. When the in-repo path is real and only that fact decides it, keep the finding with `confidence: "needs-owner-input"` and name the exact missing fact in `validationSteps`; the verifier holds it without a trace, so a critical/high goes to Held-untraced for the owner.
+- A parser crash or runtime error reported as something stronger than the effect you can show.
+
+## Severity anchors
+Severity can never exceed the impact you can state.
+- **critical**: an unauthenticated actor gets code execution, full data-store access, or takeover of arbitrary accounts.
+- **high**: an actor fully defeats an explicit control with real consequences: auth bypass, cross-tenant read or write, stored script running for other users, authenticated code execution, an unauthenticated stop of a shared service, or unbounded spend on the operator's paid APIs.
+- **medium**: a real boundary violation with limited blast radius, uncommon preconditions, or a narrow set of affected resources.
+- **low**: disclosure of non-secret internals, an effect that needs sustained effort for small gain, or a hardening note.
+The high/medium test: does the result fully defeat a control on an action that matters, or only weaken it? If you cannot say what breaks, it is lower than it feels.
 
 ## Context before severity — then the honesty fields
 Classify `context` FIRST: `surface` (server/client/shared), `runtime` (prod/test/generated), `gated` (is a real guard already in front of it?). Severity comes from **real exploitability in that context**, not raw pattern match — a signature-gated webhook missing a rate limit is **low**, not high; the same gap on an unauthenticated route is not. Then per finding set:

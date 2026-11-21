@@ -10,7 +10,7 @@ units:
       globs: ["lib/auth/**", "app/api/auth/**", "middleware.ts", "proxy.ts", "src/middleware.ts", "src/proxy.ts"]
     - key: billing
       globs: ["app/api/billing/**", "app/api/payments/**", "lib/stripe/**"]
-lenses: [security, correctness, architecture]   # also: sca, iac, container, k8s, supply-chain, compliance, concurrency, state-machine, economic, docs-drift (audits the rulesFrom docs), agent-config (MCP/settings/hooks/instruction docs, static), omission (negative-space: missing validation/error-path/logging), ambiguity (text a reader can take two ways: policy docs, instructions, doc-to-schema values; prose groups by default, code opt-in)
+lenses: [security, correctness, architecture]   # also: sca, iac, container, k8s, supply-chain, compliance, concurrency, state-machine, economic, llm, data-isolation, web-auth, client-side, messaging, availability, docs-drift (audits the rulesFrom docs), agent-config (MCP/settings/hooks/instruction docs, static), omission (negative-space: missing validation/error-path/logging), ambiguity (text a reader can take two ways: policy docs, instructions, doc-to-schema values; prose groups by default, code opt-in)
 severityFloor: low              # drop findings below this
 verify:
   voters: 3                     # refuters per finding

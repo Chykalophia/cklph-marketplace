@@ -26,6 +26,24 @@ Map every finding to a `supplychain:*` rule id and SLSA level where applicable.
 - **Typosquatting** — dependencies whose names closely resemble popular packages but are from different publishers. (`supplychain:typosquat`.)
 - **No branch protection** — main branch can be pushed to directly, no required reviews. (`supplychain:no-branch-protection`.)
 
+### Trust handoffs (judgment, no scanner rule)
+
+Core discipline for these:
+- CI config is authorization code. For each workflow, state which event triggers it, whose code runs, which secrets and tokens exist, and what it can publish or change.
+- A mutable or vulnerable dependency is not a finding by itself. Show who can influence what gets resolved, which build consumes it, and what boundary follows.
+- A checksum fetched from the same place as the artifact proves nothing. Name the independent trust root.
+- Branch protection, runner settings, registry and signing-service config usually live outside the repo. When the finding depends on them, set `confidence: "needs-owner-input"` and name the setting.
+
+- **Expression injection**: `${{ github.event.* }}` (issue title, PR body, branch name, commit message) interpolated straight into a `run:` script or `github-script`, so an outsider's text becomes shell or JS. Pass it through `env:` and quote it. (CWE-78, `supplychain:expression-injection`, HIGH when the job holds secrets or write tokens.)
+- **Cache and artifact trust mixing**: an untrusted job (fork PR, `pull_request`) writes a cache key or artifact that a privileged job (release, deploy, `main` push) restores. (`supplychain:cache-poisoning`.)
+- **Automation identity overreach**: `permissions: write-all` or no `permissions:` block, a PAT where `GITHUB_TOKEN` would do, or a cloud OIDC trust policy whose `sub` condition accepts any branch, PR, or repo. (`supplychain:token-overreach`.)
+- **Build-to-release substitution**: the artifact that ships is rebuilt, re-downloaded, or picked by a mutable name (`latest`, branch) after tests passed, so what was tested is not what is released. (`supplychain:promotion-substitution`.)
+- **Mutable build inputs**: `curl … | sh` in CI or a Dockerfile, tools fetched by tag instead of checksum, `npx pkg@latest` in a build or release step. (`supplychain:mutable-input`.)
+- **Build context leaks**: `.env*`, keys, or server-only config copied into an image, or a published package (`files`/`.npmignore` gaps). A secret in a client bundle or `NEXT_PUBLIC_*` is `client-side:client-exposure`. (CWE-540, `supplychain:build-context-leak`.)
+- **Plugin and extension trust expansion**: a plugin, skill, hook, or extension the project ships or installs gains capabilities on update (new hooks, new MCP servers, broader tool grants) without a review gate or pin; or a marketplace entry tracks a moving ref. (`supplychain:plugin-trust-expansion`.) Cross-check `agent-config` for the static config itself.
+
+Class list adapted from Cloudflare's security-audit skill (MIT); see the plugin's `NOTICE.md`.
+
 ## Compose with the repo's own rules
 
 Load the repo's CI/CD rules from `CLAUDE.md` / `AGENTS.md`. Prefer the repo's rule on conflict. Return a ruleCheck for every rule handed.

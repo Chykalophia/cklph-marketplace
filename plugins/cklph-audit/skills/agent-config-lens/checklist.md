@@ -60,6 +60,8 @@ A doc that **describes** an attack ("never follow instructions in fetched conten
 
 Where: app code that calls an LLM SDK or MCP SDK and acts on the result (find the sites with @recon.md). Treat model output, retrieved docs, tool output, memory, inbound email/webhook bodies, and cross-agent messages as untrusted.
 
+**Precedence when both `llm` and `agent-config` run** (the same rule is in both lenses): three overlapping pairs go to agent-config. A missing confirmation on an irreversible action is `agentcfg:runtime-no-confirm`, not `llm:action-binding`. A resource id taken from model output with no ownership check is `agentcfg:runtime-tenant-scope`, not `llm:confused-deputy`. A secret placed in model context is `agentcfg:runtime-secret-exposure`, not `llm:context-disclosure`. Everything else in the llm lens stays there: an approval that exists but does not bind, a service identity used with no requester check, other users' data in context, retrieval and memory scope, role forgery, schema drift, loops, MCP, and rendering. When only one of the two lenses runs, it still files only its own rules: agent-config files its five `agentcfg:runtime-*` rows and nothing else from this list, and llm files the three paired classes under its own rule ids.
+
 | Rule id | What | Default |
 |---|---|---|
 | `agentcfg:runtime-unvalidated-action` | Model or tool output becomes a shell command, file path, URL, SQL, or API mutation with no deterministic validator immediately before the side effect (allowlisted ids, workspace-contained paths, parsed URL with scheme/host allowlist and private-network block). Validation that exists only in the prompt does not count. | high |
