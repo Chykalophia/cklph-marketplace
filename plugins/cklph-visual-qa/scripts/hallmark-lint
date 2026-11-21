@@ -59,7 +59,8 @@ _chrome() {
   echo "hallmark-lint: no Chrome/Chromium found (set CKLPH_CHROME)" >&2; exit 1
 }
 
-_ready() { [ -f "$HM/skills/hallmark/scripts/sloplint.mjs" ] && [ -d "$PP/node_modules/puppeteer-core" ]; }
+# npm creates node_modules before extraction ends, so only the marker written after a clean install counts.
+_ready() { [ -f "$HM/skills/hallmark/scripts/sloplint.mjs" ] && [ -f "$PP/.installed" ]; }
 
 # Two first runs at once would share $HM.tmp, so setup happens under a lock and is rechecked inside it.
 if ! _ready; then
@@ -80,10 +81,11 @@ if ! _ready; then
     [ "$(git -C "$HM.tmp" rev-parse HEAD)" = "$HALLMARK_SHA" ] || { echo "hallmark-lint: fetched commit does not match the pin" >&2; exit 1; }
     rm -rf "$HM"; mv "$HM.tmp" "$HM"
   fi
-  if [ ! -d "$PP/node_modules/puppeteer-core" ]; then
+  if [ ! -f "$PP/.installed" ]; then
     echo "hallmark-lint: installing puppeteer-core $PUPPETEER_VERSION into $PP" >&2
-    mkdir -p "$PP"
+    rm -rf "$PP"; mkdir -p "$PP"
     npm install --prefix "$PP" --ignore-scripts --no-audit --no-fund --silent "puppeteer-core@$PUPPETEER_VERSION" >&2
+    touch "$PP/.installed"
   fi
   rmdir "$lock"; trap - EXIT
 fi
