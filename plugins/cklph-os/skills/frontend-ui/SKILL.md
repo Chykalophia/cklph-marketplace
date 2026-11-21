@@ -33,6 +33,14 @@ cyan-on-dark gradients, gradient text or colored glows; no stock fonts (Inter, G
 uses them; no tiny uppercase label above a heading; no cards inside cards and no icon tile above
 every heading; no buzzwords. The design system wins where it asks for one of these.
 
+## Page shape
+Read `references/page-shape.md` before building or rebuilding a whole page. It has ten rules for the
+page as a whole and the site's layout log. The short version: the hero fits 1280x800, the page has
+one job and ends on it, six to nine sections, about 150 words a screen, no block pasted on every
+page, a capped content width, no sideways scroll from 320 to 1920, and readable line height on small
+text. Read `.cklph/layout-log.md` first, so the new page doesn't repeat the last one's layout, and
+add the page's row when it's built.
+
 ## Accessibility (WCAG 2.2 AA — non-negotiable)
 - Real `<button>` / `<a>` for actions (keyboard-focusable by default); if you must `role="button"`, add
   `tabIndex={0}` + Enter/Space handlers.
@@ -63,3 +71,4 @@ state, or an animated library component. The short version:
 - [ ] Matches the design system; no axe-core warnings.
 - [ ] With reduced motion on, nothing moves that shouldn't; with JS off, the real content shows.
 - [ ] No tell from `references/ai-tells.md` unless the design system asked for it.
+- [ ] A whole page meets `references/page-shape.md`, and its row is in `.cklph/layout-log.md`.

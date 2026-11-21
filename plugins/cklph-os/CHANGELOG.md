@@ -5,6 +5,22 @@ Format: [Keep a Changelog](https://keepachangelog.com); versioning follows [SemV
 Moved here from the repo root on 2026-10-27; marketplace and repo-level events (repo rename, sibling
 plugins, the marketplace manifest) live in the root CHANGELOG.
 
+## [0.18.0] - 2026-11-21
+
+### Added
+- `frontend-ui` gets page-level build rules in `references/page-shape.md`: the hero fits 1280x800,
+  one job that the page ends on, six to nine sections, about 150 words a screen, no block pasted on
+  every page, one primary action label per screen, a capped width, no sideways scroll from 320 to
+  1920, heading spacing, and readable line height on small text. Each rule names the
+  `cklph-visual-qa` check that catches it afterwards.
+- A per-site layout log, `.cklph/layout-log.md`: one row per page with its sections in a shared
+  vocabulary, read before building, so new pages don't repeat the last one's shape.
+- `SKILL.md` gets a short "Page shape" section and a Verify item. `ai-tells.md` points to
+  `copy-lint` for copy.
+
+Adapted from: Hallmark (github.com/Nutlope/hallmark, MIT, commit 04977e1). Rules 1 to 4, 7 and 9 are
+reworded from its page gates. The layout log is our own.
+
 ## [0.17.0] - 2026-11-11
 
 ### Added

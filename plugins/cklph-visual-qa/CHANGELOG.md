@@ -3,6 +3,33 @@
 All notable changes to `cklph-visual-qa` are documented here.
 Format: [Keep a Changelog](https://keepachangelog.com); versioning follows [SemVer](https://semver.org).
 
+## [0.3.0] - 2026-11-21
+
+### Added
+- `scripts/hallmark-lint`: runs Hallmark's page checker (`sloplint --url`, render tier) on a live
+  page at eight widths, 320, 375, 414, 768, 1024, 1280, 1440 and 1920. Hallmark is pinned to commit `04977e1`, and only its scripts
+  folder is fetched. `puppeteer-core` is installed beside it with install scripts off. In a root
+  container it adds Chrome's `--no-sandbox`, which Hallmark can't pass itself.
+- `scripts/lint-filter.mjs` and a per-site `.cklph/design-exceptions.json`: deliberate brand choices
+  are listed once with a reason, and both detectors report them as excused. The rest is sorted into
+  "check and fix or dismiss" and "taste". Tests in `tests/`, run in CI.
+- `copy-lint` skill and `scripts/copy-lint.mjs`: finds the wording giveaways of AI-written copy on
+  live pages or Markdown/MDX files, with no AI model. FAIL: two or more "X, not Y" headings, stock AI
+  words, signposts, dashes in prose. WARN: blocks repeated across pages, repeated CTAs, intensifiers,
+  stiff uncontracted English, exclamation marks. Uses the same exceptions file (`"tool": "copy"`).
+- `visual-reviewer` page-shape review, which needs no design: hero fits 1280x800, no sideways scroll,
+  capped width at 1920, section count, words per screen, how the page ends, heading spacing.
+
+### Changed
+- `design-lint` runs impeccable at four widths (1440, 1920, 768, 390) and Hallmark as a second
+  detector, through the exceptions filter.
+- `visual-verify` and `visual-reviewer` check 1920 and 768 as well as 1440 and 500. In the trial on
+  chykalophia.com, impeccable missed a 37px sideways scroll at 1440, 390 and 768. Hallmark caught it
+  at 768.
+
+Adapted from: Hallmark (github.com/Nutlope/hallmark, MIT, commit 04977e1). The page-shape checks are
+reworded from its page gates; its scripts are run, not copied. See `NOTICE.md`.
+
 ## [0.2.0] - 2026-11-11
 
 ### Added
