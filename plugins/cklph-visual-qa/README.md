@@ -15,9 +15,11 @@ chase phantoms (Chrome's 500px window clamp, CDN cache, CSS-load races).
 |---|---|
 | `visual-verify` (skill) | After any UI/styling change; matching a design pixel-for-pixel; proving "it should look like X". |
 | `design-lint` (skill) | Before a release or hand-off, or as a CI gate on a preview URL: runs the `impeccable` detector and Hallmark's page checker (both pinned, no AI model) at four widths, applies the site's design exceptions and triages what is left. Needs Node, git and Chrome. |
+| `copy-lint` (skill) | Before publishing copy or an article: finds "X, not Y" headings, stock AI words, signposts, dashes and blocks repeated across pages, on live URLs or Markdown/MDX files. No AI model. Needs Node. |
 | `visual-reviewer` (agent) | Adversarial pass — assumes the page does NOT match until pixels prove it; returns a ranked delta list. Also runs a page-shape review with no design: hero fit, sideways scroll, capped width, section count, words per screen, how the page ends. |
 | `scripts/hallmark-lint` | `hallmark-lint <url> [--json] [--exceptions <file>] [--out <dir>]`: Hallmark's `sloplint` render tier at a pinned commit, filtered through the site's exceptions. Fetches Hallmark's scripts and `puppeteer-core` into `~/.cache/cklph-visual-qa` the first time. |
-| `scripts/lint-filter.mjs` | Applies `.cklph/design-exceptions.json` to impeccable or Hallmark JSON and sorts the rest into "check", "taste" and "excused". |
+| `scripts/copy-lint.mjs` | `copy-lint.mjs <url\|file>... [--exceptions <file>] [--json] [--raw]`: the copy checks, through the same exceptions file. |
+| `scripts/lint-filter.mjs` | Applies `.cklph/design-exceptions.json` to impeccable, Hallmark or copy-lint JSON and sorts the rest into "check", "taste" and "excused". |
 | `scripts/shot` | `shot <url> <out> [WxH] [scale]`, `shot crop <in> <out> WxH+X+Y [pct]`, `shot probe` (prints the overflow-probe script; flags elements past either viewport edge). |
 
 Capturing needs Google Chrome/Chromium (override with `CKLPH_CHROME`); `crop` needs ImageMagick
@@ -44,8 +46,8 @@ script (real `clientWidth` + offending elements) before chasing it. Details: `vi
 ## Design exceptions
 
 A site's deliberate brand choices (an eyebrow label, an italic serif headline) look like "AI slop" to
-both detectors. List them once in `.cklph/design-exceptions.json` at the site's repo root, each with a
-reason, and both detectors report them as excused instead of as findings. Format: `design-lint`.
+the detectors. List them once in `.cklph/design-exceptions.json` at the site's repo root, each with a
+reason, and every detector reports them as excused instead of as findings. Format: `design-lint`.
 
 ## Composes with
 

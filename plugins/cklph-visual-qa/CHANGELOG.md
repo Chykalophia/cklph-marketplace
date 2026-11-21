@@ -13,6 +13,10 @@ Format: [Keep a Changelog](https://keepachangelog.com); versioning follows [SemV
 - `scripts/lint-filter.mjs` and a per-site `.cklph/design-exceptions.json`: deliberate brand choices
   are listed once with a reason, and both detectors report them as excused. The rest is sorted into
   "check and fix or dismiss" and "taste". Tests in `tests/`, run in CI.
+- `copy-lint` skill and `scripts/copy-lint.mjs`: finds the wording giveaways of AI-written copy on
+  live pages or Markdown/MDX files, with no AI model. FAIL: two or more "X, not Y" headings, stock AI
+  words, signposts, dashes in prose. WARN: blocks repeated across pages, repeated CTAs, intensifiers,
+  stiff uncontracted English, exclamation marks. Uses the same exceptions file (`"tool": "copy"`).
 - `visual-reviewer` page-shape review, which needs no design: hero fits 1280x800, no sideways scroll,
   capped width at 1920, section count, words per screen, how the page ends, heading spacing.
 

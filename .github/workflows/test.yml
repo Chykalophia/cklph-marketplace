@@ -50,7 +50,7 @@ jobs:
         run: node --test plugins/cklph-audit/tests/*.test.mjs
       - name: cklph-figma (contrast.mjs, figma-audit.mjs)
         run: node --test plugins/cklph-figma/tests/*.test.mjs
-      - name: cklph-visual-qa (lint-filter.mjs)
+      - name: cklph-visual-qa (lint-filter.mjs, copy-lint.mjs)
         run: node --test plugins/cklph-visual-qa/tests/*.test.mjs
       - name: cklph-nextjs dependency-cruiser reference (each rule fires on a fixture)
         working-directory: docs/proof/architecture/dependency-cruiser

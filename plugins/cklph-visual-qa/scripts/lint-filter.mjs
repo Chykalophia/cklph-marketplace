@@ -2,20 +2,21 @@
 // lint-filter: apply a site's design exceptions to a detector's JSON output, then report.
 //
 // Usage:
-//   lint-filter.mjs --tool impeccable|hallmark [--exceptions <file>] [--json] < findings.json
+//   lint-filter.mjs --tool impeccable|hallmark|copy [--exceptions <file>] [--json] < findings.json
 //
-// Reads impeccable's `detect --json` array or Hallmark's `sloplint --json` object on stdin.
+// Reads impeccable's `detect --json` array, Hallmark's `sloplint --json` object or
+// copy-lint's `--raw` object on stdin.
 // Findings whose rule is listed in the exceptions file are moved to an "excused" list with
 // the reason from the file. The default exceptions file is .cklph/design-exceptions.json in
 // the current directory, used only when it exists.
 //
 // Exit codes: 0 nothing that blocks, 2 blocking findings remain, 1 bad input.
-// Blocking means a Hallmark FAIL or an impeccable "quality" finding. Taste findings
-// (impeccable "slop", Hallmark REFLEX and WARN) are reported but never block.
+// Blocking means a Hallmark or copy-lint FAIL, or an impeccable "quality" finding. Taste
+// findings (impeccable "slop", Hallmark REFLEX, any WARN) are reported but never block.
 import { readFileSync, existsSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
 
-export const TOOLS = ['impeccable', 'hallmark'];
+export const TOOLS = ['impeccable', 'hallmark', 'copy'];
 export const DEFAULT_EXCEPTIONS = '.cklph/design-exceptions.json';
 
 /**
@@ -40,7 +41,7 @@ export function parseExceptions(text) {
 
 /**
  * Turn one detector's raw JSON into a common finding shape.
- * @param {'impeccable'|'hallmark'} tool
+ * @param {'impeccable'|'hallmark'|'copy'} tool
  * @param {unknown} raw
  * @returns {{tool: string, rule: string, level: string, blocking: boolean, text: string, fix: string}[]}
  */
@@ -56,8 +57,8 @@ export function normalize(tool, raw) {
       fix: String(f.description ?? ''),
     }));
   }
-  if (tool === 'hallmark') {
-    if (!Array.isArray(raw?.findings)) throw new Error('hallmark output should be an object with a findings array');
+  if (tool === 'hallmark' || tool === 'copy') {
+    if (!Array.isArray(raw?.findings)) throw new Error(`${tool} output should be an object with a findings array`);
     return raw.findings.map((f) => ({
       tool,
       rule: String(f.gate ?? ''),
@@ -85,7 +86,20 @@ export function applyExceptions(findings, exceptions) {
   return { kept, excused };
 }
 
-function report({ kept, excused }) {
+/**
+ * Read the exceptions file, or the default one when it exists. No file means no exceptions.
+ * @param {string|null} file
+ */
+export function loadExceptions(file) {
+  const path = file ?? (existsSync(DEFAULT_EXCEPTIONS) ? DEFAULT_EXCEPTIONS : null);
+  return path ? parseExceptions(readFileSync(path, 'utf8')) : [];
+}
+
+/**
+ * Render kept and excused findings as the plain-text report.
+ * @param {{kept: object[], excused: {finding: object, reason: string}[]}} result
+ */
+export function report({ kept, excused }) {
   const lines = [];
   const blocking = kept.filter((f) => f.blocking);
   const taste = kept.filter((f) => !f.blocking);
@@ -115,11 +129,9 @@ function main(argv) {
     else if (argv[i] === '--json') json = true;
     else { console.error(`lint-filter: unknown argument ${argv[i]}`); return 1; }
   }
-  if (!TOOLS.includes(tool)) { console.error('usage: lint-filter.mjs --tool impeccable|hallmark [--exceptions <file>] [--json] < findings.json'); return 1; }
+  if (!TOOLS.includes(tool)) { console.error('usage: lint-filter.mjs --tool impeccable|hallmark|copy [--exceptions <file>] [--json] < findings.json'); return 1; }
   try {
-    let exceptions = [];
-    const path = file ?? (existsSync(DEFAULT_EXCEPTIONS) ? DEFAULT_EXCEPTIONS : null);
-    if (path) exceptions = parseExceptions(readFileSync(path, 'utf8'));
+    const exceptions = loadExceptions(file);
     const result = applyExceptions(normalize(tool, JSON.parse(readFileSync(0, 'utf8'))), exceptions);
     console.log(json ? JSON.stringify(result, null, 1) : report(result));
     return result.kept.some((f) => f.blocking) ? 2 : 0;

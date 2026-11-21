@@ -112,5 +112,5 @@ bypasses the exceptions file, so run the filter for the gate and `--github` only
   brand. Its image generator calls a paid API and is never run.
 - Neither replaces a real WCAG audit. Contrast here is a smoke test, and `cklph-figma:design-md`
   checks the token pairs properly.
-- Neither catches wording giveaways ("X, not Y" headings, repeated guarantee blocks). Those need a
-  person or a copy review.
+- Neither reads the words. Run `copy-lint` for wording giveaways ("X, not Y" headings, stock AI
+  words, repeated guarantee blocks).
