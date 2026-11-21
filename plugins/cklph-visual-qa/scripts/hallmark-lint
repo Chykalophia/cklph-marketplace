@@ -17,7 +17,8 @@
 #
 # Needs git, Node 18+ and Chrome or Chromium (override with CKLPH_CHROME). As root (cloud
 # containers, CI) Chrome needs --no-sandbox, which Hallmark cannot pass, so a small wrapper adds
-# it. Set CKLPH_NO_SANDBOX=1 to force the wrapper.
+# it. Set CKLPH_NO_SANDBOX=1 to force the wrapper. A first run sets up the cache under a lock;
+# CKLPH_LOCK_WAIT is how many seconds another run waits for it (default 300).
 #
 # Exit codes: 0 nothing that blocks, 2 findings to check, 1 the page could not be checked.
 set -euo pipefail
@@ -37,7 +38,7 @@ while [ $# -gt 0 ]; do
     --json) json="--json" ;;
     --exceptions) exceptions="${2:?--exceptions needs a file}"; shift ;;
     --out) out="${2:?--out needs a dir}"; shift ;;
-    -h|--help) sed -n '3,24p' "${BASH_SOURCE[0]}" | sed 's/^# \{0,1\}//'; exit 0 ;;
+    -h|--help) sed -n '3,25p' "${BASH_SOURCE[0]}" | sed 's/^# \{0,1\}//'; exit 0 ;;
     -*) echo "hallmark-lint: unknown option $1" >&2; exit 1 ;;
     *) url="$1" ;;
   esac
@@ -64,8 +65,9 @@ _ready() { [ -f "$HM/skills/hallmark/scripts/sloplint.mjs" ] && [ -d "$PP/node_m
 if ! _ready; then
   mkdir -p "$CACHE"
   lock="$CACHE/.setup.lock"
-  for _ in $(seq 1 300); do mkdir "$lock" 2>/dev/null && break; sleep 1; done
-  [ -d "$lock" ] || { echo "hallmark-lint: timed out waiting for $lock (remove it if no other run is going)" >&2; exit 1; }
+  got=""
+  for _ in $(seq 1 "${CKLPH_LOCK_WAIT:-300}"); do mkdir "$lock" 2>/dev/null && { got=1; break; }; sleep 1; done
+  [ -n "$got" ] || { echo "hallmark-lint: timed out waiting for $lock (remove it if no other run is going)" >&2; exit 1; }
   trap 'rmdir "$lock" 2>/dev/null || true' EXIT
   if [ ! -f "$HM/skills/hallmark/scripts/sloplint.mjs" ]; then
     echo "hallmark-lint: fetching Hallmark ${HALLMARK_SHA:0:7} (scripts only) into $HM" >&2
