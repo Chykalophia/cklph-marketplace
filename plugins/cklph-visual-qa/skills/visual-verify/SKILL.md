@@ -23,6 +23,19 @@ Compare the **specific things**: spacing, alignment (do edges line up?), color, 
 border radius, icon presence, element order. Don't declare "done" from the data — declare it from a
 screenshot that matches.
 
+## Check four widths, not two
+
+Capture **1440** (desktop), **1920** (wide monitor), **768** (tablet, upright) and **500** (phone,
+Chrome's floor). Desktop and phone alone miss the bugs that live in between. On chykalophia.com a
+hero that was fine at 1440 and 390 scrolled 37px sideways at 768, and at 1920 the text sat 64px from
+the screen edge with no capped container.
+
+A screenshot can't show sideways scroll, because the window is the viewport. Inject the `shot probe`
+script below at each width you capture and read `docW`: anything above `VW` means the page scrolls
+sideways. A probe only covers the widths you ran it at, so report the others as unchecked.
+`design-lint`'s `hallmark-lint` checks 320, 375, 414, 768, 1024, 1280, 1440 and 1920 without injecting anything. Other widths are still
+unchecked.
+
 ## Headless Chrome clamps to ~500px — the phantom-overflow trap
 
 Chrome won't size its window below ~500px. A `375` capture **renders at 500px** and the screenshot
@@ -35,7 +48,8 @@ shows only the **left 375px** — text looks cut off but isn't. Before chasing m
 Inject that `<script>` (via your styling channel), capture the top of the page at 500px
 (`"${CLAUDE_PLUGIN_ROOT}/scripts/shot" '<url>?v=2' /tmp/m.png 500x900`), and read the banner:
 `VW=500 overflow=0` means **no overflow** past either edge — it was the clamp. Verify mobile at **500px** (Chrome's
-floor); a fluid `%`/flex layout that's clean at 500 scales fine to 375 on a real device.
+floor). That says nothing about 375 or 320. `hallmark-lint` sets those widths through device
+emulation, so run it for phone widths below 500, or report them as unchecked.
 
 ## Measure edges precisely with ImageMagick trim
 

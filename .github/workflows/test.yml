@@ -15,7 +15,8 @@ jobs:
         run: |
           shopt -s nullglob   # an empty glob is skipped; a named file that is missing fails
           for f in plugins/*/hooks/*.sh plugins/*/tools/*.sh plugins/*/tests/*.sh plugins/*/scripts/*.sh \
-                   plugins/cklph-wp/scripts/cwp plugins/cklph-visual-qa/scripts/shot; do
+                   plugins/cklph-wp/scripts/cwp plugins/cklph-visual-qa/scripts/shot \
+                   plugins/cklph-visual-qa/scripts/hallmark-lint; do
             bash -n "$f"
           done
       - name: Run cklph-os hook tests (includes the destructive-command gate suite)
@@ -49,6 +50,8 @@ jobs:
         run: node --test plugins/cklph-audit/tests/*.test.mjs
       - name: cklph-figma (contrast.mjs, figma-audit.mjs)
         run: node --test plugins/cklph-figma/tests/*.test.mjs
+      - name: cklph-visual-qa (lint-filter.mjs, copy-lint.mjs)
+        run: node --test plugins/cklph-visual-qa/tests/*.test.mjs
       - name: cklph-nextjs dependency-cruiser reference (each rule fires on a fixture)
         working-directory: docs/proof/architecture/dependency-cruiser
         run: |

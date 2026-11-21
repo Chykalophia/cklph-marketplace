@@ -1,0 +1,214 @@
+{
+ "summary": {
+  "fails": 10,
+  "reflex": 22,
+  "warns": 4,
+  "waived": 0,
+  "rejected": 0,
+  "answered": 0,
+  "dismissed": 0,
+  "notes": 0,
+  "files": 0,
+  "render": "ran"
+ },
+ "findings": [
+  {
+   "gate": "26a",
+   "grade": "FAIL",
+   "tier": "floor",
+   "file": "https://www.chykalophia.com/",
+   "line": 1,
+   "evidence": "[1440px] focus ring 1.73:1 against what is behind it on input.flex",
+   "fix": "A ring at 3:1 or better against the surface it is drawn over: --color-focus, or a ring colour per band"
+  },
+  {
+   "gate": "26a",
+   "grade": "FAIL",
+   "tier": "floor",
+   "file": "https://www.chykalophia.com/",
+   "line": 1,
+   "evidence": "[1440px] focus ring 1.73:1 against what is behind it on button.inline-flex \"Get The Next Draft\"",
+   "fix": "A ring at 3:1 or better against the surface it is drawn over: --color-focus, or a ring colour per band"
+  },
+  {
+   "gate": "34",
+   "grade": "FAIL",
+   "tier": "floor",
+   "file": "https://www.chykalophia.com/",
+   "line": 1,
+   "evidence": "[768px] horizontal scroll: scrollWidth 805 > viewport 768",
+   "fix": "overflow-x: clip on html and body; find the overflowing block"
+  },
+  {
+   "gate": "44d",
+   "grade": "FAIL",
+   "tier": "floor",
+   "file": "https://www.chykalophia.com/",
+   "line": 1,
+   "evidence": "[1920px] hero text starts 64px from the edge at 1920",
+   "fix": "Cap the container at 1360 to 1520px and centre it"
+  },
+  {
+   "gate": "49a",
+   "grade": "FAIL",
+   "tier": "floor",
+   "file": "https://www.chykalophia.com/",
+   "line": 1,
+   "evidence": "[320px] control \"Download the Checklist\" wraps to 2 lines (a.inline-flex.items-center)",
+   "fix": "Shorten the label or set nowrap"
+  },
+  {
+   "gate": "58",
+   "grade": "FAIL",
+   "tier": "floor",
+   "file": "https://www.chykalophia.com/",
+   "line": 1,
+   "evidence": "[1440px] 333 words on one screen (from y=3700)",
+   "fix": "One idea per screen: cut to about 80 words, make the section an object"
+  },
+  {
+   "gate": "3",
+   "grade": "REFLEX",
+   "tier": "reflex",
+   "file": "https://www.chykalophia.com/",
+   "line": 1,
+   "evidence": "[1440px] equal columns of icon-above-heading tiles (div.flex)",
+   "fix": "Vary the widths, set the icon inline with the heading, or drop the icons"
+  },
+  {
+   "gate": "39b",
+   "grade": "REFLEX",
+   "tier": "reflex",
+   "file": "https://www.chykalophia.com/",
+   "line": 1,
+   "evidence": "[1440px] control height outside 44 to 52px: a.inline-flex 19px, a.inline-flex 19px, button.flex 123px",
+   "fix": "Marketing controls stand 44 to 52px; app UI 32 to 40px with a 44px hit target"
+  },
+  {
+   "gate": "44c",
+   "grade": "REFLEX",
+   "tier": "reflex",
+   "file": "https://www.chykalophia.com/",
+   "line": 1,
+   "evidence": "[1440px] hero visual centre is 176px from the text block centre",
+   "fix": "Align the visual beside the text"
+  },
+  {
+   "gate": "44c",
+   "grade": "REFLEX",
+   "tier": "reflex",
+   "file": "https://www.chykalophia.com/",
+   "line": 1,
+   "evidence": "[1440px] hero visual sits 261px from the text and 211px from the viewport edge",
+   "fix": "Bring the visual to within 48 to 120px of the text; never pin it to the corner"
+  },
+  {
+   "gate": "49b",
+   "grade": "REFLEX",
+   "tier": "reflex",
+   "file": "https://www.chykalophia.com/",
+   "line": 1,
+   "evidence": "[320px] link \"Not ready? Take the free Scoreca\" wraps to 2 lines (a.text-p4.font-semibold)",
+   "fix": "Shorten the label or set nowrap"
+  },
+  {
+   "gate": "49b",
+   "grade": "REFLEX",
+   "tier": "reflex",
+   "file": "https://www.chykalophia.com/",
+   "line": 1,
+   "evidence": "[320px] link \"AI for manufacturers\" wraps to 2 lines (a.relative.text-p4)",
+   "fix": "Shorten the label or set nowrap"
+  },
+  {
+   "gate": "59",
+   "grade": "REFLEX",
+   "tier": "reflex",
+   "file": "https://www.chykalophia.com/",
+   "line": 1,
+   "evidence": "[1440px] smallest gap between sections is 60px (gaps: 60, 100, 161, 128, 153, 144, 140, 112, 130, 146, 208, 244, 224, 1\u2026",
+   "fix": "120px or more between sections, by the --section-gap steps"
+  },
+  {
+   "gate": "71",
+   "grade": "REFLEX",
+   "tier": "reflex",
+   "file": "https://www.chykalophia.com/",
+   "line": 1,
+   "evidence": "[1440px] heads nearer what precedes them than what they head: h2.text-display-h1 \"Proven process bac\" 16px over, 81px u\u2026",
+   "fix": "At least twice the space above a head as below it"
+  },
+  {
+   "gate": "75",
+   "grade": "REFLEX",
+   "tier": "reflex",
+   "file": "https://www.chykalophia.com/",
+   "line": 1,
+   "evidence": "[1440px] text that strains the eye: span.mt-2 leaded 1.14, span.mt-2 leaded 1.14, span.mt-2 leaded 1.14, span.mt-2 lead\u2026",
+   "fix": "Running text 12px or more (16px for body), functional text 11px or more, multi-line prose leaded 1.3 or more"
+  },
+  {
+   "gate": "77",
+   "grade": "REFLEX",
+   "tier": "reflex",
+   "file": "https://www.chykalophia.com/",
+   "line": 1,
+   "evidence": "[1440px] 2 thin sections: \"WE'VE ALSO WORKED WITH BRAND\" (71% wide); \"What people ask before they \" (53% wide)",
+   "fix": "Widen the body to ten of twelve columns and give it mass: a visual 300px tall or more, a set of three across, rows, or a statement (layout.md \u00a7 4 and \u00a7 5)"
+  },
+  {
+   "gate": "81",
+   "grade": "REFLEX",
+   "tier": "reflex",
+   "file": "https://www.chykalophia.com/",
+   "line": 1,
+   "evidence": "[1440px] 2 empty pictures: div.absolute 459x459, a gradient with nothing in it; div.absolute 459x459, a gradient with n\u2026",
+   "fix": "Put the picture in: the user's image, a library photograph (theme.mjs photos) or the product built at full fidelity; the wash is only a loading colour (imagery.md \u00a7 3)"
+  },
+  {
+   "gate": "85",
+   "grade": "REFLEX",
+   "tier": "reflex",
+   "file": "https://www.chykalophia.com/",
+   "line": 1,
+   "evidence": "[1440px] the page closes on an email sign-up and the stamp names no job",
+   "fix": "End on what the visitor came to do (the booking, the buy box, the download, the next date, the latest issue) or on the last strong section; an email close is for a subscribe or join page, and the stamp says job: (anatomy.md)"
+  },
+  {
+   "gate": "59",
+   "grade": "WARN",
+   "tier": "reflex",
+   "file": "https://www.chykalophia.com/",
+   "line": 1,
+   "evidence": "[1440px] 15 sections",
+   "fix": "Six to nine sections a page, hero and footer included; merge or cut"
+  },
+  {
+   "gate": "F25",
+   "grade": "WARN",
+   "tier": "finish",
+   "file": "https://www.chykalophia.com/",
+   "line": 1,
+   "evidence": "[375px] 57 words shown at 1440 are hidden on a phone (first: \"Usually caused by\")",
+   "fix": "If it matters, make it work on a phone; if it does not, cut it everywhere"
+  },
+  {
+   "gate": "F26",
+   "grade": "WARN",
+   "tier": "finish",
+   "file": "https://www.chykalophia.com/",
+   "line": 1,
+   "evidence": "[375px] h2 \"What's going on right now?\" ends on a stub; h2 \"No surprises, no lock-in games\" ends on a stub",
+   "fix": "text-wrap: balance on heads and pretty on body copy, or rewrite the line; a <br> goes only between phrases and is checked at 375"
+  },
+  {
+   "gate": "F26",
+   "grade": "WARN",
+   "tier": "finish",
+   "file": "https://www.chykalophia.com/",
+   "line": 1,
+   "evidence": "[1280px] h2 \"Proven process backed by real ou\" ends on a stub",
+   "fix": "text-wrap: balance on heads and pretty on body copy, or rewrite the line; a <br> goes only between phrases and is checked at 375"
+  }
+ ]
+}
