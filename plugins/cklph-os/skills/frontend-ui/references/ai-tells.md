@@ -87,8 +87,9 @@ OOOhm) 15 of them fired, marked ●. Those are the ones we actually fall into.
 
 ## Check
 
-Run `cklph-visual-qa:design-lint` on the built page. Slop findings go to a human as a list: they're
-taste, and a few may be the brand's real voice. Never fail a build on them.
+Run `cklph-visual-qa:design-lint` on the built page, and `cklph-visual-qa:copy-lint` on its copy.
+Slop findings go to a human as a list: they're taste, and a few may be the brand's real voice. Never
+fail a build on them. For the page as a whole, see `page-shape.md`.
 
 ---
 
