@@ -5,6 +5,30 @@ Format: [Keep a Changelog](https://keepachangelog.com); versioning follows [SemV
 Moved here from the repo root on 2026-10-27; marketplace and repo-level events (repo rename, sibling
 plugins, the marketplace manifest) live in the root CHANGELOG.
 
+## [0.17.1] - 2026-11-21
+
+### Changed
+- `security-hardening` adds checks for copies of data (caches, indexes, signed URLs, exports),
+  model features, webhooks and queues, auth flows, and paid-API spend. A new "Is it a real
+  finding?" section asks for the actor, boundary, affected party and result, and fixes the
+  severity anchors. It points to the matching cklph-audit lenses for a whole-repo pass.
+- `red-team` asks every security finding to name the boundary and the affected party, treats a
+  gap behind a working control as a Low hardening note, and hunts delegation and data-copy bugs.
+  Both adapted from Cloudflare's security-audit skill (MIT); attribution in this plugin's
+  new `NOTICE.md`.
+- `cklph-reviewer` gains a security pass for diffs that touch untrusted input or auth: a two-pass
+  source-to-sink trace, git blame on removed or weakened checks (a refactor on a security path is
+  high risk until shown otherwise), test weakening, rules-file changes called out, a four-part gate
+  a finding must pass, a skip list, and six trust precedents.
+- `red-team` restates each claim before attacking, checks whether rejected or low findings chain
+  into a real exploit (reported at the chain's combined severity), and treats weakened tests, gates,
+  hooks or CI checks as verifier sabotage.
+- `security-hardening` adds Supabase rules (ownership predicates, a `WITH CHECK` no weaker than
+  `USING`, `security_invoker` views, `SECURITY DEFINER` grants, never `user_metadata`, live JWTs
+  after a ban), Next.js rules (Server Actions are public endpoints, cache audience, revalidation is
+  a mutation, `images.remotePatterns`, source maps), and a check for hallucinated or new packages.
+  Sources are credited in `NOTICE.md`.
+
 ## [0.17.0] - 2026-11-11
 
 ### Added
