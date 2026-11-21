@@ -61,6 +61,11 @@ Run **both** passes and treat them as adversaries; a finding is only as strong a
 - **Boundaries** — 0 / 1 / max / off-by-one; first/last; inclusive-range and pagination edges.
 - **Concurrency** — double-submit, races, re-entrancy, the same toggle clicked twice.
 - **Auth / data** — IDOR, missing actor check, wrong client/role, secret in logs or error messages.
+  A security finding names the lower-trust actor, the boundary crossed, and who else is affected with
+  the concrete result; a gap behind a control that already holds is a Low hardening note, citing it.
+- **Delegation & copies**: content one user writes driving another user's model tools; a tool using
+  the service key without re-checking the requester; a cache, index, signed URL or export missing the
+  tenant; a webhook or queue job trusting a user id from its payload.
 - **State & idempotency** — retried once == retried twice? partial failure leaves consistent state?
   rollback path exists? a state machine that sets `in_progress` but never `failed`.
 - **Reversibility** — blast radius if this is wrong in production; can it be undone?

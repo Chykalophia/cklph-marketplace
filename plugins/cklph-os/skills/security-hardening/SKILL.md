@@ -12,8 +12,30 @@ description: Security review checklist. Pull in during review or before shipping
 - **Secrets** — none in code, logs, or error messages; sourced from env / secret store; never echoed.
 - **Data** — no sensitive data / PII in logs; safe defaults; correct encryption at rest/in transit.
 - **Deps & headers** — no known-vuln dependencies; security headers where relevant.
+- **Copies of data**: caches, search indexes, signed URLs, exports and logs carry the tenant or
+  owner in their key or filter, and deletion reaches them too.
+- **Model features**: content one user writes never drives tools or reads data for another user;
+  tools re-check the requester, not just the service key; a confirm step binds the exact action.
+- **Webhooks, queues, server actions**: signature over the raw body with a replay window; consumers
+  verify the sender and do not trust a user id in the payload; retries do not repeat side effects.
+- **Auth flows**: redirect targets same-origin; reset and magic-link tokens single-use and expiring;
+  JWTs verified, not decoded; per-user responses never publicly cached.
+- **Spend**: no path lets one caller trigger unbounded paid calls (LLM, SMS, email) or fan-out.
 
-Report findings by severity with `file:line` + fix (feeds the reviewer's security axis).
+## Is it a real finding?
+Name the lower-trust actor, what they control, the control meant to stop it, and who or what is
+affected with the concrete result. Can't name the affected party and result? It is a hardening
+note, not a finding. A gap behind a control that already holds is a note too; cite that control.
+A user touching only their own data is not a finding.
+
+Severity: **Critical** = unauthenticated code execution, full data access, or arbitrary account
+takeover. **High** = a control fully defeated with real consequences (auth bypass, cross-tenant
+read/write, stored XSS for others, unbounded spend). **Medium** = a real violation with limited
+reach. **Low** = minor disclosure or hardening. Never higher than the impact you can state.
+
+Report findings by severity with `file:line` + fix (feeds the reviewer's security axis). For a
+whole-repo pass, `/cklph-audit:run` has a lens per area above (`data-isolation`, `llm`,
+`messaging`, `web-auth`, `client-side`, `availability`).
 
 ## Destructive commands (enforced on the CLI, a rule everywhere)
 On the CLI, `hooks/destructive-command-gate.sh` blocks these Bash commands before they run. It needs

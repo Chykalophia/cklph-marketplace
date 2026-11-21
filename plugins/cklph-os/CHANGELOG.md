@@ -5,6 +5,18 @@ Format: [Keep a Changelog](https://keepachangelog.com); versioning follows [SemV
 Moved here from the repo root on 2026-10-27; marketplace and repo-level events (repo rename, sibling
 plugins, the marketplace manifest) live in the root CHANGELOG.
 
+## [0.17.1] - 2026-11-21
+
+### Changed
+- `security-hardening` adds checks for copies of data (caches, indexes, signed URLs, exports),
+  model features, webhooks and queues, auth flows, and paid-API spend. A new "Is it a real
+  finding?" section asks for the actor, boundary, affected party and result, and fixes the
+  severity anchors. It points to the matching cklph-audit lenses for a whole-repo pass.
+- `red-team` asks every security finding to name the boundary and the affected party, treats a
+  gap behind a working control as a Low hardening note, and hunts delegation and data-copy bugs.
+  Both adapted from Cloudflare's security-audit skill (MIT); attribution in this plugin's
+  new `NOTICE.md`.
+
 ## [0.17.0] - 2026-11-11
 
 ### Added
