@@ -48,7 +48,8 @@ shows only the **left 375px** — text looks cut off but isn't. Before chasing m
 Inject that `<script>` (via your styling channel), capture the top of the page at 500px
 (`"${CLAUDE_PLUGIN_ROOT}/scripts/shot" '<url>?v=2' /tmp/m.png 500x900`), and read the banner:
 `VW=500 overflow=0` means **no overflow** past either edge — it was the clamp. Verify mobile at **500px** (Chrome's
-floor); a fluid `%`/flex layout that's clean at 500 scales fine to 375 on a real device.
+floor). That says nothing about 375 or 320. `hallmark-lint` sets those widths through device
+emulation, so run it for phone widths below 500, or report them as unchecked.
 
 ## Measure edges precisely with ImageMagick trim
 
