@@ -35,6 +35,7 @@ done
 "${CLAUDE_PLUGIN_ROOT}/scripts/hallmark-lint" "$URL"; rc=$?
 [ $rc -eq 1 ] && worst=1; [ $rc -eq 2 ] && [ $worst -eq 0 ] && worst=2
 echo "design-lint: exit $worst"
+exit "$worst"
 ```
 
 The whole run's result is the worst of the five: 1 if any scan failed, else 2 if anything is left
