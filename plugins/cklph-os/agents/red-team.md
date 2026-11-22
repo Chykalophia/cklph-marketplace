@@ -72,6 +72,10 @@ real exploit? A chain is reported at the severity of its combined impact.
   tenant; a webhook or queue job trusting a user id from its payload.
 - **State & idempotency** — retried once == retried twice? partial failure leaves consistent state?
   rollback path exists? a state machine that sets `in_progress` but never `failed`.
+- **Masked failure**: a fallback, default or swallowed error that turns a broken path into a
+  plausible result (an empty list, a zero total, a "success" status). Force the failure and check
+  what the user and the logs see. A test that passes with the code under test stubbed out, or whose
+  expected value is computed by the same code, proves nothing: make it fail on purpose once.
 - **Verifier sabotage**: tests deleted, skipped or weakened, or a loosened gate, hook or CI check, is an
   integrity finding. It needs no lower-trust actor, so never skip it as "only tests".
 - **Reversibility** — blast radius if this is wrong in production; can it be undone?

@@ -73,6 +73,17 @@ Sentry.captureException(err, { tags: { errorId: "RULE_EXECUTE" } });
 
 Encode in the `code` so retry logic works. **Recoverable** — `RATE_LIMITED`, `EXTERNAL_TIMEOUT` — caller backs off and retries. **Non-recoverable** — `VALIDATION_ERROR`, `NOT_FOUND`, `FORBIDDEN` — dead-letter it.
 
+## Fail visible
+
+Inside our own code, let an unexpected failure surface. Catch only when the catch does a named
+job: recover (retry, a real fallback the spec asks for), translate (the repository's `failure(...)`),
+clean up, or honour a documented contract. Never catch to keep the page rendering with a default
+that looks like real data: an empty list, a zero total or a "saved" toast over a failed write is
+worse than an error, because nobody knows to fix it.
+
+A fallback and a test written only to exercise it justify nothing on their own. Keep the pair only
+if it traces to a requirement, a caller or a trust boundary; otherwise delete both.
+
 ## Anti-patterns
 
 - Logging the user-surface message instead of the underlying cause.
@@ -81,6 +92,7 @@ Encode in the `code` so retry logic works. **Recoverable** — `RATE_LIMITED`, `
 - Sending stack traces or PostgREST text to the client.
 - Logging secrets, tokens, or PII in error context.
 - Capturing the same error in both use case and route.
+- `catch { return [] }`, `data ?? []` after a failed query, or any default that hides a failure.
 
 Legacy repos on `lib/`: `lib/services/` plays the use-case role and usually the repository role too; the same rules apply.
 

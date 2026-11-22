@@ -41,3 +41,11 @@ AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
 LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
 OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 SOFTWARE.
+
+---
+
+`test-signal.md` adapts, in our own words, the seven keep-or-delete questions and the test-smell
+table from MrZoyo/deslop-GPT, `skills/deslop/references/test-smells.md` (MIT, commit 3913d8a,
+Copyright (c) 2026 MrZoyo). The payment-flow example and the house rows (guard presence, paired
+branches) are our own. `../error-handling/SKILL.md`'s "Fail visible" section adapts the same
+repo's fail-visible bias.

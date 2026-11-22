@@ -64,6 +64,13 @@ the regression test for each bug found, and prove it fails on the old code. The 
 changes get wrong (parallel paths drifting, `select()` omissions, stale state on error, optimistic
 updates with no rollback, nulls hidden by a cast) and how to test each: `@ai-regression.md`.
 
+## Does the test have signal?
+
+A test earns its place only if it would fail when the behavior it names breaks. Before adding one,
+and when reviewing one an AI wrote, ask the seven questions in `@test-signal.md`. A test that checks
+a guard is present, re-computes its expected value with the code under test, or verifies a mock
+against its own setup passes while the feature is broken.
+
 ## When to skip
 
 - Pure visual tweaks (color, spacing, copy).

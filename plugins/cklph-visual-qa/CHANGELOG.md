@@ -3,6 +3,23 @@
 All notable changes to `cklph-visual-qa` are documented here.
 Format: [Keep a Changelog](https://keepachangelog.com); versioning follows [SemVer](https://semver.org).
 
+## [0.3.0] - 2026-11-22
+
+### Changed
+- `design-lint` pins `impeccable` 4.10.0 (was 4.8.2). 4.10.0 flags side bars on rounded boxes
+  whether drawn by a border, inset shadow or pseudo-element, and no longer on square boxes.
+- Documents that the npm package fetches a native binary that `npm_config_ignore_scripts` doesn't
+  stop, and `IMPECCABLE_BIN` to skip it.
+- An exit 0 is reported as "scanned, no findings", never "clean".
+- Access findings in the slop list (contrast, illegible text) are fixed, not left to taste.
+
+### Added
+- The DESIGN.md drift rules (`design-system-color`, `-font`, `-radius`, `-font-size`) as a Kit
+  drift check for WordPress and Elementor sites, with how to triage plugin CSS.
+- `--scope`, `--sarif` for GitHub code scanning, inline `impeccable-disable` and
+  `--report-unused-ignores`.
+- Don't run `impeccable login` or `loop`: login offers to write into each agent's rule file.
+
 ## [0.2.0] - 2026-11-11
 
 ### Added

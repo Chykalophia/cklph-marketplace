@@ -36,3 +36,12 @@ precedents from anthropics/claude-code-security-review (MIT, commit 0c6a49f); th
 and finding gate from google gemini-cli-extensions/security (Apache-2.0, commit 2227f3c). Ideas
 only, no text: trailofbits/skills (CC BY-SA 4.0: removed-guard checks, chain check, restate the
 claim), the OWASP Next.js cheat sheet (CC BY-SA 4.0), promptfoo (test weakening).
+
+## Anti-slop sources (0.18.0)
+
+`skills/frontend-ui/references/ai-tells.md` and `skills/frontend-ui/SKILL.md` adapt, in our own
+words: the honesty rules, the brand-collision record and the ways to open a section from
+Nutlope/hallmark (MIT, commit 04977e1); the eight tells marked ◇ from yetone/kill-ai-slop
+(Apache-2.0, commit f6e2ae3). `agents/cklph-reviewer.md` and `agents/red-team.md` adapt the
+fail-visible bias and closed justification loops from MrZoyo/deslop-GPT (MIT, commit 3913d8a).
+Ideas only, no text copied.
