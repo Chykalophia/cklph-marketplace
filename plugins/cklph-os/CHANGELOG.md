@@ -5,6 +5,24 @@ Format: [Keep a Changelog](https://keepachangelog.com); versioning follows [SemV
 Moved here from the repo root on 2026-10-27; marketplace and repo-level events (repo rename, sibling
 plugins, the marketplace manifest) live in the root CHANGELOG.
 
+## [0.19.0] - 2026-11-26
+
+### Added
+- `frontend-ui`'s `ai-tells.md` gets an Honesty section that no brand or exceptions file overrides:
+  no invented metrics, testimonials or logos; no form that says "Sent" with nothing sent;
+  screenshots, not a mock, of a product that runs; no drawn browser window. Eight tells no tool
+  checks (marked ◇): stock status colors, an icon on a tint of itself, corners that don't nest, a
+  border clipped at the corners, the "tasteful terminal", the editorial dashboard, the springy hover
+  and the wobbling spinner. Ways to open a section without an eyebrow.
+- `frontend-ui` adds an interaction-states pass (a disabled control says why, loading blocks a
+  second submit, instant 3:1 focus ring, no silent success or failure) and a browser-surfaces check.
+- `cklph-reviewer` hunts fallbacks that hide failure, closed justification loops (a fallback plus a
+  test written only for it) and tests that can't fail. `red-team` adds a masked-failure attack.
+
+### Changed
+- When a brand asks for a tell, `ai-tells.md` has the owner decide once and records it, with its
+  reason, in `.cklph/design-exceptions.json`, instead of letting it pass silently on every build.
+
 ## [0.18.0] - 2026-11-21
 
 ### Added

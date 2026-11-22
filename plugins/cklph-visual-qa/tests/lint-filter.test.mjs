@@ -43,6 +43,24 @@ test('normalize marks impeccable quality as blocking and slop as taste', () => {
   assert.ok(f.some((x) => x.rule === 'kicker-above-heading' && !x.blocking));
 });
 
+test('normalize keeps an advisory impeccable finding out of the blocking group', () => {
+  // impeccable 4.10 marks some quality rules advisory (straggler) and leaves them out of its exit code.
+  const raw = [
+    { antipattern: 'straggler', category: 'quality', advisory: true, selector: 'p', snippet: '"convert." alone' },
+    { antipattern: 'tight-leading', category: 'quality', selector: 'p', snippet: 'line-height 1.14x' },
+  ];
+  const [adv, real] = normalize('impeccable', raw);
+  assert.equal(adv.blocking, false);
+  assert.equal(adv.level, 'quality advisory');
+  assert.equal(real.blocking, true);
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'lint-filter-'));
+  const ex = path.join(dir, 'ex.json');
+  fs.writeFileSync(ex, JSON.stringify({ exceptions: [] }));
+  const r = run(['--tool', 'impeccable', '--exceptions', ex], JSON.stringify([raw[0]]));
+  assert.equal(r.status, 0);
+  assert.match(r.stdout, /0 to check, 1 taste/);
+});
+
 test('normalize marks only Hallmark FAIL as blocking', () => {
   const f = normalize('hallmark', JSON.parse(HALLMARK));
   assert.deepEqual([...new Set(f.filter((x) => x.blocking).map((x) => x.level))], ['FAIL']);

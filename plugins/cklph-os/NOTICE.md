@@ -30,3 +30,11 @@ AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
 LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
 OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 SOFTWARE.
+
+## Anti-slop sources (0.19.0)
+
+`skills/frontend-ui/references/ai-tells.md` and `skills/frontend-ui/SKILL.md` adapt, in our own
+words: the honesty rules and the ways to open a section from Nutlope/hallmark (MIT, commit
+04977e1); the eight tells marked ◇ from yetone/kill-ai-slop (Apache-2.0, commit f6e2ae3).
+`agents/cklph-reviewer.md` and `agents/red-team.md` adapt the fail-visible bias and closed
+justification loops from MrZoyo/deslop-GPT (MIT, commit 3913d8a). Ideas only, no text copied.

@@ -63,6 +63,10 @@ Run **both** passes and treat them as adversaries; a finding is only as strong a
 - **Auth / data** — IDOR, missing actor check, wrong client/role, secret in logs or error messages.
 - **State & idempotency** — retried once == retried twice? partial failure leaves consistent state?
   rollback path exists? a state machine that sets `in_progress` but never `failed`.
+- **Masked failure**: a fallback, default or swallowed error that turns a broken path into a
+  plausible result (an empty list, a zero total, a "success" status). Force the failure and check
+  what the user and the logs see. A test that passes with the code under test stubbed out, or whose
+  expected value is computed by the same code, proves nothing: make it fail on purpose once.
 - **Reversibility** — blast radius if this is wrong in production; can it be undone?
 
 ## What was NOT asked (omission hunt, escalated)

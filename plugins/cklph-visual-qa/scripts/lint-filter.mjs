@@ -11,8 +11,9 @@
 // the current directory, used only when it exists.
 //
 // Exit codes: 0 nothing that blocks, 2 blocking findings remain, 1 bad input.
-// Blocking means a Hallmark or copy-lint FAIL, or an impeccable "quality" finding. Taste
-// findings (impeccable "slop", Hallmark REFLEX, any WARN) are reported but never block.
+// Blocking means a Hallmark or copy-lint FAIL, or an impeccable "quality" finding that is not
+// advisory. Taste findings (impeccable "slop" or advisory, Hallmark REFLEX, any WARN) are reported
+// but never block. impeccable never counts an advisory finding toward its own exit code either.
 import { readFileSync, existsSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
 
@@ -51,8 +52,8 @@ export function normalize(tool, raw) {
     return raw.map((f) => ({
       tool,
       rule: String(f.antipattern ?? ''),
-      level: String(f.category ?? 'quality'),
-      blocking: f.category !== 'slop',
+      level: String(f.category ?? 'quality') + (f.advisory === true ? ' advisory' : ''),
+      blocking: f.category !== 'slop' && f.advisory !== true,
       text: [f.selector, f.snippet].filter(Boolean).join(' | '),
       fix: String(f.description ?? ''),
     }));
