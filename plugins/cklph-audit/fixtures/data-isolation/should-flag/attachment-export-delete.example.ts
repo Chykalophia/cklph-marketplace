@@ -7,8 +7,8 @@
 //      -> data-isolation:signed-ref-overreach (high)
 //   2. exportWorkspace selects notes with the service-role client filtered only by workspace_id,
 //      so it skips the RLS private-note rule and the soft-delete filter: a member's export holds
-//      other members' private and deleted notes -> data-isolation:export-scope +
-//      data-isolation:policy-query-drift (high)
+//      other members' private and deleted notes -> data-isolation:export-scope (high; the RLS bypass is
+//      the same root cause, so it is not filed again as policy-query-drift)
 //   3. the delete dialog promises every uploaded file is removed, but deleteAccount removes rows
 //      and the auth user only. Files under attachments/<userId>/ stay in the bucket
 //      -> data-isolation:deletion-lifecycle (medium)

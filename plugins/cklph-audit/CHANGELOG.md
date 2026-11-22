@@ -25,9 +25,33 @@ the new plugin-level `NOTICE.md`.
     delivery, server actions and RPC, realtime channels, outbound callbacks.
   - `availability`: unbounded input and fan-out, ReDoS, pagination caps, tenant starvation, retry
     storms, denial of wallet on paid APIs.
-  None of the six has run the fixture backtest gate yet (recall >= 0.8, precision >= 0.7 after
-  verify). The README marks them "not yet backtested", and `audit-init` says so when it suggests
-  them. Run `/cklph-audit:backtest LENS` before treating their output as gated.
+  All six cleared the fixture gate (recall >= 0.8, precision >= 0.7 after verify) in one run each,
+  with 3 verifier voters. The runs used a throwaway gate tree with every fixture, label and
+  labelled doc deleted, and 26 neutral cases (shuffled numbers, no headers or comments). Each lens
+  was scored mechanically against an answer key kept outside the tree.
+
+  | Lens | Recall | Precision |
+  |---|---|---|
+  | web-auth | 3/3 | 3/3 |
+  | client-side | 5/5 | 5/5 |
+  | messaging | 8/8 | 8/8 |
+  | data-isolation | 5/5 | 5/5 |
+  | availability | 6/7 | 6/6 |
+  | llm | 6/7 | 6/6 |
+
+  The runs found problems in the fixtures, not the lenses, and those are fixed. Two "safe"
+  fixtures held real bugs (an account deletion that ignored row-delete errors, and an SMS loop over
+  contact rows that could repeat a phone number), which the lenses flagged correctly. Two flag
+  fixtures labelled one defect with two rule ids, and two had real extra defects the lenses found
+  (a 300 s `maxDuration` with no abort, and a shared doc reaching an admin-tool context). The scores
+  above use the corrected fixtures. The two corrected safe cases were re-run: availability came
+  back clean, and data-isolation held one high for owner review because the RLS policy it relies
+  on is not in the file. That is the off-repo-fact path working as designed.
+
+  The corpora are small (two flag and two or more safe cases per lens) and each lens ran once, so
+  treat these as a first pass, not a stable measure. The real misses: `availability:unbounded-input`
+  folded into the fan-out finding, and `llm:confused-deputy` merged into the `action-binding`
+  finding on the same line.
 - `audit-init` suggests the new lenses from read-only probes and names the hit behind each one.
 - `tests/fixture-safe-redirects.test.mjs`: the should-not-flag next-path helpers keep every probe
   on-origin, including `/.//evil.example`, which resolves to a protocol-relative path.

@@ -8,7 +8,9 @@
 //      SMS, so one request with 5,000 numbers is 10,000 paid calls -> availability:unbounded-fanout (high)
 //   3. `note` has no length cap and is pasted into every prompt, so input tokens scale with it times
 //      the fan-out -> availability:unbounded-input (medium)
-// Expected verdict: FLAG all three.
+//   4. `maxDuration = 300` holds that caller-sized paid work open for five minutes with no abort when
+//      the client disconnects -> availability:serverless-amplification (medium)
+// Expected verdict: FLAG all four.
 import { NextResponse } from 'next/server';
 import OpenAI from 'openai';
 import twilio from 'twilio';

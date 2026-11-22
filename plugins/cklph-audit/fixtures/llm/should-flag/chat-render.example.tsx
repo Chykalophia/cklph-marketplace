@@ -6,7 +6,9 @@
 //      or event handler runs in the viewer's session -> llm:unsafe-render (high)
 //   2. the caller-supplied history keeps its own role field, so a client can submit a forged
 //      "system" turn that switches on the admin tool list -> llm:role-forgery (medium)
-// Expected verdict: FLAG both.
+//   3. the shared document another user wrote enters the same context that can hold the admin tools
+//      -> llm:cross-principal-injection (high)
+// Expected verdict: FLAG all three.
 import { marked } from 'marked';
 
 type Turn = { role: string; content: string };

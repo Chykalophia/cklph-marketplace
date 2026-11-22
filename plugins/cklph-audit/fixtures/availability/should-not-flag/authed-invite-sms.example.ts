@@ -42,7 +42,7 @@ export async function POST(req: Request) {
   const { teamName, note, phones } = parsed.data;
 
   const { data: contacts } = await supabase.from('contacts').select('phone').in('phone', phones);
-  const allowed = (contacts ?? []).map(c => c.phone);
+  const allowed = [...new Set((contacts ?? []).map(c => c.phone))];
   if (allowed.length === 0) return NextResponse.json({ sent: 0 });
 
   const { data: granted, error } = await supabase.rpc('reserve_sms_budget', { p_units: allowed.length });

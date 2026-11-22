@@ -5,7 +5,8 @@
 //   - exportWorkspace reads notes through the user's RLS client, so the private-note rule applies,
 //     and it filters out soft-deleted rows. The service-role client is not used
 //   - deleteAccount removes every object under attachments/<userId>/ page by page before deleting
-//     rows and the auth user, which is what the dialog promises
+//     rows and the auth user, which is what the dialog promises, and stops before deleting the
+//     auth user if any row delete fails, so nothing is left orphaned
 // Expected verdict: NO FINDING.
 import { createClient, type SupabaseClient } from '@supabase/supabase-js';
 
@@ -53,8 +54,14 @@ export async function deleteAccount(db: SupabaseClient) {
   if (!auth.user) throw new Error('unauthorized');
   const userId = auth.user.id;
   await removeUserFiles(userId);
-  await admin.from('notes').delete().eq('author_id', userId);
-  await admin.from('attachments').delete().eq('owner_id', userId);
-  await admin.from('profiles').delete().eq('id', userId);
-  await admin.auth.admin.deleteUser(userId);
+  for (const step of [
+    admin.from('notes').delete().eq('author_id', userId),
+    admin.from('attachments').delete().eq('owner_id', userId),
+    admin.from('profiles').delete().eq('id', userId),
+  ]) {
+    const { error } = await step;
+    if (error) throw error;
+  }
+  const { error: authError } = await admin.auth.admin.deleteUser(userId);
+  if (authError) throw authError;
 }

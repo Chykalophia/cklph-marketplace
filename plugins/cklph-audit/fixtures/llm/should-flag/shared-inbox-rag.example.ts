@@ -4,8 +4,8 @@
 //   1. match_documents is called without a tenant filter, so another tenant's ticket text enters
 //      this user's context -> llm:retrieval-scope (high)
 //   2. a ticket body any customer can write is retrieved into an agent that holds send_email, and
-//      the tool runs with no approval from the signed-in user -> llm:cross-principal-injection +
-//      llm:action-binding (high)
+//      the tool runs with no approval from the signed-in user -> llm:action-binding (high; the injected
+//      ticket is the path, so it is not filed again as cross-principal-injection)
 //   3. send_email uses the service-role client and never checks the requester may email that
 //      address -> llm:confused-deputy (high)
 // Expected verdict: FLAG all three.
