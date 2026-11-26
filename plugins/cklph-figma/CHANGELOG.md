@@ -3,6 +3,28 @@
 All notable changes to `cklph-figma` are documented here.
 Format: [Keep a Changelog](https://keepachangelog.com); versioning follows [SemVer](https://semver.org).
 
+## [0.6.0] - 2026-11-26
+
+### Added
+- `design-md` step 6 gets a live-site census: `scripts/census-collect.js` runs in the page and
+  counts the computed colors, families, font sizes, radii and spacing it paints, weighted by how
+  much of the page each covers; `scripts/census.mjs` compares that with DESIGN.md and reports
+  off-token colors (with the token each sits near), near-duplicate colors, and families and sizes
+  outside the scale. Radius and spacing only when DESIGN.md has those tokens, else "Not checked".
+  Colors are converted to sRGB in the browser (oklab, `color(display-p3 ...)`, lab and `none`
+  hues included), near-identical colors come back as one cluster, and the share cut uses the raw
+  share.
+  The token check went one way (is each token in the CSS?); this goes the other. The idea comes
+  from senlindesign/taste-skill's site extraction; the code is our own.
+- 20 tests in `tests/census.test.mjs`. Each of eleven injected bugs fails at least one, including
+  checking text colors only, compositing over black, the rounded share cut and pairing rare
+  colors.
+
+### Fixed
+- `contrast.mjs`, `figma-audit.mjs` (and the new `census.mjs`) exited 0 with no output when run
+  through a symlinked path (macOS `/tmp`, or a plugin folder reached through a symlink), which reads
+  as a pass. They compare real paths now. A test runs all three through a symlink.
+
 ## [0.5.0] - 2026-11-15
 
 From the first real-file run (A Safe Place, Dev Hand-off page, 27 screens).

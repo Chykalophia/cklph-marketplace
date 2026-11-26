@@ -772,7 +772,17 @@ async function main(argv) {
   throw new Error('unknown command: ' + cmd + ' (try --help)');
 }
 
-if (process.argv[1] && path.resolve(process.argv[1]) === fileURLToPath(import.meta.url)) {
+// Compare real paths: a plugin reached through a symlink (or macOS /tmp) gives an argv path
+// that differs from import.meta's, and the script would exit 0 without running.
+const ranDirectly = () => {
+  try {
+    return Boolean(process.argv[1]) && fs.realpathSync(process.argv[1]) === fs.realpathSync(fileURLToPath(import.meta.url));
+  } catch {
+    return false;
+  }
+};
+
+if (ranDirectly()) {
   main(process.argv.slice(2)).then((code) => { process.exitCode = code; }, (e) => {
     process.stderr.write('figma-audit: ' + e.message + '\n');
     process.exitCode = 1;

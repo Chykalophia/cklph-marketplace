@@ -14,7 +14,7 @@
 // Blocking means a Hallmark or copy-lint FAIL, or an impeccable "quality" finding that is not
 // advisory. Taste findings (impeccable "slop" or advisory, Hallmark REFLEX, any WARN) are reported
 // but never block. impeccable never counts an advisory finding toward its own exit code either.
-import { readFileSync, existsSync } from 'node:fs';
+import { readFileSync, existsSync, realpathSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
 
 export const TOOLS = ['impeccable', 'hallmark', 'copy'];
@@ -142,4 +142,14 @@ function main(argv) {
   }
 }
 
-if (process.argv[1] && fileURLToPath(import.meta.url) === process.argv[1]) process.exitCode = main(process.argv.slice(2));
+// Compare real paths: a plugin reached through a symlink (or macOS /tmp) gives an argv path
+// that differs from import.meta's, and the script would exit 0 without running.
+const ranDirectly = () => {
+  try {
+    return Boolean(process.argv[1]) && realpathSync(process.argv[1]) === realpathSync(fileURLToPath(import.meta.url));
+  } catch {
+    return false;
+  }
+};
+
+if (ranDirectly()) process.exitCode = main(process.argv.slice(2));

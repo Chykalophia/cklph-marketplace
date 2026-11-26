@@ -1,7 +1,7 @@
 {
   "name": "cklph-visual-qa",
   "description": "Verify a rendered web page VISUALLY against a design — headless-Chrome screenshots, ImageMagick crop/compare, overflow probes, the adversarial visual-reviewer agent with a page-shape review, deterministic type, layout and page-shape lints (impeccable and Hallmark's page checker), and a copy lint for AI wording giveaways, all respecting a site's design exceptions. Framework-agnostic; pairs with cklph-figma.",
-  "version": "0.4.0",
+  "version": "0.5.0",
   "author": {
     "name": "Peter Krzyzek"
   }

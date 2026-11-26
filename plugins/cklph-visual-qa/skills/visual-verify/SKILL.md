@@ -23,6 +23,36 @@ Compare the **specific things**: spacing, alignment (do edges line up?), color, 
 border radius, icon presence, element order. Don't declare "done" from the data — declare it from a
 screenshot that matches.
 
+## Score it against the design
+
+Eyeballing two images is where a model is weakest: it remembers the design and grades its memory.
+Before you judge by eye, score the capture with impeccable's `comp-diff` (no AI model, under a
+second):
+
+```bash
+export DO_NOT_TRACK=1 IMPECCABLE_NO_TELEMETRY=1
+npx --yes impeccable@4.10.0 comp-diff --comp /tmp/figma-1440.png --build /tmp/now.png \
+  --out-dir /tmp/diff --label hero --json > /tmp/diff.json
+```
+
+- `--comp` is the design export (cklph-figma's `figma-read`), `--build` the `shot` capture at the
+  same width. It scales the build to the comp's width and compares from the top. For one section,
+  crop both images to the same box first (`shot crop`).
+- It scores structure, color, detail and section bands, overall and per horizontal band, and gives
+  each a verdict: `match`, `drift`, `missing` or `contradicted`. `/tmp/diff` gets `side-by-side.png`,
+  `heatmap.png` and a paired crop per band in `regions/`.
+- Start from the worst band: open its crop pair, find the difference, fix, re-capture, re-score.
+  The number tells you where to look, never that you're done. A `match` overall with one `missing`
+  band is not a match.
+- Freeze or skip moving parts. The chykalophia.com homepage captured twice in a row scored 94.6%
+  (`match`), but one band read `drift` because a carousel had moved. A different page scored 41.9%
+  (`contradicted`).
+- Threshold: impeccable's own hero gate is 0.72, calibrated on AI-made comps, not client Figma files.
+  Until we've scored a few real builds that a person signed off, report the score and the band
+  verdicts and don't gate on a number. The report's `overall` is a fraction (0.946 for the 94.6%
+  above), and `--threshold` takes the same form: `--threshold 0.75` makes it exit 3 below the bar,
+  checked on 4.10.0.
+
 ## Check four widths, not two
 
 Capture **1440** (desktop), **1920** (wide monitor), **768** (tablet, upright) and **500** (phone,
@@ -69,4 +99,5 @@ Three elements with offsets `+42 / +63 / +2` are misaligned by ~10–20px CSS �
 - **One delta at a time** near the end — change, re-shoot, confirm; don't batch five tweaks then guess
   which broke it.
 - For an independent, skeptical pass, dispatch the **visual-reviewer** agent — it assumes the page does
-  NOT match until the screenshot proves otherwise.
+  NOT match until the screenshot proves otherwise. Give it the screenshots, the design export and the
+  `comp-diff` report, never your own findings or the lint output (see its "Cold review" rules).

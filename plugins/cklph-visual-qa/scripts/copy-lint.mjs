@@ -16,7 +16,7 @@
 // No AI model and no network beyond fetching the pages you name.
 //
 // Exit codes: 0 nothing that blocks, 2 findings to check, 1 a source could not be read.
-import { readFileSync } from 'node:fs';
+import { readFileSync, realpathSync } from 'node:fs';
 import { extname } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { applyExceptions, loadExceptions, normalize, report } from './lint-filter.mjs';
@@ -285,4 +285,14 @@ async function main(argv) {
   }
 }
 
-if (process.argv[1] && fileURLToPath(import.meta.url) === process.argv[1]) process.exitCode = await main(process.argv.slice(2));
+// Compare real paths: a plugin reached through a symlink (or macOS /tmp) gives an argv path
+// that differs from import.meta's, and the script would exit 0 without running.
+const ranDirectly = () => {
+  try {
+    return Boolean(process.argv[1]) && realpathSync(process.argv[1]) === realpathSync(fileURLToPath(import.meta.url));
+  } catch {
+    return false;
+  }
+};
+
+if (ranDirectly()) process.exitCode = await main(process.argv.slice(2));

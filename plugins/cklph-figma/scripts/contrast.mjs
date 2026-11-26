@@ -34,6 +34,7 @@
 
 import fs from 'node:fs';
 import path from 'node:path';
+import { fileURLToPath } from 'node:url';
 
 /** Minimum ratio per size. "ui" is WCAG 1.4.11 non-text contrast. */
 export const THRESHOLDS = Object.freeze({ normal: 4.5, large: 3, ui: 3 });
@@ -376,7 +377,17 @@ function main(argv) {
   return pass ? 0 : 2;
 }
 
-if (process.argv[1] && path.resolve(process.argv[1]) === import.meta.filename) {
+// Compare real paths: a plugin reached through a symlink (or macOS /tmp) gives an argv path
+// that differs from import.meta's, and the script would exit 0 without running.
+const ranDirectly = () => {
+  try {
+    return Boolean(process.argv[1]) && fs.realpathSync(process.argv[1]) === fs.realpathSync(fileURLToPath(import.meta.url));
+  } catch {
+    return false;
+  }
+};
+
+if (ranDirectly()) {
   try {
     process.exitCode = main(process.argv.slice(2));
   } catch (err) {

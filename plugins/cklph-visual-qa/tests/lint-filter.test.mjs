@@ -107,3 +107,20 @@ test('CLI exits 1 on bad input or a missing tool', () => {
   assert.equal(run(['--tool', 'hallmark'], 'not json').status, 1);
   assert.equal(run([], IMPECCABLE).status, 1);
 });
+
+test('both CLIs still run when reached through a symlinked plugin directory', () => {
+  // Regression: a symlinked install path (or macOS /tmp) made each CLI exit 0 with no output,
+  // which design-lint would report as nothing to check.
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'lint-link-'));
+  const link = path.join(dir, 'plugin');
+  fs.symlinkSync(fs.realpathSync(path.join(HERE, '..')), link);
+  const ex = path.join(dir, 'ex.json');
+  fs.writeFileSync(ex, JSON.stringify({ exceptions: [] }));
+  const filter = spawnSync(process.execPath, [path.join(link, 'scripts', 'lint-filter.mjs'), '--tool', 'impeccable', '--exceptions', ex], { input: IMPECCABLE, encoding: 'utf8' });
+  assert.equal(filter.status, 2);
+  assert.match(filter.stdout, /to check/);
+  const copy = spawnSync(process.execPath, [path.join(link, 'scripts', 'copy-lint.mjs'), path.join(HERE, 'fixtures', 'copy-page.html'), '--exceptions', ex], { encoding: 'utf8' });
+  assert.notEqual(copy.status, 0, 'the copy fixture has findings');
+  assert.ok(copy.stdout.length > 0, 'copy-lint printed nothing through a symlink');
+});
+
