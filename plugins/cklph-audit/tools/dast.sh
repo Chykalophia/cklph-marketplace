@@ -6,7 +6,10 @@
 #   <target-url>: if provided, scans that URL directly (no boot).
 #                 if absent, tries docker-compose up then falls back to localhost:3000.
 # Output schema per line: { tool, rule, severity, url, method, param, evidence }
+# Before any path is probed, soft404.mjs records the host's not-found baseline (paths that cannot
+# exist) and prints it on stderr; ffuf hits whose response matches it are dropped as not found.
 set -uo pipefail
+SCRIPT_DIR="$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd)"
 ARG="${1:-.}"
 URL="${2:-}"
 # Resolve the target ONCE to an absolute path, so a relative root is not re-resolved after cd.
@@ -76,6 +79,17 @@ if [ -z "$URL" ]; then
   fi
 fi
 
+# ── Not-found baseline (mandatory, before any path probe) ────────────────────
+# A 200 proves nothing on an app that serves its shell for every path. Record the control first.
+BASELINE_FILE=""
+if command -v node >/dev/null 2>&1 && BASELINE_FILE="$(mktemp 2>/dev/null)"; then
+  node "$SCRIPT_DIR/soft404.mjs" baseline "$URL" > "$BASELINE_FILE"
+  echo "dast.sh: not-found baseline: $(cat "$BASELINE_FILE")" >&2
+else
+  BASELINE_FILE=""
+  echo "dast.sh: could not record a not-found baseline (node or mktemp missing); path hits are NOT filtered, so a 200 may be the app shell." >&2
+fi
+
 # ── ZAP baseline scan ────────────────────────────────────────────────────────
 if command -v zap-cli >/dev/null 2>&1; then
   zap-cli quick-scan --scanner base -f json "$URL" 2>/dev/null | node -e '
@@ -112,7 +126,7 @@ elif command -v docker >/dev/null 2>&1; then
   # Remove the container, network and report dir even if the scan is interrupted. Killing the
   # docker CLI does not stop the container, and the network cannot be removed while the
   # container is attached, so the container is named and removed first.
-  trap 'docker rm -f "$ZAP_NET" >/dev/null 2>&1; docker network rm "$ZAP_NET" >/dev/null 2>&1; rm -rf "$ZAP_TMP"' EXIT
+  trap 'docker rm -f "$ZAP_NET" >/dev/null 2>&1; docker network rm "$ZAP_NET" >/dev/null 2>&1; rm -rf "$ZAP_TMP"; [ -n "$BASELINE_FILE" ] && rm -f "$BASELINE_FILE"' EXIT
   trap 'exit 130' INT
   trap 'exit 143' TERM
   # An empty ZAP_TMP would make ZAP_WRK "/wrk": skip ZAP rather than write outside a temp dir.
@@ -193,11 +207,13 @@ if command -v ffuf >/dev/null 2>&1; then
           tool:"ffuf",rule:"content-discovery",severity:"low",
           url:r.url||"",method:"GET",param:"",evidence:"Discovered: "+(r.url||"")+(r.status?" (HTTP "+r.status+")":"")
         })+"\n");}
-      if(bad) process.stderr.write("dast.sh: "+bad+" ffuf output line(s) were not JSON — those hits were NOT collected.\n");})' <<<"$FFUF_OUT" || true
+      if(bad) process.stderr.write("dast.sh: "+bad+" ffuf output line(s) were not JSON — those hits were NOT collected.\n");})' <<<"$FFUF_OUT" \
+      | if [ -n "$BASELINE_FILE" ]; then node "$SCRIPT_DIR/soft404.mjs" filter "$BASELINE_FILE"; else cat; fi || true
   fi
 fi
 
 # ── Teardown ─────────────────────────────────────────────────────────────────
+[ -n "$BASELINE_FILE" ] && rm -f "$BASELINE_FILE"
 if [ "$COMPOSE_UP" = true ]; then
   docker compose -f "$COMPOSE_FILE" down >/dev/null 2>&1 || \
     docker-compose -f "$COMPOSE_FILE" down >/dev/null 2>&1 || true
