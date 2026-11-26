@@ -36,6 +36,6 @@ export async function createInvoice(req: any, res: any) {
   }
 }
 
-// stubs so the fixture type-checks in isolation; not part of the clean pattern.
+// stubs so this file type-checks on its own.
 declare const db: any;
 declare const logger: { error: (o: unknown, m: string) => void };
