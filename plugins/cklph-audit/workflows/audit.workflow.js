@@ -106,7 +106,9 @@ function callAgent(prompt, opts) {
 const agentConfigGlobsBase = config.agentConfig?.globs ?? [
   '**/.mcp.json', '**/mcp.json', '**/.claude/**', '**/.cursor/**', '**/.vscode/mcp.json',
   '**/hooks/hooks.json', '**/.claude/hooks/**', '**/plugins/*/hooks/**', '**/.claude-plugin/*.json',
-  '**/CLAUDE.md', '**/AGENTS.md', '**/skills/**/SKILL.md', '**/agents/*.md',
+  '**/CLAUDE.md', '**/AGENTS.md', '**/skills/**/SKILL.md', '**/skills/*/scripts/**', '**/agents/*.md',
+  // CI workflows can run an AI agent on untrusted event data; the lens drops workflows with no agent step.
+  '**/.github/workflows/*.yml', '**/.github/workflows/*.yaml',
 ]
 // honor args.path the way recon/unit inference do: scope the AI-tooling globs under it.
 // Normalize first: strip leading './' and trailing '/'; '.', './' and '' mean the whole repo.
@@ -214,7 +216,7 @@ const PLAN_SCHEMA = {
 }
 
 // the ONE lens-hint list: RULEBOOK_SCHEMA's enum and the rulebook prompt both read it (never copy it)
-const LENS_HINTS = ['security','correctness','architecture','docs-drift','sca','iac','container','k8s','supply-chain','compliance','concurrency','state-machine','economic','omission','fallback','agent-config','ambiguity','any']
+const LENS_HINTS = ['security','correctness','architecture','docs-drift','sca','iac','container','k8s','supply-chain','compliance','concurrency','state-machine','economic','llm','data-isolation','web-auth','client-side','messaging','availability','omission','fallback','agent-config','ambiguity','any']
 // The rulebook prompt OFFERS the pre-v4 base hints plus every running lens that has review jobs: a rule
 // hinted for a lens with no reviewer this run closes NOT CHECKED (compliance has none, so it is never
 // offered). Filtered from LENS_HINTS, so the prompt can never drift from the schema enum (§15).
@@ -290,7 +292,7 @@ const RECON_SCHEMA = {
 
 const REVIEW_SCHEMA = {
   type: 'object',
-  required: ['findings'],
+  required: ['findings', 'coverage'],
   properties: {
     findings: {
       type: 'array',
@@ -360,7 +362,9 @@ const REVIEW_SCHEMA = {
         seedsGiven: { type: 'number' },
         toolCandidatesJudged: { type: 'number' },
         toolFailures: { type: 'array', items: { type: 'string' } },   // a deterministic tool that failed / was missing / unparsed: recall NOT run
+        partial: { type: 'array', items: { type: 'string' } },        // the tool ran but skipped or truncated part of its input
       },
+      required: ['toolFailures'],
     },
   },
 }
@@ -414,6 +418,27 @@ const MAP_SCHEMA = {
       },
     },
     crownJewels: { type: 'array', items: { type: 'string' } },   // highest-value assets/flows
+    intendedUse: {                                  // what a unit is designed to allow, so it is not flagged as a defect
+      type: 'array',
+      items: {
+        type: 'object',
+        properties: {
+          unit: { type: 'string' },                 // a unit key
+          text: { type: 'string' },
+          // Intent must be stated outside the code that would be the bug: code shows capability, not intent.
+          evidence: {
+            type: 'object',
+            properties: {
+              file: { type: 'string' },
+              line: { type: 'integer' },
+              kind: { type: 'string', enum: ['doc', 'test', 'config', 'adr'] },
+            },
+            required: ['file', 'kind'],
+          },
+        },
+        required: ['unit', 'text', 'evidence'],
+      },
+    },
   },
 }
 
@@ -711,6 +736,12 @@ const AMBIGUITY_PROOF_PROMPT =
 // N default-refuted voters try to REFUTE each finding; evidence (not tally) promotes (T1.3):
 //   low/medium keep the majority rule; critical/high require a reachabilityTrace.
 // Voters are independent parallel calls — no within-prompt position bias to randomize.
+// The lens a voter sees: a variant sibling is judged under its seed's lens, a DAST finding as security,
+// so the verifier's lens-scoped checks apply to both.
+// Designed capabilities of a unit, from the Map phase. Empty before Map runs and for variant/DAST batches.
+const intendedFor = unitKey => (model.intendedUse ?? []).filter(i => i?.unit === unitKey)
+const voterLens = (f, lens) => lens === 'variant' ? (f.seedLens ?? 'security') : lens === 'dast' ? 'security' : lens
+
 function verifyFindings(findings, unitKey, lens, unitVoters, extraOpts = {}) {
   // Verify critical/high first WITHIN this call so they claim the budget before low/medium here.
   // NOTE: this is per-call priority only — across units (reviews land in pipeline order) and across
@@ -749,8 +780,16 @@ function verifyFindings(findings, unitKey, lens, unitVoters, extraOpts = {}) {
             `RLS, validation, an upstream caller, an existing test, a documented/accepted exception). To ` +
             `REFUTE, cite the guard file:line in counterEvidence. To CONFIRM a critical/high you MUST supply a ` +
             `reachabilityTrace (attacker-controlled input → sink, or the invariant-violation path) — ` +
-            `"plausible" without a trace = refuted. Voter ${i + 1}/${unitVoters}.\n`) +
-        `FINDING: ${JSON.stringify({ title: f.title, file: f.file, line: f.line, rule: f.rule, severity: f.severity, snippet: ambig ? f.snippet : stripComments(f.snippet), rationale: f.rationale, ...(ambig && f.readings ? { readings: f.readings } : {}) })}`,
+            `"plausible" without a trace = refuted. One exception: if the in-repo path holds and only a fact ` +
+            `outside the repo (proxy, CDN, provider, account setting) decides it, return refuted:false with NO ` +
+            `reachabilityTrace and name that fact in reason. Voter ${i + 1}/${unitVoters}.\n`) +
+        (intendedFor(unitKey).length && !ambig
+          ? `INTENDED USE of this unit, each with its evidence: re-read the evidence before relying on it. Refute a ` +
+            `finding only when it describes designed behaviour within the stated limit, and name the entry. Never ` +
+            `refute a critical/high on intended use alone, and intended use never covers reaching private networks, ` +
+            `another tenant's data, or an audience wider than the one stated: ${JSON.stringify(intendedFor(unitKey))}\n`
+          : '') +
+        `FINDING: ${JSON.stringify({ title: f.title, file: f.file, line: f.line, lens: voterLens(f, lens), rule: f.rule, severity: f.severity, ...(f.confidence === 'needs-owner-input' ? { ownerInputNeeded: true } : {}), snippet: ambig ? f.snippet : stripComments(f.snippet), rationale: f.rationale, ...(ambig && f.readings ? { readings: f.readings } : {}) })}`,
         { agentType: 'cklph-audit:audit-verifier', label: `verify:${f.id ?? f.file}`, phase: 'Verify', schema: VERDICT_SCHEMA, ...tier('verifier'), ...extraOpts },
       )))
       .then(votes => {
@@ -955,7 +994,7 @@ const mapSkipReason = mode === 'quick' ? 'quick'
   : lenses.length && lenses.every(isProseOnlyLens) ? 'prose-only'
   : null
 const mapEnabled = !mapSkipReason
-let model = { trustBoundaries: [], dataFlows: [], invariants: [], crownJewels: [] }
+let model = { trustBoundaries: [], dataFlows: [], invariants: [], crownJewels: [], intendedUse: [] }
 let mapRan = false
 if (!mapEnabled) {
   log(mapSkipReason === 'quick'
@@ -970,7 +1009,13 @@ if (!mapEnabled) {
     `denominators/seeds, and the rulebook docs below, identify: trustBoundaries (where a security control ` +
     `gates a connection — { id, where (a path/glob), note }); dataFlows (external/attacker-reachable ` +
     `source → sink — { source, sink, crossesBoundary }); invariants (per-unit properties that MUST hold — ` +
-    `{ unit (prefer a key from UNITS), text }); and crownJewels (the highest-value assets/flows — strings). ` +
+    `{ unit (prefer a key from UNITS), text }); crownJewels (the highest-value assets/flows — strings); and ` +
+    `intendedUse (per unit, the capability it is DESIGNED to grant, to whom, and its stated limit, e.g. ` +
+    `"staff-only admin tool reads every tenant; staff check at lib/admin.ts:12", "image proxy fetches public ` +
+    `https URLs for signed-in users; private ranges blocked at lib/proxy.ts:30": { unit, text, evidence: ` +
+    `{ file, line, kind: doc|test|config|adr } }. The evidence must state the intent: a doc, an ADR, a test ` +
+    `asserting the behaviour, or config. The code itself and code comments are NOT evidence, and a recon seed ` +
+    `is never intended. Leave an entry out when no such evidence exists). `+
     `Read-only.\n` +
     `UNITS: ${JSON.stringify(units.map(u => ({ key: u.key, globs: u.globs, riskScore: u.riskScore })))}\n` +
     `RECON: ${JSON.stringify(Object.fromEntries(Object.entries(reconByLens).map(([l, r]) => [l, { denominators: r.denominators ?? [], seeds: (r.seeds ?? []).slice(0, 20) }])))}\n` +
@@ -985,8 +1030,11 @@ if (!mapEnabled) {
       dataFlows: mapOut.dataFlows ?? [],
       invariants: mapOut.invariants ?? [],
       crownJewels: mapOut.crownJewels ?? [],
+      intendedUse: (mapOut.intendedUse ?? []).filter(i => i?.unit && i?.text && i?.evidence?.file && ['doc', 'test', 'config', 'adr'].includes(i.evidence.kind)),
     }
     mapRan = true
+    const droppedIntended = (mapOut.intendedUse ?? []).length - model.intendedUse.length
+    if (droppedIntended) log(`map: dropped ${droppedIntended} intendedUse entr(ies) with no doc/test/config/adr evidence`)
     log(`map: ${model.trustBoundaries.length} trust boundar(ies), ${model.dataFlows.length} data-flow(s), ` +
         `${model.invariants.length} invariant(s), ${model.crownJewels.length} crown jewel(s)`)
   }
@@ -1028,6 +1076,7 @@ const reviewed = await pipeline(
     // T2.1: when the Map ran, hand this unit its invariants + the boundaries whose `where`
     // glob-matches it. Security findings SHOULD cite the boundary; each invariant is checked.
     const unitInvariants = mapRan ? model.invariants.filter(i => i.unit === job.unit.key) : []
+    const unitIntended = mapRan ? (model.intendedUse ?? []).filter(i => i.unit === job.unit.key) : []
     const unitBoundaries = mapRan
       ? model.trustBoundaries.filter(b => b?.where && globMatch(b.where.replace(/^\.\//, ''), job.unit.globs))
       : []
@@ -1075,6 +1124,14 @@ const reviewed = await pipeline(
       (unitInvariants.length
         ? `INVARIANTS this unit must hold — check EACH; a violation is a finding (set its invariant):\n${JSON.stringify(unitInvariants)}\n`
         : '') +
+      `LENSES IN THIS RUN: ${JSON.stringify(lenses)}. A lens skill that hands a class to another lens only ` +
+      `hands it over when that lens is in this list; otherwise file it yourself: set rule to the closest rule id ` +
+      `of YOUR lens and name the other lens's rule id in the rationale.\n` +
+      (unitIntended.length
+        ? `INTENDED USE of this unit, with evidence. Designed behaviour within the stated limit is not a finding. ` +
+          `It never covers reaching private networks, another tenant's data, or an audience wider than the one ` +
+          `stated, and you still FILE any critical/high in this unit and let the verifier decide:\n${JSON.stringify(unitIntended)}\n`
+        : '') +
       (unitBoundaries.length
         ? `TRUST BOUNDARIES gating this unit — a security finding SHOULD cite the boundary crossed (set finding.boundary):\n${JSON.stringify(unitBoundaries)}\n`
         : '') +
@@ -1087,10 +1144,13 @@ const reviewed = await pipeline(
           `that citation:\n${JSON.stringify(safeControls)}\n`
         : '') +
       `Report coverage HONESTLY: { seedsVerified, seedsGiven (${seeds.length} given), toolCandidatesJudged, ` +
-      `toolFailures }. toolFailures: one line per deterministic tool whose stderr said it failed, was not ` +
-      `installed, or produced output it could not parse (its zero candidates mean NOT CHECKED, not clean); [] when every tool ran.`,
+      `toolFailures, partial }. toolFailures: one line per recall tool whose stderr said it failed or produced output it ` +
+      `could not parse, or one line when no recall tool for this lens could run at all (its zero candidates mean NOT ` +
+      `CHECKED, not clean); [] otherwise. partial: one line per tool that ran but skipped or truncated part of its ` +
+      `input, and per optional scanner that is not installed while the lens's main recall still ran (e.g. CodeQL ` +
+      `missing but Semgrep ran); [] when none.`,
       { agentType: 'cklph-audit:audit-reviewer', label: `review:${job.unit.key}:${job.lens}`, phase: 'Review', schema: REVIEW_SCHEMA, ...tier('reviewer') },
-    )
+    ).catch(() => null)
   },
   // stage 2: verify each finding through the shared gate. T1.4: voter count + effort scale
   // with the unit's riskScore (docs-drift's unit has no riskScore → 0.5 → base voters).
@@ -1118,13 +1178,21 @@ const reviewed = await pipeline(
         ruleChecks: review?.ruleChecks ?? [],
         safeControlChecks: review?.safeControlChecks ?? [],
         coverage: review?.coverage ?? null,
+        reviewerDied: !review ? 'returned nothing' : !review.coverage ? 'reported no coverage' : false,
       }))
   },
 )
+// A job whose pipeline item is missing (a stage threw) was never reviewed: record it as NOT CHECKED
+// rather than letting it vanish from the coverage totals.
+jobs.forEach((job, i) => {
+  if (!reviewed[i]) reviewed[i] = { unit: job.unit.key, lens: job.lens, findings: [], ruleChecks: [], safeControlChecks: [], coverage: null, reviewerDied: 'failed while running' }
+})
 
 // ════════════════════════════════════════════════════════════════════════════
 // 5b. DAST — opt-in dynamic testing + exploit verification (CodeMender core)
 // ════════════════════════════════════════════════════════════════════════════
+// Requested phases whose agent died: they count against a clean run like a failed recall tool.
+const phaseFailures = []
 const dastEnabled = (config.dast?.enabled ?? false) && mode !== 'quick'
 let dastRan = false
 let dastFindings = []
@@ -1153,6 +1221,7 @@ if (!dastEnabled) {
   )
   if (!dastOut) {
     log('audit-dast-runner died — no dynamic findings (flagged in appendix)')
+    phaseFailures.push('dast: the DAST runner returned nothing, so dynamic testing was NOT CHECKED')
   } else {
     dastRan = true
     dastFindings = dastOut.findings ?? []
@@ -1257,7 +1326,7 @@ if (!variantEnabled) {
       { agentType: 'cklph-audit:audit-reviewer', label: `variant:${seed.file}`, phase: 'Variant', schema: REVIEW_SCHEMA, ...tier('reviewer') },
     )))
     const candidates = variantOut
-      .flatMap(out => (out?.findings ?? []).slice(0, maxPerSeed))
+      .flatMap((out, i) => (out?.findings ?? []).slice(0, maxPerSeed).map(f => ({ ...f, seedLens: seeds[i]?.lens })))
     // re-verify through the SAME gate (base voters — the sibling's home unit isn't known here),
     // then dedup + baseline-suppress + drop anything already in `fresh`.
     const verifiedVariants = await verifyFindings(candidates, 'variant', 'variant', config.verify?.voters ?? 3)
@@ -1401,13 +1470,15 @@ if (pcMax > 0) {
 // coverage totals (M3): recon denominators verbatim + summed reviewer coverage, per lens
 const coverageTotals = {}
 for (const lens of lenses) {
-  const sum = { seedsVerified: 0, seedsGiven: 0, toolCandidatesJudged: 0, toolFailures: [] }
+  const sum = { seedsVerified: 0, seedsGiven: 0, toolCandidatesJudged: 0, toolFailures: [], partial: [] }
   for (const r of results) {
     if (r.lens !== lens) continue
     sum.seedsVerified += r.coverage?.seedsVerified ?? 0
     sum.seedsGiven += r.coverage?.seedsGiven ?? 0
     sum.toolCandidatesJudged += r.coverage?.toolCandidatesJudged ?? 0
     for (const t of (Array.isArray(r.coverage?.toolFailures) ? r.coverage.toolFailures : [])) sum.toolFailures.push(`${r.unit}: ${t}`)
+    for (const t of (Array.isArray(r.coverage?.partial) ? r.coverage.partial : [])) sum.partial.push(`${r.unit}: ${t}`)
+    if (r.reviewerDied) sum.toolFailures.push(`${r.unit}: the reviewer ${r.reviewerDied}, so this unit was NOT CHECKED`)
   }
   coverageTotals[lens] = { denominators: reconByLens[lens]?.denominators ?? [], reviewed: sum }
 }
@@ -1435,6 +1506,7 @@ if (hasCompliance) {
     log(`compliance: ${complianceMatrix.length} control(s) mapped across ${frameworks.join(', ')}`)
   } else {
     log('compliance mapping died — no compliance matrix (flagged in appendix)')
+    phaseFailures.push('compliance: the mapping agent returned nothing, so the compliance matrix was NOT CHECKED')
   }
 }
 
@@ -1487,8 +1559,13 @@ phase('Synthesize')
 // E2/A5b: only a truly clean run short-circuits — a held-untraced OR a deferred-unverified finding
 // is NOT clean; it still needs an owner-review report so it is never silently gone. Neither is a
 // proof-contract drop: §4.10 lists dropped ids in the report's Coverage summary (§15 CLEAN-DROP).
+// A reviewer whose recall tool failed, or that returned nothing, did not scan: zero findings from it is
+// NOT CHECKED, never clean. Partial notes mean the tool ran but skipped or truncated some input.
+const toolFailures = [...Object.entries(coverageTotals).flatMap(([l, c]) => (c.reviewed?.toolFailures ?? []).map(t => `${l}: ${t}`)), ...phaseFailures]
+const partialCoverage = Object.entries(coverageTotals).flatMap(([l, c]) => (c.reviewed?.partial ?? []).map(t => `${l}: ${t}`))
 if (!fresh.length && !heldUntraced.length && !deferred.length && !proofContractDropped.length) {
-  log('No new confirmed findings. Clean run. 🎉')
+  if (toolFailures.length) log(`No new confirmed findings, but ${toolFailures.length} tool failure(s): not a clean run`)
+  else log('No new confirmed findings. Clean run. 🎉')
   // §15 CLEAN-RECORD: report stays null (the clean signal), but the run's record (what was checked,
   // what was refuted and why) is built here in plain code, no synthesizer agent. audit-run fills the
   // two placeholders and writes it, so refuted candidates are not lost when the chat ends.
@@ -1503,7 +1580,8 @@ if (!fresh.length && !heldUntraced.length && !deferred.length && !proofContractD
   const suppressedByBaseline = deduped.filter(f => baseline.has(fingerprint(f))).length
   const yamlList = xs => `[${xs.map(x => JSON.stringify(String(x))).join(', ')}]`
   const mapLine = mapRan
-    ? `ran: ${model.trustBoundaries.length} trust boundar(ies), ${model.invariants.length} invariant(s)`
+    ? `ran: ${model.trustBoundaries.length} trust boundar(ies), ${model.invariants.length} invariant(s), ` +
+      `${model.intendedUse.length} intended-use entr(ies)${model.intendedUse.length ? ` (${model.intendedUse.map(i => `${i.unit}: ${oneLine(i.text)} [${i.evidence.kind} ${i.evidence.file}${i.evidence.line ? `:${i.evidence.line}` : ''}]`).join('; ')})` : ''}`
     : mapSkipReason
       ? `skipped (${mapSkipReason === 'prose-only' ? 'prose-only lenses, no threat model needed' : mapSkipReason === 'quick' ? 'quick mode' : 'map.enabled: false'})`
       : 'FAILED (the modeler died or returned nothing; no threat model)'
@@ -1514,7 +1592,7 @@ if (!fresh.length && !heldUntraced.length && !deferred.length && !proofContractD
     'repo_sha: __REPO_SHA__',
     `lenses: ${yamlList(lenses)}`,
     `mode: ${mode}`,
-    'result: clean',
+    `result: ${toolFailures.length ? 'incomplete' : 'clean'}`,
     `phases: { map: ${mapRan}, variant: ${variantRan}, dast: ${dastRan}, patch: ${patchRan}, self_review: false }`,
     `counts: { critical: 0, high: 0, medium: 0, low: 0, info: ${positiveControls.length} }`,
     'coverage:',
@@ -1529,12 +1607,22 @@ if (!fresh.length && !heldUntraced.length && !deferred.length && !proofContractD
     `inconclusive_candidates: ${inconclusive.length}`,
     `below_severity_floor: ${belowFloor.length}`,
     `suppressed_by_baseline: ${suppressedByBaseline}`,
+    `tool_failures: ${toolFailures.length}`,
+    `partially_checked: ${partialCoverage.length}`,
     '---',
     '',
-    `# Audit (${lenses.join(', ')}): clean run`,
+    toolFailures.length ? `# Audit (${lenses.join(', ')}): no findings, but NOT a clean run` : `# Audit (${lenses.join(', ')}): clean run`,
     '',
-    'No new confirmed findings and nothing held for owner review. This file is the run\'s record: what was checked, and what reviewers raised that the verifier panel refuted, so the next run can be compared against it. Self-review does not run on a clean run.',
+    toolFailures.length
+      ? `No confirmed findings, but ${toolFailures.length} part(s) of the run did not run (a failed recall tool, a reviewer that returned nothing, or a dead phase), so what they cover was NOT CHECKED. Fix the items below and re-run before treating this as clean.`
+      : 'No new confirmed findings and nothing held for owner review. This file is the run\'s record: what was checked, and what reviewers raised that the verifier panel refuted, so the next run can be compared against it. Self-review does not run on a clean run.',
     '',
+    ...(toolFailures.length
+      ? [`## Not checked: tool failures (${toolFailures.length})`, '', ...toolFailures.map(t => `- ${oneLine(t)}`), '']
+      : []),
+    ...(partialCoverage.length
+      ? [`## Partially checked (${partialCoverage.length})`, '', 'The tool ran but skipped or truncated part of its input; the rest was checked.', '', ...partialCoverage.map(t => `- ${oneLine(t)}`), '']
+      : []),
     '## Rule closure',
     '',
     `- In scope: ${coverageSummary.rulebookSize - coverageSummary.outOfScope} of ${coverageSummary.rulebookSize} rulebook rule(s); ${coverageSummary.checked} checked` +
@@ -1576,6 +1664,8 @@ if (!fresh.length && !heldUntraced.length && !deferred.length && !proofContractD
   return {
     report: null, fresh: [],
     cleanReport,
+    toolFailures,
+    partialCoverage,
     proofContractDropped,
     units: { source: unitSource, lowConfidence },
     skipped: mode === 'quick',
@@ -1583,7 +1673,7 @@ if (!fresh.length && !heldUntraced.length && !deferred.length && !proofContractD
     positiveControls: positiveControls.length,
     heldUntraced: 0,
     deferred: 0,
-    map: { ran: mapRan, trustBoundaries: model.trustBoundaries.length, invariants: model.invariants.length, ...(mapSkipReason ? { skipReason: mapSkipReason } : {}) },
+    map: { ran: mapRan, trustBoundaries: model.trustBoundaries.length, invariants: model.invariants.length, intendedUse: model.intendedUse, ...(mapSkipReason ? { skipReason: mapSkipReason } : {}) },
     variants: variantsConfirmed,
     dast: { ran: dastRan, findings: dastFindings.length, exploits: exploitResults.length },
     patch: { ran: patchRan, patches: patchResults.length },
@@ -1614,6 +1704,7 @@ const runMeta = {
   verifierBudget: maxVerifierAgents,             // A5b: the cap; verifierSpawns is what was actually used
   verifierSpawns,
   crownJewels: model.crownJewels,
+  intendedUse: model.intendedUse,
 }
 // E2: held (inconclusive) critical/high findings, surfaced for owner review (never silently dropped)
 const publicHeldUntraced = heldUntraced.map(f => ({ id: f.id, file: f.file, severity: f.severity, title: f.title, rule: f.rule, heldReason: f.heldReason }))
@@ -1720,7 +1811,9 @@ if (!report?.markdown) {
       `Re-run the audit to get the full report. Nothing below has been re-judged.\n\n` +
       `## Confirmed findings (${fresh.length})\n\n${fresh.map(lineOf).join('\n') || '_none_'}\n\n` +
       `## Held-untraced — needs owner review (${heldUntraced.length})\n\n${heldUntraced.map(f => lineOf(f) + (f.heldReason ? ` — ${f.heldReason}` : '')).join('\n') || '_none_'}\n\n` +
-      `## Deferred — UNVERIFIED (${deferred.length})\n\n${deferred.map(lineOf).join('\n') || '_none_'}\n`,
+      `## Deferred — UNVERIFIED (${deferred.length})\n\n${deferred.map(lineOf).join('\n') || '_none_'}\n\n` +
+      `## Not checked: tool failures (${toolFailures.length})\n\n${toolFailures.map(t => `- ${t}`).join('\n') || '_none_'}\n\n` +
+      `## Partially checked (${partialCoverage.length})\n\n${partialCoverage.map(t => `- ${t}`).join('\n') || '_none_'}\n`,
     waves: [],
     counts: ['critical', 'high', 'medium', 'low'].reduce((c, s) => ({ ...c, [s]: fresh.filter(f => f.severity === s).length }), { info: 0 }),
     synthesisFailed: true,
@@ -1775,6 +1868,8 @@ if (report?.markdown) {
 
 return {
   report,
+  toolFailures,
+  partialCoverage,
   fresh: fresh.map(({ votes, refuteReason, majorityRefuted, ...rest }) => rest),   // panel internals (§15 CLEAN-RECORD) stay internal
   proofContractDropped,
   units: { source: unitSource, lowConfidence },
@@ -1783,7 +1878,7 @@ return {
   positiveControls: positiveControls.length,
   heldUntraced: heldUntraced.length,
   deferred: deferred.length,
-  map: { ran: mapRan, trustBoundaries: model.trustBoundaries.length, invariants: model.invariants.length, ...(mapSkipReason ? { skipReason: mapSkipReason } : {}) },
+  map: { ran: mapRan, trustBoundaries: model.trustBoundaries.length, invariants: model.invariants.length, intendedUse: model.intendedUse, ...(mapSkipReason ? { skipReason: mapSkipReason } : {}) },
   variants: variantsConfirmed,
   dast: { ran: dastRan, findings: dastFindings.length, exploits: exploitResults.length },
   patch: { ran: patchRan, patches: patchResults.length },

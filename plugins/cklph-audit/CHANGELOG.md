@@ -3,6 +3,182 @@
 All notable changes to `cklph-audit` are documented here. This project adheres to
 [Semantic Versioning](https://semver.org/).
 
+## 1.5.0 - 2026-11-26
+
+Ideas and attack classes adapted from Cloudflare's security-audit skill (MIT). Attribution is in
+the new plugin-level `NOTICE.md`.
+
+### Added
+- Six lenses, each pure reasoning over `rg` recall, with rule ids, a split paragraph naming which
+  neighbouring lens owns an overlapping class, and should-flag/should-not-flag fixtures:
+  - `llm`: the product's own model features. Cross-principal injection, retrieval and memory
+    scope, role forgery, confused-deputy tools, approval that does not bind the executed action,
+    schema/dispatcher drift, unbounded loops, MCP identity and metadata trust, unsafe rendering,
+    context disclosure.
+  - `data-isolation`: tenant data through caches, keys, blobs and signed URLs, RLS vs
+    service-role queries, logs, exports, restores, migrations, deletion and revocation.
+  - `web-auth`: OAuth/OIDC, JWT, sessions, reset and magic-link tokens, forwarded-header trust,
+    cache poisoning and deception.
+  - `client-side`: DOM XSS, postMessage, client open redirects, prototype pollution, framing,
+    secrets shipped to the client, client-only authorization.
+  - `messaging`: webhook authenticity and replay, queue consumers, duplicate and out-of-order
+    delivery, server actions and RPC, realtime channels, outbound callbacks.
+  - `availability`: unbounded input and fan-out, ReDoS, pagination caps, tenant starvation, retry
+    storms, denial of wallet on paid APIs.
+  All six cleared the fixture gate (recall >= 0.8, precision >= 0.7 after verify) in one run each,
+  with 3 verifier voters. The runs used a throwaway gate tree with every fixture, label and
+  labelled doc deleted, and 26 neutral cases (shuffled numbers, no headers or comments). Each lens
+  was scored mechanically against an answer key kept outside the tree.
+
+  | Lens | Recall | Precision |
+  |---|---|---|
+  | web-auth | 3/3 | 3/3 |
+  | client-side | 5/5 | 5/5 |
+  | messaging | 8/8 | 8/8 |
+  | data-isolation | 5/5 | 5/5 |
+  | availability | 6/7 | 6/6 |
+  | llm | 6/7 | 6/6 |
+
+  The runs found problems in the fixtures, not the lenses, and those are fixed. Two "safe"
+  fixtures held real bugs (an account deletion that ignored row-delete errors, and an SMS loop over
+  contact rows that could repeat a phone number), which the lenses flagged correctly. Two flag
+  fixtures labelled one defect with two rule ids, and two had real extra defects the lenses found
+  (a 300 s `maxDuration` with no abort, and a shared doc reaching an admin-tool context). The scores
+  above use the corrected fixtures. The two corrected safe cases were re-run: availability came
+  back clean, and data-isolation held one high for owner review because the RLS policy it relies
+  on is not in the file. That is the off-repo-fact path working as designed.
+
+  The corpora are small (two flag and two or more safe cases per lens) and each lens ran once, so
+  treat these as a first pass, not a stable measure. The real misses: `availability:unbounded-input`
+  folded into the fan-out finding, and `llm:confused-deputy` merged into the `action-binding`
+  finding on the same line.
+
+  The round-2 rules added to existing lenses were backtested the same way, 8 neutral cases:
+
+  | Lens (new rules) | Recall | Precision |
+  |---|---|---|
+  | security (Supabase RLS, views, definer functions, `user_metadata`) | 5/5 | 5/5 |
+  | agent-config (AI agents in CI, skill content) | 12/12 | 12/12 |
+  | supply-chain (test weakening) | 1/1 | 1/1 |
+
+  The first agent-config pass missed `skill-exfil-shape` because the fixture's webhook URL ended in
+  the word FIXTURE, which the neutral-case builder strips, so the command never reached the
+  reviewer. The URL now uses a neutral token; the re-run caught it at critical.
+- `audit-init` suggests the new lenses from read-only probes and names the hit behind each one.
+- `tests/fixture-safe-redirects.test.mjs`: the should-not-flag next-path helpers keep every probe
+  on-origin, including `/.//evil.example`, which resolves to a protocol-relative path.
+
+### Changed
+- The lens-hint enum has 24 values: 1.4.0's 18 (with `fallback`) plus the six new lenses;
+  `engine-flow.test.mjs` pins the count.
+- `audit-reviewer`: every security-family finding names the lower-trust actor, the input, the
+  control, the boundary, the affected party, and the result. Checklist deviations,
+  defense-in-depth gaps behind a working control, and self-impact are not findings; a deployment
+  fact that decides a finding is named and the finding kept as `needs-owner-input`. Fixed severity
+  anchors for critical, high, medium and low.
+- The engine passes each verifier voter the finding's `lens` (a variant sibling under its seed's
+  lens, a DAST finding as `security`) and, when the reviewer marked it `needs-owner-input`, a bare
+  `ownerInputNeeded: true`. It never passes the reviewer's own confidence. The inline verifier
+  prompt names the off-repo hold. `tests/engine-flow.test.mjs` checks all of this.
+- `audit-verifier`: for security-family lenses only (not concurrency or state-machine, whose findings often have no attacker), refutes a finding with no boundary or no
+  affected party, and cites a different layer that already holds as counter-evidence. For any lens,
+  when the in-repo path holds but an off-repo fact (proxy, CDN, provider, account setting) decides
+  it, the voter holds without a reachability trace: a critical/high goes to Held-untraced for the
+  owner, and a medium/low ships with `needs-owner-input` confidence. It never confirms or refutes
+  on a guess about that fact. Ambiguity findings keep their own proof contract.
+
+### Also adapted from other security sources
+
+See `NOTICE.md` for each source, its license, and what was taken.
+
+- New `skills/trust-precedents`: settled trust calls (env vars, except values CI or a request
+  sets; random UUIDs; React escaping; client-side checks; SSRF, except string-built URLs whose
+  path can rewrite the host; URL logging) and a not-a-finding list (tests, commented-out code,
+  placeholders, generated files, unfixable-here, designed behaviour, crashes). Every entry names
+  the lenses it binds and the cases it never applies to; reviewers and verifiers load it.
+- Threat model: a per-unit `intendedUse` (what the unit is designed to allow, for whom, and its
+  limit). Each entry must cite a doc, test, config or ADR; the code itself and comments are not
+  evidence, and the engine drops entries without it. It reaches only that unit's reviewer and
+  verifiers. Verifiers never refute a critical/high on intended use alone, and it never covers
+  private networks, another tenant's data, or a wider audience. The report lists every entry so
+  the owner can check it. Reviewers still file every critical/high in such a unit for the verifier
+  to judge. `tests/engine-flow.test.mjs` covers all of this.
+- Reviewers are told which lenses are in the run. A lens skill that hands a class to another lens
+  only does so when that lens is running; otherwise the reviewer files it under its own lens and
+  names the other rule id, so an ownership split never drops a finding in a default run.
+- Verifier: Step 0 restates the claim in one line before reading code, and a critical/high trace
+  names the condition for every hop.
+- Variant hunt: match the confirmed bug first, widen one element at a time, stop when over half
+  the matches are noise.
+- security-lens: its first rule ids. Supabase (`TO authenticated` with no ownership predicate, a
+  `WITH CHECK` weaker than `USING`, views without `security_invoker`, exposed `SECURITY DEFINER`
+  functions, authorization on `user_metadata`, policy gaps), Server Actions as public endpoints,
+  Draft Mode gates, secret serialization (a credential holder plus a whole-object sink), insecure
+  defaults, path-only SSRF precision, `supabase db advisors` as recall, and variant seeds from past
+  security-fix commits. Fixture pair `supabase-policies*.example.sql`, checked against a local
+  Postgres: every planted attack worked on the flag file and failed on the safe one.
+- data-isolation-lens: cache audience in `key-collision`, and `cache-purge-authority`.
+- iac-lens: `next-image-scope` (omitted `remotePatterns` fields match anything; redirects skip
+  `remotePatterns`), `source-maps`, `action-origins`, `dynamic-destination`.
+- agent-config-lens: AI agents inside CI workflows (six rules), MCP tool-definition pinning,
+  tool shadowing, exposed local HTTP servers, token passthrough, nine skill content checks, and
+  rules-file and ignore-file checks. Its default globs now include `.github/workflows/*.y*ml` and
+  `skills/*/scripts/**`.
+- supply-chain-lens: `slopsquat`, `unlocked-install`, `test-weakening`.
+- llm-lens: `tool-output-authority`, two-stage commit in `action-binding`, strict tool schemas,
+  OAuth token passthrough, and tool descriptions that claim less than the code does.
+- omission-lens: a `process.env` read is not untrusted input; only an unsafe fallback is judged.
+- availability-lens: unbounded or deeply nested payloads to remote MCP and tool endpoints.
+
+### Fixed
+- A run with no confirmed findings no longer reads as clean when part of it was not checked. If a
+  reviewer's recall tool failed, or a reviewer returned nothing, the record is `result: incomplete`
+  with a "Not checked: tool failures" section, and `audit-run` writes it as
+  `AUDIT-<date>-incomplete.md`. Before, a run where every reviewer reported "target not found,
+  nothing scanned" was written up as "result: clean ... reviewers raised nothing". The engine now
+  returns `toolFailures` on every run, and the synthesizer-failure fallback lists them too.
+  `audit-baseline` skips incomplete records when it picks the latest report.
+- A tool that ran but skipped or truncated part of its input (a doc that is not UTF-8, a capped
+  record list) goes in a new `coverage.partial` field and a "Partially checked" section. It does
+  not turn a clean run into an incomplete one.
+- A reviewer that threw, returned `{}`, or returned no `coverage` was counted as a clean pass.
+  Each now marks its unit NOT CHECKED with the reason, so the run is `result: incomplete`.
+  `coverage` and `coverage.toolFailures` are required in the review schema.
+- A dead DAST runner or compliance mapper now lands in `toolFailures` instead of vanishing.
+- An optional scanner that is not installed, while the lens's main recall still ran, goes in
+  `coverage.partial`, not `toolFailures`, so a missing extra tool does not make every run
+  incomplete.
+- `tools/secrets.sh` scans the unit's files only (`gitleaks detect --no-git`). Before, it walked
+  the history of the whole repo containing the unit, so every security unit reported every other
+  unit's secrets.
+- `tests/engine-flow.test.mjs`, `tests/reviewer-silence.test.mjs` and `tests/tools.test.mjs` pin each of these, and each test was
+  shown to fail on the old behaviour.
+
+### Known gaps
+- Secret history is not scanned. `--no-git` covers the files in the tree only; a secret that was
+  committed and later deleted is missed. A repo-level history pass is planned.
+- `web-auth:private-response-cache` has no should-flag fixture. Whether Vercel's CDN caches a
+  request that carries an `Authorization` header is not settled by its docs, so that case is left
+  out rather than labelled wrong.
+- One voter's trace can still promote a critical/high that the other voters held only because an
+  off-repo fact decides it. A verdict field for that hold would close it.
+- Several new rule ids have no fixture yet (most agent-config sections 7 and 9 rows, and
+  `security:secret-serialization`, `security:server-action-auth`, `security:draft-mode-gate`).
+- If every verifier voter fails, a medium or low finding is dropped unverified (logged), while a
+  critical or high one goes to Held-untraced.
+- `audit-recon`: runs the lens skill's own `Recall` commands first as denominators.
+- `audit-report-format`: the why-real names actor, boundary, affected party and result.
+- `supply-chain-lens`: expression injection, cache and artifact poisoning, token and OIDC
+  overreach, build-to-release substitution, mutable build inputs, build-context leaks, plugin
+  trust expansion.
+- `iac-lens`: treats `vercel.json`, `next.config.*`, middleware matchers, `supabase/config.toml`
+  and `wrangler.toml` as infrastructure. Adds event-source identity (unauthenticated cron
+  routes), trusted-proxy headers, control precedence drift, edge/runtime mismatch, workload
+  overreach, and unsafe credential fallback.
+- `security-lens`, `economic-lens`, `agent-config-lens`, `iac-lens`, `supply-chain-lens`: each
+  overlapping class has one owning lens, named in both directions, so a defect is filed once. `llm`
+  and `agent-config` share one precedence rule, word for word.
+
 ## 1.4.0 - 2026-11-26
 
 ### Added

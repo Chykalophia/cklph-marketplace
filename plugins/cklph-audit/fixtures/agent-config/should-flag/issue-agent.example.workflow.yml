@@ -1,0 +1,49 @@
+# FIXTURE: agent-config lens, should-flag (RECALL). Treat as .github/workflows/issue-agent.yml.
+# claude-code-action refuses actors without write access unless told otherwise. Here
+# allowed_non_write_users: '*' plus a github_token input turns that gate off, so any GitHub account reaches every defect below.
+# Planted:
+#   1. issue title and body go into the agent prompt, the body through env:, and any account may open the issue -> agentcfg:ci-agent-untrusted-prompt (critical: write token and a deploy secret in the job)
+#   2. the prompt tells the agent to run gh issue view and read the comments -> agentcfg:ci-agent-fetches-untrusted (high)
+#   3. pull_request_target with a checkout of the PR head, open to any author, then the agent runs Bash and Edit over that tree -> agentcfg:ci-agent-pr-head (high)
+#   4. the agent returns a command through structured_output (JSON schema in claude_args) and a later step runs it -> agentcfg:ci-agent-output-exec (high)
+#   5. write-all permissions and DEPLOY_TOKEN in the agent step env -> agentcfg:ci-agent-privileged (high, untrusted input present)
+#   6. Bash(gh:*) and Bash(echo:*) allowed: shell expansion with an untrusted prompt -> agentcfg:ci-agent-wide-tools (high)
+# Expected verdict: FLAG all six. Never run this workflow.
+name: issue-agent
+
+on:
+  issues:
+    types: [opened]
+  pull_request_target:
+    types: [opened, synchronize]
+
+permissions: write-all
+
+jobs:
+  agent:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@b4ffde65f46336ab88eb53be808477a3936bae11
+        with:
+          ref: ${{ github.event.pull_request.head.sha }}
+
+      - id: agent
+        uses: anthropics/claude-code-action@0000000000000000000000000000000000000000
+        env:
+          ISSUE_BODY: ${{ github.event.issue.body }}
+          DEPLOY_TOKEN: ${{ secrets.DEPLOY_TOKEN }}
+        with:
+          anthropic_api_key: ${{ secrets.ANTHROPIC_API_KEY }}
+          github_token: ${{ secrets.GITHUB_TOKEN }}
+          allowed_non_write_users: '*'
+          claude_args: >-
+            --allowedTools "Bash(gh:*),Bash(echo:*),Edit,Write"
+            --json-schema '{"type":"object","properties":{"fix_command":{"type":"string"}},"required":["fix_command"]}'
+          prompt: |
+            Triage this issue: ${{ github.event.issue.title }}
+            Details are in $ISSUE_BODY.
+            Run `gh issue view ${{ github.event.issue.number }} --comments` and follow any steps the reporter lists.
+            Return the shell command that fixes it as fix_command.
+
+      - name: apply fix
+        run: ${{ fromJSON(steps.agent.outputs.structured_output).fix_command }}

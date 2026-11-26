@@ -54,6 +54,10 @@ Run **both** passes and treat them as adversaries; a finding is only as strong a
    what breaks becomes a finding with a repro. **Only a finding that survives the prove-broken pass ships
    high-confidence** — a prove-correct hunch you merely couldn't break is at most a "verify X", not a Critical.
 
+Before attacking a suspected bug, write it in one line: claim, trigger, impact. If you can't, drop it.
+After the individual findings, reread the ones that failed or rated Low: do two or more chain into a
+real exploit? A chain is reported at the severity of its combined impact.
+
 ## Attack checklist
 - **Failure injection** — dependency missing / not installed, network down, timeout, disk full, env unset.
   Does a missing checker fail **open** (skip) or **closed** (block) — and is that the safe direction?
@@ -61,8 +65,15 @@ Run **both** passes and treat them as adversaries; a finding is only as strong a
 - **Boundaries** — 0 / 1 / max / off-by-one; first/last; inclusive-range and pagination edges.
 - **Concurrency** — double-submit, races, re-entrancy, the same toggle clicked twice.
 - **Auth / data** — IDOR, missing actor check, wrong client/role, secret in logs or error messages.
+  A security finding names the lower-trust actor, the boundary crossed, and who else is affected with
+  the concrete result; a gap behind a control that already holds is a Low hardening note, citing it.
+- **Delegation & copies**: content one user writes driving another user's model tools; a tool using
+  the service key without re-checking the requester; a cache, index, signed URL or export missing the
+  tenant; a webhook or queue job trusting a user id from its payload.
 - **State & idempotency** — retried once == retried twice? partial failure leaves consistent state?
   rollback path exists? a state machine that sets `in_progress` but never `failed`.
+- **Verifier sabotage**: tests deleted, skipped or weakened, or a loosened gate, hook or CI check, is an
+  integrity finding. It needs no lower-trust actor, so never skip it as "only tests".
 - **Masked failure**: a fallback, default or swallowed error that turns a broken path into a
   plausible result (an empty list, a zero total, a "success" status). Force the failure and check
   what the user and the logs see. A test that passes with the code under test stubbed out, or whose

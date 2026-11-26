@@ -18,27 +18,35 @@ trap 'rm -rf "$WORK"' EXIT
 trap 'exit 130' INT
 trap 'exit 143' TERM
 
-if command -v gitleaks >/dev/null 2>&1; then
-  REPORT="$WORK/gitleaks.json"
+# Runs one gitleaks pass and prints its findings as JSON lines. $1 = report path, $2 = pass name,
+# the rest = gitleaks arguments.
+gitleaks_pass() {
+  local report="$1" name="$2"; shift 2
   # Exit 0 = no leaks, 1 = leaks found (the default --exit-code); anything else is a failure.
-  gitleaks detect --source "$TARGET" --no-banner --redact --report-format json --report-path "$REPORT" >/dev/null 2> "$WORK/gitleaks.err"
-  RC=$?
-  if [ "$RC" -gt 1 ] || [ ! -s "$REPORT" ]; then
-    echo "secrets.sh: gitleaks failed (exit $RC, report $([ -s "$REPORT" ] && echo present || echo missing)): $(grep -v '^[[:space:]]*$' "$WORK/gitleaks.err" | tail -n 3 | head -c 300) — zero gitleaks findings means the scan did not run, not that there are no secrets." >&2
+  gitleaks "$@" --no-banner --redact --report-format json --report-path "$report" >/dev/null 2> "$report.err"
+  local rc=$?
+  if [ "$rc" -gt 1 ] || [ ! -s "$report" ]; then
+    echo "secrets.sh: gitleaks failed (exit $rc, $name pass, report $([ -s "$report" ] && echo present || echo missing)): $(grep -v '^[[:space:]]*$' "$report.err" | tail -n 3 | head -c 300) — zero gitleaks $name findings means that pass did not run, not that there are no secrets." >&2
   elif command -v node >/dev/null 2>&1; then
     node -e '
       let a;
       try { a = JSON.parse(require("fs").readFileSync(process.argv[1], "utf8")); }
-      catch (e) { process.stderr.write("secrets.sh: gitleaks report is not valid JSON (" + e.message + ") — gitleaks findings NOT collected.\n"); process.exit(0); }
-      if (!Array.isArray(a)) { process.stderr.write("secrets.sh: gitleaks report is not a JSON array — gitleaks findings NOT collected.\n"); process.exit(0); }
+      catch (e) { process.stderr.write("secrets.sh: gitleaks " + process.argv[2] + " report is not valid JSON (" + e.message + ") — those findings NOT collected.\n"); process.exit(0); }
+      if (!Array.isArray(a)) { process.stderr.write("secrets.sh: gitleaks " + process.argv[2] + " report is not a JSON array — those findings NOT collected.\n"); process.exit(0); }
       for (const f of a) process.stdout.write(JSON.stringify({
         tool: "gitleaks", rule: f.RuleID || "secret", severity: "critical",
         file: f.File, line: f.StartLine, secretType: f.Description,
         rationale: "Candidate hardcoded secret — verify real credential vs test fixture / placeholder"
-      }) + "\n");' "$REPORT"
+      }) + "\n");' "$report" "$name"
   else
-    echo "secrets.sh: node not found — cannot parse the gitleaks report; gitleaks findings NOT collected." >&2
+    echo "secrets.sh: node not found — cannot parse the gitleaks $name report; those findings NOT collected." >&2
   fi
+}
+
+if command -v gitleaks >/dev/null 2>&1; then
+  # Files under TARGET only (--no-git). Without it gitleaks walks the whole repo's history, so every
+  # unit would report every other unit's secrets.
+  gitleaks_pass "$WORK/gitleaks.json" files detect --source "$TARGET" --no-git
   exit 0
 fi
 

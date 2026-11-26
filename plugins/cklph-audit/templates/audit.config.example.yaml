@@ -10,7 +10,7 @@ units:
       globs: ["lib/auth/**", "app/api/auth/**", "middleware.ts", "proxy.ts", "src/middleware.ts", "src/proxy.ts"]
     - key: billing
       globs: ["app/api/billing/**", "app/api/payments/**", "lib/stripe/**"]
-lenses: [security, correctness, architecture]   # also: sca, iac, container, k8s, supply-chain, compliance, concurrency, state-machine, economic, docs-drift (audits the rulesFrom docs), agent-config (MCP/settings/hooks/instruction docs, static), omission (negative-space: missing validation/error-path/logging), fallback (failures hidden behind a default: catch-return-[], log-and-continue), ambiguity (text a reader can take two ways: policy docs, instructions, doc-to-schema values; prose groups by default, code opt-in)
+lenses: [security, correctness, architecture]   # also: sca, iac, container, k8s, supply-chain, compliance, concurrency, state-machine, economic, llm, data-isolation, web-auth, client-side, messaging, availability, docs-drift (audits the rulesFrom docs), agent-config (MCP/settings/hooks/instruction docs, static), fallback (failures hidden behind a default: catch-return-[], log-and-continue), omission (negative-space: missing validation/error-path/logging), ambiguity (text a reader can take two ways: policy docs, instructions, doc-to-schema values; prose groups by default, code opt-in)
 severityFloor: low              # drop findings below this
 verify:
   voters: 3                     # refuters per finding
@@ -77,10 +77,12 @@ compliance:                      # compliance cross-mapping
   frameworks: [soc2, casa]       # SOC 2 Trust Services Criteria + CASA; add hipaa for PHI apps (opt-in)
 # agentConfig:                   # agent-config lens: override the AI-tooling globs it reviews
 #   # REPLACES the built-in default list (not merged), so list every glob you still want
+#   # keep the .github/workflows globs: supply-chain hands AI agent steps in CI to this lens
 #   # the full default list from workflows/audit.workflow.js; edit from here
 #   globs: ['**/.mcp.json', '**/mcp.json', '**/.claude/**', '**/.cursor/**', '**/.vscode/mcp.json',
 #           '**/hooks/hooks.json', '**/.claude/hooks/**', '**/plugins/*/hooks/**', '**/.claude-plugin/*.json',
-#           '**/CLAUDE.md', '**/AGENTS.md', '**/skills/**/SKILL.md', '**/agents/*.md']
+#           '**/CLAUDE.md', '**/AGENTS.md', '**/skills/**/SKILL.md', '**/skills/*/scripts/**', '**/agents/*.md',
+#           '**/.github/workflows/*.yml', '**/.github/workflows/*.yaml']
 # ambiguity:                     # ambiguity lens (opt-in)
 #   code: false                  # true = ALSO cross with units for code-level ambiguity (experimental)
 #   prose:

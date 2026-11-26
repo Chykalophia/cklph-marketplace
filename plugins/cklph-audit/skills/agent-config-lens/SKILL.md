@@ -16,13 +16,17 @@ You are the **judgment layer**. No deterministic scanner ships for this lens (by
 - Stay inside the scoped repo. Do not read `~/.claude`, machine-wide MCP configs, or anything outside the workspace unless the run explicitly asks.
 - Never copy a secret into a finding. Quote at most the first 4 characters plus `…` and the variable name.
 
-## The five surfaces (detail in @checklist.md)
+## The surfaces (detail in @checklist.md)
 
 1. **MCP configs** — mutable package selectors (`@latest`, dist-tags, bare names, ranges), unpinned Docker images, remote server URLs, hardcoded credentials, shell-wrapped servers. Selector rules in @mcp-selectors.md.
 2. **Agent settings** — `bypassPermissions`, `Bash(*)` / bare `Bash` allows, no deny list for secrets, auto-trust of every project MCP server.
 3. **Hooks** — scripts that fetch and run remote code, absolute or user-specific paths instead of `${CLAUDE_PLUGIN_ROOT}` / `$CLAUDE_PROJECT_DIR`, unquoted interpolation of tool input into a shell, gating hooks that fail open.
 4. **Instruction docs, skills, agent definitions** — prompt-injection-shaped content (hidden comments, invisible Unicode, "ignore previous instructions", exfiltration asks), auto-run-without-confirmation instructions, secrets, over-broad tool grants.
 5. **Agent runtimes** — app code where model output, retrieved content, tool output, or inbound messages drive tools, file writes, network calls, or credentials without validation at the action boundary.
+6. **AI agents inside CI**: workflow jobs that run Claude Code, Codex, Gemini CLI or a similar agent on untrusted event data, on a checked-out PR head, with write tokens or secrets, or whose output a later step runs. Wide tool allowlists and sandboxes amplify; they raise severity only when untrusted input is present. A short allowlist can still reach a lot.
+7. **MCP tool definitions and repo-shipped servers**: auto-approval based on server-supplied annotations, auto-approved servers with no pinned tool definitions, tool shadowing across servers, HTTP servers open to DNS rebinding, token passthrough.
+8. **Skill and plugin content**: a description that does not match the scripts, runtime fetch of instructions, secret echo, capability inflation, autonomy abuse, hidden code dotfiles, symlinks out of the dir, exfiltration-shaped commands, planted cron or CI automation.
+9. **Rules files and agent ignore files**: rules files with no CODEOWNERS entry, an agent that can edit its own rules or settings, gitignored secrets with no agent ignore or deny rule.
 
 Rule ids are `agentcfg:<kind>` (table in @checklist.md).
 
@@ -32,7 +36,7 @@ A mutable selector is a **reproducibility and review signal, not a breach claim*
 
 ## Compose with sibling lenses and skills
 
-- **supply-chain-lens** owns CI/CD (`.github/workflows`, action pinning). This lens owns the agent layer; cite across, don't double-report.
+- **supply-chain-lens** owns CI/CD (`.github/workflows`, action pinning, `pull_request_target` with secrets). This lens owns the agent layer, including an AI agent step inside a workflow (checklist section 6); cite across, don't double-report.
 - **sca-lens** owns CVEs in lockfile dependencies; **security-lens** owns app authz, injection, and secrets in application code.
 - **docs-drift-lens** owns stale paths in `CLAUDE.md` / `AGENTS.md`; this lens owns what those docs tell an agent to *do*.
 - **ambiguity-lens** owns whether an instruction reads two ways or contradicts its schema; this lens owns whether it is unsafe.

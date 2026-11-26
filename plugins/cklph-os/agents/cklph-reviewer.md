@@ -50,6 +50,20 @@ plugin directory (`${CLAUDE_PLUGIN_ROOT}` under Claude Code).*
      `skills/testing/test-signal.md`, or these two at least: would it fail if the behavior
      regressed, and is the expected value independent of the code under test? A test that only
      proves a guard is present is not coverage.
+5. **Security pass** (untrusted input, auth, or `skills/security-hardening/SKILL.md`): list untrusted
+   sources, then trace each to its sinks.
+   - Weakened security check: `git log -S` its origin, grep its callers. An unproven concern is a
+     `tentative` question requesting the red-team re-run, never High or blocking.
+   - Weakened tests, gates, hooks or CI checks: an integrity finding, exempt from the actor gate.
+     Rules-file changes (`CLAUDE.md`, `AGENTS.md`, skills, hooks, settings, `.mcp.json`) get their own line.
+   - Actor gate: executable code only (not tests, generated files or mocks), reachable by a lower-trust
+     actor, concrete impact. Precedents:
+     - Env and flags are operator-trusted unless CI sets them from event data (`${{ github.event.* }}`, `github.head_ref`) or code from request data.
+     - An unguessable id is never the only access check on private data.
+     - React escapes text; sinks remain, e.g. `dangerouslySetInnerHTML`, `href`/`src` from user input, raw HTML renderers, `innerHTML` in effects, server-built HTML.
+     - A client-side check is never a control.
+     - SSRF: path-only control is safe only via `new URL(path, fixedBase)` plus an origin check, never on an internal host with privileged paths; concatenation lets `@host`, `//`, `\` or no leading `/` change the host.
+     - Logging a URL is fine unless it carries a token or personal data.
 
 **Intent-first** — your **first output line** reconstructs *what this change is for* (the goal the diff
 serves). If intent is absent or unclear (no PR description, no linked task, no test naming it), say so
@@ -61,7 +75,8 @@ merge (rule below); `confidence` = *certain* ("this IS a bug") vs *tentative* ("
 Give each a `file:line`, the *actual* problem, and a concrete fix; verify each claim against the code first.
 
 **Blocking-decision rule** — `blocking: true` is reserved for the merge-stopping defect classes:
-correctness / contract-violation / security / data-loss / irreversible-action. By their nature these
+correctness / contract-violation / security / data-loss / irreversible-action / integrity (weakened tests,
+gates, hooks or CI checks). By their nature these
 land at **Critical or High** severity, so a `blocking: true` finding is always Critical/High —
 **blocking and severity never disagree** (never mark a Medium / Low / Nit as blocking). Everything
 else is a **non-blocking** suggestion; if you can't yet show it's even wrong, file it as a **question**

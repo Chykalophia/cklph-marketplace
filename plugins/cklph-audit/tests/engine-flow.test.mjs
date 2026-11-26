@@ -29,6 +29,10 @@ const pipeline = async (items, ...stages) => Promise.all(items.map(async (item, 
 
 // captured synthesizer input for cross-phase consistency checks
 let synthInput = null;
+// every FINDING payload a verifier voter received, to check what the voter is and is not told
+const verifyPayloads = [];
+// full prompts by label prefix, for checks on what context each agent was handed
+const promptsSeen = [];
 function parseAfter(prompt, marker) {
   const i = prompt.indexOf(marker);
   if (i < 0) return null;
@@ -46,18 +50,19 @@ const RULES = [
   { id: 'agents-md:rule-4', source: 'AGENTS.md:18', text: 'state-changing routes must be rate-limited', lensHint: 'security' },
   { id: 'agents-md:rule-5', source: 'AGENTS.md:20', text: 'no unscoped invoice reads', lensHint: 'security' },
 ];
-const F1 = { id: 'F1', title: 'IDOR: users route reads/updates by id with no ownership check', severity: 'critical', file: 'app/api/users/[id]/route.ts', line: 11, rule: 'agents-md:rule-1', rationale: '...', snippet: ".eq('id', params.id).single()", normalizedSnippet: "eq id params.id single", suggestedFix: 'scope by workspace', source: 'reasoning', rootCause: 'no ownership predicate', invariant: 'a row is only returned to a member of its workspace' };
+const F1 = { confidence: 'confirmed', id: 'F1', title: 'IDOR: users route reads/updates by id with no ownership check', severity: 'critical', file: 'app/api/users/[id]/route.ts', line: 11, rule: 'agents-md:rule-1', rationale: '...', snippet: ".eq('id', params.id).single()", normalizedSnippet: "eq id params.id single", suggestedFix: 'scope by workspace', source: 'reasoning', rootCause: 'no ownership predicate', invariant: 'a row is only returned to a member of its workspace' };
 const F2 = { id: 'F2', title: 'getSession() used as server authz gate in proxy.ts', severity: 'high', file: 'proxy.ts', line: 11, rule: 'agents-md:rule-2', rationale: '...', snippet: 'supabase.auth.getSession()', normalizedSnippet: 'supabase.auth.getsession', suggestedFix: 'use getUser()', source: 'reasoning', rootCause: 'JWT not re-validated', invariant: 'authz decisions use a server-validated identity' };
-const F3 = { id: 'F3', title: 'IDOR in guarded.ts getInvoice', severity: 'high', file: 'lib/guarded.ts', line: 8, rule: 'agents-md:rule-1', rationale: '...(false positive)', snippet: ".eq('id', id)", normalizedSnippet: "eq id id", suggestedFix: 'n/a', source: 'reasoning', rootCause: 'looks like IDOR', invariant: 'ownership scoping' };
+const F3 = { confidence: 'needs-owner-input', id: 'F3', title: 'IDOR in guarded.ts getInvoice', severity: 'high', file: 'lib/guarded.ts', line: 8, rule: 'agents-md:rule-1', rationale: '...(false positive)', snippet: ".eq('id', id)", normalizedSnippet: "eq id id", suggestedFix: 'n/a', source: 'reasoning', rootCause: 'looks like IDOR', invariant: 'ownership scoping' };
 const SIBLING = { id: 'V1', title: 'IDOR: orders route reads by id with no ownership check', severity: 'critical', file: 'app/api/orders/[id]/route.ts', line: 9, rule: 'agents-md:rule-1', rationale: 'sibling of F1', snippet: ".eq('id', params.id).single()", normalizedSnippet: "eq id params.id single orders", suggestedFix: 'scope by workspace', source: 'tool', rootCause: 'no ownership predicate', invariant: 'row only to workspace member' };
 const D1 = { id: 'D1', title: 'AGENTS.md references lib/middleware/auth.ts which does not exist', severity: 'low', file: 'AGENTS.md', line: 22, rule: 'docs-drift:path', rationale: 'drift', snippet: '`lib/middleware/auth.ts`', normalizedSnippet: 'lib/middleware/auth.ts', suggestedFix: 'update path', source: 'tool' };
 
 async function agent(prompt, opts = {}) {
   const label = opts.label || '';
+  promptsSeen.push({ label, prompt });
   if (label === 'discover:rulebook') return { rules: RULES };
   if (label === 'recon:security') return { domain: 'security', denominators: [{ pattern: '.single() by id', description: 'by-id lookups', command: "grep -rn '.eq(\\'id\\'' app/api", count: 3 }], seeds: [{ file: 'app/api/users/[id]/route.ts', line: 11, snippet: '.eq(id)', note: 'no workspace scope', suspectedRule: 'agents-md:rule-1' }, { file: 'app/api/orders/[id]/route.ts', line: 9, snippet: '.eq(id)', note: 'no workspace scope' }], safeControls: [{ file: 'lib/guarded.ts', line: 12, snippet: ".eq('workspace_id')", note: 'ownership guard present', rule: 'agents-md:rule-1' }] };
   if (label === 'recon:docs-drift') return { domain: 'docs-drift', denominators: [{ pattern: 'doc path tokens', description: 'paths referenced in docs', command: 'docsdrift.sh . AGENTS.md', count: 3 }], seeds: [{ file: 'AGENTS.md', line: 22, note: 'lib/middleware/auth.ts missing' }], safeControls: [] };
-  if (label === 'map:model') return { trustBoundaries: [{ id: 'tb-authz', where: 'proxy.ts', note: 'edge authz gate' }, { id: 'tb-api', where: 'app/api/**', note: 'route handlers' }], dataFlows: [{ source: 'params.id', sink: 'supabase.from().eq()', crossesBoundary: 'tb-api' }], invariants: [{ unit: 'api-surface', text: 'a tenant row is returned only to a member of its workspace' }], crownJewels: ['user-role mutation', 'auth gate'] };
+  if (label === 'map:model') return { trustBoundaries: [{ id: 'tb-authz', where: 'proxy.ts', note: 'edge authz gate' }, { id: 'tb-api', where: 'app/api/**', note: 'route handlers' }], dataFlows: [{ source: 'params.id', sink: 'supabase.from().eq()', crossesBoundary: 'tb-api' }], invariants: [{ unit: 'api-surface', text: 'a tenant row is returned only to a member of its workspace' }], crownJewels: ['user-role mutation', 'auth gate'], intendedUse: [{ unit: 'api-surface', text: 'staff admin route lists every workspace', evidence: { file: 'docs/admin.md', line: 4, kind: 'doc' } }, { unit: 'api-surface', text: 'users route returns any user by id', evidence: { file: 'app/api/users/[id]/route.ts', line: 11, kind: 'code' } }, { unit: 'api-surface', text: 'orders are world-readable' }] };
   if (label === 'review:api-surface:security') return {
     findings: [F1, F2, F3],
     ruleChecks: [
@@ -78,6 +83,7 @@ async function agent(prompt, opts = {}) {
     let f = {};
     const m = prompt.match(/FINDING:\s*(\{[\s\S]*\})/);
     if (m) { try { f = JSON.parse(m[1]); } catch {} }
+    verifyPayloads.push(f);
     const t = f.title || '';
     if (t.includes('users route')) return { refuted: false, reason: 'reachable', reachabilityTrace: 'GET /api/users/<victim-id> returns any user; no workspace predicate', confidence: 0.9 };
     if (t.includes('orders route')) return { refuted: false, reason: 'reachable sibling', reachabilityTrace: 'GET /api/orders/<victim-id> returns any order', confidence: 0.9 };
@@ -132,6 +138,33 @@ console.log('  runMeta:', JSON.stringify(synthInput?.runMeta));
 
 console.log('\n=== CROSS-PHASE CONSISTENCY CHECKS ===');
 let problems = 0;
+// The voter sees the lens (variants under their seed's lens), never the reviewer's own confidence
+// (the accuser vouching for itself), and only a bare owner-input flag.
+{
+  const byId = id => verifyPayloads.find(f => (f.title || '').startsWith(id === 'V1' ? 'IDOR: orders' : id === 'F1' ? 'IDOR: users' : id === 'F3' ? 'IDOR in guarded' : 'AGENTS.md references'));
+  const f1 = byId('F1'), f3 = byId('F3'), v1 = byId('V1'), d1 = byId('D1');
+  if (!f1 || f1.lens !== 'security') { problems++; console.log(`  ✗ F1 verifier payload lens is ${f1?.lens}, want security`); }
+  if (verifyPayloads.some(f => 'confidence' in f)) { problems++; console.log('  ✗ a verifier payload carries the reviewer\'s confidence'); }
+  if (f1 && 'ownerInputNeeded' in f1) { problems++; console.log('  ✗ F1 (confirmed by the reviewer) carries ownerInputNeeded'); }
+  if (!f3 || f3.ownerInputNeeded !== true) { problems++; console.log('  ✗ F3 (needs-owner-input) payload lacks ownerInputNeeded: true'); }
+  if (!v1 || v1.lens !== 'security') { problems++; console.log(`  ✗ variant V1 payload lens is ${v1?.lens}, want its seed's lens security (never 'variant')`); }
+  if (!d1 || d1.lens !== 'docs-drift') { problems++; console.log(`  ✗ D1 payload lens is ${d1?.lens}, want docs-drift`); }
+  const intended = 'staff admin route lists every workspace';
+  const rev = promptsSeen.find(p => p.label === 'review:api-surface:security');
+  const ver = promptsSeen.find(p => p.label.startsWith('verify:') && p.prompt.includes('IDOR: users'));
+  const docVer = promptsSeen.find(p => p.label.startsWith('verify:') && p.prompt.includes('AGENTS.md references'));
+  if (!rev?.prompt.includes('INTENDED USE') || !rev.prompt.includes(intended)) { problems++; console.log('  ✗ the api-surface reviewer prompt lacks the unit\'s INTENDED USE'); }
+  if (!ver?.prompt.includes(intended)) { problems++; console.log('  ✗ the F1 verifier prompt lacks the unit\'s INTENDED USE'); }
+  const dropped = ['users route returns any user by id', 'orders are world-readable'];
+  if (!docVer) { problems++; console.log('  ✗ no docs-drift verifier ran, so the cross-unit check proves nothing'); }
+  if (promptsSeen.some(p => dropped.some(d => p.prompt.includes(d)))) { problems++; console.log('  ✗ an intendedUse entry with code-only or no evidence reached a prompt'); }
+  if (!ver?.prompt.includes('Never refute a critical/high on intended use alone')) { problems++; console.log('  ✗ the verifier prompt lacks the critical/high guard on intended use'); }
+  if (!(synthInput?.runMeta?.intendedUse ?? []).some(i => i.text === intended)) { problems++; console.log('  ✗ RUN_META.intendedUse does not list the kept entry for the report'); }
+  if (!rev?.prompt.includes('LENSES IN THIS RUN: ["security","docs-drift"]')) { problems++; console.log('  ✗ the reviewer prompt does not name the lenses in this run, so ownership splits cannot tell when the owner is absent'); }
+  if (!rev?.prompt.includes('FILE any critical/high')) { problems++; console.log('  ✗ the reviewer prompt lets intended use drop a critical/high before the verifier sees it'); }
+  if (docVer?.prompt.includes(intended)) { problems++; console.log('  ✗ the docs-drift verifier (another unit) was handed api-surface\'s INTENDED USE'); }
+  if (!problems) console.log('  ✓ verifier payloads: lens per finding, variant under seed lens, no reviewer confidence, owner-input flag only when set; intended use needs doc/test/config/adr evidence, reaches only its own unit, carries the critical/high guard, and is listed for the report');
+}
 const freshIds = new Set((synthInput?.findings || []).map(f => f.id));
 const heldIds = new Set((synthInput?.heldUntraced || []).map(f => f.id));
 const heldTitles = (synthInput?.heldUntraced || []).map(f => f.title);
@@ -387,7 +420,7 @@ console.log('\n=== SCENARIO D: report truthfulness ===');
   synthInput = null;
   const failMsg = 'semgrep failed (exit 2, no output) — not scanned';
   const reviewPrompts = {};
-  await runFn({ agent: async (p, o = {}) => {
+  const tfRes = await runFn({ agent: async (p, o = {}) => {
     if (o.label === 'review:api-surface:security') {
       reviewPrompts.sec = p;
       const r = await agent(p, o); return { ...r, coverage: { ...r.coverage, toolFailures: [failMsg] } };
@@ -400,6 +433,9 @@ console.log('\n=== SCENARIO D: report truthfulness ===');
   let tf; try { tf = JSON.parse(ct).security.reviewed.toolFailures; } catch {}
   if (!Array.isArray(tf) || !tf.some(x => x.includes(failMsg)) || !/toolFailures/.test(reviewPrompts.sec || '')) { problems++; console.log(`  ✗ reviewer tool failure did not reach COVERAGE_TOTALS (got ${JSON.stringify(tf)})`); }
   else console.log('  ✓ reviewer-reported scanner failure reaches COVERAGE_TOTALS.security.reviewed.toolFailures');
+  // kills: a run WITH findings dropping its tool failures, so audit-run could not say what went unchecked
+  if (!tfRes?.report || !(tfRes.toolFailures ?? []).some(x => x.includes(failMsg))) { problems++; console.log(`  ✗ a run with findings does not return its tool failures (got ${JSON.stringify(tfRes?.toolFailures)})`); }
+  else console.log('  ✓ a run with findings still returns toolFailures');
   // D4: a dead synthesizer must not look like a clean run (report:null is the clean signal)
   const rD4 = await runFn({ agent: mkAgent({ 'synthesize:report': null }), parallel, pipeline, phase, log, args: JSON.parse(JSON.stringify(args)), budget });
   if (!rD4?.report || !/SYNTHESIS FAILED/.test(rD4.report.markdown || '')) { problems++; console.log('  ✗ dead synthesizer returned report:null — reads as a clean run'); }
@@ -458,8 +494,8 @@ console.log('\n=== SCENARIO E: ambiguity lens ===');
   // rule NOT CHECKED), so it must be the schema enum filtered in order, and carry ambiguity when it runs.
   const BASE_HINTS = ['security', 'correctness', 'architecture', 'docs-drift', 'agent-config', 'any'];
   const derived = (ls) => schemaHints.filter(h => BASE_HINTS.includes(h) || (h !== 'compliance' && ls.includes(h)));
-  if (schemaHints.length !== 18 || JSON.stringify(promptHints) !== JSON.stringify(derived(['ambiguity'])) || !promptHints.includes('ambiguity')) fail(`rulebook prompt lensHints ${JSON.stringify(promptHints)} are not the 18-value schema enum ${JSON.stringify(schemaHints)} filtered to base + running lenses (or no ambiguity)`);
-  else ok(`rulebook prompt lensHints = schema enum (18) filtered to base + running lenses, incl. ambiguity (${promptHints.join('|')})`);
+  if (schemaHints.length !== 24 || JSON.stringify(promptHints) !== JSON.stringify(derived(['ambiguity'])) || !promptHints.includes('ambiguity')) fail(`rulebook prompt lensHints ${JSON.stringify(promptHints)} are not the 24-value schema enum ${JSON.stringify(schemaHints)} filtered to base + running lenses (or no ambiguity)`);
+  else ok(`rulebook prompt lensHints = schema enum (24) filtered to base + running lenses, incl. ambiguity (${promptHints.join('|')})`);
   const reconMd = fs.readFileSync(new URL('../agents/audit-recon.md', import.meta.url), 'utf8');
   // kills: audit-recon.md keeping its own copied lensHint list
   if (reconMd.split('\n').some(l => /security`? *\| *`?correctness/.test(l))) fail('agents/audit-recon.md still carries a copied lensHint list');
@@ -620,7 +656,7 @@ console.log('\n=== SCENARIO E: ambiguity lens ===');
   if (c3.err || JSON.stringify(t3.ex) !== JSON.stringify(['**/CHANGELOG.md', 'dist/**']) || JSON.stringify(t3.globs) !== JSON.stringify(['docs/**'])) fail(`string exclude/ignore/group not read as one glob each: ${c3.err ?? JSON.stringify(t3)}`);
   else ok("string exclude, ignore and group value each read as one glob (--exclude '**/CHANGELOG.md' --exclude 'dist/**' 'docs/**')");
 
-  // kills: a rulebook prompt offering every hint (18) in a default run — rules hinted concurrency /
+  // kills: a rulebook prompt offering every hint (24) in a default run — rules hinted concurrency /
   // compliance / ambiguity reach no reviewer and close NOT CHECKED. The default run is HEAD's list.
   const hintsOf = (r) => ((r.prompt('discover:rulebook').match(/lensHint \(([^)]*)\)/) || [])[1] ?? '');
   const h1 = await runE({ lenses: ['security', 'correctness', 'architecture'] });
@@ -858,6 +894,31 @@ console.log('\n=== SCENARIO E: ambiguity lens ===');
   else ok('cleanReport opens with front-matter; a run with nothing raised says "None: reviewers raised nothing."');
   if (r13.res?.cleanReport !== undefined) fail('a non-clean run also returned cleanReport');
   else ok('paired: a run with a report returns no cleanReport');
+
+  // TOOL-FAILURE CLEAN — kills: a run whose every reviewer said its recall tool scanned nothing
+  // ("target not found") was written up as "result: clean ... reviewers raised nothing".
+  const dead = { findings: [], ruleChecks: [], coverage: { seedsVerified: 0, seedsGiven: 0, toolCandidatesJudged: 0, toolFailures: ['ambiguity.sh: target not found, nothing scanned'] } };
+  const rTF = await runE({ over: { [POL]: dead } });
+  const tfr = rTF.res?.cleanReport || '';
+  if (rTF.res?.report !== null) fail(`tool-failure probe produced a findings report (${JSON.stringify(rTF.res?.report)}), want the no-findings path`);
+  else if (!/result: incomplete/.test(tfr) || !/tool_failures: 1/.test(tfr) || !/## Not checked: tool failures \(1\)/.test(tfr) || !/target not found/.test(tfr) || /result: clean/.test(tfr) || (rTF.res?.toolFailures ?? []).length !== 1)
+    fail(`a run whose recall tool failed still reads as clean: ${JSON.stringify({ head: tfr.slice(0, 400), toolFailures: rTF.res?.toolFailures })}`);
+  else ok('a no-findings run with a failed recall tool is result: incomplete, lists the failure, and returns toolFailures');
+  // kills: a reviewer that died (null result) leaving no trace, so the run read as clean
+  const rDead = await runE({ over: { [POL]: null } });
+  const dr = rDead.res?.cleanReport || '';
+  if (!/result: incomplete/.test(dr) || !/reviewer returned nothing/.test(dr)) fail(`a dead reviewer still reads as clean: ${JSON.stringify(dr.slice(0, 300))}`);
+  else ok('a reviewer that returned nothing makes the run result: incomplete and names the unit');
+  // partial coverage is reported but does not flip a clean run to incomplete
+  const part = { findings: [], ruleChecks: [], coverage: { seedsVerified: 0, seedsGiven: 0, toolCandidatesJudged: 0, toolFailures: [], partial: ['skipped docs/legacy.md: not valid UTF-8'] } };
+  const rPart = await runE({ over: { [POL]: part } });
+  const prr = rPart.res?.cleanReport || '';
+  if (!/result: clean/.test(prr) || !/## Partially checked \(1\)/.test(prr) || !/not valid UTF-8/.test(prr) || (rPart.res?.partialCoverage ?? []).length !== 1)
+    fail(`partial coverage is lost or flips the run: ${JSON.stringify(prr.slice(0, 400))}`);
+  else ok('partial coverage stays result: clean, lists what was skipped, and returns partialCoverage');
+  if (!/result: clean/.test(r0.res?.cleanReport || '') || /Not checked: tool failures/.test(r0.res?.cleanReport || '') || (r0.res?.toolFailures ?? []).length)
+    fail('paired: a truly clean run lost result: clean or gained a tool-failure section');
+  else ok('paired: a truly clean run stays result: clean with no tool-failure section');
 
   // review round 1 on 1.3.1 — each case below passed the first draft of the change.
   // RULE-SCOPE by REQUESTED lens — kills: scoping by the jobs that existed, so a run whose requested lens
