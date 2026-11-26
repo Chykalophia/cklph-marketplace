@@ -98,3 +98,79 @@ test('the cap is loud, and a missing root is an empty list', () => {
   assert.equal(missing.status, 0);
   assert.deepEqual(missing.out, []);
 });
+
+// Review findings, each a shape an earlier version got wrong.
+test('a CRLF file with a multi-line catch, or a control byte, still yields parseable JSON', () => {
+  const root = tree({
+    'src/a.ts': 'try { a() } catch (e) {\r\n  console.error(e);\r\n  return [];\r\n}\r\n',
+    'src/b.ts': 'p.catch(() => null) // \u0001\n',
+  });
+  assert.deepEqual(kinds(run(root)).sort(), ['catch-default', 'promise-default']);
+});
+
+test('a catch that answers 200 with an empty list is a site, not a visible failure', () => {
+  const root = tree({
+    'app/route.ts': [
+      'export async function GET() {',
+      '  try { return NextResponse.json(await list()) } catch (e) {',
+      '    return NextResponse.json({ items: [] });',
+      '  }',
+      '}',
+      'app.get("/x", async (req, res) => { try { res.json(await list()) } catch (e) { res.status(200).json([]) } })',
+    ].join('\n'),
+  });
+  assert.equal(run(root).out.length, 2);
+  const visible = tree({ 'app/r.ts': 'try { a() } catch (e) { return NextResponse.json({ error: "x" }, { status: 502 }) }\n' });
+  assert.deepEqual(run(visible).out, [], 'a 5xx status stays visible');
+});
+
+test('multi-line block comments are code-free, so a JSDoc example is not a site', () => {
+  const root = tree({ 'src/a.ts': '/**\n * try { x } catch (e) { return [] }\n */\nexport const x = 1;\n' });
+  assert.deepEqual(run(root).out, []);
+});
+
+test('promise fallbacks: a multi-line .catch that returns a default, .catch(console.error), and Allman catch', () => {
+  const root = tree({
+    'src/a.ts': 'p.catch((e) => {\n  log.error(e);\n  return [];\n});\nq.catch(console.error);\n',
+    'src/b.ts': 'try { a() } catch (e)\n{\n  return null;\n}\n',
+    'src/c.ts': 'p.catch((e) => {\n  throw new Wrapped(e);\n});\n',
+  });
+  assert.deepEqual(run(root).out.map((f) => `${f.file}:${f.kind}`).sort(), ['src/a.ts:promise-default', 'src/a.ts:promise-default', 'src/b.ts:catch-default']);
+});
+
+test('a brace inside a string does not move the catch body', () => {
+  const root = tree({ 'src/a.ts': 'try { a() } catch (e) {\n  log.error("bad {");\n  return [];\n}\n' + 'x();\n'.repeat(5) + 'throw new Error("unrelated");\n' });
+  assert.deepEqual(kinds(run(root)), ['catch-default']);
+});
+
+test('Python one-line excepts are judged by their own body', () => {
+  const root = tree({ 'svc/a.py': 'try:\n    g()\nexcept ValueError: raise\ntry:\n    g()\nexcept ValueError: return None\n' });
+  assert.deepEqual(kinds(run(root)), ['catch-default']);
+});
+
+test('globs: **/ matches no folder, the extension filter stays on, and a trailing slash on the root is fine', () => {
+  const root = tree({ 'c.ts': 'p.catch(() => null)\n', 'src/d.ts': 'p.catch(() => null)\n', 'notes.md': 'p.catch(() => null)\n', 'styles.css': 'p.catch(() => null)\n' });
+  assert.deepEqual(run(root, ['**/*.ts']).out.map((f) => f.file).sort(), ['c.ts', 'src/d.ts']);
+  assert.deepEqual(run(root, ['*']).out.map((f) => f.file).sort(), ['c.ts', 'src/d.ts'], 'no .md or .css read as code');
+  assert.deepEqual(run(root + '/').out.map((f) => f.file).sort(), ['c.ts', 'src/d.ts']);
+});
+
+test('production folders named test or scripts are read; minified files and public/ are not', () => {
+  const root = tree({
+    'app/api/test/route.ts': 'p.catch(() => null)\n',
+    'src/scripts/run.ts': 'p.catch(() => null)\n',
+    'scripts/once.mjs': 'p.catch(() => null)\n',
+    'src/vendor.min.js': 'p.catch(() => null)\n',
+    'public/sw.js': 'p.catch(() => null)\n',
+  });
+  assert.deepEqual(run(root).out.map((f) => f.file).sort(), ['app/api/test/route.ts', 'src/scripts/run.ts']);
+});
+
+test('a long minified-style line is read in linear time', () => {
+  const line = 'a();'.repeat(150000) + ' p.catch(() => null)\n';
+  const root = tree({ 'src/big.ts': line });
+  const t0 = Date.now();
+  assert.deepEqual(kinds(run(root)), ['promise-default']);
+  assert.ok(Date.now() - t0 < 8000, `600 KB line took ${Date.now() - t0} ms`);
+});
+

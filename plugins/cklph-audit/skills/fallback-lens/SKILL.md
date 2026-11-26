@@ -29,17 +29,23 @@ other.
 ## TOOL
 
 Run `${CLAUDE_PLUGIN_ROOT}/tools/fallbacks.sh <root> [glob...]` on the unit's globs. It strips
-comments, reads JS/TS and Python, skips tests and scripts unless a glob names them, and prints
-`[{ file, line, kind, signal }]`:
+comments (block comments across lines too), reads JS/TS and Python, skips tests, `e2e/` and a
+top-level `scripts/` unless a glob names them, never reads minified files, source maps or
+`public/`, and prints `[{ file, line, kind, signal }]`:
 
-- `catch-default`: a catch whose last word is a default (`return []`, `null`, `false`, `None`).
+- `catch-default`: a catch whose last word is a default (`return []`, `null`, `false`, `None`),
+  or a success response carrying one (`NextResponse.json({ items: [] })`, `res.status(200).json([])`).
 - `catch-log-continue`: a catch that logs and carries on, with no rethrow and no failure returned.
 - `swallowed`: an empty catch, or `except: pass`.
-- `promise-default`: `.catch(() => null)`, `.catch(() => [])`, `.catch(() => {})`.
-- `default-over-failure`: `(await x()) ?? []`, a default laid on the awaited call itself.
+- `promise-default`: `.catch(() => null)`, `.catch(() => [])`, `.catch(() => {})`,
+  `.catch(console.error)`, and a multi-line `.catch((e) => { log(e); return []; })`.
+- `default-over-failure`: `(await x()) ?? []`. The await still throws on a rejection, so this
+  hides only a null or undefined result. Open `x` and check whether it turns its own failure into
+  one (a repository that returns `null` on a DB error); if it doesn't, it isn't a finding.
 
-A catch that rethrows, returns `failure(...)`, sends a 4xx or 5xx, calls `setError` or a toast, or
-throws a new error is not listed. Body parsing (`res.json().catch(...)`) is not listed, since it is
+A catch that rethrows, returns `failure(...)`, sends a 4xx or 5xx status, calls `setError` or a
+toast, or throws a new error is not listed. A JSON response alone is not visible: a 200 with an
+empty list is the fail-open this lens is for. Body parsing (`res.json().catch(...)`) is not listed, since it is
 normally validated next. More than 500 sites is cut and says so on stderr (`FALLBACKS_MAX`).
 
 The `kind` is the site class, not the verdict. Most sites are fine. On one real Next.js app the tool

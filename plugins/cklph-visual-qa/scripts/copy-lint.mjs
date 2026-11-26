@@ -39,10 +39,11 @@ export const SIGNPOSTS = [
   "let's look at", "let's dive", 'dive into', 'picture this', 'imagine a world', 'spoiler:',
   'at the end of the day', "it's worth noting", 'it is worth noting', 'in today\'s',
   // Run-ups that only wind up before the point.
-  'honestly?', 'let that sink in', 'read that again', "here's my honest take", 'make no mistake',
+  'let that sink in', 'read that again', "here's my honest take", 'make no mistake',
 ];
 // Softer run-ups: real sentences use them too ("the hard part is trusting them"), so a person judges.
-export const RUN_UPS = ['the hard part is', 'what nobody tells you', 'the truth is,', 'the real question is'];
+// "Honestly?" is here, not a signpost: "Did she answer honestly? No." is a real question.
+export const RUN_UPS = ['honestly?', 'the hard part is', 'what nobody tells you', 'the truth is,', 'the real question is'];
 // Phrases that tell the reader how to read, instead of saying the thing.
 export const STEERING = [
   'this distinction matters', 'as you can see', "it's important to understand", 'it is important to understand',
@@ -54,14 +55,16 @@ export const SELF_REFERENCE = [
   'the table below', 'the list below', 'as mentioned above', 'as we discussed',
 ];
 export const METAPHORS = [
-  'secret sauce', 'north star', 'flywheel', 'rocket fuel', 'move the needle', 'needle-moving',
+  // Not "flywheel": it is also a WordPress host these sites name.
+  'secret sauce', 'north star', 'rocket fuel', 'move the needle', 'needle-moving',
   'low-hanging fruit', 'deep dive', 'double-click on', 'in the weeds', 'boil the ocean',
 ];
 // "The best part: it learns." A colon that holds back a punchline the sentence could just say.
 const COLON_REVEAL = /(?:^|[.!?]\s+)(?:and |but )?(?:the|one|my|our|your|here['’]s the)\s+(?:best|worst|real|hard|tricky|key|catch|kicker|result|secret|truth|answer|problem|twist|upshot|trick|point|reason|difference|good news|bad news|takeaway|short version)(?:\s+(?:part|thing|bit|news|question))?:\s+\S/gi;
 // "That's not X. That's Y." in body copy, the clipped punchline readers spot.
 const PROSE_REFRAME = /\b(?:that|this|it)(?:['’]s not| is not| isn['’]t) [^.!?]{1,40}[.!?]\s+(?:that|this|it)(?:['’]s| is) [^.!?]{1,40}[.!?]/gi;
-const sentences = (b) => b.split(/(?<=[.!?])\s+/).filter(Boolean);
+// No split after an abbreviation, so "Pros vs. cons." stays one sentence.
+const sentences = (b) => b.split(/(?<!\b(?:vs|dr|mr|mrs|ms|st|etc|inc|no|e\.g|i\.e)\.)(?<=[.!?])\s+/i).filter(Boolean);
 // A list number ("1."), an initial ("D.") or an abbreviation ("vs.", "e.g.") is not a sentence.
 const NOT_A_SENTENCE = /^(?:\d+[.)]|[a-z]\.|(?:vs|etc|e\.g|i\.e|mr|mrs|ms|dr|inc|no)\.)$/i;
 const tiny = (s) => !NOT_A_SENTENCE.test(s.trim()) && words(s) <= 2 && /[a-z]{2}/i.test(s);
@@ -75,7 +78,9 @@ function decode(s) {
     return ENTITIES[e.toLowerCase()] ?? m;
   });
 }
-const clean = (s) => decode(s.replace(/<[^>]+>/g, ' ')).replace(/\s+/g, ' ').trim();
+// Curly quotes become straight, so phrase lists match WordPress's &#8217; and typed smart quotes alike.
+const straight = (s) => s.replace(/[‘’]/g, "'").replace(/[“”]/g, '"');
+const clean = (s) => straight(decode(s.replace(/<[^>]+>/g, ' '))).replace(/\s+/g, ' ').trim();
 
 /**
  * Pull headings, text blocks and link or button labels out of a page's HTML.
@@ -116,7 +121,7 @@ export function fromMarkdown(text) {
   }
   return { headings, blocks, labels: [] };
 }
-const mdText = (s) => s
+const mdText = (s) => straight(s)
   .replace(/<\/?[A-Za-z][^>]*>/g, ' ')
   .replace(/!\[[^\]]*\]\([^)]*\)/g, ' ')
   .replace(/\[([^\]]*)\]\([^)]*\)/g, '$1')
@@ -303,10 +308,12 @@ export function loadRules(file) {
   const path = file ?? '.cklph/copy-rules.json';
   if (!file && !existsSync(path)) return { fail: [], warn: [] };
   const data = JSON.parse(readFileSync(path, 'utf8'));
+  const unknown = Object.keys(data).filter((k) => k !== 'fail' && k !== 'warn');
+  if (unknown.length) throw new Error(`${path}: unknown key ${unknown.map((k) => `"${k}"`).join(', ')} (use "fail" and "warn")`);
   const list = (k) => {
     const v = data[k] ?? [];
     if (!Array.isArray(v) || v.some((x) => typeof x !== 'string' || !x.trim())) throw new Error(`${path}: "${k}" must be a list of phrases`);
-    return v;
+    return v.map((x) => straight(x.trim()));
   };
   return { fail: list('fail'), warn: list('warn') };
 }
@@ -336,7 +343,10 @@ async function main(argv) {
     else if (a === '--json') json = true;
     else if (a === '--raw') raw = true;
     else if (a === '--repeat-min') min = Number(argv[++i]);
-    else if (a === '--rules') rulesFile = argv[++i];
+    else if (a === '--rules') {
+      rulesFile = argv[++i];
+      if (!rulesFile || rulesFile.startsWith('-')) { console.error('copy-lint: --rules needs a file'); return 1; }
+    }
     else if (a === '-h' || a === '--help') {
       console.log((() => { const src = readFileSync(fileURLToPath(import.meta.url), 'utf8').split('\n'); return src.slice(1, src.findIndex((l) => l.startsWith('import'))).map((l) => l.replace(/^\/\/ ?/, '')).join('\n'); })());
       return 0;

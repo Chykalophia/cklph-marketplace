@@ -160,7 +160,8 @@ test('reframe-prose: the clipped punchline fires, a plain "not" sentence does no
 });
 
 test('run-ups are signposts, and the same words used plainly are not', () => {
-  assert.equal(grade('Honestly? Most redesigns stall at copy.', 'signpost'), 'FAIL');
+  assert.equal(grade('Honestly? Most redesigns stall at copy.', 'run-up'), 'WARN');
+  assert.equal(grade('Did she answer honestly? No.', 'signpost'), undefined, 'a real question is not a FAIL');
   assert.equal(grade('Let that sink in.', 'signpost'), 'FAIL');
   assert.equal(grade('What nobody tells you is that scope creeps.', 'run-up'), 'WARN');
   assert.equal(grade('The hard part is trusting them and keeping at it.', 'signpost'), undefined, 'a softer run-up is not a FAIL');
@@ -210,5 +211,32 @@ test('loadRules reads the default file, refuses a bad one, and is empty without 
   const ok = run([page, '--exceptions', path.join(dir, 'none.json')], dir);
   assert.equal(ok.status, 2, ok.stdout + ok.stderr);
   assert.match(ok.stdout, /house-rule/);
+});
+
+// Review findings, each a shape an earlier version got wrong.
+test('curly apostrophes from WordPress and typed smart quotes still match the phrase lists', () => {
+  const wp = fromHtml('<p>Here&#8217;s my honest take on redesigns.</p>');
+  assert.equal(checkDoc('/wp', wp).find((f) => f.gate === 'signpost')?.grade, 'FAIL');
+  const md = fromMarkdown('# Notes\n\nLet’s dive into the scope.\n');
+  assert.equal(checkDoc('/md', md).find((f) => f.gate === 'signpost')?.grade, 'FAIL');
+  assert.equal(one('We’ll reach out Monday.', { fail: ['we’ll reach out'], warn: [] }).find((f) => f.gate === 'house-rule')?.grade, 'FAIL', 'a curly phrase in the rules file matches too');
+});
+
+test('abbreviations do not split sentences for the drumbeat check', () => {
+  assert.equal(grade('Pros vs. cons. Easy call.', 'drumbeat'), undefined);
+  assert.equal(grade('Call Dr. Smith. Today. Please.', 'drumbeat'), undefined);
+});
+
+test('loadRules refuses an unknown key and trims phrases; --rules needs a file', () => {
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'copy-rules-'));
+  const typo = path.join(dir, 'typo.json');
+  fs.writeFileSync(typo, JSON.stringify({ fails: ['reach out'] }));
+  assert.throws(() => loadRules(typo), /unknown key "fails"/);
+  const spaced = path.join(dir, 'spaced.json');
+  fs.writeFileSync(spaced, JSON.stringify({ fail: [' reach out '] }));
+  assert.deepEqual(loadRules(spaced), { fail: ['reach out'], warn: [] });
+  const page = path.join(dir, 'p.md');
+  fs.writeFileSync(page, '# Hi\n\nHello there.\n');
+  assert.equal(run([page, '--rules']).status, 1);
 });
 

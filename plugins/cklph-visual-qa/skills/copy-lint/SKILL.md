@@ -24,7 +24,7 @@ name, and needs at least three of them (`--repeat-min` changes that).
 |---|---|---|
 | `reframe-heading` | FAIL | Two or more "X, not Y" headings on one page: "Partners, not vendors", "Not a feature. A platform." One can stay if it is the page's real point. |
 | `ai-vocabulary` | FAIL | delve, leverage, seamless, robust, unlock, elevate, crucial, streamline, holistic, world-class, cutting-edge and the rest of the list in the script. |
-| `signpost` | FAIL | "Here's the thing", "The short answer:", "Bottom line", "Let's dive", "Picture this", and run-ups that only wind up: "Honestly?", "Let that sink in", "Read that again", "Make no mistake". |
+| `signpost` | FAIL | "Here's the thing", "The short answer:", "Bottom line", "Let's dive", "Picture this", and run-ups that only wind up: "Let that sink in", "Read that again", "Make no mistake". |
 | `colon-reveal` | WARN, FAIL at 2 | A colon holding back a punchline: "The best part: it learns", "The catch: setup takes a week". Needs a determiner, so list labels ("Result: 12 leads", "Step 1:") pass. |
 | `reframe-prose` | WARN, FAIL at 2 | The clipped punchline in body copy: "That's not avoidance. That's allocation." |
 | `house-rule` | FAIL or WARN | Phrases in the site's own `.cklph/copy-rules.json` (below), at the grade the file gives them. |
@@ -34,10 +34,10 @@ name, and needs at least three of them (`--repeat-min` changes that).
 | `intensifier` | WARN | Three or more of quietly, genuinely, truly, honestly, incredibly. |
 | `stiff-english` | WARN | Many uncontracted forms (it is, do not, you will), 4 or more per 1,000 words. |
 | `exclamation` | WARN | Sentences ending in "!". |
-| `run-up` | WARN | Softer run-ups that real sentences also use: "The hard part is", "What nobody tells you", "The truth is". |
+| `run-up` | WARN | Softer run-ups that real sentences also use: "Honestly?", "The hard part is", "What nobody tells you", "The truth is". |
 | `reader-steering` | WARN | Telling the reader how to read: "As you can see", "This distinction matters", "To be clear,". |
 | `self-reference` | WARN | Text describing itself: "In this article", "The table below", "As mentioned above". |
-| `stock-metaphor` | WARN | Secret sauce, north star, flywheel, move the needle, low-hanging fruit, deep dive. |
+| `stock-metaphor` | WARN | Secret sauce, north star, move the needle, low-hanging fruit, deep dive. |
 | `drumbeat` | WARN | Three or more one- or two-word sentences in a row: "Every. Single. Day." List numbers and abbreviations don't count. |
 
 The two budgets (`colon-reveal`, `reframe-prose`) allow one use as a WARN, because one can be a
@@ -70,15 +70,16 @@ Every entry needs a reason the client or Peter agreed to.
 
 ## The site's own word list
 
-A site or a team can ban its own phrases without changing the script. `.cklph/copy-rules.json` at
-the repo root (or `--rules <file>`):
+A site or a team can ban its own phrases without changing the script. `.cklph/copy-rules.json`,
+read from the current directory, so run `copy-lint` from the repo root (or pass `--rules <file>`):
 
 ```json
 { "fail": ["reach out", "circle back"], "warn": ["synergies", "best-in-breed"] }
 ```
 
-Phrases match the same way as the built-in lists, case-insensitive, whole words. A file that isn't
-two lists of phrases is bad input (exit 1). Keep the house list in the repo it belongs to: a
+Phrases match the same way as the built-in lists: case-insensitive, whole words, curly quotes read
+as straight. A file with any key but `fail` and `warn`, or a list that isn't phrases, is bad input
+(exit 1). Keep the house list in the repo it belongs to: a
 client's bans in the client repo, Chykalophia's in ours.
 
 ## Triage

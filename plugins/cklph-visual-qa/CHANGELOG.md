@@ -15,6 +15,10 @@ Format: [Keep a Changelog](https://keepachangelog.com); versioning follows [SemV
 - `.cklph/copy-rules.json` (or `--rules`): a site's own `fail` and `warn` phrase lists, reported as
   `house-rule`, so house and client bans need no code change.
 - Every new check has a positive and a near-miss test; six injected bugs each fail one.
+- Curly quotes are read as straight, so phrase lists match WordPress pages (`&#8217;`) and smart
+  quotes in Markdown. Abbreviations ("vs.", "Dr.") don't end a sentence for `drumbeat`. "Honestly?"
+  is a `run-up` WARN, not a FAIL. The rules file refuses unknown keys and trims phrases, and
+  `--rules` needs a file.
 
 ### Fixed
 - `copy-lint --help` printed a fixed number of header lines and would cut off a longer header.
