@@ -5,7 +5,7 @@
 `skills/agent-config-lens` adapts material from ECC. Its notice and license are in
 `skills/agent-config-lens/NOTICE.md`.
 
-## Other security sources (1.4.0)
+## Other security sources (1.5.0)
 
 Rules and techniques below were rewritten in our own words for this plugin. None of the source
 text is copied. Each source is credited with its license and the commit read on 2026-11-21.

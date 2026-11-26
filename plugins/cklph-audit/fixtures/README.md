@@ -8,7 +8,7 @@ is trusted (SPEC §10). These fixtures are that ground truth, run by
 
 ```
 fixtures/
-└── <lens>/                         # security | correctness | architecture | docs-drift | omission | agent-config | ambiguity | …
+└── <lens>/                         # security | correctness | architecture | docs-drift | omission | fallback | agent-config | ambiguity | …
     ├── should-flag/                # planted issues the lens MUST catch   → RECALL
     └── should-not-flag/            # clean look-alikes it MUST NOT flag   → PRECISION
 ```

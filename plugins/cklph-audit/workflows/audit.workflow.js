@@ -216,7 +216,7 @@ const PLAN_SCHEMA = {
 }
 
 // the ONE lens-hint list: RULEBOOK_SCHEMA's enum and the rulebook prompt both read it (never copy it)
-const LENS_HINTS = ['security','correctness','architecture','docs-drift','sca','iac','container','k8s','supply-chain','compliance','concurrency','state-machine','economic','llm','data-isolation','web-auth','client-side','messaging','availability','omission','agent-config','ambiguity','any']
+const LENS_HINTS = ['security','correctness','architecture','docs-drift','sca','iac','container','k8s','supply-chain','compliance','concurrency','state-machine','economic','llm','data-isolation','web-auth','client-side','messaging','availability','omission','fallback','agent-config','ambiguity','any']
 // The rulebook prompt OFFERS the pre-v4 base hints plus every running lens that has review jobs: a rule
 // hinted for a lens with no reviewer this run closes NOT CHECKED (compliance has none, so it is never
 // offered). Filtered from LENS_HINTS, so the prompt can never drift from the schema enum (§15).

@@ -3,7 +3,7 @@
 All notable changes to `cklph-audit` are documented here. This project adheres to
 [Semantic Versioning](https://semver.org/).
 
-## 1.4.0 - 2026-11-21
+## 1.5.0 - 2026-11-26
 
 Ideas and attack classes adapted from Cloudflare's security-audit skill (MIT). Attribution is in
 the new plugin-level `NOTICE.md`.
@@ -161,6 +161,32 @@ See `NOTICE.md` for each source, its license, and what was taken.
 - `security-lens`, `economic-lens`, `agent-config-lens`, `iac-lens`, `supply-chain-lens`: each
   overlapping class has one owning lens, named in both directions, so a defect is filed once. `llm`
   and `agent-config` share one precedence rule, word for word.
+
+## 1.4.0 - 2026-11-26
+
+### Added
+- `fallback` lens (opt-in), the partner to `omission`: guards that hide a failure. `omission` asks
+  which guard is missing and, run alone, pushes a codebase toward more `catch { return [] }`; this
+  asks which catch, promise `.catch` or `?? []` over an awaited call turns a broken path into a
+  plausible result, and ranks fail-opens on auth, money and data paths first. Rule ids
+  `fallback:<kind>`.
+- `tools/fallbacks.sh`, its recall tool: `catch-default`, `catch-log-continue`, `swallowed`,
+  `promise-default`, `default-over-failure`. Comments stripped; visible failures (rethrow,
+  `failure()`, an HTTP 4xx or 5xx, `setError`, a toast, `new ...Error`) and body parses skipped;
+  tests and scripts skipped unless a glob names them; truncation past `FALLBACKS_MAX` is loud.
+  On one real Next.js app it listed about 420 production sites, among them a password-reuse check
+  that returns "not reused" when its lookup fails, with no log.
+  A review before release fixed: CRLF files and control bytes breaking the JSON, a 200 response
+  with an empty list counted as visible, multi-line block comments, braces inside strings, `**/`
+  globs and non-source files in glob mode, a trailing slash on the root, quadratic time on long
+  minified lines, and missed forms (multi-line `.catch`, `.catch(console.error)`, Allman `catch`,
+  one-line Python `except`). Tested under BSD awk, mawk and gawk.
+- `fixtures/fallback/` should-flag and should-not-flag cases, and `tests/fallbacks.test.mjs`
+  (18 tests; six injected bugs each fail one). Registered in LENS_HINTS, the README table, the
+  example config, `audit-init`, `run` and the reviewer's tool map.
+
+### Changed
+- The engine's lens-hint enum has 18 values; `engine-flow.test.mjs` pins the new count.
 
 ## 1.3.4 - 2026-11-14
 

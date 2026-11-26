@@ -2,11 +2,12 @@
 // copy-lint: find the wording giveaways of AI-written copy on live pages or in source files.
 //
 // Usage:
-//   copy-lint.mjs <url|file>... [--exceptions <file>] [--json] [--raw] [--repeat-min <n>]
+//   copy-lint.mjs <url|file>... [--exceptions <file>] [--rules <file>] [--json] [--raw] [--repeat-min <n>]
 //
 //   <url|file>     http(s) URLs, or .md, .mdx, .html or .txt files. Pass several pages of one
 //                  site to find blocks repeated across them.
 //   --exceptions   exceptions file (default: .cklph/design-exceptions.json when it exists)
+//   --rules        the site's own word list (default: .cklph/copy-rules.json when it exists)
 //   --json         print the filtered findings as JSON instead of a report
 //   --raw          print the unfiltered findings for lint-filter.mjs --tool copy
 //   --repeat-min   pages a block must appear on to count as repeated (default 3)
@@ -16,7 +17,7 @@
 // No AI model and no network beyond fetching the pages you name.
 //
 // Exit codes: 0 nothing that blocks, 2 findings to check, 1 a source could not be read.
-import { readFileSync, realpathSync } from 'node:fs';
+import { readFileSync, realpathSync, existsSync } from 'node:fs';
 import { extname } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { applyExceptions, loadExceptions, normalize, report } from './lint-filter.mjs';
@@ -37,7 +38,36 @@ export const SIGNPOSTS = [
   'note the wording', 'the honest part', 'bottom line', 'in short,', 'put simply',
   "let's look at", "let's dive", 'dive into', 'picture this', 'imagine a world', 'spoiler:',
   'at the end of the day', "it's worth noting", 'it is worth noting', 'in today\'s',
+  // Run-ups that only wind up before the point.
+  'let that sink in', 'read that again', "here's my honest take", 'make no mistake',
 ];
+// Softer run-ups: real sentences use them too ("the hard part is trusting them"), so a person judges.
+// "Honestly?" is here, not a signpost: "Did she answer honestly? No." is a real question.
+export const RUN_UPS = ['honestly?', 'the hard part is', 'what nobody tells you', 'the truth is,', 'the real question is'];
+// Phrases that tell the reader how to read, instead of saying the thing.
+export const STEERING = [
+  'this distinction matters', 'as you can see', "it's important to understand", 'it is important to understand',
+  'to be clear,', 'needless to say', 'it goes without saying',
+];
+// Text describing itself.
+export const SELF_REFERENCE = [
+  'in this article', 'in this post', 'in this guide', 'this article will', 'this post will', 'this guide will',
+  'the table below', 'the list below', 'as mentioned above', 'as we discussed',
+];
+export const METAPHORS = [
+  // Not "flywheel": it is also a WordPress host these sites name.
+  'secret sauce', 'north star', 'rocket fuel', 'move the needle', 'needle-moving',
+  'low-hanging fruit', 'deep dive', 'double-click on', 'in the weeds', 'boil the ocean',
+];
+// "The best part: it learns." A colon that holds back a punchline the sentence could just say.
+const COLON_REVEAL = /(?:^|[.!?]\s+)(?:and |but )?(?:the|one|my|our|your|here['’]s the)\s+(?:best|worst|real|hard|tricky|key|catch|kicker|result|secret|truth|answer|problem|twist|upshot|trick|point|reason|difference|good news|bad news|takeaway|short version)(?:\s+(?:part|thing|bit|news|question))?:\s+\S/gi;
+// "That's not X. That's Y." in body copy, the clipped punchline readers spot.
+const PROSE_REFRAME = /\b(?:that|this|it)(?:['’]s not| is not| isn['’]t) [^.!?]{1,40}[.!?]\s+(?:that|this|it)(?:['’]s| is) [^.!?]{1,40}[.!?]/gi;
+// No split after an abbreviation, so "Pros vs. cons." stays one sentence.
+const sentences = (b) => b.split(/(?<!\b(?:vs|dr|mr|mrs|ms|st|etc|inc|no|e\.g|i\.e)\.)(?<=[.!?])\s+/i).filter(Boolean);
+// A list number ("1."), an initial ("D.") or an abbreviation ("vs.", "e.g.") is not a sentence.
+const NOT_A_SENTENCE = /^(?:\d+[.)]|[a-z]\.|(?:vs|etc|e\.g|i\.e|mr|mrs|ms|dr|inc|no)\.)$/i;
+const tiny = (s) => !NOT_A_SENTENCE.test(s.trim()) && words(s) <= 2 && /[a-z]{2}/i.test(s);
 export const INTENSIFIERS = ['quietly', 'silently', 'genuinely', 'truly', 'honestly', 'incredibly'];
 const STIFF = /\b(it is|do not|does not|you will|that is|we are|you are|we have|is not|are not|cannot|we will|there is)\b/gi;
 
@@ -48,7 +78,9 @@ function decode(s) {
     return ENTITIES[e.toLowerCase()] ?? m;
   });
 }
-const clean = (s) => decode(s.replace(/<[^>]+>/g, ' ')).replace(/\s+/g, ' ').trim();
+// Curly quotes become straight, so phrase lists match WordPress's &#8217; and typed smart quotes alike.
+const straight = (s) => s.replace(/[‘’]/g, "'").replace(/[“”]/g, '"');
+const clean = (s) => straight(decode(s.replace(/<[^>]+>/g, ' '))).replace(/\s+/g, ' ').trim();
 
 /**
  * Pull headings, text blocks and link or button labels out of a page's HTML.
@@ -89,7 +121,7 @@ export function fromMarkdown(text) {
   }
   return { headings, blocks, labels: [] };
 }
-const mdText = (s) => s
+const mdText = (s) => straight(s)
   .replace(/<\/?[A-Za-z][^>]*>/g, ' ')
   .replace(/!\[[^\]]*\]\([^)]*\)/g, ' ')
   .replace(/\[([^\]]*)\]\([^)]*\)/g, '$1')
@@ -131,7 +163,7 @@ function countWords(blocks, list) {
  * @param {string} name a short label for the source, shown in every finding
  * @param {{headings: string[], blocks: string[], labels: string[]}} doc
  */
-export function checkDoc(name, doc) {
+export function checkDoc(name, doc, rules = { fail: [], warn: [] }) {
   const out = [];
   const add = (gate, grade, evidence, fix) => out.push({ gate, grade, evidence: `[${name}] ${evidence}`, fix });
   const prose = doc.blocks;
@@ -148,6 +180,41 @@ export function checkDoc(name, doc) {
   for (const [w, { n, sample }] of countWords(prose.map((b) => b.toLowerCase()), SIGNPOSTS)) {
     add('signpost', 'FAIL', `"${w}" x${n}: ${sample}`, 'Cut the label and say the thing.');
   }
+
+  const lower = prose.map((b) => b.toLowerCase());
+  for (const [list, gate, fix] of [
+    [STEERING, 'reader-steering', 'Cut it. If the point matters, the sentence after it shows that.'],
+    [RUN_UPS, 'run-up', 'Start with the point; the run-up only delays it.'],
+    [SELF_REFERENCE, 'self-reference', 'Say the thing instead of describing the page that says it.'],
+    [METAPHORS, 'stock-metaphor', 'Name the actual mechanism or result.'],
+  ]) {
+    for (const [w, { n, sample }] of countWords(lower, list)) add(gate, 'WARN', `"${w}" x${n}: ${sample}`, fix);
+  }
+  for (const [list, grade] of [[rules.fail, 'FAIL'], [rules.warn, 'WARN']]) {
+    for (const [w, { n, sample }] of countWords(lower, list.map((x) => x.toLowerCase()))) {
+      add('house-rule', grade, `"${w}" x${n}: ${sample}`, 'This site\'s own word list bans it. See .cklph/copy-rules.json.');
+    }
+  }
+
+  // Budgets, not bans: one of these can be a real choice, two on a page is a habit.
+  for (const [re, gate, fix] of [
+    [COLON_REVEAL, 'colon-reveal', 'Write the sentence: "It learns, which is the best part," or just "It learns."'],
+    [PROSE_REFRAME, 'reframe-prose', 'Say what it is. Keep a contrast only where the reader really believes the first half.'],
+  ]) {
+    const hits = prose.flatMap((b) => [...b.matchAll(re)].map((m) => snip(b, m.index)));
+    if (hits.length) add(gate, hits.length >= 2 ? 'FAIL' : 'WARN', `${hits.length}x, e.g. ${hits[0]}`, fix);
+  }
+
+  const drum = prose.find((b) => {
+    let run = 0;
+    for (const s of sentences(b)) {
+      if (NOT_A_SENTENCE.test(s.trim())) continue;
+      run = tiny(s) ? run + 1 : 0;
+      if (run >= 3) return true;
+    }
+    return false;
+  });
+  if (drum) add('drumbeat', 'WARN', `three or more one- or two-word sentences in a row: ${snip(drum, 0, 90)}`, 'Join them into one sentence that says why.');
 
   const dashed = prose.filter((b) => /[—–]/.test(b));
   if (dashed.length) {
@@ -232,6 +299,25 @@ export function groupRepeats(kept) {
   });
 }
 
+/**
+ * A site's own word list: `{ "fail": [...], "warn": [...] }`, phrases matched like the built-in
+ * lists. Defaults to .cklph/copy-rules.json in the current directory when it exists.
+ * @param {string|null} file
+ */
+export function loadRules(file) {
+  const path = file ?? '.cklph/copy-rules.json';
+  if (!file && !existsSync(path)) return { fail: [], warn: [] };
+  const data = JSON.parse(readFileSync(path, 'utf8'));
+  const unknown = Object.keys(data).filter((k) => k !== 'fail' && k !== 'warn');
+  if (unknown.length) throw new Error(`${path}: unknown key ${unknown.map((k) => `"${k}"`).join(', ')} (use "fail" and "warn")`);
+  const list = (k) => {
+    const v = data[k] ?? [];
+    if (!Array.isArray(v) || v.some((x) => typeof x !== 'string' || !x.trim())) throw new Error(`${path}: "${k}" must be a list of phrases`);
+    return v.map((x) => straight(x.trim()));
+  };
+  return { fail: list('fail'), warn: list('warn') };
+}
+
 async function load(src) {
   if (/^https?:\/\//.test(src)) {
     const res = await fetch(src, { headers: { 'user-agent': 'Mozilla/5.0 (compatible; cklph-copy-lint)' }, redirect: 'follow' });
@@ -250,14 +336,19 @@ async function main(argv) {
   let json = false;
   let raw = false;
   let min = 3;
+  let rulesFile = null;
   for (let i = 0; i < argv.length; i++) {
     const a = argv[i];
     if (a === '--exceptions') file = argv[++i];
     else if (a === '--json') json = true;
     else if (a === '--raw') raw = true;
     else if (a === '--repeat-min') min = Number(argv[++i]);
+    else if (a === '--rules') {
+      rulesFile = argv[++i];
+      if (!rulesFile || rulesFile.startsWith('-')) { console.error('copy-lint: --rules needs a file'); return 1; }
+    }
     else if (a === '-h' || a === '--help') {
-      console.log(readFileSync(fileURLToPath(import.meta.url), 'utf8').split('\n').slice(1, 18).map((l) => l.replace(/^\/\/ ?/, '')).join('\n'));
+      console.log((() => { const src = readFileSync(fileURLToPath(import.meta.url), 'utf8').split('\n'); return src.slice(1, src.findIndex((l) => l.startsWith('import'))).map((l) => l.replace(/^\/\/ ?/, '')).join('\n'); })());
       return 0;
     } else if (a.startsWith('-')) { console.error(`copy-lint: unknown option ${a}`); return 1; }
     else sources.push(a);
@@ -272,7 +363,14 @@ async function main(argv) {
   }
   const empty = docs.filter((d) => !d.doc.blocks.length);
   if (empty.length) { console.error(`copy-lint: no text found in ${empty.map((d) => d.name).join(', ')}`); return 1; }
-  const findings = [...docs.flatMap((d) => checkDoc(d.name, d.doc)), ...checkRepeats(docs, min)];
+  let rules;
+  try {
+    rules = loadRules(rulesFile);
+  } catch (e) {
+    console.error(`copy-lint: ${e.message}`);
+    return 1;
+  }
+  const findings = [...docs.flatMap((d) => checkDoc(d.name, d.doc, rules)), ...checkRepeats(docs, min)];
   if (raw) { console.log(JSON.stringify({ findings }, null, 1)); return findings.some((f) => f.grade === 'FAIL') ? 2 : 0; }
   try {
     const result = applyExceptions(normalize('copy', { findings }), loadExceptions(file));
