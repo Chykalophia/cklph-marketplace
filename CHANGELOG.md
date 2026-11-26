@@ -4,6 +4,13 @@ Marketplace-level changes only: plugins added or removed, catalog and repo layou
 its own version history in `plugins/<name>/CHANGELOG.md` (cklph-os included).
 Format: [Keep a Changelog](https://keepachangelog.com).
 
+## 2026-11-26
+
+### Added
+- `scripts/scan_identifiers.py` and an opt-in `.githooks/pre-commit` that refuse a commit naming a
+  client. The hashed denylist stays in `cklph-marketplace-private`; with no denylist the hook refuses
+  the commit. Enable with `git config core.hooksPath .githooks`.
+
 ## 2026-11-06
 
 ### Changed

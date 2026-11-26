@@ -158,6 +158,8 @@ cklph-marketplace/
 │   │   └── hooks/                    # pre-commit-gate · nextjs-quality-check · security-check · destructive-command-gate · gateguard · skill-usage-log · reply-shape-context
 │   ├── cklph-nextjs/                 # Next.js + Supabase house style (17 skills)
 │   └── …                             # one directory per plugin in marketplace.json
+├── scripts/scan_identifiers.py       # client-name guard (the pre-commit hook runs it)
+├── .githooks/pre-commit              # opt-in: git config core.hooksPath .githooks
 ├── templates/                        # AGENTS.md · CLAUDE.md · STATE.md starters
 ├── test/                             # bats tests for the hooks
 ├── STANDARD.md                       # the spec everything follows
@@ -177,6 +179,25 @@ Each plugin has its own `plugin.json`, `README.md`, and `CHANGELOG.md` inside it
 5. **Evidence over vibes** — verify > looks-right.
 
 📖 Full design → **[STANDARD.md](./STANDARD.md)**
+
+---
+
+## 🔒 Client-name guard
+
+Client names must never land in this public repo. `scripts/scan_identifiers.py` hashes every run of one
+to four words in a file (sha256, lowercased, joined without spaces) and fails when a hash is on the
+client denylist. The denylist is not here: hashes of names can be guessed, so it lives in the private
+marketplace. The scanner reads it from `$CKLPH_IDENTIFIER_DENYLIST`, or from a
+`cklph-marketplace-private` checkout next to this one, and fails closed (exit 2) when it finds neither.
+
+Turn on the pre-commit hook once per clone. It scans exactly what you staged:
+
+```bash
+git config core.hooksPath .githooks
+python3 scripts/scan_identifiers.py            # scan every tracked file by hand
+```
+
+The private marketplace's `scripts/check.sh` also scans this checkout when it sits beside it.
 
 ---
 
