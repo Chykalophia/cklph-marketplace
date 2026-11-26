@@ -145,8 +145,9 @@ task. Never one sub-task per finding.
 1. Upload the PNGs and `scan.json` (renamed `scan-<date>.json`, so a recheck can find it) as
    attachments on the host task.
    - Prefer `clickup_cklph`'s `clickup_upload_attachment` with `file_path`. It reads only files inside
-     the folder its `CLICKUP_UPLOAD_DIR` names (ours is `~/clickup-uploads`; ask if that folder is
-     missing). Symlinks out of it are refused, so **copy** the files into a new subfolder such as
+     the folder its `CLICKUP_UPLOAD_DIR` names. That path is set in the server's MCP config, so
+     read it from there rather than assuming one, and ask if it is unset or the folder is missing.
+     Symlinks out of it are refused, so **copy** the files into a new subfolder such as
      `figma-audit-<date>/` and pass `file_path` relative to the upload folder. Write `shots.json`
      yourself from the responses: the key is the file name without `.png`, the value is
      `{ "url": <url>, "thumb": <thumbnail_small> }`. Copy the URLs exactly. Delete the subfolder

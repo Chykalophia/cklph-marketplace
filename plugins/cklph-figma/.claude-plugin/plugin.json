@@ -1,7 +1,7 @@
 {
   "name": "cklph-figma",
   "description": "Read designs from the Figma MCP (design context, screenshots, structure metadata, design tokens), audit a Figma file for dev hand-off into a ClickUp fix list with links and annotated screenshots, preflight and verify Figma writes, and write a client's DESIGN.md tokens file with a lint and an alpha-aware contrast check. The design-source layer for any Figma-to-code work.",
-  "version": "0.6.0",
+  "version": "0.6.1",
   "author": {
     "name": "Peter Krzyzek"
   }
