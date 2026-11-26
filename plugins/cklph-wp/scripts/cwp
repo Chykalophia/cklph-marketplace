@@ -175,7 +175,14 @@ case "$sub" in
   put)                                                      # upload into the SHARED webroot (NOT /tmp)
     local_f="${1:?usage: cwp put <localfile> <remote-abs-path>}"; remote="${2:?need remote path}"
     [ -f "$local_f" ] || _die "no file: $local_f"
-    cat "$local_f" | _ssh "cat > $(_q "$remote")" && echo "uploaded -> $remote" >&2 ;;
+    # Managed gateways (Flywheel, verified 2026-11-25) silently DROP raw binary on stdin: ssh exits 0
+    # and no file appears, even at 1 MB. Plain text survives, so send base64 and decode remotely.
+    # Never trust the exit code alone: read the remote size back and compare.
+    want=$(wc -c < "$local_f" | tr -d '[:space:]')
+    base64 < "$local_f" | _ssh "base64 -d > $(_q "$remote")" || _die "upload failed: $remote"
+    got=$(_ssh "wc -c < $(_q "$remote")" 2>/dev/null | tr -d '[:space:]')
+    [ "$got" = "$want" ] || _die "upload incomplete: $remote is ${got:-missing} bytes, expected $want"
+    echo "uploaded -> $remote ($want bytes)" >&2 ;;
 
   help|-h|--help) cat <<'EOF'
 cwp — cklph WordPress helper (wp-cli over SSH; fresh connection per command by default)
@@ -187,7 +194,8 @@ cwp — cklph WordPress helper (wp-cli over SSH; fresh connection per command by
   cwp meta-read <id> <key> [out]  read a post meta value (incl. protected _* keys)
   cwp meta-write <id> <key> <file> write a meta value from a file (base64+wp_slash, protected-safe)
   cwp eval '<php>'                run a PHP snippet remotely (single-quote it locally)
-  cwp put <local> <remote-abs>    upload a file into the SHARED webroot (not /tmp)
+  cwp put <local> <remote-abs>    upload a file into the SHARED webroot (not /tmp); base64 on the
+                                  wire (gateways drop raw binary), remote size verified
   cwp shell                       interactive SSH session
 
 Default = NO shared socket (secure): a fresh connection per command, so nothing

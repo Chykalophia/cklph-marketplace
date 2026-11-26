@@ -11,10 +11,19 @@ trap 'rm -rf "$TMP"' EXIT
 mkdir -p "$TMP/bin" "$TMP/proj"
 LOG="$TMP/ssh.log"
 # Fake ssh: log one line per call; `-O check` says "no master" so MUX mode opens one; else succeed.
+# It also plays the remote end of `put`: `base64 -d > PATH` decodes stdin into $FAKE_REMOTE, and
+# `wc -c < PATH` prints its size. FAKE_DROP=1 mimics the Flywheel gateway losing the payload
+# (reads stdin, writes nothing, still exits 0).
 cat > "$TMP/bin/ssh" <<'SH'
 #!/bin/bash
 printf '%s\n' "$*" >> "$FAKE_SSH_LOG"
 for a in "$@"; do [ "$a" = check ] && exit 1; done
+cmd="${*: -1}"
+case "$cmd" in
+    "base64 -d > "*)
+        if [ "${FAKE_DROP:-0}" = 1 ]; then cat > /dev/null; else base64 -d > "$FAKE_REMOTE"; fi ;;
+    "wc -c < "*) [ -f "$FAKE_REMOTE" ] && wc -c < "$FAKE_REMOTE" ;;
+esac
 exit 0
 SH
 chmod +x "$TMP/bin/ssh"
@@ -80,6 +89,25 @@ done
 if run_cwp unset meta-read 12 '' >/dev/null 2>&1; then r=accepted; else r=rejected; fi
 want "empty key rejected (usage error)" "$r" rejected
 want "empty key never reached ssh" "$(wc -l < "$LOG" | tr -d ' ')" 0
+
+echo "== put: binary survives the wire, a dropped payload fails loudly"
+# Binary with NUL bytes and every byte value: the shape a gateway drops when sent raw.
+head -c 300000 /dev/urandom > "$TMP/blob.bin"
+printf '\000\001\377' >> "$TMP/blob.bin"
+REMOTE_PATH="/www/wp-content/uploads/it's a file.bin"
+rm -f "$TMP/remote.bin"
+EXTRA_ENV="FAKE_REMOTE=$TMP/remote.bin" run_cwp unset put "$TMP/blob.bin" "$REMOTE_PATH" >/dev/null 2>"$TMP/err"
+want "put exits 0 on a verified upload" "$?" 0
+if cmp -s "$TMP/blob.bin" "$TMP/remote.bin"; then r=identical; else r=different; fi
+want "put delivers the exact bytes" "$r" identical
+want "put sends base64, never raw cat" "$(grep -c 'base64 -d > ' "$LOG")" 1
+want "put remote path is single-quoted" "$(grep -cF "base64 -d > '/www/wp-content/uploads/it'\\''s a file.bin'" "$LOG")" 1
+want "put reports the byte count" "$(grep -c "(300003 bytes)" "$TMP/err")" 1
+rm -f "$TMP/remote.bin"
+EXTRA_ENV="FAKE_REMOTE=$TMP/remote.bin FAKE_DROP=1" run_cwp unset put "$TMP/blob.bin" /www/x.bin >/dev/null 2>"$TMP/err"
+want "put exits 2 when the gateway drops the payload" "$?" 2
+want "put says the upload is incomplete" "$(grep -c 'upload incomplete' "$TMP/err")" 1
+want "put does not claim success on a drop" "$(grep -c 'uploaded ->' "$TMP/err")" 0
 
 echo "passed=$pass failed=$fail"
 [ "$fail" = 0 ]

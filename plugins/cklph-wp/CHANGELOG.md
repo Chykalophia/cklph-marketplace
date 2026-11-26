@@ -3,6 +3,16 @@
 All notable changes to `cklph-wp` are documented here.
 Format: [Keep a Changelog](https://keepachangelog.com); versioning follows [SemVer](https://semver.org).
 
+## [0.3.2] — 2026-11-25
+
+### Fixed
+- **`cwp put` lost binary files without an error.** Flywheel's SSH gateway drops raw binary sent on
+  stdin: `ssh` exits 0 and no file is written, even at 1 MB. `put` printed "uploaded" anyway. It now
+  sends base64 and decodes on the server (`base64 -d`), then reads the remote size back and exits 2
+  with "upload incomplete" if it does not match. Verified live on Flywheel with a 40 MB random binary
+  (hash match). Tests cover the byte-exact round trip and a gateway that drops the payload; both
+  fail against the old `put`.
+
 ## [0.3.1] — 2026-10-27
 
 ### Fixed

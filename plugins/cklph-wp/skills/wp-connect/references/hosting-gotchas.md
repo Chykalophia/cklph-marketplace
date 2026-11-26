@@ -6,8 +6,12 @@ forced-command shell** in front of wp-cli. Each one cost real debugging time —
 ## The shell is restricted
 - **No `&&` / compound statements.** `ssh host "cmd1 && cmd2"` silently returns nothing. Run one
   command per SSH call, or chain with `;` only after testing that the gateway allows it.
-- **No `scp` / SFTP subsystem.** `scp` fails (exit 255). Move files by streaming over an exec channel:
-  `cat local | ssh host "cat > /remote/path"`. (`cwp put` does this.)
+- **No `scp` / SFTP subsystem.** `scp` fails (exit 255). Move files by streaming over an exec channel,
+  **base64-encoded**: `base64 < local | ssh host "base64 -d > /remote/path"`. (`cwp put` does this.)
+- **Raw binary on stdin is silently dropped** (Flywheel, verified 2026-11-25). `cat file.pdf | ssh host
+  "cat > /www/x.pdf"` exits 0 and no file appears, even at 1 MB; plain text of the same size lands
+  fine. Base64 gets through (a 40 MB binary in one stream, hash-verified). Never trust the exit code:
+  read the remote size or `sha256sum` back. `cwp put` checks the size and exits 2 on a mismatch.
 - `grep`, `sed`, `ls`, `cat` usually work (they're real commands the gateway forwards); `find` may not.
 
 ## `/tmp` is NOT shared; `/www` (the webroot) IS
