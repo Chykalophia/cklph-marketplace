@@ -8,7 +8,7 @@ import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
-import { fromHtml, fromMarkdown, checkDoc, checkRepeats, groupRepeats, isReframe } from '../scripts/copy-lint.mjs';
+import { fromHtml, fromMarkdown, checkDoc, checkRepeats, groupRepeats, isReframe, loadRules } from '../scripts/copy-lint.mjs';
 import { applyExceptions, normalize } from '../scripts/lint-filter.mjs';
 
 const HERE = path.dirname(fileURLToPath(import.meta.url));
@@ -137,3 +137,78 @@ test('--help prints the usage header and stops before the code', () => {
   assert.match(r.stdout, /Exit codes: 0 nothing that blocks/);
   assert.ok(!r.stdout.includes('import '));
 });
+
+// Each new check: a sentence that must fire, and a near miss that must not.
+const one = (text, rules) => checkDoc('/t', { headings: [], blocks: [text], labels: [] }, rules);
+const grade = (text, gate, rules) => one(text, rules).find((f) => f.gate === gate)?.grade;
+
+test('colon-reveal: one is a WARN, two on a page FAIL, and a plain label colon passes', () => {
+  assert.equal(grade('We rebuilt the intake form. The best part: it learns from every call.', 'colon-reveal'), 'WARN');
+  assert.equal(grade('The result: 40% fewer tickets. The catch: setup takes a week.', 'colon-reveal'), 'FAIL');
+  // The last three are real list labels from our own articles, which an earlier version flagged.
+  for (const near of ['Price: $40 a month.', 'Step 1: open the dashboard.', 'Note: the form saves as you type.', 'The best part of the call was the demo.',
+    '3. Scope the pages. 4. Result: a 30-day review after launch.', 'Difference: [claims a competitor cannot make].', 'Result: 12 new leads.']) {
+    assert.equal(grade(near, 'colon-reveal'), undefined, near);
+  }
+});
+
+test('reframe-prose: the clipped punchline fires, a plain "not" sentence does not', () => {
+  assert.equal(grade("That's not avoidance. That's allocation.", 'reframe-prose'), 'WARN');
+  assert.equal(grade("It's not a redesign. It's a rebuild. This isn't a tool. This is a team.", 'reframe-prose'), 'FAIL');
+  assert.equal(grade("That's not ready yet. We ship it on Friday.", 'reframe-prose'), undefined);
+  assert.equal(grade('That’s not avoidance. That’s allocation.', 'reframe-prose'), 'WARN', 'curly apostrophes');
+});
+
+test('run-ups are signposts, and the same words used plainly are not', () => {
+  assert.equal(grade('Honestly? Most redesigns stall at copy.', 'signpost'), 'FAIL');
+  assert.equal(grade('Let that sink in.', 'signpost'), 'FAIL');
+  assert.equal(grade('What nobody tells you is that scope creeps.', 'run-up'), 'WARN');
+  assert.equal(grade('The hard part is trusting them and keeping at it.', 'signpost'), undefined, 'a softer run-up is not a FAIL');
+  assert.equal(grade('She answered honestly and we fixed the scope.', 'signpost'), undefined);
+});
+
+test('reader-steering, self-reference and stock metaphors are WARNs with near misses that pass', () => {
+  assert.equal(grade('As you can see, the form is shorter.', 'reader-steering'), 'WARN');
+  assert.equal(grade('You can see the form is shorter.', 'reader-steering'), undefined);
+  assert.equal(grade('In this article we compare three tools.', 'self-reference'), 'WARN');
+  assert.equal(grade('This article ran in Forbes last year.', 'self-reference'), undefined);
+  assert.equal(grade('Fast follow-up is the secret sauce.', 'stock-metaphor'), 'WARN');
+  assert.equal(grade('The sauce recipe is secret.', 'stock-metaphor'), undefined);
+});
+
+test('drumbeat: three tiny sentences in a row warn, two do not', () => {
+  assert.equal(grade('We ship small changes all week long. Every. Single. Day.', 'drumbeat'), 'WARN', 'exactly three in a row');
+  assert.equal(grade('Yes. It works. The form posts to the CRM and sends the receipt.', 'drumbeat'), undefined);
+  // From our own articles: list numbers and abbreviations are not sentences.
+  assert.equal(grade('1. For hosting, at most $100 per month. 2. Sort of, but ask first. 3. Yes.', 'drumbeat'), undefined);
+  assert.equal(grade('Photography vs. design. Two fields, one eye for light and composition.', 'drumbeat'), undefined);
+  assert.equal(grade('Old advice. Be smart. Be great. Be awesome.', 'drumbeat'), 'WARN');
+});
+
+test('a site word list adds house rules at its own grade', () => {
+  const rules = { fail: ['reach out'], warn: ['circle back'] };
+  const f = one('Reach out any time and we will circle back.', rules);
+  assert.deepEqual(f.filter((x) => x.gate === 'house-rule').map((x) => x.grade).sort(), ['FAIL', 'WARN']);
+  assert.equal(one('Reach out any time.').find((x) => x.gate === 'house-rule'), undefined, 'no list, no house rule');
+});
+
+test('loadRules reads the default file, refuses a bad one, and is empty without one', () => {
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'copy-rules-'));
+  const good = path.join(dir, 'good.json');
+  fs.writeFileSync(good, JSON.stringify({ fail: ['reach out'] }));
+  assert.deepEqual(loadRules(good), { fail: ['reach out'], warn: [] });
+  const bad = path.join(dir, 'bad.json');
+  fs.writeFileSync(bad, JSON.stringify({ fail: 'reach out' }));
+  assert.throws(() => loadRules(bad), /must be a list/);
+  fs.mkdirSync(path.join(dir, '.cklph'));
+  fs.writeFileSync(path.join(dir, '.cklph', 'copy-rules.json'), JSON.stringify({ fail: ['reach out'] }));
+  const page = path.join(dir, 'page.md');
+  fs.writeFileSync(page, '# Contact\n\nReach out any time.\n');
+  const r = run([page, '--exceptions', path.join(dir, 'none.json')], dir);
+  assert.equal(r.status, 1, 'a missing exceptions file is bad input');
+  fs.writeFileSync(path.join(dir, 'none.json'), JSON.stringify({ exceptions: [] }));
+  const ok = run([page, '--exceptions', path.join(dir, 'none.json')], dir);
+  assert.equal(ok.status, 2, ok.stdout + ok.stderr);
+  assert.match(ok.stdout, /house-rule/);
+});
+

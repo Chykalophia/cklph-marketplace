@@ -458,8 +458,8 @@ console.log('\n=== SCENARIO E: ambiguity lens ===');
   // rule NOT CHECKED), so it must be the schema enum filtered in order, and carry ambiguity when it runs.
   const BASE_HINTS = ['security', 'correctness', 'architecture', 'docs-drift', 'agent-config', 'any'];
   const derived = (ls) => schemaHints.filter(h => BASE_HINTS.includes(h) || (h !== 'compliance' && ls.includes(h)));
-  if (schemaHints.length !== 17 || JSON.stringify(promptHints) !== JSON.stringify(derived(['ambiguity'])) || !promptHints.includes('ambiguity')) fail(`rulebook prompt lensHints ${JSON.stringify(promptHints)} are not the 17-value schema enum ${JSON.stringify(schemaHints)} filtered to base + running lenses (or no ambiguity)`);
-  else ok(`rulebook prompt lensHints = schema enum (17) filtered to base + running lenses, incl. ambiguity (${promptHints.join('|')})`);
+  if (schemaHints.length !== 18 || JSON.stringify(promptHints) !== JSON.stringify(derived(['ambiguity'])) || !promptHints.includes('ambiguity')) fail(`rulebook prompt lensHints ${JSON.stringify(promptHints)} are not the 18-value schema enum ${JSON.stringify(schemaHints)} filtered to base + running lenses (or no ambiguity)`);
+  else ok(`rulebook prompt lensHints = schema enum (18) filtered to base + running lenses, incl. ambiguity (${promptHints.join('|')})`);
   const reconMd = fs.readFileSync(new URL('../agents/audit-recon.md', import.meta.url), 'utf8');
   // kills: audit-recon.md keeping its own copied lensHint list
   if (reconMd.split('\n').some(l => /security`? *\| *`?correctness/.test(l))) fail('agents/audit-recon.md still carries a copied lensHint list');
@@ -620,7 +620,7 @@ console.log('\n=== SCENARIO E: ambiguity lens ===');
   if (c3.err || JSON.stringify(t3.ex) !== JSON.stringify(['**/CHANGELOG.md', 'dist/**']) || JSON.stringify(t3.globs) !== JSON.stringify(['docs/**'])) fail(`string exclude/ignore/group not read as one glob each: ${c3.err ?? JSON.stringify(t3)}`);
   else ok("string exclude, ignore and group value each read as one glob (--exclude '**/CHANGELOG.md' --exclude 'dist/**' 'docs/**')");
 
-  // kills: a rulebook prompt offering every hint (17) in a default run — rules hinted concurrency /
+  // kills: a rulebook prompt offering every hint (18) in a default run — rules hinted concurrency /
   // compliance / ambiguity reach no reviewer and close NOT CHECKED. The default run is HEAD's list.
   const hintsOf = (r) => ((r.prompt('discover:rulebook').match(/lensHint \(([^)]*)\)/) || [])[1] ?? '');
   const h1 = await runE({ lenses: ['security', 'correctness', 'architecture'] });

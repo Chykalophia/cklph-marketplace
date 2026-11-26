@@ -3,6 +3,22 @@
 All notable changes to `cklph-visual-qa` are documented here.
 Format: [Keep a Changelog](https://keepachangelog.com); versioning follows [SemVer](https://semver.org).
 
+## [0.6.0] - 2026-11-26
+
+### Added
+- `copy-lint` checks the prose tells from the anti-slop survey (blader/humanizer, FeedHive's
+  pattern list, asavvin-pixel/unslop; ideas only): `colon-reveal` and `reframe-prose` as budgets
+  (one is a WARN, two FAIL), strong run-ups as signposts, and WARNs for softer run-ups,
+  `reader-steering`, `self-reference`, `stock-metaphor` and `drumbeat`. On 135 chykalophia.com
+  articles they raise 20 WARNs and no FAILs; the false positives found on the way (list labels,
+  list numbers, abbreviations) are tests now.
+- `.cklph/copy-rules.json` (or `--rules`): a site's own `fail` and `warn` phrase lists, reported as
+  `house-rule`, so house and client bans need no code change.
+- Every new check has a positive and a near-miss test; six injected bugs each fail one.
+
+### Fixed
+- `copy-lint --help` printed a fixed number of header lines and would cut off a longer header.
+
 ## [0.5.0] - 2026-11-26
 
 ### Added
