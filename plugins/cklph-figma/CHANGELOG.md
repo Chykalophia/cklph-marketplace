@@ -3,6 +3,12 @@
 All notable changes to `cklph-figma` are documented here.
 Format: [Keep a Changelog](https://keepachangelog.com); versioning follows [SemVer](https://semver.org).
 
+## [0.6.1] - 2026-11-26
+
+### Fixed
+- `figma-audit` no longer names a fixed ClickUp upload folder. It reads `CLICKUP_UPLOAD_DIR` from
+  the server's MCP config and asks when it is unset, so it works wherever the folder lives.
+
 ## [0.6.0] - 2026-11-26
 
 ### Added
