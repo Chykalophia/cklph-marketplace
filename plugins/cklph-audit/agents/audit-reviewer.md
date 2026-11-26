@@ -74,7 +74,8 @@ Don't stop at the symptom on any finding:
 
 ## Rule closure + coverage — answer for everything you were handed
 - Return a **ruleCheck for EVERY rulebook rule** in your prompt: `violation` (link `findingIds`), `verified-safe`, or `not-applicable`. `verified-safe` and `not-applicable` each REQUIRE a one-line `evidence` citation/reason. A rule you skip renders **NOT CHECKED** in the coverage matrix — never skip silently.
-- Report `coverage` honestly: `seedsVerified` (seeds you actually re-opened), `seedsGiven`, `toolCandidatesJudged`. These become the report's coverage arithmetic — a low true number beats a padded one.
+- Report `coverage` honestly: `seedsVerified` (seeds you actually re-opened), `seedsGiven`, `toolCandidatesJudged`, and `filesReviewed` (every repo-relative file you actually read and judged through this lens; not files you only listed or grepped past). These become the report's coverage arithmetic and the tested-clean ledger — a low true number beats a padded one. A file you list with no surviving finding is recorded as clean for this lens until it changes, so never list a file you did not read.
+- A `COVERED_CLEAN` list in your prompt names files unchanged since a clean review through this lens. Skip them unless a file you are reviewing calls into one; then read it and list it in `filesReviewed`.
 
 ## Output discipline (REVIEW_SCHEMA)
 Return `{ findings, ruleChecks, safeControlChecks, coverage }`:
@@ -82,6 +83,6 @@ Return `{ findings, ruleChecks, safeControlChecks, coverage }`:
 - **ambiguity lens only:** every finding also sets `readings: { a, b, consumer, divergence }`, each with file:line where one exists. `a` and `b` are the two readings the artifact's actual audience would take; `consumer` is the caller, parser, schema, agent, or named human-reader role whose outcome differs; `divergence` is what that consumer does under A versus B. No second reasonable reading, or no divergent outcome: not a finding. Never critical. For ambiguity, `confidence` is `confirmed` or `likely`, never `needs-owner-input`: the owner question lives in `remediationBucket: "owner-decision"`.
 - `ruleChecks: [{ ruleId, status, findingIds, evidence }]` — exactly one per rulebook rule handed; `status` ∈ "violation" | "verified-safe" | "not-applicable".
 - `safeControlChecks: [{ file, confirmed, evidence }]` — exactly one per SAFE-CONTROL candidate handed. `confirmed: true` ONLY after reading the guard at its file:line; `evidence` = that citation. An unconfirmed candidate never ships as a positive control.
-- `coverage: { seedsVerified, seedsGiven, toolCandidatesJudged }` — honest counts, never rounded up.
+- `coverage: { seedsVerified, seedsGiven, toolCandidatesJudged, toolFailures, filesReviewed }` — honest counts, never rounded up.
 
 **No finding without a code anchor — no speculation.** A clean unit returns `{ findings: [] }` honestly — never pad the list — but STILL returns its `ruleChecks`, `safeControlChecks`, and `coverage`.

@@ -1025,5 +1025,48 @@ console.log('\n=== SCENARIO F: concurrency cap ===');
   fSettled = true;
 }
 
+console.log('\n=== SCENARIO G: tested-clean ledger ===');
+{
+  const fail = m => { problems++; console.log(`  ✗ ${m}`); };
+  const ok = m => console.log(`  ✓ ${m}`);
+  const SEC_FILES = ['app/api/users/[id]/route.ts', 'proxy.ts', 'lib/guarded.ts', './lib/clean.ts', 'app/api/orders/[id]/route.ts'];
+  const prompts = {};
+  const mk = ({ toolFailures = [] } = {}) => async (prompt, opts = {}) => {
+    const label = opts.label || '';
+    prompts[label] = prompt;
+    const out = await agent(prompt, opts);
+    if (label === 'review:api-surface:security') return { ...out, coverage: { ...out.coverage, toolFailures, filesReviewed: SEC_FILES } };
+    if (label.startsWith('review:') && label.endsWith(':docs-drift')) return { ...out, coverage: { ...out.coverage, filesReviewed: ['AGENTS.md', 'CLAUDE.md'] } };
+    return out;
+  };
+  const a = JSON.parse(JSON.stringify(args));
+  a.coveredClean = { security: ['lib/clean.ts', 'other/outside-unit.ts'], 'docs-drift': [] };
+  const r = await runFn({ agent: mk(), parallel, pipeline, phase, log: () => {}, args: a, budget });
+  const sec = r?.ledger?.tested?.find(t => t.lens === 'security');
+  const docs = r?.ledger?.tested?.find(t => t.lens === 'docs-drift');
+  const clean = sec ? [...sec.clean].sort() : null;
+  // F1 confirmed (users), F2 held (proxy), V1 a confirmed variant sibling (orders, seed lens security);
+  // F3 on lib/guarded.ts was refuted by the panel, so that file IS clean
+  if (JSON.stringify(clean) === JSON.stringify(['lib/clean.ts', 'lib/guarded.ts'])) ok(`security clean files: ${clean.join(', ')}`);
+  else fail(`security clean files ${JSON.stringify(clean)}, want lib/clean.ts + lib/guarded.ts only`);
+  if (docs && JSON.stringify(docs.clean) === JSON.stringify(['CLAUDE.md'])) ok('docs-drift: AGENTS.md (confirmed drift) is not clean, CLAUDE.md is');
+  else fail(`docs-drift clean ${JSON.stringify(docs?.clean)}, want ["CLAUDE.md"]`);
+  const dirty = new Set((r?.ledger?.dirty ?? []).map(d => `${d.lens}::${d.file}`));
+  if (['security::app/api/orders/[id]/route.ts', 'security::proxy.ts', 'docs-drift::AGENTS.md'].every(k => dirty.has(k)) && !dirty.has('security::lib/guarded.ts'))
+    ok('dirty list carries the confirmed, held and variant files under their real lens, never the refuted one');
+  else fail(`dirty list ${JSON.stringify([...dirty])}`);
+  const p = prompts['review:api-surface:security'] || '';
+  if (/COVERED_CLEAN/.test(p) && p.includes('lib/clean.ts') && !p.includes('other/outside-unit.ts')) ok('the security reviewer is handed only its unit\'s covered-clean files');
+  else fail('COVERED_CLEAN missing from the security prompt, or it carries a file outside the unit');
+  const dp = Object.entries(prompts).find(([k]) => k.endsWith(':docs-drift'))?.[1] || '';
+  if (!/COVERED_CLEAN/.test(dp)) ok('a lens with no covered files gets no COVERED_CLEAN block'); else fail('docs-drift prompt has a COVERED_CLEAN block');
+  if (r?.ledger?.skippedCovered === 2) ok('skippedCovered counts the files handed over'); else fail(`skippedCovered ${r?.ledger?.skippedCovered}, want 2`);
+
+  const rFail = await runFn({ agent: mk({ toolFailures: ['semgrep: not installed'] }), parallel, pipeline, phase, log: () => {}, args: JSON.parse(JSON.stringify(args)), budget });
+  const secFail = rFail?.ledger?.tested?.find(t => t.lens === 'security');
+  if (secFail && secFail.toolFailed === true && secFail.clean.length === 0) ok('a job whose tool failed marks nothing clean');
+  else fail(`tool failure still produced clean files: ${JSON.stringify(secFail)}`);
+}
+
 console.log(problems === 0 ? '\n✓ ALL SCENARIOS PASSED' : `\n✗ ${problems} conflict(s) found across scenarios`);
 process.exit(problems === 0 ? 0 : 1);

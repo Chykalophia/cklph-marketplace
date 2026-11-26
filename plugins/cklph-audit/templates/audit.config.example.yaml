@@ -55,6 +55,9 @@ quick:
 ignore: ["**/__tests__/**", "**/*.generated.ts", "types/database.ts"]
 report:
   dir: audits
+ledger:                         # tested-clean ledger (.audit-ledger.json), written by :run
+  enabled: true                 # false: never record what was reviewed clean
+  maxBytes: 1048576             # cap per file; oldest entries rotate to .audit-ledger.1.json
 rulesFrom: ["CLAUDE.md", "AGENTS.md", ".coderabbit.yaml"]   # repo rules to honor
 # ── v1.0 comprehensive security suite extensions ─────────────────────────────
 dast:                            # dynamic testing — opt-in, OFF by default (breaks read-only)
