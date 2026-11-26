@@ -292,7 +292,7 @@ const RECON_SCHEMA = {
 
 const REVIEW_SCHEMA = {
   type: 'object',
-  required: ['findings'],
+  required: ['findings', 'coverage'],
   properties: {
     findings: {
       type: 'array',
@@ -364,6 +364,7 @@ const REVIEW_SCHEMA = {
         toolFailures: { type: 'array', items: { type: 'string' } },   // a deterministic tool that failed / was missing / unparsed: recall NOT run
         partial: { type: 'array', items: { type: 'string' } },        // the tool ran but skipped or truncated part of its input
       },
+      required: ['toolFailures'],
     },
   },
 }
@@ -1143,11 +1144,13 @@ const reviewed = await pipeline(
           `that citation:\n${JSON.stringify(safeControls)}\n`
         : '') +
       `Report coverage HONESTLY: { seedsVerified, seedsGiven (${seeds.length} given), toolCandidatesJudged, ` +
-      `toolFailures }. toolFailures: one line per deterministic tool whose stderr said it failed, was not ` +
-      `installed, or produced output it could not parse (its zero candidates mean NOT CHECKED, not clean); [] when every tool ran. ` +
-      `partial (optional): one line per tool that ran but skipped or truncated part of its input (a skipped file, a capped record list).`,
+      `toolFailures, partial }. toolFailures: one line per recall tool whose stderr said it failed or produced output it ` +
+      `could not parse, or one line when no recall tool for this lens could run at all (its zero candidates mean NOT ` +
+      `CHECKED, not clean); [] otherwise. partial: one line per tool that ran but skipped or truncated part of its ` +
+      `input, and per optional scanner that is not installed while the lens's main recall still ran (e.g. CodeQL ` +
+      `missing but Semgrep ran); [] when none.`,
       { agentType: 'cklph-audit:audit-reviewer', label: `review:${job.unit.key}:${job.lens}`, phase: 'Review', schema: REVIEW_SCHEMA, ...tier('reviewer') },
-    )
+    ).catch(() => null)
   },
   // stage 2: verify each finding through the shared gate. T1.4: voter count + effort scale
   // with the unit's riskScore (docs-drift's unit has no riskScore → 0.5 → base voters).
@@ -1175,14 +1178,21 @@ const reviewed = await pipeline(
         ruleChecks: review?.ruleChecks ?? [],
         safeControlChecks: review?.safeControlChecks ?? [],
         coverage: review?.coverage ?? null,
-        reviewerDied: !review,
+        reviewerDied: !review ? 'returned nothing' : !review.coverage ? 'reported no coverage' : false,
       }))
   },
 )
+// A job whose pipeline item is missing (a stage threw) was never reviewed: record it as NOT CHECKED
+// rather than letting it vanish from the coverage totals.
+jobs.forEach((job, i) => {
+  if (!reviewed[i]) reviewed[i] = { unit: job.unit.key, lens: job.lens, findings: [], ruleChecks: [], safeControlChecks: [], coverage: null, reviewerDied: 'failed while running' }
+})
 
 // ════════════════════════════════════════════════════════════════════════════
 // 5b. DAST — opt-in dynamic testing + exploit verification (CodeMender core)
 // ════════════════════════════════════════════════════════════════════════════
+// Requested phases whose agent died: they count against a clean run like a failed recall tool.
+const phaseFailures = []
 const dastEnabled = (config.dast?.enabled ?? false) && mode !== 'quick'
 let dastRan = false
 let dastFindings = []
@@ -1211,6 +1221,7 @@ if (!dastEnabled) {
   )
   if (!dastOut) {
     log('audit-dast-runner died — no dynamic findings (flagged in appendix)')
+    phaseFailures.push('dast: the DAST runner returned nothing, so dynamic testing was NOT CHECKED')
   } else {
     dastRan = true
     dastFindings = dastOut.findings ?? []
@@ -1467,7 +1478,7 @@ for (const lens of lenses) {
     sum.toolCandidatesJudged += r.coverage?.toolCandidatesJudged ?? 0
     for (const t of (Array.isArray(r.coverage?.toolFailures) ? r.coverage.toolFailures : [])) sum.toolFailures.push(`${r.unit}: ${t}`)
     for (const t of (Array.isArray(r.coverage?.partial) ? r.coverage.partial : [])) sum.partial.push(`${r.unit}: ${t}`)
-    if (r.reviewerDied) sum.toolFailures.push(`${r.unit}: the reviewer returned nothing, so this unit was NOT CHECKED`)
+    if (r.reviewerDied) sum.toolFailures.push(`${r.unit}: the reviewer ${r.reviewerDied}, so this unit was NOT CHECKED`)
   }
   coverageTotals[lens] = { denominators: reconByLens[lens]?.denominators ?? [], reviewed: sum }
 }
@@ -1495,6 +1506,7 @@ if (hasCompliance) {
     log(`compliance: ${complianceMatrix.length} control(s) mapped across ${frameworks.join(', ')}`)
   } else {
     log('compliance mapping died — no compliance matrix (flagged in appendix)')
+    phaseFailures.push('compliance: the mapping agent returned nothing, so the compliance matrix was NOT CHECKED')
   }
 }
 
@@ -1549,7 +1561,7 @@ phase('Synthesize')
 // proof-contract drop: §4.10 lists dropped ids in the report's Coverage summary (§15 CLEAN-DROP).
 // A reviewer whose recall tool failed, or that returned nothing, did not scan: zero findings from it is
 // NOT CHECKED, never clean. Partial notes mean the tool ran but skipped or truncated some input.
-const toolFailures = Object.entries(coverageTotals).flatMap(([l, c]) => (c.reviewed?.toolFailures ?? []).map(t => `${l}: ${t}`))
+const toolFailures = [...Object.entries(coverageTotals).flatMap(([l, c]) => (c.reviewed?.toolFailures ?? []).map(t => `${l}: ${t}`)), ...phaseFailures]
 const partialCoverage = Object.entries(coverageTotals).flatMap(([l, c]) => (c.reviewed?.partial ?? []).map(t => `${l}: ${t}`))
 if (!fresh.length && !heldUntraced.length && !deferred.length && !proofContractDropped.length) {
   if (toolFailures.length) log(`No new confirmed findings, but ${toolFailures.length} tool failure(s): not a clean run`)
@@ -1602,7 +1614,7 @@ if (!fresh.length && !heldUntraced.length && !deferred.length && !proofContractD
     toolFailures.length ? `# Audit (${lenses.join(', ')}): no findings, but NOT a clean run` : `# Audit (${lenses.join(', ')}): clean run`,
     '',
     toolFailures.length
-      ? `No confirmed findings, but ${toolFailures.length} recall tool(s) failed, so what they cover was NOT CHECKED. Fix the failures below and re-run before treating this as clean.`
+      ? `No confirmed findings, but ${toolFailures.length} part(s) of the run did not run (a failed recall tool, a reviewer that returned nothing, or a dead phase), so what they cover was NOT CHECKED. Fix the items below and re-run before treating this as clean.`
       : 'No new confirmed findings and nothing held for owner review. This file is the run\'s record: what was checked, and what reviewers raised that the verifier panel refuted, so the next run can be compared against it. Self-review does not run on a clean run.',
     '',
     ...(toolFailures.length
@@ -1800,7 +1812,8 @@ if (!report?.markdown) {
       `## Confirmed findings (${fresh.length})\n\n${fresh.map(lineOf).join('\n') || '_none_'}\n\n` +
       `## Held-untraced — needs owner review (${heldUntraced.length})\n\n${heldUntraced.map(f => lineOf(f) + (f.heldReason ? ` — ${f.heldReason}` : '')).join('\n') || '_none_'}\n\n` +
       `## Deferred — UNVERIFIED (${deferred.length})\n\n${deferred.map(lineOf).join('\n') || '_none_'}\n\n` +
-      `## Not checked: tool failures (${toolFailures.length})\n\n${toolFailures.map(t => `- ${t}`).join('\n') || '_none_'}\n`,
+      `## Not checked: tool failures (${toolFailures.length})\n\n${toolFailures.map(t => `- ${t}`).join('\n') || '_none_'}\n\n` +
+      `## Partially checked (${partialCoverage.length})\n\n${partialCoverage.map(t => `- ${t}`).join('\n') || '_none_'}\n`,
     waves: [],
     counts: ['critical', 'high', 'medium', 'low'].reduce((c, s) => ({ ...c, [s]: fresh.filter(f => f.severity === s).length }), { info: 0 }),
     synthesisFailed: true,

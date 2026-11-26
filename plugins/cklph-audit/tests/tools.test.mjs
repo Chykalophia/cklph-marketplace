@@ -154,23 +154,6 @@ console.log('secrets.sh');
   ok(!/REDACTED|Secret/.test(res.stdout), 'no secret field is echoed to stdout');
   sb.done();
 
-  // kills: --no-git dropping history entirely, and a history pass that is not limited to the unit.
-  // Inside a git repo the tool runs a second, path-limited history pass whose findings carry their commit.
-  const sbH = sandbox({ gitleaks: [
-    'printf "%s\\n" "$@" >> "$HOME/allargs"; echo "--" >> "$HOME/allargs"',
-    'rp=""; prev=""; for a in "$@"; do [ "$prev" = "--report-path" ] && rp="$a"; prev="$a"; done',
-    'case "$*" in *--log-opts*) echo \'[{"RuleID":"github-pat","File":"unit/old.js","StartLine":1,"Description":"PAT","Commit":"abc123"}]\' > "$rp"; exit 1;; esac',
-    'echo "[]" > "$rp"; exit 0',
-  ].join('\n') });
-  const repo = path.join(sbH.root, 'repo'); fs.mkdirSync(path.join(repo, 'unit'), { recursive: true });
-  spawnSync('git', ['init', '-q', repo]);
-  const resH = sbH.run('secrets.sh', [path.join(repo, 'unit')]);
-  const outH = lines(resH.stdout);
-  const allArgs = fs.readFileSync(path.join(sbH.root, 'allargs'), 'utf8');
-  ok(outH.length === 1 && outH[0].history === true && outH[0].commit === 'abc123', `a secret found only in history is reported with history:true and its commit (${resH.stdout.trim()} ${resH.stderr.trim()})`);
-  ok(/--no-git/.test(allArgs) && /--log-opts=-- unit\n/.test(allArgs), 'two passes: the unit files (--no-git) and history limited to the unit path (--log-opts=-- unit)');
-  sbH.done();
-
   const sb2 = sandbox({ gitleaks: 'echo "fatal: bad config" >&2; exit 126' });
   const r2 = sb2.run('secrets.sh', ['.']);
   ok(r2.stdout.trim() === '' && /gitleaks failed \(exit 126/.test(r2.stderr), 'gitleaks crash → stderr says the scan did not run');

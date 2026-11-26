@@ -141,15 +141,22 @@ See `NOTICE.md` for each source, its license, and what was taken.
 - A tool that ran but skipped or truncated part of its input (a doc that is not UTF-8, a capped
   record list) goes in a new `coverage.partial` field and a "Partially checked" section. It does
   not turn a clean run into an incomplete one.
-- `tools/secrets.sh` runs two gitleaks passes: the unit's files (`--no-git`), and git history
-  limited to the unit's path. Before, one pass walked the history of the whole repo containing the
-  unit, so every security unit reported every other unit's secrets. History findings carry
-  `history: true` and the commit, because a deleted secret stays live until it is rotated. Checked
-  against gitleaks 8.30.1 on a repo with a committed and deleted token.
-- `tests/engine-flow.test.mjs` and `tests/tools.test.mjs` pin each of these, and each test was
+- A reviewer that threw, returned `{}`, or returned no `coverage` was counted as a clean pass.
+  Each now marks its unit NOT CHECKED with the reason, so the run is `result: incomplete`.
+  `coverage` and `coverage.toolFailures` are required in the review schema.
+- A dead DAST runner or compliance mapper now lands in `toolFailures` instead of vanishing.
+- An optional scanner that is not installed, while the lens's main recall still ran, goes in
+  `coverage.partial`, not `toolFailures`, so a missing extra tool does not make every run
+  incomplete.
+- `tools/secrets.sh` scans the unit's files only (`gitleaks detect --no-git`). Before, it walked
+  the history of the whole repo containing the unit, so every security unit reported every other
+  unit's secrets.
+- `tests/engine-flow.test.mjs`, `tests/reviewer-silence.test.mjs` and `tests/tools.test.mjs` pin each of these, and each test was
   shown to fail on the old behaviour.
 
 ### Known gaps
+- Secret history is not scanned. `--no-git` covers the files in the tree only; a secret that was
+  committed and later deleted is missed. A repo-level history pass is planned.
 - `web-auth:private-response-cache` has no should-flag fixture. Whether Vercel's CDN caches a
   request that carries an `Authorization` header is not settled by its docs, so that case is left
   out rather than labelled wrong.
