@@ -69,6 +69,8 @@ the new plugin-level `NOTICE.md`.
   on-origin, including `/.//evil.example`, which resolves to a protocol-relative path.
 
 ### Changed
+- The lens-hint enum has 24 values: 1.4.0's 18 (with `fallback`) plus the six new lenses;
+  `engine-flow.test.mjs` pins the count.
 - `audit-reviewer`: every security-family finding names the lower-trust actor, the input, the
   control, the boundary, the affected party, and the result. Checklist deviations,
   defense-in-depth gaps behind a working control, and self-impact are not findings; a deployment
@@ -84,17 +86,6 @@ the new plugin-level `NOTICE.md`.
   it, the voter holds without a reachability trace: a critical/high goes to Held-untraced for the
   owner, and a medium/low ships with `needs-owner-input` confidence. It never confirms or refutes
   on a guess about that fact. Ambiguity findings keep their own proof contract.
-
-### Fixed
-- A run with no confirmed findings no longer reads as clean when a reviewer's recall tool failed.
-  The record is now `result: incomplete`, lists every failure under "Not checked: tool failures",
-  and the engine returns `toolFailures`; `audit-run` writes it as `AUDIT-<date>-incomplete.md` and
-  says the surfaces were NOT CHECKED. Before, a run where every reviewer reported "target not found,
-  nothing scanned" was written up as "result: clean ... reviewers raised nothing". Found during the
-  backtest; `tests/engine-flow.test.mjs` pins it and fails on the old behaviour.
-- `tools/secrets.sh` runs gitleaks with `--no-git`, so it scans the unit's files only. Without it,
-  gitleaks walked the git history of the whole repo containing the unit, so every security unit
-  reported candidates from every other part of the repo. Found during the backtest.
 
 ### Also adapted from other security sources
 
@@ -138,6 +129,25 @@ See `NOTICE.md` for each source, its license, and what was taken.
   OAuth token passthrough, and tool descriptions that claim less than the code does.
 - omission-lens: a `process.env` read is not untrusted input; only an unsafe fallback is judged.
 - availability-lens: unbounded or deeply nested payloads to remote MCP and tool endpoints.
+
+### Fixed
+- A run with no confirmed findings no longer reads as clean when part of it was not checked. If a
+  reviewer's recall tool failed, or a reviewer returned nothing, the record is `result: incomplete`
+  with a "Not checked: tool failures" section, and `audit-run` writes it as
+  `AUDIT-<date>-incomplete.md`. Before, a run where every reviewer reported "target not found,
+  nothing scanned" was written up as "result: clean ... reviewers raised nothing". The engine now
+  returns `toolFailures` on every run, and the synthesizer-failure fallback lists them too.
+  `audit-baseline` skips incomplete records when it picks the latest report.
+- A tool that ran but skipped or truncated part of its input (a doc that is not UTF-8, a capped
+  record list) goes in a new `coverage.partial` field and a "Partially checked" section. It does
+  not turn a clean run into an incomplete one.
+- `tools/secrets.sh` runs two gitleaks passes: the unit's files (`--no-git`), and git history
+  limited to the unit's path. Before, one pass walked the history of the whole repo containing the
+  unit, so every security unit reported every other unit's secrets. History findings carry
+  `history: true` and the commit, because a deleted secret stays live until it is rotated. Checked
+  against gitleaks 8.30.1 on a repo with a committed and deleted token.
+- `tests/engine-flow.test.mjs` and `tests/tools.test.mjs` pin each of these, and each test was
+  shown to fail on the old behaviour.
 
 ### Known gaps
 - `web-auth:private-response-cache` has no should-flag fixture. Whether Vercel's CDN caches a

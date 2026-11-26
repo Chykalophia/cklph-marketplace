@@ -420,7 +420,7 @@ console.log('\n=== SCENARIO D: report truthfulness ===');
   synthInput = null;
   const failMsg = 'semgrep failed (exit 2, no output) — not scanned';
   const reviewPrompts = {};
-  await runFn({ agent: async (p, o = {}) => {
+  const tfRes = await runFn({ agent: async (p, o = {}) => {
     if (o.label === 'review:api-surface:security') {
       reviewPrompts.sec = p;
       const r = await agent(p, o); return { ...r, coverage: { ...r.coverage, toolFailures: [failMsg] } };
@@ -433,6 +433,9 @@ console.log('\n=== SCENARIO D: report truthfulness ===');
   let tf; try { tf = JSON.parse(ct).security.reviewed.toolFailures; } catch {}
   if (!Array.isArray(tf) || !tf.some(x => x.includes(failMsg)) || !/toolFailures/.test(reviewPrompts.sec || '')) { problems++; console.log(`  ✗ reviewer tool failure did not reach COVERAGE_TOTALS (got ${JSON.stringify(tf)})`); }
   else console.log('  ✓ reviewer-reported scanner failure reaches COVERAGE_TOTALS.security.reviewed.toolFailures');
+  // kills: a run WITH findings dropping its tool failures, so audit-run could not say what went unchecked
+  if (!tfRes?.report || !(tfRes.toolFailures ?? []).some(x => x.includes(failMsg))) { problems++; console.log(`  ✗ a run with findings does not return its tool failures (got ${JSON.stringify(tfRes?.toolFailures)})`); }
+  else console.log('  ✓ a run with findings still returns toolFailures');
   // D4: a dead synthesizer must not look like a clean run (report:null is the clean signal)
   const rD4 = await runFn({ agent: mkAgent({ 'synthesize:report': null }), parallel, pipeline, phase, log, args: JSON.parse(JSON.stringify(args)), budget });
   if (!rD4?.report || !/SYNTHESIS FAILED/.test(rD4.report.markdown || '')) { problems++; console.log('  ✗ dead synthesizer returned report:null — reads as a clean run'); }
@@ -901,6 +904,18 @@ console.log('\n=== SCENARIO E: ambiguity lens ===');
   else if (!/result: incomplete/.test(tfr) || !/tool_failures: 1/.test(tfr) || !/## Not checked: tool failures \(1\)/.test(tfr) || !/target not found/.test(tfr) || /result: clean/.test(tfr) || (rTF.res?.toolFailures ?? []).length !== 1)
     fail(`a run whose recall tool failed still reads as clean: ${JSON.stringify({ head: tfr.slice(0, 400), toolFailures: rTF.res?.toolFailures })}`);
   else ok('a no-findings run with a failed recall tool is result: incomplete, lists the failure, and returns toolFailures');
+  // kills: a reviewer that died (null result) leaving no trace, so the run read as clean
+  const rDead = await runE({ over: { [POL]: null } });
+  const dr = rDead.res?.cleanReport || '';
+  if (!/result: incomplete/.test(dr) || !/reviewer returned nothing/.test(dr)) fail(`a dead reviewer still reads as clean: ${JSON.stringify(dr.slice(0, 300))}`);
+  else ok('a reviewer that returned nothing makes the run result: incomplete and names the unit');
+  // partial coverage is reported but does not flip a clean run to incomplete
+  const part = { findings: [], ruleChecks: [], coverage: { seedsVerified: 0, seedsGiven: 0, toolCandidatesJudged: 0, toolFailures: [], partial: ['skipped docs/legacy.md: not valid UTF-8'] } };
+  const rPart = await runE({ over: { [POL]: part } });
+  const prr = rPart.res?.cleanReport || '';
+  if (!/result: clean/.test(prr) || !/## Partially checked \(1\)/.test(prr) || !/not valid UTF-8/.test(prr) || (rPart.res?.partialCoverage ?? []).length !== 1)
+    fail(`partial coverage is lost or flips the run: ${JSON.stringify(prr.slice(0, 400))}`);
+  else ok('partial coverage stays result: clean, lists what was skipped, and returns partialCoverage');
   if (!/result: clean/.test(r0.res?.cleanReport || '') || /Not checked: tool failures/.test(r0.res?.cleanReport || '') || (r0.res?.toolFailures ?? []).length)
     fail('paired: a truly clean run lost result: clean or gained a tool-failure section');
   else ok('paired: a truly clean run stays result: clean with no tool-failure section');

@@ -362,6 +362,7 @@ const REVIEW_SCHEMA = {
         seedsGiven: { type: 'number' },
         toolCandidatesJudged: { type: 'number' },
         toolFailures: { type: 'array', items: { type: 'string' } },   // a deterministic tool that failed / was missing / unparsed: recall NOT run
+        partial: { type: 'array', items: { type: 'string' } },        // the tool ran but skipped or truncated part of its input
       },
     },
   },
@@ -1143,7 +1144,8 @@ const reviewed = await pipeline(
         : '') +
       `Report coverage HONESTLY: { seedsVerified, seedsGiven (${seeds.length} given), toolCandidatesJudged, ` +
       `toolFailures }. toolFailures: one line per deterministic tool whose stderr said it failed, was not ` +
-      `installed, or produced output it could not parse (its zero candidates mean NOT CHECKED, not clean); [] when every tool ran.`,
+      `installed, or produced output it could not parse (its zero candidates mean NOT CHECKED, not clean); [] when every tool ran. ` +
+      `partial (optional): one line per tool that ran but skipped or truncated part of its input (a skipped file, a capped record list).`,
       { agentType: 'cklph-audit:audit-reviewer', label: `review:${job.unit.key}:${job.lens}`, phase: 'Review', schema: REVIEW_SCHEMA, ...tier('reviewer') },
     )
   },
@@ -1173,6 +1175,7 @@ const reviewed = await pipeline(
         ruleChecks: review?.ruleChecks ?? [],
         safeControlChecks: review?.safeControlChecks ?? [],
         coverage: review?.coverage ?? null,
+        reviewerDied: !review,
       }))
   },
 )
@@ -1456,13 +1459,15 @@ if (pcMax > 0) {
 // coverage totals (M3): recon denominators verbatim + summed reviewer coverage, per lens
 const coverageTotals = {}
 for (const lens of lenses) {
-  const sum = { seedsVerified: 0, seedsGiven: 0, toolCandidatesJudged: 0, toolFailures: [] }
+  const sum = { seedsVerified: 0, seedsGiven: 0, toolCandidatesJudged: 0, toolFailures: [], partial: [] }
   for (const r of results) {
     if (r.lens !== lens) continue
     sum.seedsVerified += r.coverage?.seedsVerified ?? 0
     sum.seedsGiven += r.coverage?.seedsGiven ?? 0
     sum.toolCandidatesJudged += r.coverage?.toolCandidatesJudged ?? 0
     for (const t of (Array.isArray(r.coverage?.toolFailures) ? r.coverage.toolFailures : [])) sum.toolFailures.push(`${r.unit}: ${t}`)
+    for (const t of (Array.isArray(r.coverage?.partial) ? r.coverage.partial : [])) sum.partial.push(`${r.unit}: ${t}`)
+    if (r.reviewerDied) sum.toolFailures.push(`${r.unit}: the reviewer returned nothing, so this unit was NOT CHECKED`)
   }
   coverageTotals[lens] = { denominators: reconByLens[lens]?.denominators ?? [], reviewed: sum }
 }
@@ -1542,9 +1547,11 @@ phase('Synthesize')
 // E2/A5b: only a truly clean run short-circuits — a held-untraced OR a deferred-unverified finding
 // is NOT clean; it still needs an owner-review report so it is never silently gone. Neither is a
 // proof-contract drop: §4.10 lists dropped ids in the report's Coverage summary (§15 CLEAN-DROP).
+// A reviewer whose recall tool failed, or that returned nothing, did not scan: zero findings from it is
+// NOT CHECKED, never clean. Partial notes mean the tool ran but skipped or truncated some input.
+const toolFailures = Object.entries(coverageTotals).flatMap(([l, c]) => (c.reviewed?.toolFailures ?? []).map(t => `${l}: ${t}`))
+const partialCoverage = Object.entries(coverageTotals).flatMap(([l, c]) => (c.reviewed?.partial ?? []).map(t => `${l}: ${t}`))
 if (!fresh.length && !heldUntraced.length && !deferred.length && !proofContractDropped.length) {
-  // A reviewer whose recall tool failed did not scan: zero findings from it is NOT CHECKED, never clean.
-  const toolFailures = Object.entries(coverageTotals).flatMap(([l, c]) => (c.reviewed?.toolFailures ?? []).map(t => `${l}: ${t}`))
   if (toolFailures.length) log(`No new confirmed findings, but ${toolFailures.length} tool failure(s): not a clean run`)
   else log('No new confirmed findings. Clean run. 🎉')
   // §15 CLEAN-RECORD: report stays null (the clean signal), but the run's record (what was checked,
@@ -1589,6 +1596,7 @@ if (!fresh.length && !heldUntraced.length && !deferred.length && !proofContractD
     `below_severity_floor: ${belowFloor.length}`,
     `suppressed_by_baseline: ${suppressedByBaseline}`,
     `tool_failures: ${toolFailures.length}`,
+    `partially_checked: ${partialCoverage.length}`,
     '---',
     '',
     toolFailures.length ? `# Audit (${lenses.join(', ')}): no findings, but NOT a clean run` : `# Audit (${lenses.join(', ')}): clean run`,
@@ -1599,6 +1607,9 @@ if (!fresh.length && !heldUntraced.length && !deferred.length && !proofContractD
     '',
     ...(toolFailures.length
       ? [`## Not checked: tool failures (${toolFailures.length})`, '', ...toolFailures.map(t => `- ${oneLine(t)}`), '']
+      : []),
+    ...(partialCoverage.length
+      ? [`## Partially checked (${partialCoverage.length})`, '', 'The tool ran but skipped or truncated part of its input; the rest was checked.', '', ...partialCoverage.map(t => `- ${oneLine(t)}`), '']
       : []),
     '## Rule closure',
     '',
@@ -1642,6 +1653,7 @@ if (!fresh.length && !heldUntraced.length && !deferred.length && !proofContractD
     report: null, fresh: [],
     cleanReport,
     toolFailures,
+    partialCoverage,
     proofContractDropped,
     units: { source: unitSource, lowConfidence },
     skipped: mode === 'quick',
@@ -1787,7 +1799,8 @@ if (!report?.markdown) {
       `Re-run the audit to get the full report. Nothing below has been re-judged.\n\n` +
       `## Confirmed findings (${fresh.length})\n\n${fresh.map(lineOf).join('\n') || '_none_'}\n\n` +
       `## Held-untraced — needs owner review (${heldUntraced.length})\n\n${heldUntraced.map(f => lineOf(f) + (f.heldReason ? ` — ${f.heldReason}` : '')).join('\n') || '_none_'}\n\n` +
-      `## Deferred — UNVERIFIED (${deferred.length})\n\n${deferred.map(lineOf).join('\n') || '_none_'}\n`,
+      `## Deferred — UNVERIFIED (${deferred.length})\n\n${deferred.map(lineOf).join('\n') || '_none_'}\n\n` +
+      `## Not checked: tool failures (${toolFailures.length})\n\n${toolFailures.map(t => `- ${t}`).join('\n') || '_none_'}\n`,
     waves: [],
     counts: ['critical', 'high', 'medium', 'low'].reduce((c, s) => ({ ...c, [s]: fresh.filter(f => f.severity === s).length }), { info: 0 }),
     synthesisFailed: true,
@@ -1842,6 +1855,8 @@ if (report?.markdown) {
 
 return {
   report,
+  toolFailures,
+  partialCoverage,
   fresh: fresh.map(({ votes, refuteReason, majorityRefuted, ...rest }) => rest),   // panel internals (§15 CLEAN-RECORD) stay internal
   proofContractDropped,
   units: { source: unitSource, lowConfidence },

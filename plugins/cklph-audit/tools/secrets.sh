@@ -18,28 +18,44 @@ trap 'rm -rf "$WORK"' EXIT
 trap 'exit 130' INT
 trap 'exit 143' TERM
 
-if command -v gitleaks >/dev/null 2>&1; then
-  REPORT="$WORK/gitleaks.json"
+# Runs one gitleaks pass and prints its findings as JSON lines. $1 = report path, $2 = pass name,
+# $3 = "history" to tag findings with their commit, the rest = gitleaks arguments.
+gitleaks_pass() {
+  local report="$1" name="$2" mode="$3"; shift 3
   # Exit 0 = no leaks, 1 = leaks found (the default --exit-code); anything else is a failure.
-  # --no-git: scan the files under TARGET only. Without it gitleaks walks the git history of the whole
-  # repo that contains TARGET, so every unit would report every other unit's secrets.
-  gitleaks detect --source "$TARGET" --no-git --no-banner --redact --report-format json --report-path "$REPORT" >/dev/null 2> "$WORK/gitleaks.err"
-  RC=$?
-  if [ "$RC" -gt 1 ] || [ ! -s "$REPORT" ]; then
-    echo "secrets.sh: gitleaks failed (exit $RC, report $([ -s "$REPORT" ] && echo present || echo missing)): $(grep -v '^[[:space:]]*$' "$WORK/gitleaks.err" | tail -n 3 | head -c 300) — zero gitleaks findings means the scan did not run, not that there are no secrets." >&2
+  gitleaks "$@" --no-banner --redact --report-format json --report-path "$report" >/dev/null 2> "$report.err"
+  local rc=$?
+  if [ "$rc" -gt 1 ] || [ ! -s "$report" ]; then
+    echo "secrets.sh: gitleaks failed (exit $rc, $name pass, report $([ -s "$report" ] && echo present || echo missing)): $(grep -v '^[[:space:]]*$' "$report.err" | tail -n 3 | head -c 300) — zero gitleaks $name findings means that pass did not run, not that there are no secrets." >&2
   elif command -v node >/dev/null 2>&1; then
     node -e '
       let a;
       try { a = JSON.parse(require("fs").readFileSync(process.argv[1], "utf8")); }
-      catch (e) { process.stderr.write("secrets.sh: gitleaks report is not valid JSON (" + e.message + ") — gitleaks findings NOT collected.\n"); process.exit(0); }
-      if (!Array.isArray(a)) { process.stderr.write("secrets.sh: gitleaks report is not a JSON array — gitleaks findings NOT collected.\n"); process.exit(0); }
+      catch (e) { process.stderr.write("secrets.sh: gitleaks " + process.argv[2] + " report is not valid JSON (" + e.message + ") — those findings NOT collected.\n"); process.exit(0); }
+      if (!Array.isArray(a)) { process.stderr.write("secrets.sh: gitleaks " + process.argv[2] + " report is not a JSON array — those findings NOT collected.\n"); process.exit(0); }
+      const history = process.argv[3] === "history";
       for (const f of a) process.stdout.write(JSON.stringify({
         tool: "gitleaks", rule: f.RuleID || "secret", severity: "critical",
         file: f.File, line: f.StartLine, secretType: f.Description,
-        rationale: "Candidate hardcoded secret — verify real credential vs test fixture / placeholder"
-      }) + "\n");' "$REPORT"
+        ...(history ? { history: true, commit: f.Commit } : {}),
+        rationale: history
+          ? "Candidate secret in git history: still live if it was never rotated, even if the file no longer holds it"
+          : "Candidate hardcoded secret — verify real credential vs test fixture / placeholder"
+      }) + "\n");' "$report" "$name" "$mode"
   else
-    echo "secrets.sh: node not found — cannot parse the gitleaks report; gitleaks findings NOT collected." >&2
+    echo "secrets.sh: node not found — cannot parse the gitleaks $name report; those findings NOT collected." >&2
+  fi
+}
+
+if command -v gitleaks >/dev/null 2>&1; then
+  # Files under TARGET only (--no-git). Without it gitleaks walks the whole repo's history, so every
+  # unit would report every other unit's secrets.
+  gitleaks_pass "$WORK/gitleaks.json" files files detect --source "$TARGET" --no-git
+  # History, limited to TARGET's own path: a secret committed and later deleted is still live.
+  # --show-prefix is TARGET relative to the repo root even through a symlinked path (/var -> /private/var).
+  if TOP="$(git -C "$TARGET" rev-parse --show-toplevel 2>/dev/null)"; then
+    REL="$(git -C "$TARGET" rev-parse --show-prefix 2>/dev/null)"; REL="${REL%/}"
+    gitleaks_pass "$WORK/gitleaks-history.json" history history detect --source "$TOP" --log-opts="-- ${REL:-.}"
   fi
   exit 0
 fi
