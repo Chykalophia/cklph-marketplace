@@ -3,6 +3,20 @@
 All notable changes to `cklph-visual-qa` are documented here.
 Format: [Keep a Changelog](https://keepachangelog.com); versioning follows [SemVer](https://semver.org).
 
+## [0.5.0] - 2026-11-26
+
+### Added
+- `visual-verify` scores a capture against the design export with impeccable's `comp-diff` (no AI
+  model): structure, color, detail and section bands, a verdict per band, side-by-side, heatmap
+  and crop pairs. Measured on chykalophia.com: the same page twice 94.6% (`match`, one band
+  `drift` from a moving carousel), a different page 41.9% (`contradicted`). No threshold gate
+  until real signed-off builds calibrate one.
+- `visual-reviewer` gets cold-review rules: it sets aside the caller's own findings, writes its
+  own before reading any lint output (impeccable's critique isolation rule), reads a `comp-diff`
+  report first and opens every `missing` or `contradicted` band, says `RECAPTURE` instead of
+  reviewing without screenshots, and has a hero-only mode for a page still being built. Findings
+  are capped at eight, and it names what the fixes must not lose.
+
 ## [0.4.0] - 2026-11-26
 
 ### Changed

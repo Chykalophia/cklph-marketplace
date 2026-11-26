@@ -77,9 +77,37 @@ curl -s "<stylesheet url>" | grep -io '#1f3658' | head -1
 A token missing from the live CSS is drift. Find out which side is stale before you change
 anything.
 
+That check goes one way. The census goes the other: what the page paints that isn't a token. It
+catches the hand-typed near-copy of a brand color, a font size nobody put in the scale, and an
+Elementor site that has drifted from its Kit.
+
+1. Open the live page in a browser the session controls (the built-in browser's JavaScript tool,
+   Claude in Chrome, or DevTools) at 1440 wide, cache-busted.
+2. Run `"${CLAUDE_PLUGIN_ROOT}/scripts/census-collect.js"` in the page as one expression. It reads
+   computed styles only and returns a JSON string. Save that string to `census-1440.json`, as is.
+3. Compare it with the tokens:
+
+```bash
+node "${CLAUDE_PLUGIN_ROOT}/scripts/census.mjs" census-1440.json --design-md DESIGN.md
+```
+
+It lists each off-token color with its share of the page (text by characters, backgrounds by
+area, borders by length), the token it sits near when it's within 6 Delta E (usually a typed
+copy), pairs of off-token colors close enough to be one color, and families and font sizes the
+typography tokens don't have. Radius and spacing are checked only when DESIGN.md has `rounded` and
+`spacing` tokens; otherwise the report says "Not checked", which is not a pass. Values under 0.5%
+of their kind are counted as rare and left out; `--min-share` changes the cut.
+
+Exit 0 means nothing off-token at that width, 2 findings, 1 bad input. Run it at 390 too. Each
+finding is a question for the client before it's a fix: either the token list is missing a real
+value, or the page drifted. On the first trial, against tokens copied from the MailPrism docs'
+DESIGN.md, the live docs painted Tailwind's indigo-600 (`#4f46e5`) where the file documents
+`#667eea`, and set most of its homepage text at 14.72px, a size the documented scale doesn't
+have.
+
 ## 7. Re-run on every token change
 
-Re-run steps 4 to 6 whenever the source tokens change. To see what changed between versions:
+Re-run steps 4 to 6, the census included, whenever the source tokens change. To see what changed between versions:
 
 ```bash
 npm_config_ignore_scripts=true npx --yes @google/design.md@0.4.0 diff DESIGN.old.md DESIGN.md

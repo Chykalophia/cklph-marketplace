@@ -1,0 +1,21 @@
+{
+  "tool": "census-collect",
+  "url": "https://fixture.example/",
+  "viewport": { "width": 1440, "height": 900 },
+  "tally": {
+    "text": {
+      "rgb(9, 24, 47)": 500,
+      "rgb(10, 25, 47)": 200,
+      "rgb(12, 31, 58)": 150,
+      "rgb(192, 57, 43)": 80,
+      "rgb(194, 65, 46)": 66,
+      "rgb(20, 41, 74)": 4
+    },
+    "background": { "rgb(255, 255, 255)": 900, "rgba(0, 0, 0, 0)": 50 },
+    "border": {},
+    "family": { "Public Sans Variable": 900, "Comic Neue": 100 },
+    "fontSize": { "14": 700, "24": 200, "13": 100 },
+    "radius": { "8": 3 },
+    "spacing": { "16": 10 }
+  }
+}

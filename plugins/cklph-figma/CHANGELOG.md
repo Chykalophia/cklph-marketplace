@@ -3,6 +3,20 @@
 All notable changes to `cklph-figma` are documented here.
 Format: [Keep a Changelog](https://keepachangelog.com); versioning follows [SemVer](https://semver.org).
 
+## [0.6.0] - 2026-11-26
+
+### Added
+- `design-md` step 6 gets a live-site census: `scripts/census-collect.js` runs in the page and
+  counts the computed colors, families, font sizes, radii and spacing it paints, weighted by how
+  much of the page each covers; `scripts/census.mjs` compares that with DESIGN.md and reports
+  off-token colors (with the token each sits near), near-duplicate colors, and families and sizes
+  outside the scale. Radius and spacing only when DESIGN.md has those tokens, else "Not checked".
+  The token check went one way (is each token in the CSS?); this goes the other. The idea comes
+  from senlindesign/taste-skill's site extraction; the code is our own.
+- 12 tests in `tests/census.test.mjs`. Each of six injected bugs (the same-color cut, the
+  near-token note, the variable-font suffix, the duplicate pass, the share cut, rem as px) fails
+  at least one.
+
 ## [0.5.0] - 2026-11-15
 
 From the first real-file run (A Safe Place, Dev Hand-off page, 27 screens).
