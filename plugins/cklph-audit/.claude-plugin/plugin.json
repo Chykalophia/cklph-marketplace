@@ -1,7 +1,7 @@
 {
   "name": "cklph-audit",
-  "description": "Adversarially verified whole-repo security audit. Twelve lenses (security, correctness, architecture, sca, iac, container, k8s, supply-chain, compliance, concurrency, state-machine, economic), plus opt-in docs-drift, omission, agent-config and ambiguity. Scanners find candidates (Semgrep, Trivy, gitleaks and more), Claude judges them, and a separate verifier tries to refute each one. Optional sandboxed exploit and patch steps. SOC 2 and CASA compliance matrix. Read-only by default.",
-  "version": "1.3.4",
+  "description": "Adversarially verified whole-repo security audit. Twelve lenses (security, correctness, architecture, sca, iac, container, k8s, supply-chain, compliance, concurrency, state-machine, economic), plus opt-in docs-drift, omission, fallback, agent-config and ambiguity. Scanners find candidates (Semgrep, Trivy, gitleaks and more), Claude judges them, and a separate verifier tries to refute each one. Optional sandboxed exploit and patch steps. SOC 2 and CASA compliance matrix. Read-only by default.",
+  "version": "1.4.0",
   "author": {
     "name": "Peter Krzyzek"
   }
