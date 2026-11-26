@@ -146,6 +146,7 @@ console.log('secrets.sh');
   const out = lines(res.stdout);
   ok(out.length === 1 && out[0].file === 'app/config.js' && out[0].line === 3, 'gitleaks finding parsed (exit 1 = leaks found is not a failure)');
   ok(/--redact/.test(fs.readFileSync(path.join(sb.root, 'args'), 'utf8')), 'gitleaks runs with --redact');
+  ok(/--no-git/.test(fs.readFileSync(path.join(sb.root, 'args'), 'utf8')), 'gitleaks scans only the target files (--no-git), not the whole repo history');
   ok(/^drwx------/.test(fs.readFileSync(path.join(sb.root, 'dirperm'), 'utf8')), 'report lives in a 0700 directory while it exists');
   const reportPath = fs.readFileSync(path.join(sb.root, 'reportpath'), 'utf8');
   ok(reportPath && !fs.existsSync(reportPath) && !fs.existsSync(path.dirname(reportPath)), `report and its dir deleted on exit (${reportPath})`);

@@ -1543,7 +1543,10 @@ phase('Synthesize')
 // is NOT clean; it still needs an owner-review report so it is never silently gone. Neither is a
 // proof-contract drop: §4.10 lists dropped ids in the report's Coverage summary (§15 CLEAN-DROP).
 if (!fresh.length && !heldUntraced.length && !deferred.length && !proofContractDropped.length) {
-  log('No new confirmed findings. Clean run. 🎉')
+  // A reviewer whose recall tool failed did not scan: zero findings from it is NOT CHECKED, never clean.
+  const toolFailures = Object.entries(coverageTotals).flatMap(([l, c]) => (c.reviewed?.toolFailures ?? []).map(t => `${l}: ${t}`))
+  if (toolFailures.length) log(`No new confirmed findings, but ${toolFailures.length} tool failure(s): not a clean run`)
+  else log('No new confirmed findings. Clean run. 🎉')
   // §15 CLEAN-RECORD: report stays null (the clean signal), but the run's record (what was checked,
   // what was refuted and why) is built here in plain code, no synthesizer agent. audit-run fills the
   // two placeholders and writes it, so refuted candidates are not lost when the chat ends.
@@ -1570,7 +1573,7 @@ if (!fresh.length && !heldUntraced.length && !deferred.length && !proofContractD
     'repo_sha: __REPO_SHA__',
     `lenses: ${yamlList(lenses)}`,
     `mode: ${mode}`,
-    'result: clean',
+    `result: ${toolFailures.length ? 'incomplete' : 'clean'}`,
     `phases: { map: ${mapRan}, variant: ${variantRan}, dast: ${dastRan}, patch: ${patchRan}, self_review: false }`,
     `counts: { critical: 0, high: 0, medium: 0, low: 0, info: ${positiveControls.length} }`,
     'coverage:',
@@ -1585,12 +1588,18 @@ if (!fresh.length && !heldUntraced.length && !deferred.length && !proofContractD
     `inconclusive_candidates: ${inconclusive.length}`,
     `below_severity_floor: ${belowFloor.length}`,
     `suppressed_by_baseline: ${suppressedByBaseline}`,
+    `tool_failures: ${toolFailures.length}`,
     '---',
     '',
-    `# Audit (${lenses.join(', ')}): clean run`,
+    toolFailures.length ? `# Audit (${lenses.join(', ')}): no findings, but NOT a clean run` : `# Audit (${lenses.join(', ')}): clean run`,
     '',
-    'No new confirmed findings and nothing held for owner review. This file is the run\'s record: what was checked, and what reviewers raised that the verifier panel refuted, so the next run can be compared against it. Self-review does not run on a clean run.',
+    toolFailures.length
+      ? `No confirmed findings, but ${toolFailures.length} recall tool(s) failed, so what they cover was NOT CHECKED. Fix the failures below and re-run before treating this as clean.`
+      : 'No new confirmed findings and nothing held for owner review. This file is the run\'s record: what was checked, and what reviewers raised that the verifier panel refuted, so the next run can be compared against it. Self-review does not run on a clean run.',
     '',
+    ...(toolFailures.length
+      ? [`## Not checked: tool failures (${toolFailures.length})`, '', ...toolFailures.map(t => `- ${oneLine(t)}`), '']
+      : []),
     '## Rule closure',
     '',
     `- In scope: ${coverageSummary.rulebookSize - coverageSummary.outOfScope} of ${coverageSummary.rulebookSize} rulebook rule(s); ${coverageSummary.checked} checked` +
@@ -1632,6 +1641,7 @@ if (!fresh.length && !heldUntraced.length && !deferred.length && !proofContractD
   return {
     report: null, fresh: [],
     cleanReport,
+    toolFailures,
     proofContractDropped,
     units: { source: unitSource, lowConfidence },
     skipped: mode === 'quick',

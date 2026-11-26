@@ -21,7 +21,9 @@ trap 'exit 143' TERM
 if command -v gitleaks >/dev/null 2>&1; then
   REPORT="$WORK/gitleaks.json"
   # Exit 0 = no leaks, 1 = leaks found (the default --exit-code); anything else is a failure.
-  gitleaks detect --source "$TARGET" --no-banner --redact --report-format json --report-path "$REPORT" >/dev/null 2> "$WORK/gitleaks.err"
+  # --no-git: scan the files under TARGET only. Without it gitleaks walks the git history of the whole
+  # repo that contains TARGET, so every unit would report every other unit's secrets.
+  gitleaks detect --source "$TARGET" --no-git --no-banner --redact --report-format json --report-path "$REPORT" >/dev/null 2> "$WORK/gitleaks.err"
   RC=$?
   if [ "$RC" -gt 1 ] || [ ! -s "$REPORT" ]; then
     echo "secrets.sh: gitleaks failed (exit $RC, report $([ -s "$REPORT" ] && echo present || echo missing)): $(grep -v '^[[:space:]]*$' "$WORK/gitleaks.err" | tail -n 3 | head -c 300) — zero gitleaks findings means the scan did not run, not that there are no secrets." >&2

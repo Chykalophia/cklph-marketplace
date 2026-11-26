@@ -52,6 +52,18 @@ the new plugin-level `NOTICE.md`.
   treat these as a first pass, not a stable measure. The real misses: `availability:unbounded-input`
   folded into the fan-out finding, and `llm:confused-deputy` merged into the `action-binding`
   finding on the same line.
+
+  The round-2 rules added to existing lenses were backtested the same way, 8 neutral cases:
+
+  | Lens (new rules) | Recall | Precision |
+  |---|---|---|
+  | security (Supabase RLS, views, definer functions, `user_metadata`) | 5/5 | 5/5 |
+  | agent-config (AI agents in CI, skill content) | 12/12 | 12/12 |
+  | supply-chain (test weakening) | 1/1 | 1/1 |
+
+  The first agent-config pass missed `skill-exfil-shape` because the fixture's webhook URL ended in
+  the word FIXTURE, which the neutral-case builder strips, so the command never reached the
+  reviewer. The URL now uses a neutral token; the re-run caught it at critical.
 - `audit-init` suggests the new lenses from read-only probes and names the hit behind each one.
 - `tests/fixture-safe-redirects.test.mjs`: the should-not-flag next-path helpers keep every probe
   on-origin, including `/.//evil.example`, which resolves to a protocol-relative path.
@@ -72,6 +84,17 @@ the new plugin-level `NOTICE.md`.
   it, the voter holds without a reachability trace: a critical/high goes to Held-untraced for the
   owner, and a medium/low ships with `needs-owner-input` confidence. It never confirms or refutes
   on a guess about that fact. Ambiguity findings keep their own proof contract.
+
+### Fixed
+- A run with no confirmed findings no longer reads as clean when a reviewer's recall tool failed.
+  The record is now `result: incomplete`, lists every failure under "Not checked: tool failures",
+  and the engine returns `toolFailures`; `audit-run` writes it as `AUDIT-<date>-incomplete.md` and
+  says the surfaces were NOT CHECKED. Before, a run where every reviewer reported "target not found,
+  nothing scanned" was written up as "result: clean ... reviewers raised nothing". Found during the
+  backtest; `tests/engine-flow.test.mjs` pins it and fails on the old behaviour.
+- `tools/secrets.sh` runs gitleaks with `--no-git`, so it scans the unit's files only. Without it,
+  gitleaks walked the git history of the whole repo containing the unit, so every security unit
+  reported candidates from every other part of the repo. Found during the backtest.
 
 ### Also adapted from other security sources
 

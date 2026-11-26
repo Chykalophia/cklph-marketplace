@@ -892,6 +892,19 @@ console.log('\n=== SCENARIO E: ambiguity lens ===');
   if (r13.res?.cleanReport !== undefined) fail('a non-clean run also returned cleanReport');
   else ok('paired: a run with a report returns no cleanReport');
 
+  // TOOL-FAILURE CLEAN — kills: a run whose every reviewer said its recall tool scanned nothing
+  // ("target not found") was written up as "result: clean ... reviewers raised nothing".
+  const dead = { findings: [], ruleChecks: [], coverage: { seedsVerified: 0, seedsGiven: 0, toolCandidatesJudged: 0, toolFailures: ['ambiguity.sh: target not found, nothing scanned'] } };
+  const rTF = await runE({ over: { [POL]: dead } });
+  const tfr = rTF.res?.cleanReport || '';
+  if (rTF.res?.report !== null) fail(`tool-failure probe produced a findings report (${JSON.stringify(rTF.res?.report)}), want the no-findings path`);
+  else if (!/result: incomplete/.test(tfr) || !/tool_failures: 1/.test(tfr) || !/## Not checked: tool failures \(1\)/.test(tfr) || !/target not found/.test(tfr) || /result: clean/.test(tfr) || (rTF.res?.toolFailures ?? []).length !== 1)
+    fail(`a run whose recall tool failed still reads as clean: ${JSON.stringify({ head: tfr.slice(0, 400), toolFailures: rTF.res?.toolFailures })}`);
+  else ok('a no-findings run with a failed recall tool is result: incomplete, lists the failure, and returns toolFailures');
+  if (!/result: clean/.test(r0.res?.cleanReport || '') || /Not checked: tool failures/.test(r0.res?.cleanReport || '') || (r0.res?.toolFailures ?? []).length)
+    fail('paired: a truly clean run lost result: clean or gained a tool-failure section');
+  else ok('paired: a truly clean run stays result: clean with no tool-failure section');
+
   // review round 1 on 1.3.1 — each case below passed the first draft of the change.
   // RULE-SCOPE by REQUESTED lens — kills: scoping by the jobs that existed, so a run whose requested lens
   // produced no job (no units, no prose groups) read as "out of scope, none NOT CHECKED".
