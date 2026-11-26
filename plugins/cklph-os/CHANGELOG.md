@@ -5,7 +5,7 @@ Format: [Keep a Changelog](https://keepachangelog.com); versioning follows [SemV
 Moved here from the repo root on 2026-10-27; marketplace and repo-level events (repo rename, sibling
 plugins, the marketplace manifest) live in the root CHANGELOG.
 
-## [0.17.1] - 2026-11-21
+## [0.19.1] - 2026-11-26
 
 ### Changed
 - `security-hardening` adds checks for copies of data (caches, indexes, signed URLs, exports),
@@ -14,8 +14,7 @@ plugins, the marketplace manifest) live in the root CHANGELOG.
   severity anchors. It points to the matching cklph-audit lenses for a whole-repo pass.
 - `red-team` asks every security finding to name the boundary and the affected party, treats a
   gap behind a working control as a Low hardening note, and hunts delegation and data-copy bugs.
-  Both adapted from Cloudflare's security-audit skill (MIT); attribution in this plugin's
-  new `NOTICE.md`.
+  Both adapted from Cloudflare's security-audit skill (MIT); attribution in `NOTICE.md`.
 - `cklph-reviewer` gains a security pass for diffs that touch untrusted input or auth: a two-pass
   source-to-sink trace, git blame on removed or weakened checks (a refactor on a security path is
   high risk until shown otherwise), test weakening, rules-file changes called out, a four-part gate
@@ -28,6 +27,40 @@ plugins, the marketplace manifest) live in the root CHANGELOG.
   after a ban), Next.js rules (Server Actions are public endpoints, cache audience, revalidation is
   a mutation, `images.remotePatterns`, source maps), and a check for hallucinated or new packages.
   Sources are credited in `NOTICE.md`.
+
+## [0.19.0] - 2026-11-26
+
+### Added
+- `frontend-ui`'s `ai-tells.md` gets an Honesty section that no brand or exceptions file overrides:
+  no invented metrics, testimonials or logos; no form that says "Sent" with nothing sent;
+  screenshots, not a mock, of a product that runs; no drawn browser window. Eight tells no tool
+  checks (marked ◇): stock status colors, an icon on a tint of itself, corners that don't nest, a
+  border clipped at the corners, the "tasteful terminal", the editorial dashboard, the springy hover
+  and the wobbling spinner. Ways to open a section without an eyebrow.
+- `frontend-ui` adds an interaction-states pass (a disabled control says why, loading blocks a
+  second submit, instant 3:1 focus ring, no silent success or failure) and a browser-surfaces check.
+- `cklph-reviewer` hunts fallbacks that hide failure, closed justification loops (a fallback plus a
+  test written only for it) and tests that can't fail. `red-team` adds a masked-failure attack.
+
+### Changed
+- When a brand asks for a tell, `ai-tells.md` has the owner decide once and records it, with its
+  reason, in `.cklph/design-exceptions.json`, instead of letting it pass silently on every build.
+
+## [0.18.0] - 2026-11-21
+
+### Added
+- `frontend-ui` gets page-level build rules in `references/page-shape.md`: the hero fits 1280x800,
+  one job that the page ends on, six to nine sections, about 150 words a screen, no block pasted on
+  every page, one primary action label per screen, a capped width, no sideways scroll from 320 to
+  1920, heading spacing, and readable line height on small text. Each rule names the
+  `cklph-visual-qa` check that catches it afterwards.
+- A per-site layout log, `.cklph/layout-log.md`: one row per page with its sections in a shared
+  vocabulary, read before building, so new pages don't repeat the last one's shape.
+- `SKILL.md` gets a short "Page shape" section and a Verify item. `ai-tells.md` points to
+  `copy-lint` for copy.
+
+Adapted from: Hallmark (github.com/Nutlope/hallmark, MIT, commit 04977e1). Rules 1 to 4, 7 and 9 are
+reworded from its page gates. The layout log is our own.
 
 ## [0.17.0] - 2026-11-11
 

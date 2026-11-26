@@ -28,10 +28,20 @@ padding, no shadow-heavy cards. Use realistic content (not lorem) so wrapping/ov
 - **Type** — respect the hierarchy; don't skip heading levels.
 
 Read `references/ai-tells.md` before building a page or section without a full design. It lists the
-31 looks generated UIs fall into, with what to do instead. The short version: no purple or
+39 looks generated UIs fall into, with what to do instead, and four honesty rules no brand overrides:
+no invented metrics, testimonials or logos; no form that says "Sent" when nothing was sent; real
+screenshots, not a mock, of a product that runs; no drawn browser window. The short version: no purple or
 cyan-on-dark gradients, gradient text or colored glows; no stock fonts (Inter, Geist) unless the brand
 uses them; no tiny uppercase label above a heading; no cards inside cards and no icon tile above
 every heading; no buzzwords. The design system wins where it asks for one of these.
+
+## Page shape
+Read `references/page-shape.md` before building or rebuilding a whole page. It has ten rules for the
+page as a whole and the site's layout log. The short version: the hero fits 1280x800, the page has
+one job and ends on it, six to nine sections, about 150 words a screen, no block pasted on every
+page, a capped content width, no sideways scroll from 320 to 1920, and readable line height on small
+text. Read `.cklph/layout-log.md` first, so the new page doesn't repeat the last one's layout, and
+add the page's row when it's built.
 
 ## Accessibility (WCAG 2.2 AA — non-negotiable)
 - Real `<button>` / `<a>` for actions (keyboard-focusable by default); if you must `role="button"`, add
@@ -40,6 +50,16 @@ every heading; no buzzwords. The design system wins where it asks for one of the
 - Move/trap focus when dialogs open; return it on close.
 - Contrast ≥ 4.5:1 (3:1 for large text).
 - Always handle **loading / error / empty** — skeletons for content (not spinners); no blank screens.
+
+## Interaction states
+List every interactive element on the screen, then check each for default, hover, focus, active,
+disabled and loading or error. The gaps generated UIs leave:
+- A disabled control says why (a hint beside it or a tooltip that keyboard users can reach), and
+  isn't disabled by opacity alone: also `disabled` or `aria-disabled` and `cursor: not-allowed`.
+- Loading blocks a second submit: the button disables or shows progress the moment it's pressed.
+- The focus ring appears instantly, at least 2px with an offset, 3:1 against what's behind it.
+- Success and failure are never silent. Failure says what went wrong and what to do; success needs
+  no toast when the change is already visible.
 
 ## Responsive & feel
 - Mobile-first; verify at 320 / 768 / 1024 / 1440px.
@@ -62,4 +82,9 @@ state, or an animated library component. The short version:
 - [ ] Works at all four breakpoints; light **and** dark.
 - [ ] Matches the design system; no axe-core warnings.
 - [ ] With reduced motion on, nothing moves that shouldn't; with JS off, the real content shows.
-- [ ] No tell from `references/ai-tells.md` unless the design system asked for it.
+- [ ] No tell from `references/ai-tells.md` unless the site's exceptions file names it, and none of
+  its honesty rules broken.
+- [ ] Every interactive element has all its states, per "Interaction states".
+- [ ] Browser surfaces match the palette: `::selection`, `caret-color`, `scrollbar-color`, a
+  `text-underline-offset` on links, and tabular numbers wherever digits line up.
+- [ ] A whole page meets `references/page-shape.md`, and its row is in `.cklph/layout-log.md`.

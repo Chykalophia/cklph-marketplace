@@ -1,0 +1,119 @@
+#!/usr/bin/env bash
+#
+# hallmark-lint: run Hallmark's page checker (sloplint, render tier) on a live URL, then apply
+# the site's design exceptions with lint-filter.mjs.
+# ---------------------------------------------------------------------------
+# Usage:
+#   hallmark-lint <url> [--json] [--exceptions <file>] [--out <dir>]
+#
+#   --json         print the filtered findings as JSON instead of a report
+#   --exceptions   exceptions file (default: .cklph/design-exceptions.json when it exists)
+#   --out          where Hallmark writes its screenshots (default: a new temp dir, printed)
+#
+# Hallmark (github.com/Nutlope/hallmark, MIT) is fetched once at a pinned commit into
+# $CKLPH_CACHE (default ~/.cache/cklph-visual-qa), with only its scripts folder checked out.
+# puppeteer-core is installed beside it with install scripts off. Nothing else is downloaded,
+# and Hallmark's image generator is never called.
+#
+# Needs git, Node 18+ and Chrome or Chromium (override with CKLPH_CHROME). As root (cloud
+# containers, CI) Chrome needs --no-sandbox, which Hallmark cannot pass, so a small wrapper adds
+# it. Set CKLPH_NO_SANDBOX=1 to force the wrapper. A first run sets up the cache under a lock;
+# CKLPH_LOCK_WAIT is how many seconds another run waits for it (default 300).
+#
+# Exit codes: 0 nothing that blocks, 2 findings to check, 1 the page could not be checked.
+set -euo pipefail
+
+HALLMARK_REPO="https://github.com/Nutlope/hallmark.git"
+HALLMARK_SHA="04977e15f3dfd6ee4b74c887dac3eb52665d6c92"
+PUPPETEER_VERSION="23.11.1"
+
+HERE="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+CACHE="${CKLPH_CACHE:-$HOME/.cache/cklph-visual-qa}"
+HM="$CACHE/hallmark-$HALLMARK_SHA"
+PP="$CACHE/puppeteer-core-$PUPPETEER_VERSION"
+
+url=""; json=""; exceptions=""; out=""
+while [ $# -gt 0 ]; do
+  case "$1" in
+    --json) json="--json" ;;
+    --exceptions) exceptions="${2:?--exceptions needs a file}"; shift ;;
+    --out) out="${2:?--out needs a dir}"; shift ;;
+    -h|--help) sed -n '3,23p' "${BASH_SOURCE[0]}" | sed 's/^# \{0,1\}//'; exit 0 ;;
+    -*) echo "hallmark-lint: unknown option $1" >&2; exit 1 ;;
+    *) url="$1" ;;
+  esac
+  shift
+done
+case "$url" in http://*|https://*) ;; *) echo "usage: hallmark-lint <url> [--json] [--exceptions <file>] [--out <dir>]" >&2; exit 1 ;; esac
+if [ -n "$exceptions" ]; then exceptions="$(cd "$(dirname "$exceptions")" && pwd)/$(basename "$exceptions")"
+elif [ -f .cklph/design-exceptions.json ]; then exceptions="$PWD/.cklph/design-exceptions.json"; fi
+
+_chrome() {
+  if [ -n "${CKLPH_CHROME:-}" ]; then echo "$CKLPH_CHROME"; return; fi
+  for c in "/Applications/Google Chrome.app/Contents/MacOS/Google Chrome" \
+           "/Applications/Chromium.app/Contents/MacOS/Chromium" \
+           google-chrome google-chrome-stable chromium chromium-browser; do
+    command -v "$c" >/dev/null 2>&1 && { command -v "$c"; return; }
+    [ -x "$c" ] && { echo "$c"; return; }
+  done
+  echo "hallmark-lint: no Chrome/Chromium found (set CKLPH_CHROME)" >&2; exit 1
+}
+
+# npm creates node_modules before extraction ends, so only the marker written after a clean install counts.
+_ready() { [ -f "$HM/skills/hallmark/scripts/sloplint.mjs" ] && [ -f "$PP/.installed" ]; }
+
+# Two first runs at once would share $HM.tmp, so setup happens under a lock and is rechecked inside it.
+if ! _ready; then
+  mkdir -p "$CACHE"
+  lock="$CACHE/.setup.lock"
+  got=""
+  for _ in $(seq 1 "${CKLPH_LOCK_WAIT:-300}"); do mkdir "$lock" 2>/dev/null && { got=1; break; }; sleep 1; done
+  [ -n "$got" ] || { echo "hallmark-lint: timed out waiting for $lock (remove it if no other run is going)" >&2; exit 1; }
+  trap 'rmdir "$lock" 2>/dev/null || true' EXIT
+  if [ ! -f "$HM/skills/hallmark/scripts/sloplint.mjs" ]; then
+    echo "hallmark-lint: fetching Hallmark ${HALLMARK_SHA:0:7} (scripts only) into $HM" >&2
+    rm -rf "$HM.tmp"; mkdir -p "$HM.tmp"
+    git -C "$HM.tmp" init -q
+    git -C "$HM.tmp" remote add origin "$HALLMARK_REPO"
+    git -C "$HM.tmp" sparse-checkout set skills/hallmark/scripts
+    git -C "$HM.tmp" fetch -q --depth 1 --filter=blob:none origin "$HALLMARK_SHA"
+    git -C "$HM.tmp" checkout -q FETCH_HEAD
+    [ "$(git -C "$HM.tmp" rev-parse HEAD)" = "$HALLMARK_SHA" ] || { echo "hallmark-lint: fetched commit does not match the pin" >&2; exit 1; }
+    rm -rf "$HM"; mv "$HM.tmp" "$HM"
+  fi
+  if [ ! -f "$PP/.installed" ]; then
+    echo "hallmark-lint: installing puppeteer-core $PUPPETEER_VERSION into $PP" >&2
+    rm -rf "$PP"; mkdir -p "$PP"
+    npm install --prefix "$PP" --ignore-scripts --no-audit --no-fund --silent "puppeteer-core@$PUPPETEER_VERSION" >&2
+    touch "$PP/.installed"
+  fi
+  rmdir "$lock"; trap - EXIT
+fi
+
+chrome="$(_chrome)"
+if [ "${CKLPH_NO_SANDBOX:-}" = "1" ] || [ "$(id -u)" = "0" ]; then
+  wrapper="$CACHE/chrome-no-sandbox"
+  printf '#!/bin/sh\nexec "%s" --no-sandbox "$@"\n' "$chrome" > "$wrapper"
+  chmod +x "$wrapper"
+  chrome="$wrapper"
+fi
+
+[ -n "$out" ] || out="$(mktemp -d "${TMPDIR:-/tmp}/hallmark-lint.XXXXXX")"
+mkdir -p "$out"
+out="$(cd "$out" && pwd)"
+raw="$out/sloplint.json"
+
+# Hallmark exits 1 when it has findings, so the run is judged by its JSON. A page that failed to
+# load still reports render "ran", with a render FAIL saying it did not render.
+( cd "$out" && HALLMARK_PUPPETEER="$PP" CHROME_PATH="$chrome" \
+    node "$HM/skills/hallmark/scripts/sloplint.mjs" --url "$url" --json > "$raw" 2> "$out/sloplint.log" ) || true
+if ! node -e 'const j=JSON.parse(require("fs").readFileSync(process.argv[1],"utf8")); if(!Array.isArray(j.findings)) process.exit(1); if(j.summary&&j.summary.render!=="ran") process.exit(3); if(j.findings.some(f=>f.gate==="render"&&f.grade==="FAIL"&&/did not render/.test(f.evidence||""))) process.exit(4)' "$raw" 2>/dev/null; then
+  echo "hallmark-lint: the page could not be checked; see $out/sloplint.log" >&2
+  tail -5 "$out/sloplint.log" >&2 || true
+  exit 1
+fi
+echo "hallmark-lint: screenshots in $out/.hallmark/shots" >&2
+
+set +e
+node "$HERE/lint-filter.mjs" --tool hallmark ${exceptions:+--exceptions "$exceptions"} $json < "$raw"
+exit $?

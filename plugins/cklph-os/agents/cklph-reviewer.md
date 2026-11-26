@@ -38,6 +38,18 @@ plugin directory (`${CLAUDE_PLUGIN_ROOT}` under Claude Code).*
          divergent consumer are cited at file:line; until then, a non-blocking question).
 4. Also hunt: correctness (logic, exit codes, control flow, state-machine reset, async), security
    (injection, authz, secrets), reliability (silent failures, N+1), simplicity (needless complexity).
+   - **Fallbacks that hide failure.** Inside trusted code, a failure should surface. A catch that
+     returns a default, a catch-log-continue, a `?? []` over a failed fetch, or a legacy fallback
+     needs a named reason: a recovery, a translation to a user message, a cleanup, or a documented
+     contract. Without one it's a Medium reliability finding (High on a money, auth or data path).
+   - **Closed justification loops.** A test doesn't justify code because it exercises it, and code
+     doesn't justify a test because it exists. A fallback or guard plus a test written only for it
+     is one unit: trace it to a requirement, a caller or a trust boundary, or report both for
+     deletion together.
+   - **Tests that can't fail.** For each new or changed test, ask the questions in cklph-nextjs
+     `skills/testing/test-signal.md`, or these two at least: would it fail if the behavior
+     regressed, and is the expected value independent of the code under test? A test that only
+     proves a guard is present is not coverage.
 5. **Security pass** (untrusted input, auth, or `skills/security-hardening/SKILL.md`): list untrusted
    sources, then trace each to its sinks.
    - Weakened security check: `git log -S` its origin, grep its callers. An unproven concern is a

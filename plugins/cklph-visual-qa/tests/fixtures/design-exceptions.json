@@ -1,0 +1,10 @@
+{
+  "exceptions": [
+    { "tool": "impeccable", "rule": "kicker-above-heading", "reason": "Crimson section eyebrows are the brand's section labels (typography rule, 2026-10-25)." },
+    { "tool": "impeccable", "rule": "hero-eyebrow-chip", "reason": "Same brand eyebrow, in the hero." },
+    { "tool": "impeccable", "rule": "italic-serif-display", "reason": "One italic serif phrase per headline is part of the brand voice." },
+    { "tool": "hallmark", "rule": "54", "reason": "Crimson section eyebrows are the brand's section labels." },
+    { "tool": "hallmark", "rule": "67", "reason": "Tracked uppercase labels are the brand's eyebrow and meta style." },
+    { "tool": "hallmark", "rule": "38i", "reason": "One italic serif phrase per headline is part of the brand voice." }
+  ]
+}
