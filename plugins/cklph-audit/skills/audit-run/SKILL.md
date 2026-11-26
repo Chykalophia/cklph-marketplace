@@ -9,7 +9,7 @@ This skill is what `/cklph-audit:run <lenses> [path]` and `/cklph-audit:quick <l
 
 ## STRICT: read-only except the report
 
-The only file you may write is the audit report under `<repo>/audits/`. No application code, no config, no baseline (that's `/cklph-audit:baseline`). The run emits a remediation-wave plan; the human decides when to invoke `/cklph-os:flow`. The opt-in Patch phase (`patch.enabled`, or automatically when DAST is enabled) only writes inside a sandbox worktree, never the real tree.
+The only files you may write are the audit report under `<repo>/audits/` and the tested-clean ledger (`.audit-ledger.json`, plus its rotated `.audit-ledger.1.json`) through `tools/ledger.mjs`. No application code, no config, no baseline (that's `/cklph-audit:baseline`). The run emits a remediation-wave plan; the human decides when to invoke `/cklph-os:flow`. The opt-in Patch phase (`patch.enabled`, or automatically when DAST is enabled) only writes inside a sandbox worktree, never the real tree.
 
 ## Steps
 
@@ -37,6 +37,12 @@ From the slash-command invocation, derive:
 
 Reduce the baseline file to the shape the engine expects: `baseline = { fingerprints: [...findings.map(f => f.fingerprint)] }`.
 
+- **`coveredClean`**: only when the user asked to skip covered ground (`--skip-covered`). Run `node ${CLAUDE_PLUGIN_ROOT}/tools/ledger.mjs plan --repo <repo> --lenses <lenses>` and pass its JSON (`{ <lens>: [files unchanged since a clean review] }`). Never pass it otherwise: by default every run reviews everything, and the ledger only reports.
+
+### 1b. Report the untested surface (when a ledger exists)
+
+If `.audit-ledger.json` exists, run `node ${CLAUDE_PLUGIN_ROOT}/tools/ledger.mjs status --repo <repo> --lenses <lenses>` before the run and keep its lines for the summary: per lens, how many files are covered (unchanged since a clean review), how many changed since, and how many were never reviewed clean.
+
 ### 3. Invoke the Workflow tool
 
 **First copy the engine somewhere Workflow can load it.** Workflow only accepts a `scriptPath` inside the working directory or a directory added to the session, and the plugin cache (`~/.claude/plugins/cache/...`) is neither, so passing `${CLAUDE_PLUGIN_ROOT}/workflows/audit.workflow.js` directly fails with "scriptPath must be a script path this tool returned, or a file you can already read". Copy it into the session scratchpad directory (Claude Code names it in the environment section):
@@ -50,7 +56,7 @@ Never copy it into the target repo (this run is read-only there), and **never pa
 Then call the **Workflow tool** with:
 
 - `scriptPath`: the copy, `<scratchpad>/cklph-audit.workflow.js`
-- `args`: `{ lenses, path, mode, deepUnits, config, baseline }`
+- `args`: `{ lenses, path, mode, deepUnits, config, baseline }`, plus `coveredClean` only under `--skip-covered`
 
 The engine runs the eleven phases listed in the header of `workflows/audit.workflow.js` — Discover → Recon → Map → Review → Verify → DAST → Reconcile → Variant → Patch → Synthesize → SelfReview (DAST and Patch are opt-in, and Patch turns on with DAST; Map, Variant and SelfReview skip in quick mode; when the `compliance` lens is selected, one compliance mapping job runs after Variant and before Patch) — extracting the rulebook from `rulesFrom` and running one `audit-recon` per lens (recon runs unless `recon.enabled: false`; quick mode skips it unless `recon.quick: true`); dispatching one `audit-modeler` for the **Map** phase (trust boundaries, data-flows, per-unit invariants, crown jewels — skips in quick or when `map.enabled: false`, degrading to an empty model that the appendix flags); fanning out one `audit-reviewer` per `(unit × lens)` with risk-routed verifier depth (`riskRouting` — high-risk units get more voters, low-risk fewer, floored at 1); pipelining each finding into N default-to-refuted `audit-verifier` voters where **evidence, not vote tally, arbits** (low/medium promote on majority; critical/high require a reachability trace); reconciling (dedup + baseline suppression + rule closure + coverage totals + near-misses + positive controls) in plain code; hunting SIBLINGS of each confirmed critical/high in the **Variant** phase (re-verified through the same gate — skips in quick or when `variant.enabled: false`); having `audit-synthesizer` produce the report; and running ONE adversarial self-review pass over it, whose result the engine appends to the report as a `## Self-review` section (gaps are not re-scanned). Let the workflow own all orchestration and concurrency; do not re-implement any of it.
 
@@ -60,6 +66,8 @@ The workflow returns `{ report, fresh, heldUntraced, deferred, units: { source, 
 
 - **Clean run** — gate on **`report == null`** only, NOT on `fresh.length`. The engine returns a non-null `report` whenever there is anything to write, including a **held-untraced-only run** (zero confirmed findings but ≥1 critical/high held for owner review: majority-held without a trace, refuted without a guard, split vote, or no quorum). If `report` is null, the run was clean: no new confirmed findings and nothing held for review. Write `cleanReport` (the engine's plain-code record of what was checked, every refuted candidate with its vote tally and reason, any inconclusive panel, and anything confirmed below the severity floor) to `<repo>/<config.report.dir || "audits">/AUDIT-<YYYY-MM-DD>-clean.md`, after replacing `__AUDIT_DATE__` with today's date (YYYY-MM-DD) and `__REPO_SHA__` with the target repo's `git rev-parse --short HEAD`; change nothing else in it. The `-clean` suffix keeps it from ever replacing a same-day findings report. **If `toolFailures` is non-empty, the run is not clean:** the record says `result: incomplete`, so write it as `AUDIT-<YYYY-MM-DD>-incomplete.md` instead, tell the user no findings were confirmed but the listed recall tools failed so their surfaces were NOT CHECKED, list each failure, and stop there. Otherwise tell the user the run was clean, give the rule-closure line, positive-control count, Map/Variant lines below and the number of refuted and inconclusive candidates (inconclusive ones deserve a look), and stop. If an older engine returns no `cleanReport`, write nothing.
 - **Otherwise** (`report` is non-null — includes the held-untraced-only case): write `report.markdown` verbatim to `<repo>/<config.report.dir || "audits">/AUDIT-<YYYY-MM-DD>.md`. Create the directory if needed. **Never overwrite an existing report** (reports are written, not committed, so an earlier same-day run may exist only on disk): if the file exists, write `AUDIT-<YYYY-MM-DD>-2.md`, then `-3`, and so on. The same rule applies to a clean record's `-clean.md` name. Do not edit, re-summarize, or truncate the markdown — the synthesizer already wrote it to the `audit-report-format` contract. **Never skip the write just because `fresh` is empty** — a held-untraced finding must reach disk.
+
+**Record the tested-clean ledger** unless `config.ledger.enabled` is `false`: write the workflow's return value to a scratchpad file and run `node ${CLAUDE_PLUGIN_ROOT}/tools/ledger.mjs record --repo <repo> --result <that file>` (add `--max-bytes <config.ledger.maxBytes>` when set). It upserts each (lens, file) a reviewer read where every candidate was refuted, with the file's blob hash, the commit and the date, and clears any file with a surviving finding. It does this on a clean run too. Tell the user to commit `.audit-ledger.json` with the baseline.
 
 Then print to the user:
 - the severity counts (`critical / high / medium / low / info`) from `report.counts`,
@@ -72,6 +80,7 @@ Then print to the user:
 - the **feed line** when an SCA or container lens ran: vulnerability-feed freshness was not checked by this run (`feedFreshnessChecked: false`) — suggest `/cklph-audit:refresh-feeds`,
 - the **deferred line** when `deferred > 0`: `<deferred> finding(s) DEFERRED unverified — verifier budget (verify.maxVerifierAgents) exhausted; coverage is partial. Re-run with a higher maxVerifierAgents or a narrower scope`; this means the run did NOT fully verify — say so plainly,
 - how many were suppressed by baseline and how many units were low-confidence / skipped (from the workflow log + `units` / `skipped`),
+- the **ledger line**: the `record` output, plus the untested-surface lines from step 1b when you ran them; under `--skip-covered`, how many covered-clean files were handed to reviewers to skip (`ledger.skippedCovered`), and say plainly that those files were NOT re-reviewed this run,
 - the **path** to the report file you just wrote.
 
 Keep the summary tight — the report file is the deliverable; your message is a pointer to it.

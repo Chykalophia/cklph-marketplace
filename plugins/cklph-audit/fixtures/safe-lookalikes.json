@@ -1,0 +1,14 @@
+{
+  "version": 1,
+  "about": "Ground-truth SAFE fixtures that look vulnerable. The backtest reports the false-positive rate on these separately from precision. Each entry names the lookalike class and, where one exists, the vulnerable twin that drives recall for the same class. Every file here lives under should-not-flag/; every twin under should-flag/.",
+  "cases": [
+    { "file": "security/should-not-flag/search-page-escaped.example.ts", "class": "encoded-output", "twin": "security/should-flag/search-page-unescaped.example.ts" },
+    { "file": "security/should-not-flag/product-filter-placeholders.example.ts", "class": "parameterized-sql", "twin": "security/should-flag/injection.js" },
+    { "file": "security/should-not-flag/public-config-cors.example.ts", "class": "cors-public-data", "twin": "security/should-flag/account-cors-reflect.example.ts" },
+    { "file": "security/should-not-flag/link-preview-allowlist.example.ts", "class": "fetch-host-allowlist", "twin": "security/should-flag/injection.js" },
+    { "file": "security/should-not-flag/safe.js", "class": "fetch-host-allowlist", "twin": "security/should-flag/injection.js" },
+    { "file": "security/should-not-flag/admin-delete-user.example.ts", "class": "admin-gated-action", "twin": "security/should-flag/admin-delete-user-metadata-role.example.ts" },
+    { "file": "security/should-not-flag/storage-setup-docs.example.md", "class": "documented-example-key", "twin": "security/should-flag/webhook-secret-fallback.example.ts" },
+    { "file": "web-auth/should-not-flag/logout-return-allowlist.example.ts", "class": "redirect-allowlist", "twin": "web-auth/should-flag/auth-callback-and-portal-link.example.ts" }
+  ]
+}

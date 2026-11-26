@@ -41,6 +41,10 @@ Make accepting tech debt a **deliberate, annotated act**. This skill turns the f
 
 5. **Report** how many findings were accepted, how many were skipped (still open), and the file path written. Commit `.audit-baseline.json` so the next `:run` is delta-only.
 
+## The tested-clean ledger, its counterpart
+
+The baseline records findings you **accepted**. `.audit-ledger.json`, written by `:run` through `tools/ledger.mjs`, records what was **reviewed and found clean**: one entry per (lens, file) with the file's blob hash, the commit and the date. A file stays covered only while its content is unchanged. `ledger.mjs status --repo .` reports covered, changed and never-reviewed files per lens; `/cklph-audit:run --skip-covered` hands the covered ones to the reviewers to skip. A baselined finding keeps its file off the clean list: accepted debt is not clean ground. The ledger is capped (`ledger.maxBytes`, default 1 MB) and rotates its oldest entries into `.audit-ledger.1.json`, held to the same cap. Commit both files with the baseline.
+
 ## Guarantees
 
 - **Read-only on application code.** The only write is `.audit-baseline.json`.

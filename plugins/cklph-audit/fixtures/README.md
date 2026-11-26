@@ -19,6 +19,14 @@ fixtures/
   classic trap: code that is structurally similar but not actually a defect). If the lens
   flags one and it survives verify, that's a **false positive** → precision drops.
 
+## Safe lookalikes
+
+`safe-lookalikes.json` lists the `should-not-flag/` fixtures that are built to look like a real bug,
+each with its lookalike class and, where one exists, its vulnerable twin in `should-flag/`. The
+backtest reports the false-positive rate on these separately from precision. Every entry must be
+genuinely safe: before adding one, have someone who did not write it try to break it from the code
+alone, and add a vulnerable twin when no `should-flag/` fixture covers the class.
+
 ## The gate
 
 The backtest harness runs the lens (reviewer → verifier, the same pipeline as `:run`) over

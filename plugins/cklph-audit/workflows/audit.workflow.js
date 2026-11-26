@@ -83,6 +83,9 @@ export const meta = {
 const lenses = args?.lenses ?? ['security', 'correctness', 'architecture']
 const config = args?.config ?? {}
 const baseline = new Set((args?.baseline?.fingerprints) ?? [])
+// Tested-clean ledger (tools/ledger.mjs plan): per lens, files unchanged since a clean review. Only
+// passed when the user asked to skip covered ground; the reviewer is told not to re-review them.
+const coveredClean = args?.coveredClean && typeof args.coveredClean === 'object' ? args.coveredClean : {}
 const mode = args?.mode ?? 'full'
 const rulesFromList = config.rulesFrom ?? ['CLAUDE.md', 'AGENTS.md']
 // D24: optional cap on agents alive at once (0 = no cap, the default and today's behaviour).
@@ -362,6 +365,7 @@ const REVIEW_SCHEMA = {
         seedsGiven: { type: 'number' },
         toolCandidatesJudged: { type: 'number' },
         toolFailures: { type: 'array', items: { type: 'string' } },   // a deterministic tool that failed / was missing / unparsed: recall NOT run
+        filesReviewed: { type: 'array', items: { type: 'string' } },  // repo-relative files actually read and judged, input to the tested-clean ledger
       },
     },
   },
@@ -1045,6 +1049,9 @@ if (!mapEnabled) {
 // when its lensHint is the job's lens, 'any', or absent. A rule no job in this run can receive is out
 // of scope for the run, not NOT CHECKED.
 const ruleForLens = (r, lens) => r.lensHint === lens || r.lensHint === 'any' || !r.lensHint
+const coveredFor = job => (Array.isArray(coveredClean[job.lens]) ? coveredClean[job.lens] : [])
+  .map(f => String(f).replace(/^\.\//, ''))
+  .filter(f => job.unit.prose ? globMatch(f, job.unit.globs) : job.lens === 'agent-config' ? inScope(f) : globMatch(f, job.unit.globs))
 const reviewed = await pipeline(
   jobs,
   // stage 1: review one unit through one lens (tool-augmented, seed- and rule-aware)
@@ -1141,9 +1148,15 @@ const reviewed = await pipeline(
           `EVERY one: confirmed: true ONLY after reading the guard at its file:line; evidence = ` +
           `that citation:\n${JSON.stringify(safeControls)}\n`
         : '') +
+      (coveredFor(job).length
+        ? `COVERED_CLEAN: unchanged since a clean ${job.lens} review (tested-clean ledger). Do not re-review ` +
+          `these; read one only when a file you ARE reviewing calls into it, and then list it in filesReviewed:\n${JSON.stringify(coveredFor(job))}\n`
+        : '') +
       `Report coverage HONESTLY: { seedsVerified, seedsGiven (${seeds.length} given), toolCandidatesJudged, ` +
-      `toolFailures }. toolFailures: one line per deterministic tool whose stderr said it failed, was not ` +
-      `installed, or produced output it could not parse (its zero candidates mean NOT CHECKED, not clean); [] when every tool ran.`,
+      `toolFailures, filesReviewed }. toolFailures: one line per deterministic tool whose stderr said it failed, was not ` +
+      `installed, or produced output it could not parse (its zero candidates mean NOT CHECKED, not clean); [] when every tool ran. ` +
+      `filesReviewed: every repo-relative file you actually read and judged through this lens (not files you only ` +
+      `listed or grepped past); it records what this run covered.`,
       { agentType: 'cklph-audit:audit-reviewer', label: `review:${job.unit.key}:${job.lens}`, phase: 'Review', schema: REVIEW_SCHEMA, ...tier('reviewer') },
     )
   },
@@ -1199,6 +1212,9 @@ if (!dastEnabled) {
     `then run ZAP/Nuclei/ffuf. Beyond the tools, craft LLM-driven attacks based on the threat model: ` +
     `IDOR, auth bypass, mass assignment, rate limit, business logic abuse. Collect findings in the same ` +
     `FINDINGS_SCHEMA (source: "dast"). Prioritize high-value endpoints from the threat model. ` +
+    `Before probing any path on a host, record its not-found baseline (` + '`${CLAUDE_PLUGIN_ROOT}/tools/soft404.mjs baseline <origin>`' +
+    `; dast.sh does this for its own scans) and check every path you probe by hand against it: a response ` +
+    `that matches the baseline is not found, never a finding. ` +
     `NEVER attack external/production services.\n` +
     `UNITS: ${JSON.stringify(units.map(u => ({ key: u.key, globs: u.globs })))}\n` +
     `MAP: ${JSON.stringify({ crownJewels: model.crownJewels, dataFlows: model.dataFlows, trustBoundaries: model.trustBoundaries })}\n` +
@@ -1353,6 +1369,26 @@ const heldFps = new Set(heldUntraced.map(fingerprint))
 const deferred = dedupeByFingerprint(allVerified.filter(f => f.deferredUnverified))
   .filter(f => !baseline.has(fingerprint(f)))
   .filter(f => !freshFps.has(fingerprint(f)) && !heldFps.has(fingerprint(f)))   // a fp resolved by any panel isn't "deferred"
+// TESTED-CLEAN LEDGER: per (lens, file), files a reviewer read and judged where every candidate was
+// majority-refuted. Confirmed, held, deferred, split, below-floor and baseline-accepted candidates all
+// keep a file off the clean list, and a job whose deterministic tool failed proves nothing clean.
+const LEDGER_SKIP_LENS = new Set(['compliance', 'dast'])
+const ledgerFile = f => String(f ?? '').replace(/^\.\//, '')
+const ledgerLens = f => (f.lens === 'variant' ? f.seedLens : f.lens)
+const notCleanKeys = new Set(allVerified
+  .filter(f => f && !(f.majorityRefuted === true && !f.confirmed && !f.heldUntraced && !f.deferredUnverified))
+  .map(f => `${ledgerLens(f)}::${ledgerFile(f.file)}`))
+const ledgerTested = results
+  .filter(r => r && !LEDGER_SKIP_LENS.has(r.lens) && r.unit !== 'dast')
+  .map(r => {
+    const files = [...new Set((r.coverage?.filesReviewed ?? []).map(ledgerFile).filter(Boolean))]
+    const toolFailed = (r.coverage?.toolFailures ?? []).length > 0
+    return { unit: r.unit, lens: r.lens, toolFailed, clean: toolFailed ? [] : files.filter(f => !notCleanKeys.has(`${r.lens}::${f}`)) }
+  })
+const ledgerDirty = [...notCleanKeys].map(k => { const i = k.indexOf('::'); return { lens: k.slice(0, i), file: k.slice(i + 2) } }).filter(d => d.lens && d.file)
+const ledgerSkipped = Object.values(coveredClean).reduce((n, xs) => n + (Array.isArray(xs) ? xs.length : 0), 0)
+log(`tested-clean ledger: ${ledgerTested.reduce((n, t) => n + t.clean.length, 0)} (lens, file) pair(s) clean this run, ${ledgerDirty.length} not clean` +
+  `${ledgerSkipped ? `; ${ledgerSkipped} covered-clean file(s) handed to reviewers to skip` : ''}`)
 if (deferred.length) log(`${deferred.length} finding(s) DEFERRED unverified — verifier budget (${maxVerifierAgents}) exhausted after ${verifierSpawns} spawns; surfaced for a follow-up run`)
 
 // §7.5 rule closure (M2) — every rulebook rule gets exactly one status, reconciled against what
@@ -1657,6 +1693,7 @@ if (!fresh.length && !heldUntraced.length && !deferred.length && !proofContractD
     selfReview: { ran: false, gaps: 0, gapDetails: [], reScanned: false, notRunReason: 'clean run — no report to review' },
     vulnIntel: { mode: vulnIntelMode, enabled: vulnIntelEnabled, lenses: lenses.includes('sca') ? ['sca'] : [] },
     feedFreshnessChecked: false,
+    ledger: { tested: ledgerTested, dirty: ledgerDirty, skippedCovered: ledgerSkipped },
   }
 }
 const runMeta = {
@@ -1858,4 +1895,5 @@ return {
   selfReview: { ran: selfReviewRan, gaps: selfReviewGaps.length, gapDetails: selfReviewGaps, reScanned: false, ...(selfReviewRan ? {} : { notRunReason: selfReviewNotRun }) },
   vulnIntel: { mode: vulnIntelMode, enabled: vulnIntelEnabled, lenses: lenses.includes('sca') ? ['sca'] : [] },
   feedFreshnessChecked: false,
+  ledger: { tested: ledgerTested, dirty: ledgerDirty, skippedCovered: ledgerSkipped },
 }

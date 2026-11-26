@@ -3,6 +3,61 @@
 All notable changes to `cklph-audit` are documented here. This project adheres to
 [Semantic Versioning](https://semver.org/).
 
+## 1.5.0 - 2026-11-26
+
+Ideas adapted from Claude-BugHunter (MIT / CC BY 4.0); attribution is in `NOTICE.md`.
+
+### Added
+- **Safe-lookalike benchmark.** Seven new `should-not-flag/` fixtures that look vulnerable but are
+  safe (encoded output, a redirect checked against an origin allowlist, parameterized SQL built with
+  a template string, CORS `*` on public data, an oEmbed fetch behind a host allowlist, an admin-only
+  delete gated on `app_metadata`, AWS's documented example keys), listed in
+  `fixtures/safe-lookalikes.json` with a lookalike class and a vulnerable twin. Four new
+  `should-flag/` twins where no fixture covered the class: unescaped reflected XSS, a reflected
+  credentialed CORS origin, an admin check on `user_metadata`, and a hardcoded webhook-secret
+  fallback. Each safe fixture had an independent adversarial read before it was committed.
+- `skills/audit-backtest/bench/score.mjs`: recall, precision, and the false-positive rate on the
+  lookalikes and on all safe cases, from a JSONL of case outcomes. An errored run is counted, never
+  scored as clean. The backtest skill now records outcomes and reports the lookalike FP rate next
+  to recall.
+- `skills/audit-backtest/bench/ablate.mjs`: the same headless `claude -p` review over the fixtures
+  with this plugin loaded (`--plugin-dir`, a copy without fixtures, tests or the backtest skill) and
+  without it, same model, both under `--setting-sources local --strict-mcp-config` so no installed
+  plugin or MCP server loads in either. Cases are staged with their label header removed and a
+  neutral file name. Records go to a gitignored JSONL; the table shows recall, FP rate, median
+  turns, median cost and the delta. `bench/BASELINE.md` says how to run it; no numbers are
+  committed. A one-case smoke run (haiku) worked end to end.
+- `tools/soft404.mjs` and a mandatory not-found baseline in DAST. `dast.sh` requests three paths
+  that cannot exist before any probe, prints the baseline, and drops ffuf hits whose status and
+  body hash (path echo removed) match it. `audit-dast-runner` must take the baseline per host and
+  check hand-probed paths against it.
+- **Tested-clean ledger.** The reviewer reports `coverage.filesReviewed`; the engine returns
+  `ledger: { tested, dirty, skippedCovered }`, where a file is clean for a lens only when every
+  candidate on it was majority-refuted and no tool failed. `tools/ledger.mjs record | status | plan`
+  keeps `.audit-ledger.json` (blob hash, commit, date per lens and file), reports covered, changed
+  and never-reviewed files, and feeds `:run --skip-covered`. Capped at `ledger.maxBytes` (1 MB),
+  oldest entries rotate to `.audit-ledger.1.json` under the same cap.
+- **Reportability gate** in `audit-verifier` for security-family lenses: a concrete triggering
+  input, a privilege the attacker can get ("an admin can do X" is the feature unless the check is
+  forgeable or crossable), a root cause in this repo, not documented intended behaviour. A question
+  the code cannot answer is not a "no".
+- `trust-precedents`: "Never report on its own" (missing headers on a JSON API, rate limits on
+  internal-only endpoints, self-XSS, version disclosure with no known advisory, CORS `*` without
+  credentials, flags on non-session cookies, logout CSRF, clickjacking with no sensitive action,
+  public introspection), each naming the rule that owns its real version.
+- Tests: `bench`, `soft404`, `ledger` and `trust-precedents` suites, a tested-clean scenario in
+  `engine-flow`, and the logout `returnTo` allowlist probes in `fixture-safe-redirects`. Each has a
+  teeth case, and each was checked by reintroducing the bug and watching it fail.
+
+### Changed
+- `security/should-not-flag/safe.js` was not safe: its fetch allowlist used `startsWith`, so
+  `https://api.github.com.evil.example` passed, the proxied body went out as `text/html`, and an
+  upstream error crashed the process. It now compares `new URL(...).origin`, refuses redirects,
+  returns JSON with `nosniff`, catches upstream failures and selects only `id, name`.
+- Two omission fixtures had comments that said what was planted; they now say nothing about it.
+- `audit-run` may also write `.audit-ledger.json` (on by default; `ledger.enabled: false` turns it
+  off).
+
 ## 1.4.0 - 2026-11-21
 
 Ideas and attack classes adapted from Cloudflare's security-audit skill (MIT). Attribution is in

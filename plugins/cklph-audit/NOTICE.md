@@ -39,6 +39,23 @@ Ideas only (share-alike, copyleft, or unlicensed sources; no text adapted):
   reachability conditions.
 - promptfoo coding-agent plugins: test weakening.
 
+## Claude-BugHunter (1.5.0)
+
+Ideas adapted from https://github.com/elementalsouls/Claude-BugHunter, commit c5ff117, read on
+2026-11-26. MIT (code) and CC BY 4.0 (content), Copyright (c) 2026 Sachin Sharma. Rewritten in
+our own words; no code or text was copied. Changes were made to fit this plugin:
+
+- `eval/` (the skills-on vs skills-off ablation, the false-positive trap cases, and the warning
+  that memorized targets show no delta) -> `skills/audit-backtest/bench/` and
+  `fixtures/safe-lookalikes.json`
+- `skills/hunt-dispatch/SKILL.md` step 0 (the 404 baseline) -> `tools/soft404.mjs`, `tools/dast.sh`
+  and `agents/audit-dast-runner.md`
+- `skills/triage-validation/SKILL.md` (the 7-question gate and the never-submit list) -> the
+  reportability gate in `agents/audit-verifier.md` and "Never report on its own" in
+  `skills/trust-precedents`
+- `engine/memory.py` and `commands/memory-gc.md` (a size-capped, rotated ledger of what was
+  tested) -> `tools/ledger.mjs`
+
 ## Cloudflare security-audit skill
 
 Adapted from https://github.com/cloudflare/security-audit-skill, commit

@@ -29,8 +29,26 @@ These are settled calls, so reviewers stop re-arguing them and verifiers apply t
 | Behaviour a unit is designed to allow: an `intendedUse` entry from the threat model, with its doc, test, config or ADR evidence, within its stated limit. | all | A caller reaching it who is outside the stated audience. Reaching private networks or another tenant's data. Any critical or high finding: intended use alone never refutes one. |
 | A crash, unhandled rejection, or `undefined` access with no security effect. | security, data-isolation, web-auth, client-side, messaging, llm | `correctness`, `omission` (`omission:error-path`), `state-machine`, `concurrency`, and `availability` when one request can crash a shared process. |
 
+## Never report on its own
+
+Each of these is noise unless its exception applies. They bind the security-family lenses (security, llm, data-isolation, web-auth, client-side, messaging, availability, economic, agent-config, sca, iac, container, k8s, supply-chain). The exception column names the rule that owns the real version of the class, so a precedent here never silences it.
+
+| Not reportable alone | Report it when |
+|---|---|
+| Missing security headers (CSP, HSTS, `X-Frame-Options`, `Referrer-Policy`, `Permissions-Policy`) on a pure JSON API, or on a page with no sensitive action and no attacker-influenced HTML. | A sensitive or state-changing page can be framed: `client-side:ui-redress`. A CSP gap is the thing that lets a real injection run: file the injection, under its own lens. |
+| A missing rate limit on an endpoint an outside attacker cannot reach: an internal-only service, a cron route behind a secret compared in constant time, a staff-only tool. | Login, OTP, reset or invite brute force (security, CWE-307). Work, fan-out or paid calls a lower-trust principal can drive: `availability:unbounded-fanout`, `availability:denial-of-wallet`. |
+| Self-XSS: the payload only ever runs in the session of the person who typed it, and nothing delivers it to anyone else. | The value is stored and shown to other users, admins or support staff. A CSRF or login-CSRF can plant it in a victim's session. The source is the URL, hash or `postMessage`, which an attacker delivers by link (client-side). |
+| A version or banner (`Server`, `X-Powered-By`, a version string in a page or bundle) with no known vulnerability for that version. | The version has a published advisory: `sca`, citing the advisory. |
+| `Access-Control-Allow-Origin: *` with no credentials, on a response that reads no cookie, session or identity. | The origin is reflected, or `origin: true`, together with credentials: `security:insecure-default`. The response is gated by network position (an internal host, an IP allowlist), so a browser inside the network can be made to read it. |
+| A missing `HttpOnly`, `Secure` or `SameSite` flag on a cookie that holds no session, token or personal data (theme, locale, consent). | The cookie carries a session or auth value: `web-auth:cookie-scope`. |
+| Logout CSRF: another site can end the victim's own session. | It chains into planting the attacker's session or account: `web-auth:session-fixation`. |
+| Clickjacking on a page with no state-changing or sensitive action. | `client-side:ui-redress`. |
+| Public GraphQL introspection or a public OpenAPI document, alone. | An operation it lists is itself unauthenticated or reads another user's data: file that operation. |
+
+This list is adapted from Claude-BugHunter's never-submit list (elementalsouls/Claude-BugHunter, MIT), cut to what holds for code review and mapped to this plugin's rule ids; see the plugin's `NOTICE.md`.
+
 ## How to use this
 
-Reviewers: before filing, check the finding against this page for your lens. If a precedent binds your lens, covers the finding, and no exception applies, drop it. Verifiers: refute a finding that a binding precedent covers, and name the precedent in `reason`. If an exception applies, say which one.
+Reviewers: before filing, check the finding against this page for your lens. If a precedent binds your lens, covers the finding, and no exception applies, drop it. Verifiers: refute a finding that a binding precedent covers, and name the precedent in `reason`. If an exception applies, say which one. A finding on the never-report list is refuted only when its exception plainly does not apply; when you cannot tell, the exception wins and the finding goes on through the normal gate.
 
 Ideas from Anthropic's claude-code-security-review (MIT), Google's gemini-cli security extension (Apache-2.0), and GitHub Security Lab's seclab-taskflows (MIT); see the plugin's `NOTICE.md`.

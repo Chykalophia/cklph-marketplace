@@ -21,5 +21,5 @@ export async function createInvoice(req: any, res: any) {
   res.json({ ok: true });
 }
 
-// stub so the fixture type-checks in isolation; not part of the planted defect.
+// stub so this file type-checks on its own.
 declare const db: { query: (sql: string, params: unknown[]) => Promise<void> };
