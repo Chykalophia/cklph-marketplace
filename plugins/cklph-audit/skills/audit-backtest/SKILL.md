@@ -28,6 +28,8 @@ Procedure:
    - **false positive** = a `should-not-flag/` look-alike was flagged (and survived verify) → hurts precision.
 3. Compute **recall** = TP / (TP + FN) and **precision** = TP / (TP + FP) **after verify**.
 4. **Gate:** a lens is *not enabled* until it clears the suggested thresholds — **recall ≥ 0.8, precision ≥ 0.7 after verify**. A lens that can't clear the gate gets its tool / prompt / verifier fixed before it ships — it does not ship degraded.
+5. **Record and score mechanically.** Write one JSONL line per fixture file, `{ id, ground, lookalike, flagged }` (`id` = the path under `fixtures/`, `ground` = `vulnerable` for `should-flag/` and `safe` for `should-not-flag/`, `lookalike` = whether `fixtures/safe-lookalikes.json` lists it, `flagged` = a finding on it survived verify; a run that died gets `error` instead of `flagged`). Then run `node ${CLAUDE_PLUGIN_ROOT}/skills/audit-backtest/bench/score.mjs <file.jsonl>`. Never compute the rates by hand.
+6. **Report the false-positive rate on the safe lookalikes next to recall.** `fixtures/safe-lookalikes.json` lists safe fixtures built to look like a real bug: encoded output, a redirect checked against an allowlist, parameterized SQL that reads as concatenated, CORS `*` on public data, an outbound fetch behind a host allowlist, an action gated to admins, a documented example key. Each names its vulnerable twin. Report `FP rate (lookalikes)` as its own number: precision can look fine while every lookalike is flagged, because the real cases outnumber them. A lookalike flagged by the lens is a false positive to fix in the lens or verifier, never a reason to relabel the fixture without re-deriving why it is safe.
 
 **docs-drift note:** this lens's fixtures are markdown (`*.example.md`), and its tool takes an explicit repo root. Run `${CLAUDE_PLUGIN_ROOT}/tools/docsdrift.sh <lens-fixture-dir> <fixture-file>` with repo-root = `fixtures/docs-drift` — the parent of `should-flag/` and `should-not-flag/`, which is the root mapping the fixtures' references assume.
 
@@ -72,6 +74,10 @@ Real ground truth from git history. Check out (or read at) `[ref]`, run the lens
   ```
   PASS iff a `scope` record from the policy doc class has its line in 21-23 and a signal containing `access an admin already has`; on `cf98486` a scope site still exists (by design). LLM level: in the gate tree, write `1ec208f`'s version to `tmp/ambiguity-gate/case-<C>/SECURITY.md` and `cf98486`'s to `tmp/ambiguity-gate/case-<D>/SECURITY.md` (the next shuffled ordinals, never `pre`/`post`), one workflow run each with `path: 'tmp/ambiguity-gate/case-<C>'` (or `case-<D>`) and the default groups. PASS iff exactly one confirmed `ambiguity:scope-clause` at lines 21-23 on `1ec208f`, lines 9-11 and 15-16 clean, and none confirmed on `cf98486`. Never write into the OOOhm checkout. If those commits are gone, fall back to fixtures F2/N2.
 
+## Mode 3: plugin on vs off (ablation)
+
+`bench/ablate.mjs` runs the same headless `claude -p` review over the benchmark cases twice with the same model, once with this plugin loaded and once without, and prints recall, FP rate on the lookalikes, median turns, median cost and the delta. It costs real tokens; `bench/BASELINE.md` says how to run it and what a delta does and does not prove. No numbers are committed yet.
+
 ## Output
 
-A short report: per-mode **recall**, **precision (after verify)**, the confusion-matrix counts, each false-positive / false-negative by `file:line` (so fixtures can be added), and an explicit **PASS / FAIL vs the gate**. Read-only — writes nothing to the target repo.
+A short report: per-mode **recall**, **precision (after verify)**, the **FP rate on the safe lookalikes** (and on all safe fixtures), the confusion-matrix counts, each false-positive / false-negative by `file:line` (so fixtures can be added), and an explicit **PASS / FAIL vs the gate**. Read-only — writes nothing to the target repo.
