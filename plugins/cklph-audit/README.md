@@ -200,6 +200,14 @@ Config-compatible: a v3 `audit.config.yaml` runs unchanged — every new key def
 
 **MCP vulnerability intelligence (v1.1):** The SCA lens now auto-detects and uses `cve-mcp` and `vuln-intel-ext` MCP servers when available, enriching dependency vulnerability findings with EPSS scores, CISA KEV status, exploit availability, delta scanning ("what's new since last audit"), and WordPress vuln lookups. Config: `vulnIntel: { enabled: auto }` (default — uses MCP tools if present, falls back to local tools if not). Install the companion plugins: `claude plugin install vuln-intel-ext@cklph` and `npx cve-mcp`.
 
+## What 1.5.0 adds (false positives you can measure)
+
+- **Safe lookalikes.** `fixtures/safe-lookalikes.json` lists safe fixtures built to look like a bug (encoded output, an allowlisted redirect, parameterized SQL that reads as concatenated, CORS `*` on public data, an allowlisted fetch, an admin-only action, a documented example key), each with a vulnerable twin. The backtest reports the false-positive rate on them next to recall, scored by `skills/audit-backtest/bench/score.mjs`.
+- **Plugin on vs off.** `skills/audit-backtest/bench/ablate.mjs` runs the same headless review over the fixtures with and without this plugin, same model, and prints recall, FP rate, median turns and cost, and the delta. No numbers are committed yet; `bench/BASELINE.md` says how to produce them.
+- **Soft-404 baseline in DAST.** Before probing paths, `tools/soft404.mjs` records what the host returns for paths that cannot exist. A hit that matches is not found, so an app shell served with `200` is never reported as an exposed file.
+- **Tested-clean ledger.** `.audit-ledger.json` records each (lens, file) reviewed and found clean, with its blob hash and commit. `tools/ledger.mjs status` shows covered, changed and never-reviewed files; `:run --skip-covered` skips unchanged clean ground. Size-capped with one rotated file.
+- **Reportability gate.** The verifier asks four questions before it confirms a security finding (a concrete trigger, a privilege the attacker can get, a root cause in this repo, not documented intended behaviour), and `trust-precedents` gains a short never-report-alone list, each entry naming the rule that owns its real version.
+
 ---
 
 ## What you get out
@@ -207,6 +215,7 @@ Config-compatible: a v3 `audit.config.yaml` runs unchanged — every new key def
 - **`AUDIT-<date>.md`** — a coverage summary (examined X/N per denominator, commands verbatim), the rule-closure coverage matrix, an optional compliance matrix (one sub-section per selected framework: SOC 2, CASA, HIPAA), findings bucketed Critical/High/Medium/Low (each with `file:line`, confidence, remediation bucket, why it's real and how the verifier confirmed it, a concrete fix, and — when DAST/patch ran — exploit PoC evidence and patch diffs), a positive-controls (INFO) section of checked-and-clean patterns, and a closing `## Self-review` section, appended by the engine, with the self-review's open gaps (or why it did not run).
 - **A remediation-wave plan** — grouped, ordered fixes (quick wins first within a severity band) ready to hand to `/cklph-os:flow` or `cklph-implementer` waves; `owner-decision` items in their own subsection — they're questions, not work.
 - **An updated baseline** (when you run `:baseline`) so the next run is delta-only.
+- **An updated `.audit-ledger.json`**: what this run reviewed and found clean, so the next run can report the untested surface.
 
 ---
 
