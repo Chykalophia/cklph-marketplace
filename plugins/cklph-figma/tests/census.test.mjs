@@ -56,11 +56,46 @@ test('a color within --near of a token is reported as near it, with its share', 
   assert.equal(f.role, 'text');
 });
 
-test('two off-token colors close to each other are reported as near-duplicates', () => {
-  const f = find(analyze(census(), tokens()), 'near-duplicates', '#c0392b and #c2412e');
+test('off-token colors close to each other are reported once, as a cluster', () => {
+  const f = find(analyze(census(), tokens()), 'near-duplicates', '#c0392b, #c2412e');
   assert.ok(f);
-  assert.equal(f.deltaE, 2.9);
   assert.equal(f.share, 14.6);
+});
+
+test('forty near-identical greys come back as one cluster, not hundreds of pairs', () => {
+  const text = {};
+  for (let v = 100; v < 140; v++) text[`rgb(${v}, ${v}, ${v})`] = 10;
+  const r = analyze({ tally: { text } }, tokens());
+  const dups = r.findings.filter((f) => f.kind === 'near-duplicates');
+  assert.equal(dups.length, 1);
+  assert.equal(dups[0].share, 100);
+});
+
+test('a cluster only joins colors that pass the share cut', () => {
+  const text = { 'rgb(9, 24, 47)': 9940, 'rgb(150, 150, 150)': 30, 'rgb(151, 151, 151)': 30 };
+  const r = analyze({ tally: { text } }, tokens());
+  assert.equal(r.findings.length, 0, 'two rare near-identical colors stay rare');
+});
+
+test('the share cut uses the raw share, not the rounded one', () => {
+  const r = analyze({ tally: { text: { 'rgb(9, 24, 47)': 9954, 'rgb(200, 0, 0)': 46 } } }, tokens());
+  assert.equal(r.findings.length, 0, '0.46% is under a 0.5% cut even though it rounds to 0.5');
+  assert.equal(r.rare[0].share, 0.5);
+});
+
+test('a translucent color is judged over white and says so', () => {
+  const r = analyze({ tally: { text: { 'rgba(192, 57, 43, 0.5)': 10 } } }, tokens());
+  assert.equal(r.findings[0].value, '#e09c95');
+  assert.equal(r.findings[0].note, 'alpha 0.5, judged over white');
+});
+
+test('an unreadable color is listed, not fatal and not dropped', () => {
+  const r = analyze({ tally: { text: { 'rgb(9, 24, 47)': 90, 'oklab(0 0 0 / 0.5)': 10 } } }, tokens());
+  assert.deepEqual(r.unreadable, [{ role: 'text', value: 'oklab(0 0 0 / 0.5)', share: 10 }]);
+});
+
+test('a null tally is bad input with a clear message', () => {
+  assert.throws(() => analyze({ tally: null }, tokens()), /no tally/);
 });
 
 test('a value under the share cut is rare, not a finding', () => {
@@ -71,9 +106,11 @@ test('a value under the share cut is rare, not a finding', () => {
   assert.ok(find(strict, 'off-token color', '#14294a'));
 });
 
-test('a transparent background is ignored', () => {
+test('backgrounds and borders are checked, and a transparent background is ignored', () => {
   const r = analyze(census(), tokens());
-  assert.ok(![...r.findings, ...r.rare].some((f) => f.role === 'background'));
+  const bg = r.findings.filter((f) => f.role === 'background');
+  assert.deepEqual(bg.map((f) => [f.value, f.share]), [['#faf0c8', 5]]);
+  assert.equal(find(r, 'off-token color', '#c80000').role, 'border');
 });
 
 test('families and font sizes outside the typography tokens are findings', () => {
@@ -84,9 +121,17 @@ test('families and font sizes outside the typography tokens are findings', () =>
   assert.equal(find(r, 'off-scale size', '24px'), undefined, '1.5rem is 24px');
 });
 
+test('a clamp() font size token is named as not compared', () => {
+  const t = tokensFrom(parseDesignMd('---\ncolors:\n  ink: "#000000"\ntypography:\n  hero:\n    fontFamily: Inter\n    fontSize: clamp(2rem, 5vw, 4rem)\n  body:\n    fontFamily: Inter\n    fontSize: 16px\n---\n'));
+  assert.deepEqual(t.sizes, [16]);
+  const r = analyze({ tally: { fontSize: { 16: 10 } } }, t);
+  assert.ok(r.skipped.some((s) => /hero is clamp/.test(s)));
+});
+
 test('radius and spacing are skipped, not passed, when DESIGN.md has no tokens for them', () => {
   const r = analyze(census(), tokens());
   assert.ok(r.skipped.some((s) => s.startsWith('rounded')));
+  assert.ok(r.skipped.some((s) => /3 elements use a percentage radius/.test(s)));
   assert.ok(r.skipped.some((s) => s.startsWith('spacing')));
   assert.ok(!r.findings.some((f) => /radius|spacing/.test(f.kind)));
 });
@@ -112,4 +157,20 @@ test('CLI reads the census as the browser tool returns it, a JSON string', () =>
   const r = run([wrapped, '--design-md', DESIGN, '--json']);
   assert.equal(r.status, 2);
   assert.ok(JSON.parse(r.stdout).findings.length > 0);
+});
+
+test('the CLI still runs when reached through a symlinked plugin directory', () => {
+  // Regression: a symlinked install path (or macOS /tmp) made the CLI exit 0 with no output.
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'census-link-'));
+  const link = path.join(dir, 'plugin');
+  fs.symlinkSync(fs.realpathSync(path.join(HERE, '..')), link);
+  for (const [script, args, status] of [
+    ['census.mjs', [CENSUS, '--design-md', DESIGN], 2],
+    ['contrast.mjs', ['--design-md', DESIGN], 2],
+    ['figma-audit.mjs', ['--help'], 0],
+  ]) {
+    const r = spawnSync(process.execPath, [path.join(link, 'scripts', script), ...args], { encoding: 'utf8' });
+    assert.equal(r.status, status, `${script} through a symlink`);
+    assert.ok(r.stdout.length > 0, `${script} printed nothing through a symlink`);
+  }
 });

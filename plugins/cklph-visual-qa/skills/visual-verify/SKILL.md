@@ -49,8 +49,9 @@ npx --yes impeccable@4.10.0 comp-diff --comp /tmp/figma-1440.png --build /tmp/no
   (`contradicted`).
 - Threshold: impeccable's own hero gate is 0.72, calibrated on AI-made comps, not client Figma files.
   Until we've scored a few real builds that a person signed off, report the score and the band
-  verdicts and don't gate on a number. `--threshold 0.75` makes it exit 3 below the bar once we pick
-  one.
+  verdicts and don't gate on a number. The report's `overall` is a fraction (0.946 for the 94.6%
+  above), and `--threshold` takes the same form: `--threshold 0.75` makes it exit 3 below the bar,
+  checked on 4.10.0.
 
 ## Check four widths, not two
 

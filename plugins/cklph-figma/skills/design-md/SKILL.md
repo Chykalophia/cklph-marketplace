@@ -82,19 +82,25 @@ catches the hand-typed near-copy of a brand color, a font size nobody put in the
 Elementor site that has drifted from its Kit.
 
 1. Open the live page in a browser the session controls (the built-in browser's JavaScript tool,
-   Claude in Chrome, or DevTools) at 1440 wide, cache-busted.
-2. Run `"${CLAUDE_PLUGIN_ROOT}/scripts/census-collect.js"` in the page as one expression. It reads
-   computed styles only and returns a JSON string. Save that string to `census-1440.json`, as is.
+   Claude in Chrome, or DevTools) at 1440 wide, cache-busted, in a visible tab. A hidden tab can
+   have no width, and elements laid out against it measure 0px and are left out; if the census's
+   `viewport.width` is 0 or far from 1440, show the tab and run it again.
+2. Read `"${CLAUDE_PLUGIN_ROOT}/scripts/census-collect.js"` and paste its contents into the
+   browser's JavaScript runner as one expression (a browser tool can't run a file path). It reads
+   computed styles only, converts every color to sRGB, and returns a JSON string. Save that string
+   to `census-1440.json`, as is.
 3. Compare it with the tokens:
 
 ```bash
 node "${CLAUDE_PLUGIN_ROOT}/scripts/census.mjs" census-1440.json --design-md DESIGN.md
 ```
 
-It lists each off-token color with its share of the page (text by characters, backgrounds by
-area, borders by length), the token it sits near when it's within 6 Delta E (usually a typed
-copy), pairs of off-token colors close enough to be one color, and families and font sizes the
-typography tokens don't have. Radius and spacing are checked only when DESIGN.md has `rounded` and
+It lists each off-token color with its share of its own kind (text colors by characters,
+backgrounds by area, borders by length), the token it sits near when it's within 6 Delta E
+(usually a typed copy; CIE76, which overstates gaps between saturated blues), clusters of
+off-token colors close enough to be one color, and families and font sizes the typography tokens
+don't have. A `clamp()` font-size token can't be compared and is named under "Not checked", as is
+a percentage radius. A color it can't read is listed as unreadable, never dropped. Radius and spacing are checked only when DESIGN.md has `rounded` and
 `spacing` tokens; otherwise the report says "Not checked", which is not a pass. Values under 0.5%
 of their kind are counted as rare and left out; `--min-share` changes the cut.
 

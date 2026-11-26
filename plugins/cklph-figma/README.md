@@ -33,7 +33,7 @@ uses 4.5:1 for normal text and 3:1 for large text and UI edges, which the Google
 Node 22, no dependencies. `node scripts/contrast.mjs --help` prints usage.
 
 `scripts/census.mjs` compares what a live page paints with a DESIGN.md: off-token colors with
-their share of the page and the token each sits near, near-duplicate colors, and families and font
+their share of their kind and the token each sits near, clusters of near-duplicate colors, and families and font
 sizes outside the scale. `scripts/census-collect.js` gathers the computed styles in the page. Same
 runtime, `--help` for usage. Tests for all of them: `node --test plugins/cklph-figma/tests/*.test.mjs`,
 run in CI.

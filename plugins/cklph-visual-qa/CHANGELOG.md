@@ -17,6 +17,11 @@ Format: [Keep a Changelog](https://keepachangelog.com); versioning follows [SemV
   reviewing without screenshots, and has a hero-only mode for a page still being built. Findings
   are capped at eight, and it names what the fixes must not lose.
 
+### Fixed
+- `lint-filter.mjs` and `copy-lint.mjs` exited 0 with no output when run through a symlinked path
+  (macOS `/tmp`, or a plugin folder reached through a symlink), so `design-lint` would have
+  reported nothing to check. They compare real paths now, with a test.
+
 ## [0.4.0] - 2026-11-26
 
 ### Changed

@@ -30,8 +30,10 @@ You're useful because you didn't build the page. Keep it that way:
   read first anchors the review on what it can measure and hides what it can't.
 - A `comp-diff` report (see `visual-verify`) is a measurement, not an opinion: read it at the start
   and open the crop pair of every band it calls `missing` or `contradicted`.
-- If you could not look (no screenshot, a blank capture, the design export missing), say
-  `RECAPTURE` and what is missing, and stop. Never review from the code or the description instead.
+- Capture the page yourself with `shot` when the caller sent no screenshots. If neither theirs nor
+  yours is usable (blank, unstyled after one retry, the wrong page), or a design review has no
+  design export, say `RECAPTURE` and what is missing, and stop. Never review from the code or the
+  description instead.
 - **Hero first.** When the caller sends only the first screen of a page still being built, review
   only that: does the headline say something only this client could say, is the strongest real
   thing (the product, the photo, the offer) on this screen, does anything read as a template. Five

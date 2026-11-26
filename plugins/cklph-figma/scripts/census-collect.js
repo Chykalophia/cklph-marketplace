@@ -11,6 +11,10 @@
 //   background: painted area in thousands of square pixels
 //   border: painted border length in pixels
 //   radius, spacing: number of elements using the value
+//
+// Limits: font-family is the declared stack, not the face that loaded; background area counts
+// overlapping boxes twice; text an ancestor hides with opacity 0, visually-hidden text and
+// shadow DOM are not told apart from what shows. Read the shares as rough, not exact.
 (() => {
   const tally = {};
   const add = (kind, value, w) => {
@@ -22,7 +26,22 @@
     const n = parseFloat(v);
     return Number.isFinite(n) ? Math.round(n * 100) / 100 : 0;
   };
-  const opaque = (c) => c && c !== 'transparent' && !/rgba?\([^)]*,\s*0\)$/.test(c) && !/\/\s*0\)$/.test(c);
+  // Chrome keeps the authored color space in computed values (oklab() from Tailwind's color-mix,
+  // color(display-p3 ...), lab(), a `none` hue). Painting each one on a 1x1 canvas turns it into
+  // sRGB bytes, so census.mjs only ever sees rgb()/rgba().
+  const ctx = document.createElement('canvas').getContext('2d', { willReadFrequently: true });
+  const srgbCache = new Map();
+  const srgb = (c) => {
+    if (!srgbCache.has(c)) {
+      ctx.clearRect(0, 0, 1, 1);
+      ctx.fillStyle = '#000';
+      ctx.fillStyle = c;
+      ctx.fillRect(0, 0, 1, 1);
+      const [r, g, b, a] = ctx.getImageData(0, 0, 1, 1).data;
+      srgbCache.set(c, a === 0 ? null : a === 255 ? `rgb(${r}, ${g}, ${b})` : `rgba(${r}, ${g}, ${b}, ${Math.round((a / 255) * 100) / 100})`);
+    }
+    return srgbCache.get(c);
+  };
   const firstFamily = (f) => f.split(',')[0].trim().replace(/^["']|["']$/g, '');
   const ownText = (el) => {
     let n = 0;
@@ -39,21 +58,25 @@
 
     const chars = ownText(el);
     if (chars) {
-      add('text', s.color, chars);
+      const tc = srgb(s.color);
+      if (tc) add('text', tc, chars);
       add('family', firstFamily(s.fontFamily), chars);
       add('fontSize', String(px(s.fontSize)), chars);
       add('fontWeight', s.fontWeight, chars);
     }
-    if (opaque(s.backgroundColor)) add('background', s.backgroundColor, Math.round((r.width * r.height) / 1000) || 1);
+    const bg = srgb(s.backgroundColor);
+    if (bg) add('background', bg, Math.round((r.width * r.height) / 1000) || 1);
     for (const side of ['Top', 'Right', 'Bottom', 'Left']) {
       const w = px(s[`border${side}Width`]);
-      const c = s[`border${side}Color`];
-      if (w > 0 && s[`border${side}Style`] !== 'none' && opaque(c)) {
+      const c = w > 0 && s[`border${side}Style`] !== 'none' ? srgb(s[`border${side}Color`]) : null;
+      if (c) {
         add('border', c, Math.round(side === 'Top' || side === 'Bottom' ? r.width : r.height));
       }
     }
-    const radius = px(s.borderTopLeftRadius);
-    if (radius > 0) add('radius', String(radius), 1);
+    // A percentage radius (a circle at 50%) is not a length on the scale; keep it apart.
+    const rawRadius = s.borderTopLeftRadius;
+    if (rawRadius.trim().endsWith('%')) add('radiusPercent', rawRadius.trim(), 1);
+    else if (px(rawRadius) > 0) add('radius', String(px(rawRadius)), 1);
     for (const prop of ['paddingTop', 'paddingRight', 'paddingBottom', 'paddingLeft', 'marginTop', 'marginBottom', 'rowGap', 'columnGap']) {
       const v = px(s[prop]);
       if (v > 0) add('spacing', String(v), 1);
@@ -62,7 +85,7 @@
   return JSON.stringify({
     tool: 'census-collect',
     url: location.href,
-    // A hidden tab reports a zero window; the document still has its layout width.
+    // A hidden tab can report a zero window. census.mjs warns when the width is 0.
     viewport: { width: innerWidth || document.documentElement.clientWidth, height: innerHeight || document.documentElement.clientHeight },
     collectedAt: new Date().toISOString(),
     tally,
