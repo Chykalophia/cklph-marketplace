@@ -3,6 +3,25 @@
 All notable changes to `cklph-visual-qa` are documented here.
 Format: [Keep a Changelog](https://keepachangelog.com); versioning follows [SemVer](https://semver.org).
 
+## [0.4.0] - 2026-11-26
+
+### Changed
+- `design-lint` pins `impeccable` 4.10.0 (was 4.8.2). Checked on the chykalophia.com homepage at
+  1440: same JSON shape plus an `advisory` field; 46 findings.
+- `lint-filter.mjs` puts impeccable's advisory findings (4.10 marks `straggler` advisory) in the
+  taste group instead of blocking, matching impeccable's own exit code.
+- An exit 0 is reported as "scanned, nothing to check", never "clean". Access findings in the taste
+  group (contrast, text too small) are checked like quality findings.
+
+### Added
+- The DESIGN.md drift rules (`design-system-color`, `-font`, `-radius`, `-font-size`) as a Kit drift
+  check for WordPress and Elementor sites, with plugin CSS excused through the exceptions file.
+- `--scope`, `--sarif` for GitHub code scanning (it bypasses the exceptions file, like `--github`),
+  inline `impeccable-disable` and `--report-unused-ignores`.
+- How impeccable's native binary arrives (`npm_config_ignore_scripts` doesn't stop it,
+  `IMPECCABLE_BIN` skips it), and not to run `impeccable login` or `loop`, which offer to write into
+  each agent's rule file.
+
 ## [0.3.0] - 2026-11-21
 
 ### Added

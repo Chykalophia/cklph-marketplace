@@ -3,6 +3,16 @@
 All notable changes to `cklph-nextjs` are documented here.
 Format: [Keep a Changelog](https://keepachangelog.com); versioning follows [SemVer](https://semver.org).
 
+## [0.6.0] - 2026-11-22
+
+### Added
+- `testing/test-signal.md`: seven questions per test ("would it fail if the behavior broke?", "is
+  the expected value independent of the code?") and the shapes that pass while the feature is
+  broken, starting with guard-presence tests. `testing` links it.
+- `error-handling` gets a "Fail visible" section: catch only to recover, translate, clean up or
+  honor a contract, never to render a default that looks like real data. A fallback and a test
+  written only for it are kept or deleted together.
+
 ## [0.5.0] - 2026-11-14
 
 ### Changed
