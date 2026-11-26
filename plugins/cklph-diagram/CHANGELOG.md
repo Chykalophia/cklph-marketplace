@@ -8,6 +8,13 @@ The major version tracks the skill's `metadata.version` in
 `skills/diagram/SKILL.md`, which inherits `3.x` from the upstream skill
 this forked from.
 
+## [3.7.3] - 2026-11-26
+
+### Fixed
+
+- The `--resolve --from` example in `skills/diagram/scripts/brand-tokens.py` uses a generic
+  project path.
+
 ## [3.7.2] — 2026-11-06
 
 ### Changed

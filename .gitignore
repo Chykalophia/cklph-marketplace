@@ -10,3 +10,7 @@ tmp/
 # Private overlay — personal / internal / client skills, refs, notes (never tracked)
 private/*
 !private/README.md
+
+# The client denylist lives in cklph-marketplace-private, never here (hashes of names can be guessed)
+scripts/.identifier-denylist.sha256
+scripts/.identifier-denylist.local

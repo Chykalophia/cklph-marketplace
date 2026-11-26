@@ -1,0 +1,17 @@
+#!/usr/bin/env bash
+# Refuses a commit whose staged files name a client. Enable once per clone:
+#   git config core.hooksPath .githooks
+# This public repo holds no denylist, because unsalted hashes of names can be guessed. The scanner reads
+# it from $CKLPH_IDENTIFIER_DENYLIST or from a cklph-marketplace-private checkout beside this one, and
+# refuses the commit when it finds neither.
+# Skip in an emergency with `git commit --no-verify`.
+set -uo pipefail
+repo=$(git rev-parse --show-toplevel)
+python3 "$repo/scripts/scan_identifiers.py" --staged
+rc=$?
+case $rc in
+  0) exit 0 ;;
+  1) echo "pre-commit: the staged files above name a client. Genericize them, then commit again." ;;
+  *) echo "pre-commit: client name scan did not run (exit $rc). See scripts/scan_identifiers.py --help." ;;
+esac
+exit 1

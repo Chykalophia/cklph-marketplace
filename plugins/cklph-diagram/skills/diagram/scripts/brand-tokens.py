@@ -14,7 +14,7 @@ stops a CKLPH-skinned diagram landing inside a client deliverable.
     python scripts/brand-tokens.py cklph --check         # contrast audit only
     python scripts/brand-tokens.py --list
     python scripts/brand-tokens.py --resolve            # which brand this project uses
-    python scripts/brand-tokens.py --resolve --from ~/Development/fundae-site
+    python scripts/brand-tokens.py --resolve --from ~/Development/client-site
 
 A project can pin its brand with a ``.cklph-diagram`` marker file at its root
 containing one line, ``brand: <slug>``. ``--resolve`` finds it (walking up from
